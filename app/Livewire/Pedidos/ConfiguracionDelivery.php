@@ -5,7 +5,6 @@ namespace App\Livewire\Pedidos;
 use App\Models\Categoria;
 use App\Models\DeliveryZona;
 use App\Models\Sucursal;
-use App\Traits\ManejaDomicilio;
 use App\Traits\SucursalAware;
 use Exception;
 use Livewire\Attributes\Layout;
@@ -27,7 +26,7 @@ use Livewire\Component;
 #[Lazy]
 class ConfiguracionDelivery extends Component
 {
-    use ManejaDomicilio, SucursalAware;
+    use SucursalAware;
 
     // ==================== CONFIG SUCURSAL (RF-05) ====================
 
@@ -112,15 +111,24 @@ class ConfiguracionDelivery extends Component
 
     public string $zonaNombre = '';
 
-    public string $zonaRadioKm = '';
-
     public string $zonaCostoEnvio = '';
-
-    public string $zonaOrden = '0';
 
     public bool $zonaActivo = true;
 
-    /** @var array<int, array{dias: array<int,bool>, desde: string, hasta: string}> */
+    /**
+     * Vértices del polígono dibujado en el mapa ([{lat, lng}, ...]).
+     * Lo empuja zonas-mapa.js con $wire.set deferred en cada cambio.
+     *
+     * @var array<int, array{lat: float, lng: float}>
+     */
+    public array $zonaPoligono = [];
+
+    /**
+     * Franjas de COSTO de la zona: el costo default aplica siempre y estas
+     * franjas lo pisan por día/hora (más caro de noche, etc.).
+     *
+     * @var array<int, array{dias: array<int,bool>, desde: string, hasta: string, costo: string}>
+     */
     public array $zonaRangos = [];
 
     public bool $showEliminarZonaModal = false;
@@ -384,7 +392,7 @@ class ConfiguracionDelivery extends Component
             ->all();
     }
 
-    // ==================== ZONAS (ABM) ====================
+    // ==================== ZONAS (ABM, polígonos) ====================
 
     public function abrirCrearZona(): void
     {
@@ -395,19 +403,8 @@ class ConfiguracionDelivery extends Component
         }
 
         $this->resetZonaForm();
-
-        // Centro inicial: la sucursal (si está georreferenciada) para que el
-        // picker arranque cerca.
-        $sucursal = Sucursal::find($this->sucursalActual());
-        if ($sucursal) {
-            $this->domicilioDefaultDesdeSucursal($sucursal);
-            if ($sucursal->latitud && $sucursal->longitud) {
-                $this->domLatitud = (string) $sucursal->latitud;
-                $this->domLongitud = (string) $sucursal->longitud;
-            }
-        }
-
         $this->showZonaModal = true;
+        $this->dispatch('zona-dibujo-iniciar', poligono: [], zonaId: null);
     }
 
     public function abrirEditarZona(int $id): void
@@ -428,61 +425,61 @@ class ConfiguracionDelivery extends Component
         $this->resetZonaForm();
         $this->zonaId = $zona->id;
         $this->zonaNombre = $zona->nombre;
-        $this->zonaRadioKm = (string) $zona->radio_km;
         $this->zonaCostoEnvio = (string) $zona->costo_envio;
-        $this->zonaOrden = (string) $zona->orden;
         $this->zonaActivo = (bool) $zona->activo;
+        $this->zonaPoligono = is_array($zona->poligono) ? $zona->poligono : [];
         $this->zonaRangos = collect($zona->rangos_horarios ?? [])
-            ->map(fn ($r) => $this->rangoAForm((array) $r))
+            ->map(fn ($r) => $this->zonaRangoAForm((array) $r))
             ->values()
             ->toArray();
 
-        $this->domLatitud = (string) $zona->centro_lat;
-        $this->domLongitud = (string) $zona->centro_lng;
-        $sucursal = Sucursal::find($this->sucursalActual());
-        if ($sucursal) {
-            $this->domicilioDefaultDesdeSucursal($sucursal);
-        }
-
         $this->showZonaModal = true;
+        $this->dispatch('zona-dibujo-iniciar', poligono: $this->zonaPoligono, zonaId: $zona->id);
     }
 
     public function guardarZona(): void
     {
         $this->validate([
             'zonaNombre' => 'required|string|max:100',
-            'zonaRadioKm' => 'required|numeric|min:0.1',
             'zonaCostoEnvio' => 'required|numeric|min:0',
         ], [
             'zonaNombre.required' => __('Ingresá el nombre de la zona'),
-            'zonaRadioKm.required' => __('Ingresá el radio en km'),
-            'zonaCostoEnvio.required' => __('Ingresá el costo de envío de la zona'),
+            'zonaCostoEnvio.required' => __('Ingresá el costo de envío default de la zona'),
         ]);
 
-        if ($this->domLatitud === null || $this->domLatitud === '' || $this->domLongitud === null || $this->domLongitud === '') {
-            $this->dispatch('toast-error', message: __('Ubicá el centro de la zona en el mapa (o cargá las coordenadas a mano)'));
+        $poligono = $this->poligonoNormalizado();
+        if (count($poligono) < 3) {
+            $this->dispatch('toast-error', message: __('Dibujá la zona en el mapa: marcá al menos 3 puntos haciendo click'));
 
             return;
         }
+
+        // Centroide del polígono: referencia para centrar el mapa (el match
+        // es 100% por polígono).
+        $centroLat = round(array_sum(array_column($poligono, 'lat')) / count($poligono), 7);
+        $centroLng = round(array_sum(array_column($poligono, 'lng')) / count($poligono), 7);
 
         try {
             $datos = [
                 'sucursal_id' => (int) $this->sucursalActual(),
                 'nombre' => trim($this->zonaNombre),
-                'centro_lat' => (float) $this->domLatitud,
-                'centro_lng' => (float) $this->domLongitud,
-                'radio_km' => round((float) $this->zonaRadioKm, 2),
+                'centro_lat' => $centroLat,
+                'centro_lng' => $centroLng,
+                'radio_km' => 0,
+                'poligono' => $poligono,
                 'costo_envio' => round((float) $this->zonaCostoEnvio, 2),
-                'rangos_horarios' => $this->rangosDesdeForm($this->zonaRangos) ?: null,
-                'orden' => (int) $this->zonaOrden,
+                'rangos_horarios' => $this->zonaRangosDesdeForm($this->zonaRangos) ?: null,
                 'activo' => $this->zonaActivo,
             ];
 
             if ($this->zonaId) {
                 $zona = DeliveryZona::findOrFail($this->zonaId);
+                unset($datos['radio_km']); // legacy: no pisar hasta que deje de usarse
                 $zona->update($datos);
                 $this->dispatch('toast-success', message: __('Zona actualizada'));
             } else {
+                // Última de la lista: el drag & drop define la prioridad.
+                $datos['orden'] = (int) DeliveryZona::porSucursal((int) $this->sucursalActual())->max('orden') + 1;
                 DeliveryZona::create($datos);
                 $this->dispatch('toast-success', message: __('Zona creada'));
             }
@@ -493,9 +490,109 @@ class ConfiguracionDelivery extends Component
         }
     }
 
+    /**
+     * Orden nuevo de las zonas tras el drag & drop de la lista (SortableJS):
+     * la posición en la lista ES la prioridad de match.
+     *
+     * @param  array<int>  $ids
+     */
+    public function reordenarZonas(array $ids): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.config')) {
+            return;
+        }
+
+        $sucursalId = (int) $this->sucursalActual();
+        foreach (array_values($ids) as $orden => $id) {
+            DeliveryZona::where('sucursal_id', $sucursalId)->where('id', (int) $id)->update(['orden' => $orden]);
+        }
+
+        $this->dispatchZonasActualizadas();
+    }
+
+    /** Vértices saneados del dibujo ({lat,lng} numéricos). */
+    protected function poligonoNormalizado(): array
+    {
+        return collect($this->zonaPoligono)
+            ->map(fn ($v) => [
+                'lat' => round((float) ($v['lat'] ?? 0), 7),
+                'lng' => round((float) ($v['lng'] ?? 0), 7),
+            ])
+            ->filter(fn ($v) => $v['lat'] !== 0.0 || $v['lng'] !== 0.0)
+            ->values()
+            ->all();
+    }
+
+    /** Payload del mapa siempre visible (todas las zonas + radio general). */
+    protected function dispatchZonasActualizadas(): void
+    {
+        $this->dispatch('zonas-actualizadas', ...$this->zonasMapaPayload());
+    }
+
+    /**
+     * @return array{zonas: array, radioKm: float|null, centro: array{lat: float, lng: float}|null}
+     */
+    protected function zonasMapaPayload(): array
+    {
+        $sucursal = Sucursal::find($this->sucursalActual());
+
+        return [
+            'zonas' => DeliveryZona::porSucursal((int) $this->sucursalActual())
+                ->ordenadas()
+                ->get()
+                ->map(fn (DeliveryZona $z) => [
+                    'id' => $z->id,
+                    'nombre' => $z->nombre,
+                    'poligono' => is_array($z->poligono) ? $z->poligono : [],
+                    'activo' => (bool) $z->activo,
+                ])
+                ->all(),
+            'radioKm' => $this->radioEntregaKm !== '' ? (float) $this->radioEntregaKm : null,
+            'centro' => $sucursal && $sucursal->latitud && $sucursal->longitud
+                ? ['lat' => (float) $sucursal->latitud, 'lng' => (float) $sucursal->longitud]
+                : null,
+        ];
+    }
+
+    /** El círculo del radio general del mapa se refresca al cambiar el valor. */
+    public function updatedRadioEntregaKm(): void
+    {
+        $this->dispatchZonasActualizadas();
+    }
+
     public function agregarZonaRango(): void
     {
-        $this->zonaRangos[] = $this->rangoAForm([]);
+        $this->zonaRangos[] = $this->zonaRangoAForm([]);
+    }
+
+    /**
+     * Franja de costo persistida {dias, desde, hasta, costo} → fila del form.
+     */
+    protected function zonaRangoAForm(array $rango): array
+    {
+        return array_merge($this->rangoAForm($rango), [
+            'costo' => isset($rango['costo']) ? (string) $rango['costo'] : '',
+        ]);
+    }
+
+    /**
+     * Filas del form → franjas de costo persistidas. Sin costo la fila no
+     * aporta nada (el default ya cubre ese horario): se descarta.
+     *
+     * @return list<array{dias: list<int>, desde: string, hasta: string, costo: float}>
+     */
+    protected function zonaRangosDesdeForm(array $rangos): array
+    {
+        return collect($rangos)
+            ->map(fn ($r) => [
+                'dias' => array_map('intval', array_keys(array_filter($r['dias'] ?? []))),
+                'desde' => $r['desde'] ?? '',
+                'hasta' => $r['hasta'] ?? '',
+                'costo' => ($r['costo'] ?? '') !== '' ? round((float) $r['costo'], 2) : null,
+            ])
+            ->filter(fn ($r) => ! empty($r['dias']) && $r['desde'] !== '' && $r['hasta'] !== '' && $r['costo'] !== null)
+            ->values()
+            ->all();
     }
 
     public function quitarZonaRango(int $index): void
@@ -533,6 +630,7 @@ class ConfiguracionDelivery extends Component
         $this->showEliminarZonaModal = false;
         $this->zonaAEliminar = null;
         $this->zonaNombreAEliminar = null;
+        $this->dispatchZonasActualizadas();
     }
 
     public function cerrarEliminarZona(): void
@@ -546,18 +644,18 @@ class ConfiguracionDelivery extends Component
     {
         $this->showZonaModal = false;
         $this->resetZonaForm();
+        $this->dispatch('zona-dibujo-fin');
+        $this->dispatchZonasActualizadas();
     }
 
     protected function resetZonaForm(): void
     {
         $this->zonaId = null;
         $this->zonaNombre = '';
-        $this->zonaRadioKm = '';
         $this->zonaCostoEnvio = '';
-        $this->zonaOrden = '0';
         $this->zonaActivo = true;
+        $this->zonaPoligono = [];
         $this->zonaRangos = [];
-        $this->resetDomicilio();
         $this->resetValidation();
     }
 
@@ -569,8 +667,9 @@ class ConfiguracionDelivery extends Component
 
         return view('livewire.pedidos.configuracion-delivery', [
             'zonas' => $sucursalId
-                ? DeliveryZona::where('sucursal_id', $sucursalId)->orderBy('orden')->orderBy('nombre')->get()
+                ? DeliveryZona::where('sucursal_id', $sucursalId)->ordenadas()->get()
                 : collect(),
+            'zonasMapa' => $sucursalId ? $this->zonasMapaPayload() : ['zonas' => [], 'radioKm' => null, 'centro' => null],
             'categorias' => Categoria::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
             'diasSemana' => [1 => __('Lu'), 2 => __('Ma'), 3 => __('Mi'), 4 => __('Ju'), 5 => __('Vi'), 6 => __('Sá'), 7 => __('Do')],
         ]);

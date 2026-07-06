@@ -116,9 +116,39 @@ class DeliveryEnvioServiceTest extends TestCase
         $this->assertSame(CotizacionEnvio::ALCANCE_OK, $cotizacion->alcance);
     }
 
-    // ==================== ZONAS ====================
+    // ==================== ZONAS (polígonos) ====================
 
-    public function test_zona_activa_pisa_el_calculo_por_km(): void
+    /**
+     * Cuadrado de `$mitadLado` grados alrededor de un centro (≈ 0.02° ≈ 2.2km).
+     *
+     * @return array<int, array{lat: float, lng: float}>
+     */
+    private function cuadrado(float $lat, float $lng, float $mitadLado = 0.02): array
+    {
+        return [
+            ['lat' => $lat - $mitadLado, 'lng' => $lng - $mitadLado],
+            ['lat' => $lat - $mitadLado, 'lng' => $lng + $mitadLado],
+            ['lat' => $lat + $mitadLado, 'lng' => $lng + $mitadLado],
+            ['lat' => $lat + $mitadLado, 'lng' => $lng - $mitadLado],
+        ];
+    }
+
+    private function zonaPoligono(string $nombre, array $poligono, float $costo, array $extra = []): DeliveryZona
+    {
+        return DeliveryZona::create(array_merge([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => $nombre,
+            'centro_lat' => $poligono[0]['lat'],
+            'centro_lng' => $poligono[0]['lng'],
+            'radio_km' => 0,
+            'poligono' => $poligono,
+            'costo_envio' => $costo,
+            'orden' => 0,
+            'activo' => true,
+        ], $extra));
+    }
+
+    public function test_zona_poligono_pisa_el_calculo_por_km(): void
     {
         $sucursal = $this->sucursalConConfig([
             'georreferenciar_pedidos' => true,
@@ -127,79 +157,66 @@ class DeliveryEnvioServiceTest extends TestCase
             'costo_por_km_extra' => 200,
         ]);
 
-        DeliveryZona::create([
-            'sucursal_id' => $this->sucursalId,
-            'nombre' => 'Centro',
-            'centro_lat' => -34.6037000,
-            'centro_lng' => -58.3816000,
-            'radio_km' => 3,
-            'costo_envio' => 800,
-            'orden' => 0,
-            'activo' => true,
-        ]);
+        $this->zonaPoligono('Centro', $this->cuadrado(-34.6037, -58.3816), 800);
 
-        // ~2 km: dentro de la zona
-        $cotizacion = $this->service->cotizar($sucursal, -34.6216888, -58.3816000);
+        $cotizacion = $this->service->cotizar($sucursal, -34.6037, -58.3816);
 
         $this->assertSame(CotizacionEnvio::ALCANCE_OK, $cotizacion->alcance);
         $this->assertSame('Centro', $cotizacion->zona?->nombre);
         $this->assertEqualsWithDelta(800.0, $cotizacion->costo, 0.01);
     }
 
-    public function test_zona_fuera_de_su_horario_cae_al_calculo_por_km(): void
+    public function test_con_zonas_dibujadas_fuera_de_todas_es_fuera_de_alcance(): void
     {
-        // Criterio de aceptación: zona 3km $800 activa de 19 a 23:30 matchea
-        // antes que el cálculo por km; fuera de su horario cae al cálculo.
+        // Decisión 2026-07-06: con zonas dibujadas NO hay fallback por km —
+        // lo que queda fuera de todos los polígonos es fuera de alcance
+        // (forzable con permiso), aunque esté dentro del radio general.
+        $sucursal = $this->sucursalConConfig([
+            'georreferenciar_pedidos' => true,
+            'radio_entrega_km' => 50,
+            'costo_envio_base' => 500,
+        ]);
+
+        $this->zonaPoligono('Centro', $this->cuadrado(-34.6037, -58.3816, 0.01), 800);
+
+        // ~5 km al sur: dentro del radio general pero fuera del polígono.
+        $cotizacion = $this->service->cotizar($sucursal, -34.6486720, -58.3816000);
+
+        $this->assertSame(CotizacionEnvio::ALCANCE_FUERA, $cotizacion->alcance);
+        $this->assertNull($cotizacion->costo);
+    }
+
+    public function test_zona_legacy_sin_poligono_no_participa_y_rige_el_radio_general(): void
+    {
         $sucursal = $this->sucursalConConfig([
             'georreferenciar_pedidos' => true,
             'radio_entrega_km' => 10,
             'costo_envio_base' => 500,
-            'costo_por_km_extra' => 200,
-            'km_incluidos_en_base' => 2,
+            'km_incluidos_en_base' => 10,
         ]);
 
+        // Zona v1 por radio (sin polígono): pendiente de redibujar.
         DeliveryZona::create([
-            'sucursal_id' => $this->sucursalId,
-            'nombre' => 'Zona nocturna',
-            'centro_lat' => -34.6037000,
-            'centro_lng' => -58.3816000,
-            'radio_km' => 3,
-            'costo_envio' => 800,
-            'rangos_horarios' => [['dias' => [1, 2, 3, 4, 5, 6, 7], 'desde' => '19:00', 'hasta' => '23:30']],
-            'orden' => 0,
-            'activo' => true,
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Legacy',
+            'centro_lat' => -34.6037, 'centro_lng' => -58.3816,
+            'radio_km' => 5, 'costo_envio' => 999, 'orden' => 0, 'activo' => true,
         ]);
 
-        $dentroDelHorario = Carbon::parse('2026-07-02 21:00:00');
-        $fueraDelHorario = Carbon::parse('2026-07-02 15:00:00');
-        $punto = [-34.6216888, -58.3816000]; // ~2 km
+        $cotizacion = $this->service->cotizar($sucursal, -34.6037, -58.3816);
 
-        $conZona = $this->service->cotizar($sucursal, $punto[0], $punto[1], $dentroDelHorario);
-        $sinZona = $this->service->cotizar($sucursal, $punto[0], $punto[1], $fueraDelHorario);
-
-        $this->assertSame('Zona nocturna', $conZona->zona?->nombre);
-        $this->assertEqualsWithDelta(800.0, $conZona->costo, 0.01);
-
-        $this->assertNull($sinZona->zona);
-        $this->assertEqualsWithDelta(500.0, $sinZona->costo, 15.0); // 2km ≈ incluidos en base
+        $this->assertSame(CotizacionEnvio::ALCANCE_OK, $cotizacion->alcance);
+        $this->assertNull($cotizacion->zona, 'La zona sin polígono no debe matchear');
+        $this->assertEqualsWithDelta(500.0, $cotizacion->costo, 0.01);
     }
 
     public function test_zonas_matchean_por_orden_de_prioridad(): void
     {
         $sucursal = $this->sucursalConConfig(['georreferenciar_pedidos' => true]);
 
-        DeliveryZona::create([
-            'sucursal_id' => $this->sucursalId, 'nombre' => 'Prioritaria',
-            'centro_lat' => -34.6037000, 'centro_lng' => -58.3816000,
-            'radio_km' => 5, 'costo_envio' => 600, 'orden' => 1, 'activo' => true,
-        ]);
-        DeliveryZona::create([
-            'sucursal_id' => $this->sucursalId, 'nombre' => 'Secundaria',
-            'centro_lat' => -34.6037000, 'centro_lng' => -58.3816000,
-            'radio_km' => 5, 'costo_envio' => 900, 'orden' => 2, 'activo' => true,
-        ]);
+        $this->zonaPoligono('Prioritaria', $this->cuadrado(-34.6037, -58.3816), 600, ['orden' => 1]);
+        $this->zonaPoligono('Secundaria', $this->cuadrado(-34.6037, -58.3816), 900, ['orden' => 2]);
 
-        $cotizacion = $this->service->cotizar($sucursal, -34.6216888, -58.3816000);
+        $cotizacion = $this->service->cotizar($sucursal, -34.6037, -58.3816);
 
         $this->assertSame('Prioritaria', $cotizacion->zona?->nombre);
         $this->assertEqualsWithDelta(600.0, $cotizacion->costo, 0.01);
@@ -212,15 +229,54 @@ class DeliveryEnvioServiceTest extends TestCase
             'costo_envio_base' => 100,
         ]);
 
-        DeliveryZona::create([
-            'sucursal_id' => $this->sucursalId, 'nombre' => 'Apagada',
-            'centro_lat' => -34.6037000, 'centro_lng' => -58.3816000,
-            'radio_km' => 5, 'costo_envio' => 999, 'orden' => 0, 'activo' => false,
-        ]);
+        $this->zonaPoligono('Apagada', $this->cuadrado(-34.6037, -58.3816), 999, ['activo' => false]);
 
-        $cotizacion = $this->service->cotizar($sucursal, -34.6216888, -58.3816000);
+        $cotizacion = $this->service->cotizar($sucursal, -34.6037, -58.3816);
 
         $this->assertNull($cotizacion->zona);
+        $this->assertSame(CotizacionEnvio::ALCANCE_OK, $cotizacion->alcance);
+    }
+
+    public function test_franja_de_costo_pisa_el_default_y_fuera_de_franja_rige_el_default(): void
+    {
+        // La zona está SIEMPRE disponible: las franjas solo cambian el costo
+        // (más caro de noche); fuera de franja aplica el default.
+        $sucursal = $this->sucursalConConfig(['georreferenciar_pedidos' => true]);
+
+        $this->zonaPoligono('Centro', $this->cuadrado(-34.6037, -58.3816), 800, [
+            'rangos_horarios' => [
+                ['dias' => [1, 2, 3, 4, 5, 6, 7], 'desde' => '20:00', 'hasta' => '23:30', 'costo' => 1500],
+            ],
+        ]);
+
+        $deNoche = $this->service->cotizar($sucursal, -34.6037, -58.3816, cuando: Carbon::parse('2026-07-02 21:00'));
+        $deDia = $this->service->cotizar($sucursal, -34.6037, -58.3816, cuando: Carbon::parse('2026-07-02 15:00'));
+
+        $this->assertSame('Centro', $deNoche->zona?->nombre);
+        $this->assertEqualsWithDelta(1500.0, $deNoche->costo, 0.01);
+
+        $this->assertSame('Centro', $deDia->zona?->nombre, 'Fuera de franja la zona sigue disponible');
+        $this->assertEqualsWithDelta(800.0, $deDia->costo, 0.01);
+    }
+
+    public function test_franja_de_costo_solo_ciertos_dias_y_cruce_de_medianoche(): void
+    {
+        $sucursal = $this->sucursalConConfig(['georreferenciar_pedidos' => true]);
+
+        // Viernes 22:00–02:00 más caro: cubre también la madrugada del sábado.
+        $this->zonaPoligono('Centro', $this->cuadrado(-34.6037, -58.3816), 800, [
+            'rangos_horarios' => [
+                ['dias' => [5], 'desde' => '22:00', 'hasta' => '02:00', 'costo' => 2000],
+            ],
+        ]);
+
+        $viernesNoche = Carbon::parse('2026-07-03 23:00');   // viernes
+        $sabadoMadrugada = Carbon::parse('2026-07-04 01:00'); // sábado 01:00 (jornada del viernes)
+        $juevesNoche = Carbon::parse('2026-07-02 23:00');     // jueves: no aplica
+
+        $this->assertEqualsWithDelta(2000.0, $this->service->cotizar($sucursal, -34.6037, -58.3816, cuando: $viernesNoche)->costo, 0.01);
+        $this->assertEqualsWithDelta(2000.0, $this->service->cotizar($sucursal, -34.6037, -58.3816, cuando: $sabadoMadrugada)->costo, 0.01);
+        $this->assertEqualsWithDelta(800.0, $this->service->cotizar($sucursal, -34.6037, -58.3816, cuando: $juevesNoche)->costo, 0.01);
     }
 
     // ==================== PROMESA (RF-15 CORE) ====================

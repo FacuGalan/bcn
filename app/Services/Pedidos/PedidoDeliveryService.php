@@ -442,6 +442,7 @@ class PedidoDeliveryService
             $sucursal,
             $pedido->latitud !== null ? (float) $pedido->latitud : null,
             $pedido->longitud !== null ? (float) $pedido->longitud : null,
+            cuando: $pedido->hora_pactada_at, // franjas de costo por hora prometida
         );
 
         $update = [

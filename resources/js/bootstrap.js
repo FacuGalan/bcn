@@ -16,6 +16,9 @@ import './kanban.js';
 // Componente Alpine domicilioMapa (picker de Google Maps del domicilio)
 import './domicilio-mapa.js';
 
+// Componente Alpine zonasMapa (mapa de zonas de entrega en config delivery)
+import './zonas-mapa.js';
+
 // Componente Alpine demoraAlerta (resaltado de pedidos demorados, tick local)
 import './demora-alerta.js';
 

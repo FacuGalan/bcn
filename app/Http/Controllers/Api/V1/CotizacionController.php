@@ -15,16 +15,24 @@ class CotizacionController extends Controller
 {
     /**
      * POST /v1/tiendas/{slug}/envios/cotizar — {latitud, longitud} → costo/alcance.
+     * `hora_pactada` (opcional, datetime): evalúa las franjas de costo de la
+     * zona para ese momento (más caro de noche, etc.); default ahora.
      */
     public function envio(Request $request, DeliveryEnvioService $envioService): JsonResponse
     {
         $datos = $request->validate([
             'latitud' => 'required|numeric|between:-90,90',
             'longitud' => 'required|numeric|between:-180,180',
+            'hora_pactada' => 'nullable|date',
         ]);
 
         $sucursal = $request->attributes->get('api_sucursal');
-        $cotizacion = $envioService->cotizar($sucursal, (float) $datos['latitud'], (float) $datos['longitud']);
+        $cotizacion = $envioService->cotizar(
+            $sucursal,
+            (float) $datos['latitud'],
+            (float) $datos['longitud'],
+            cuando: isset($datos['hora_pactada']) ? \Illuminate\Support\Carbon::parse($datos['hora_pactada']) : null,
+        );
 
         return response()->json([
             'data' => [

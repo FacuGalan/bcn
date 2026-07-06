@@ -168,23 +168,77 @@ class SmokePedidosDeliveryTest extends TestCase
         $this->assertFalse((bool) $config['acepta_programados']);
     }
 
-    public function test_configuracion_delivery_crea_zona(): void
+    public function test_configuracion_delivery_crea_zona_poligono(): void
     {
-        $componente = Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
+        $poligono = [
+            ['lat' => -34.60, 'lng' => -58.39],
+            ['lat' => -34.60, 'lng' => -58.37],
+            ['lat' => -34.62, 'lng' => -58.37],
+            ['lat' => -34.62, 'lng' => -58.39],
+        ];
+
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
             ->call('abrirCrearZona')
             ->assertSet('showZonaModal', true)
+            ->assertDispatched('zona-dibujo-iniciar')
             ->set('zonaNombre', 'Centro')
-            ->set('zonaRadioKm', '3')
             ->set('zonaCostoEnvio', '600')
-            ->set('domLatitud', '-34.6037')
-            ->set('domLongitud', '-58.3816')
+            ->set('zonaPoligono', $poligono)
+            ->set('zonaRangos', [
+                ['dias' => array_fill_keys(range(1, 7), true), 'desde' => '20:00', 'hasta' => '23:30', 'costo' => '900'],
+            ])
             ->call('guardarZona')
-            ->assertDispatched('toast-success');
+            ->assertDispatched('toast-success')
+            ->assertDispatched('zonas-actualizadas');
 
         $zona = \App\Models\DeliveryZona::where('nombre', 'Centro')->first();
         $this->assertNotNull($zona);
         $this->assertSame($this->sucursalId, (int) $zona->sucursal_id);
         $this->assertEqualsWithDelta(600.0, (float) $zona->costo_envio, 0.01);
+        $this->assertTrue($zona->tienePoligono());
+        $this->assertCount(4, $zona->poligono);
+        // Franja de costo con el costo persistido.
+        $this->assertEqualsWithDelta(900.0, (float) $zona->rangos_horarios[0]['costo'], 0.01);
+        // Centroide calculado para centrar el mapa.
+        $this->assertEqualsWithDelta(-34.61, (float) $zona->centro_lat, 0.001);
+    }
+
+    public function test_configuracion_delivery_zona_sin_poligono_no_guarda(): void
+    {
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
+            ->call('abrirCrearZona')
+            ->set('zonaNombre', 'Sin dibujo')
+            ->set('zonaCostoEnvio', '500')
+            ->call('guardarZona')
+            ->assertDispatched('toast-error');
+
+        $this->assertNull(\App\Models\DeliveryZona::where('nombre', 'Sin dibujo')->first());
+    }
+
+    public function test_configuracion_delivery_reordena_zonas(): void
+    {
+        $poligono = [
+            ['lat' => -34.60, 'lng' => -58.39],
+            ['lat' => -34.60, 'lng' => -58.37],
+            ['lat' => -34.62, 'lng' => -58.38],
+        ];
+        $a = \App\Models\DeliveryZona::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'A',
+            'centro_lat' => -34.61, 'centro_lng' => -58.38, 'radio_km' => 0,
+            'poligono' => $poligono, 'costo_envio' => 500, 'orden' => 0, 'activo' => true,
+        ]);
+        $b = \App\Models\DeliveryZona::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'B',
+            'centro_lat' => -34.61, 'centro_lng' => -58.38, 'radio_km' => 0,
+            'poligono' => $poligono, 'costo_envio' => 700, 'orden' => 1, 'activo' => true,
+        ]);
+
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
+            ->call('reordenarZonas', [$b->id, $a->id])
+            ->assertDispatched('zonas-actualizadas');
+
+        $this->assertSame(0, (int) $b->fresh()->orden);
+        $this->assertSame(1, (int) $a->fresh()->orden);
     }
 
     public function test_pedidos_delivery_abre_modal_alta(): void

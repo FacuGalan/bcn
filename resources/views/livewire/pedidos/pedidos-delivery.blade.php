@@ -2061,7 +2061,7 @@
             onClose="cerrarVuelta"
         >
             <x-slot:body>
-                <div class="space-y-4">
+                <div class="space-y-2">
                     @if($vueltaInfo['salida_at'])
                         <p class="text-xs text-gray-500 dark:text-gray-400 -mt-1">{{ __('Salió') }}: {{ $vueltaInfo['salida_at'] }}</p>
                     @endif
@@ -2075,43 +2075,44 @@
                     @endif
 
                     @foreach($vueltaInfo['pedidos'] as $pedidoV)
-                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
-                            <div class="flex flex-wrap items-center justify-between gap-2">
-                                <div class="min-w-0">
-                                    <span class="text-sm font-bold text-gray-900 dark:text-white">#{{ $pedidoV['numero'] }}</span>
-                                    <span class="text-sm text-gray-700 dark:text-gray-300">— {{ $pedidoV['cliente'] }}</span>
-                                    <span class="block text-xs text-gray-500 dark:text-gray-400 truncate">{{ $pedidoV['direccion'] }}</span>
+                        <div class="border border-gray-200 dark:border-gray-700 rounded-lg px-2.5 py-1.5 space-y-1">
+                            {{-- Renglón único: número + cliente + total (izq), resultado (der) --}}
+                            <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                                <div class="min-w-0 flex items-baseline gap-1.5 flex-1">
+                                    <span class="text-sm font-bold text-gray-900 dark:text-white shrink-0">#{{ $pedidoV['numero'] }}</span>
+                                    <span class="text-sm text-gray-700 dark:text-gray-300 truncate">{{ $pedidoV['cliente'] }}</span>
+                                    <span class="text-sm font-bold text-bcn-primary shrink-0">${{ number_format($pedidoV['total'], 2, ',', '.') }}</span>
                                 </div>
-                                <span class="text-sm font-bold text-bcn-primary">${{ number_format($pedidoV['total'], 2, ',', '.') }}</span>
+                                <div class="flex gap-3 shrink-0">
+                                    <label class="inline-flex items-center gap-1 cursor-pointer">
+                                        <input type="radio" wire:model.live="vueltaResultados.{{ $pedidoV['id'] }}.resultado" value="entregado"
+                                            class="border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
+                                        <span class="text-xs text-emerald-700 dark:text-emerald-300 font-medium">{{ __('Entregado') }}</span>
+                                    </label>
+                                    <label class="inline-flex items-center gap-1 cursor-pointer">
+                                        <input type="radio" wire:model.live="vueltaResultados.{{ $pedidoV['id'] }}.resultado" value="no_entregado"
+                                            class="border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500" />
+                                        <span class="text-xs text-red-700 dark:text-red-300 font-medium">{{ __('No entregado') }}</span>
+                                    </label>
+                                </div>
                             </div>
-
-                            {{-- Resultado --}}
-                            <div class="flex flex-wrap gap-3">
-                                <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                                    <input type="radio" wire:model.live="vueltaResultados.{{ $pedidoV['id'] }}.resultado" value="entregado"
-                                        class="border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
-                                    <span class="text-sm text-emerald-700 dark:text-emerald-300 font-medium">{{ __('Entregado') }}</span>
-                                </label>
-                                <label class="inline-flex items-center gap-1.5 cursor-pointer">
-                                    <input type="radio" wire:model.live="vueltaResultados.{{ $pedidoV['id'] }}.resultado" value="no_entregado"
-                                        class="border-gray-300 dark:border-gray-600 text-red-600 focus:ring-red-500" />
-                                    <span class="text-sm text-red-700 dark:text-red-300 font-medium">{{ __('No entregado') }}</span>
-                                </label>
-                            </div>
+                            @if($pedidoV['direccion'])
+                                <span class="block text-[11px] text-gray-500 dark:text-gray-400 truncate -mt-0.5">{{ $pedidoV['direccion'] }}</span>
+                            @endif
 
                             @if(($vueltaResultados[$pedidoV['id']]['resultado'] ?? '') === 'no_entregado')
                                 <input type="text" wire:model="vueltaResultados.{{ $pedidoV['id'] }}.motivo"
                                     placeholder="{{ __('Motivo de la no entrega (obligatorio)') }}"
-                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm py-1" />
                                 <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('El pedido vuelve a "Listo" para re-despachar o cancelar; sus pagos previos se conservan.') }}</p>
                             @else
                                 {{-- Cobros contra entrega --}}
                                 @foreach($pedidoV['pagos'] as $pagoV)
-                                    <div class="flex flex-wrap items-center gap-2 bg-gray-50 dark:bg-gray-900/40 rounded-md px-2 py-1.5">
+                                    <div class="flex flex-wrap items-center gap-2 bg-gray-50 dark:bg-gray-900/40 rounded px-2 py-0.5">
                                         <label class="inline-flex items-center gap-1.5 cursor-pointer flex-1 min-w-0">
                                             <input type="checkbox" wire:model.live="vueltaCobros.{{ $pagoV['id'] }}.cobrar"
                                                 class="rounded border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
-                                            <span class="text-sm text-gray-800 dark:text-gray-200 truncate">
+                                            <span class="text-xs text-gray-800 dark:text-gray-200 truncate">
                                                 {{ $pagoV['forma_pago'] }} — ${{ number_format($pagoV['monto_final'], 2, ',', '.') }}
                                                 @if($pagoV['es_efectivo'])
                                                     <span class="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">({{ __('al fondo') }})</span>
@@ -2120,9 +2121,9 @@
                                         </label>
                                         @if($pagoV['es_efectivo'] && ($vueltaCobros[$pagoV['id']]['cobrar'] ?? false))
                                             <div class="flex items-center gap-1">
-                                                <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Recibido') }}: $</span>
+                                                <span class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('Recibido') }}: $</span>
                                                 <input type="number" step="0.01" min="0" wire:model="vueltaCobros.{{ $pagoV['id'] }}.monto_recibido"
-                                                    class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm py-1" />
+                                                    class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-0.5" />
                                             </div>
                                         @endif
                                     </div>
@@ -2169,6 +2170,12 @@
                                     <input type="radio" wire:model.live="vueltaRendicionModo" value="nada"
                                         class="border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
                                     <span class="text-sm text-gray-800 dark:text-gray-200">{{ __('Se queda todo (sigue repartiendo)') }}</span>
+                                </label>
+                                <label class="flex items-center gap-2 cursor-pointer flex-wrap">
+                                    <input type="radio" wire:model.live="vueltaRendicionModo" value="devolver_pedidos"
+                                        class="border-gray-300 dark:border-gray-600 text-emerald-600 focus:ring-emerald-500" />
+                                    <span class="text-sm text-gray-800 dark:text-gray-200">{{ __('Devuelve solo los pedidos (se queda la caja chica)') }}</span>
+                                    <span class="text-sm font-bold text-bcn-primary">${{ number_format($this->vueltaMontoSoloPedidos, 2, ',', '.') }}</span>
                                 </label>
                                 <label class="flex items-center gap-2 cursor-pointer flex-wrap">
                                     <input type="radio" wire:model.live="vueltaRendicionModo" value="devolver"

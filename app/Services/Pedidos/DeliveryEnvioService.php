@@ -10,12 +10,14 @@ use Illuminate\Support\Carbon;
 /**
  * Servicio de cotización de envío y reglas de entrega (RF-05/RF-06/RF-15).
  *
- * Resolución de la cotización (D5/D7):
+ * Resolución de la cotización (D5/D7 + decisión 2026-07-06: zonas = polígonos):
  *   1. Sin coordenadas o georreferenciación OFF → alcance 'desconocido'
  *      (costo manual, el sistema no inventa).
- *   2. Zona activa que matchee (por orden de prioridad, respetando su rango
- *      horario) → costo de la zona.
- *   3. Sin zona: distancia Haversine a la sucursal → dentro de
+ *   2. Con zonas DIBUJADAS activas, ellas definen el alcance: primera zona
+ *      (por orden de la lista) cuyo polígono contiene el punto → costo de la
+ *      zona para el momento (`costoPara`: default + franjas día/hora);
+ *      fuera de todas ⇒ 'fuera_de_alcance' (forzable con permiso).
+ *   3. Sin zonas dibujadas: distancia Haversine a la sucursal → dentro de
  *      radio_entrega_km ⇒ costo_base + max(0, km − km_incluidos) × costo_km;
  *      fuera ⇒ 'fuera_de_alcance'.
  *
@@ -31,9 +33,11 @@ class DeliveryEnvioService
 
     /**
      * Cotiza el envío a un punto. `$cuando` permite cotizar para otro momento
-     * (los rangos horarios de zona dependen de la hora); default ahora.
+     * — con promesa de entrega se pasa la HORA PACTADA para que las franjas
+     * de costo de la zona (más caro de noche, etc.) reflejen el momento real
+     * de la entrega; default ahora.
      */
-    public function cotizar(Sucursal $sucursal, ?float $lat, ?float $lng, ?Carbon $cuando = null): CotizacionEnvio
+    public function cotizar(Sucursal $sucursal, ?float $lat, ?float $lng, ?\Carbon\CarbonInterface $cuando = null): CotizacionEnvio
     {
         $config = $this->configDelivery($sucursal);
         $cuando ??= now();
@@ -49,19 +53,29 @@ class DeliveryEnvioService
             $lng
         );
 
-        // 1) Zona con prioridad sobre el cálculo por km (D7).
-        $zona = $this->matchearZona($sucursal, $lat, $lng, $cuando);
-        if ($zona) {
+        // 1) Zonas dibujadas: si existen, DEFINEN el alcance (D7). Fuera de
+        // todos los polígonos = fuera de alcance, sin fallback por km.
+        $zonas = $this->zonasDibujadas($sucursal);
+        if ($zonas->isNotEmpty()) {
+            $zona = $zonas->first(fn (DeliveryZona $z) => $z->contienePunto($lat, $lng));
+
+            if (! $zona) {
+                return new CotizacionEnvio(
+                    alcance: CotizacionEnvio::ALCANCE_FUERA,
+                    distanciaKm: round($distanciaKm, 2),
+                );
+            }
+
             return new CotizacionEnvio(
                 alcance: CotizacionEnvio::ALCANCE_OK,
-                costo: (float) $zona->costo_envio,
+                costo: $zona->costoPara($cuando),
                 distanciaKm: round($distanciaKm, 2),
                 zona: $zona,
                 demoraEstimadaMin: $this->estimarDemora($config, $distanciaKm),
             );
         }
 
-        // 2) Radio general de la sucursal.
+        // 2) Radio general de la sucursal (sin zonas dibujadas).
         $radioMax = $config['radio_entrega_km'];
         if ($radioMax !== null && $distanciaKm > (float) $radioMax) {
             return new CotizacionEnvio(
@@ -82,26 +96,30 @@ class DeliveryEnvioService
     }
 
     /**
-     * Primera zona activa de la sucursal (por `orden`, luego id) cuyo círculo
-     * contiene el punto y cuyo rango horario está activo en `$cuando`.
+     * Zonas activas CON polígono dibujado, en orden de prioridad (el drag &
+     * drop de la config define ese orden). Las zonas sin polígono (legacy
+     * radio) quedan pendientes de redibujar y no participan.
+     *
+     * @return \Illuminate\Support\Collection<int, DeliveryZona>
      */
-    public function matchearZona(Sucursal $sucursal, float $lat, float $lng, Carbon $cuando): ?DeliveryZona
+    public function zonasDibujadas(Sucursal $sucursal): \Illuminate\Support\Collection
     {
         return DeliveryZona::porSucursal($sucursal->id)
             ->activas()
             ->ordenadas()
             ->get()
-            ->first(function (DeliveryZona $zona) use ($lat, $lng, $cuando) {
-                $dist = $this->distanciaKm(
-                    (float) $zona->centro_lat,
-                    (float) $zona->centro_lng,
-                    $lat,
-                    $lng
-                );
+            ->filter(fn (DeliveryZona $zona) => $zona->tienePoligono())
+            ->values();
+    }
 
-                return $dist <= (float) $zona->radio_km
-                    && $this->rangoHorarioActivo($zona->rangos_horarios, $cuando);
-            });
+    /**
+     * Primera zona activa dibujada (por `orden`, luego id) cuyo polígono
+     * contiene el punto.
+     */
+    public function matchearZona(Sucursal $sucursal, float $lat, float $lng): ?DeliveryZona
+    {
+        return $this->zonasDibujadas($sucursal)
+            ->first(fn (DeliveryZona $zona) => $zona->contienePunto($lat, $lng));
     }
 
     /**

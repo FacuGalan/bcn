@@ -53,11 +53,17 @@ grupos de opcionales vienen con min/max/obligatorio.
 
 ### `POST /v1/tiendas/{slug}/envios/cotizar`
 ```json
-{ "latitud": -34.6037, "longitud": -58.3816 }
+{ "latitud": -34.6037, "longitud": -58.3816, "hora_pactada": "2026-07-10 22:30:00" }
 ```
 → `{ alcance: "ok"|"fuera_de_alcance"|"desconocido", pedible, costo_envio,
 distancia_km, zona, demora_estimada_min }`. Fuera de alcance **no es
 pedible** por la API (el forzado es solo del panel).
+
+`hora_pactada` es opcional: evalúa las franjas de costo de la zona para ese
+momento (p. ej. envío más caro de noche); sin ella se cotiza para ahora.
+Las zonas son polígonos dibujados en la config: si la sucursal tiene zonas
+activas, ellas definen el alcance (fuera de todas ⇒ `fuera_de_alcance`);
+sin zonas rige el radio general con costo por km.
 
 ### `POST /v1/tiendas/{slug}/carrito/cotizar`
 Cotización server-side del carrito completo — el contrato que la tienda

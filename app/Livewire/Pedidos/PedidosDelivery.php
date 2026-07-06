@@ -232,8 +232,10 @@ class PedidosDelivery extends Component
 
     /**
      * Balanceo del fondo en la misma vuelta (mini-rendición, D4/D13):
-     * nada = se queda todo | devolver = parcial a caja | cerrar = rendición
-     * definitiva (con diferencia) | reforzar = se lleva más cambio.
+     * nada = se queda todo | devolver_pedidos = entrega SOLO los cobros de
+     * esta vuelta (neto de envíos) y se queda la caja chica | devolver =
+     * monto libre a caja | cerrar = rendición definitiva (con diferencia) |
+     * reforzar = se lleva más cambio.
      */
     public string $vueltaRendicionModo = 'nada';
 
@@ -1849,9 +1851,20 @@ class PedidosDelivery extends Component
     {
         if ($valor === 'cerrar') {
             $this->vueltaRendicionMonto = (string) max(0, $this->vueltaEfectivoEsperado['esperado']);
-        } elseif ($valor === 'nada') {
+        } elseif ($valor === 'nada' || $valor === 'devolver_pedidos') {
             $this->vueltaRendicionMonto = '';
         }
+    }
+
+    /**
+     * Monto de "devuelve solo los pedidos": los cobros en efectivo de esta
+     * vuelta netos de los envíos del tercero — la caja chica queda intacta.
+     */
+    public function getVueltaMontoSoloPedidosProperty(): float
+    {
+        $esperado = $this->vueltaEfectivoEsperado;
+
+        return round(max(0, $esperado['cobros'] - $esperado['envios']), 2);
     }
 
     public function cerrarVuelta(): void
@@ -1898,13 +1911,21 @@ class PedidosDelivery extends Component
             ];
         }
 
-        $rendicion = $this->vueltaRendicionModo !== 'nada'
-            ? [
+        // "Devuelve solo los pedidos" es un devolver con monto calculado:
+        // los cobros de esta vuelta (netos de envíos); la caja chica se la queda.
+        $rendicion = match (true) {
+            $this->vueltaRendicionModo === 'devolver_pedidos' => [
+                'modo' => 'devolver',
+                'monto' => $this->vueltaMontoSoloPedidos,
+                'caja_id' => $this->cajaActual(),
+            ],
+            $this->vueltaRendicionModo !== 'nada' => [
                 'modo' => $this->vueltaRendicionModo,
                 'monto' => (float) $this->vueltaRendicionMonto,
                 'caja_id' => $this->cajaActual(),
-            ]
-            : null;
+            ],
+            default => null,
+        };
 
         try {
             $this->repartidorService->registrarVuelta(
@@ -1915,7 +1936,7 @@ class PedidosDelivery extends Component
             );
             $this->dispatch('toast-success', message: match ($this->vueltaRendicionModo) {
                 'cerrar' => __('Vuelta registrada y fondo rendido'),
-                'devolver' => __('Vuelta registrada y devolución ingresada a caja'),
+                'devolver', 'devolver_pedidos' => __('Vuelta registrada y devolución ingresada a caja'),
                 'reforzar' => __('Vuelta registrada y fondo reforzado'),
                 default => __('Vuelta registrada'),
             });

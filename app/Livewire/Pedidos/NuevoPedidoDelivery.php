@@ -866,7 +866,14 @@ class NuevoPedidoDelivery extends Component
             return;
         }
 
-        $cotizacion = $this->envioService->cotizar($sucursal, $this->entregaLatitud, $this->entregaLongitud);
+        // La hora prometida manda sobre las franjas de costo de la zona (más
+        // caro de noche, etc.); sin promesa se cotiza para ahora.
+        $cotizacion = $this->envioService->cotizar(
+            $sucursal,
+            $this->entregaLatitud,
+            $this->entregaLongitud,
+            cuando: $this->horaPactadaEstimada,
+        );
 
         $this->alcanceEnvio = $cotizacion->alcance;
         $this->distanciaKm = $cotizacion->distanciaKm;
@@ -921,6 +928,9 @@ class NuevoPedidoDelivery extends Component
     public function seleccionarDemora(int $min): void
     {
         $this->demoraSeleccionadaMin = $this->demoraSeleccionadaMin === $min ? null : $min;
+
+        // El costo de la zona puede depender de la hora prometida.
+        $this->cotizarEnvio();
     }
 
     /**
@@ -930,6 +940,9 @@ class NuevoPedidoDelivery extends Component
     public function seleccionarFranja(string $valor): void
     {
         $this->franjaSeleccionada = $this->franjaSeleccionada === $valor ? null : $valor;
+
+        // El costo de la zona puede depender de la hora prometida.
+        $this->cotizarEnvio();
     }
 
     /**

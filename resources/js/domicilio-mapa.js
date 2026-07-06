@@ -20,9 +20,10 @@
 const CENTRO_AR = { lat: -38.4161, lng: -63.6167 };
 
 // Loader del bootstrap oficial de Google Maps — carga una sola vez por página.
+// Exportado: lo reutiliza zonas-mapa.js (mapa de zonas de entrega).
 let mapsPromise = null;
 
-function cargarGoogleMaps(key) {
+export function cargarGoogleMaps(key) {
     if (mapsPromise) {
         return mapsPromise;
     }
