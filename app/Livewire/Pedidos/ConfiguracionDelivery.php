@@ -83,6 +83,12 @@ class ConfiguracionDelivery extends Component
 
     public bool $aceptaLoAntesPosible = true;
 
+    /**
+     * Espejo de sucursales.pedido_conversion_automatica_al_entregar (columna,
+     * NO key del JSON config_delivery): compartida con pedidos de mostrador.
+     */
+    public bool $convertirVentaAlEntregar = false;
+
     // ==================== ZONAS ====================
 
     public bool $showZonaModal = false;
@@ -139,6 +145,7 @@ class ConfiguracionDelivery extends Component
         $config = $sucursal->getConfigDelivery();
 
         $this->usaDelivery = (bool) $sucursal->usa_delivery;
+        $this->convertirVentaAlEntregar = (bool) $sucursal->pedido_conversion_automatica_al_entregar;
         $this->georreferenciarPedidos = (bool) $config['georreferenciar_pedidos'];
         $this->radioEntregaKm = $config['radio_entrega_km'] !== null ? (string) $config['radio_entrega_km'] : '';
         $this->costoEnvioBase = (string) $config['costo_envio_base'];
@@ -227,6 +234,7 @@ class ConfiguracionDelivery extends Component
         try {
             $sucursal->update([
                 'usa_delivery' => $this->usaDelivery,
+                'pedido_conversion_automatica_al_entregar' => $this->convertirVentaAlEntregar,
                 'config_delivery' => $config,
             ]);
 

@@ -2037,6 +2037,7 @@ CREATE TABLE `{{PREFIX}}pedidos_delivery` (
   `en_camino_at` timestamp NULL DEFAULT NULL,
   `no_entregado_motivo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ultima vuelta fallida (RF-08)',
   `hora_pactada_at` timestamp NULL DEFAULT NULL COMMENT 'Promesa de entrega/retiro (RF-15)',
+  `lo_antes_posible` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Promesa ASAP del modo franjas (hora_pactada_at queda NULL)',
   `programado_para` timestamp NULL DEFAULT NULL COMMENT 'Pedido programado (RF-15, logica en Fase 8)',
   `datos_fiscales_snapshot` json DEFAULT NULL COMMENT 'DNI/CUIT opcional del checkout (RF-13)',
   `origen` enum('panel','tienda','api') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'panel' COMMENT 'RF-12',

@@ -1366,7 +1366,7 @@ class PedidosDelivery extends Component
 
         try {
             $hora = $iso ? \Illuminate\Support\Carbon::parse($iso) : null;
-            $this->service->aceptarPedidoExterno($pedido, null, $hora);
+            $this->service->aceptarPedidoExterno($pedido, null, $hora, loAntesPosible: $iso === null);
             $this->dispatch('toast-success', message: __('Pedido #:numero aceptado', ['numero' => $pedido->fresh()->numero_visible]));
             $this->cerrarAceptar();
         } catch (Exception $e) {

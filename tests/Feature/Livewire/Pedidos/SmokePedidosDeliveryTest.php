@@ -148,12 +148,14 @@ class SmokePedidosDeliveryTest extends TestCase
             ->set('radioEntregaKm', '5')
             ->set('costoEnvioBase', '800')
             ->set('modoPromesa', 'automatica')
+            ->set('convertirVentaAlEntregar', true)
             ->call('guardarConfig')
             ->assertDispatched('toast-success');
 
         $sucursal = \App\Models\Sucursal::find($this->sucursalId);
         $config = $sucursal->getConfigDelivery();
         $this->assertTrue((bool) $sucursal->usa_delivery);
+        $this->assertTrue((bool) $sucursal->pedido_conversion_automatica_al_entregar, 'La config de conversión al entregar se guarda en la columna compartida con mostrador');
         $this->assertTrue((bool) $config['georreferenciar_pedidos']);
         $this->assertEqualsWithDelta(5.0, (float) $config['radio_entrega_km'], 0.01);
         $this->assertEqualsWithDelta(800.0, (float) $config['costo_envio_base'], 0.01);

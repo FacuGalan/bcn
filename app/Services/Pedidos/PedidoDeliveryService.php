@@ -176,6 +176,7 @@ class PedidoDeliveryService
                 'fuera_de_alcance' => (bool) ($data['fuera_de_alcance'] ?? false),
                 'repartidor_id' => $data['repartidor_id'] ?? null,
                 'hora_pactada_at' => $data['hora_pactada_at'] ?? null,
+                'lo_antes_posible' => (bool) ($data['lo_antes_posible'] ?? false),
                 'programado_para' => $data['programado_para'] ?? null,
                 'datos_fiscales_snapshot' => $data['datos_fiscales_snapshot'] ?? null,
                 'origen' => $data['origen'] ?? PedidoDelivery::ORIGEN_PANEL,
@@ -339,6 +340,9 @@ class PedidoDeliveryService
                 'fuera_de_alcance' => $esTakeAway ? false : (bool) ($data['fuera_de_alcance'] ?? $pedido->fuera_de_alcance),
                 'repartidor_id' => $esTakeAway ? null : ($data['repartidor_id'] ?? $pedido->repartidor_id),
                 'hora_pactada_at' => $data['hora_pactada_at'] ?? $pedido->hora_pactada_at,
+                'lo_antes_posible' => array_key_exists('lo_antes_posible', $data)
+                    ? (bool) $data['lo_antes_posible']
+                    : (bool) $pedido->lo_antes_posible,
             ]);
 
             $this->guardarPromocionesPedido($pedido, $data);
@@ -679,15 +683,18 @@ class PedidoDeliveryService
      * En modo franjas, "Lo antes posible" acepta sin hora ($horaPactada null
      * y $demoraMin null → hora_pactada_at queda null).
      */
-    public function aceptarPedidoExterno(PedidoDelivery $pedido, ?int $demoraMin = null, ?Carbon $horaPactada = null): void
+    public function aceptarPedidoExterno(PedidoDelivery $pedido, ?int $demoraMin = null, ?Carbon $horaPactada = null, bool $loAntesPosible = false): void
     {
         $this->guardEsPedidoPorAceptar($pedido);
 
         if ($horaPactada !== null) {
-            $pedido->update(['hora_pactada_at' => $horaPactada]);
+            $pedido->update(['hora_pactada_at' => $horaPactada, 'lo_antes_posible' => false]);
             $pedido->refresh();
         } elseif ($demoraMin !== null && $demoraMin >= 0) {
-            $pedido->update(['hora_pactada_at' => now()->addMinutes($demoraMin)]);
+            $pedido->update(['hora_pactada_at' => now()->addMinutes($demoraMin), 'lo_antes_posible' => false]);
+            $pedido->refresh();
+        } elseif ($loAntesPosible) {
+            $pedido->update(['lo_antes_posible' => true]);
             $pedido->refresh();
         }
 

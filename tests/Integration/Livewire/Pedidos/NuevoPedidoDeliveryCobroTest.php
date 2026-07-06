@@ -356,6 +356,28 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         $pedido = PedidoDelivery::first();
         $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
         $this->assertNull($pedido->hora_pactada_at, '"Lo antes posible" no fija hora pactada');
+        $this->assertTrue((bool) $pedido->lo_antes_posible, 'El flag ASAP debe persistirse para mostrarse en el panel');
+    }
+
+    public function test_aceptar_pedido_externo_lo_antes_posible_marca_el_flag(): void
+    {
+        $this->habilitarDelivery(['modo_promesa' => 'franjas']);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelivery(total: 500, overrides: ['origen' => PedidoDelivery::ORIGEN_TIENDA]),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 500)],
+            esBorrador: true,
+        );
+
+        Livewire::test(\App\Livewire\Pedidos\PedidosDelivery::class)
+            ->call('abrirAceptar', $pedido->id)
+            ->call('confirmarAceptarFranja')
+            ->assertDispatched('toast-success');
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertNull($pedido->hora_pactada_at);
+        $this->assertTrue((bool) $pedido->lo_antes_posible);
     }
 
     public function test_aceptar_pedido_externo_con_franja_horaria(): void

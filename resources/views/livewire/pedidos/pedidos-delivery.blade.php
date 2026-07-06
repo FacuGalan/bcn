@@ -839,7 +839,7 @@
                                     @click="marcarVisto({{ $pedido->id }})"
                                     data-pedido-id="{{ $pedido->id }}"
                                     wire:key="kanban-card-{{ $pedido->id }}">
-                                    {{-- Fila 1: numero + beeper (izq), estado pago (der) --}}
+                                    {{-- Fila 1: numero + tipo + beeper (izq), estado pago (der) --}}
                                     <div class="flex justify-between items-center gap-2">
                                         <div class="flex items-center gap-1.5 min-w-0">
                                             <span class="font-bold text-base text-bcn-secondary dark:text-white">
@@ -849,6 +849,18 @@
                                                     <span class="italic text-gray-500 text-sm">{{ __('S/N') }}</span>
                                                 @endif
                                             </span>
+                                            {{-- Tipo junto al número (la card compacta no repite el chip abajo) --}}
+                                            @if($pedido->tipo === 'take_away')
+                                                <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                                                    {{ __('Para llevar') }}
+                                                </span>
+                                            @else
+                                                <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-200">
+                                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
+                                                    {{ __('Delivery') }}
+                                                </span>
+                                            @endif
                                             @if($pedido->numero_beeper)
                                                 <span class="bg-bcn-primary text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight">
                                                     B{{ $pedido->numero_beeper }}
@@ -867,8 +879,9 @@
                                     <div class="text-sm text-gray-800 dark:text-gray-200 mt-1 truncate font-medium">
                                         {{ $pedido->cliente?->nombre ?? $pedido->nombre_cliente_temporal ?? __('Sin cliente') }}
                                     </div>
-                                    {{-- Fila 2b: badges delivery (tipo, dirección, repartidor, zona, envío, origen) --}}
-                                    @include('livewire.pedidos._badges-delivery', ['pedido' => $pedido, 'class' => 'mt-1'])
+                                    {{-- Fila 2b: datos de entrega COMPACTOS (el tipo va junto al número
+                                         y el envío no se repite: el total de abajo ya lo incluye) --}}
+                                    @include('livewire.pedidos._badges-delivery', ['pedido' => $pedido, 'class' => 'mt-1', 'sinTipo' => true, 'sinEnvio' => true])
                                     {{-- Fila 3: acciones en un solo botón desplegable (izq) + monto (der).
                                          El menú va con position:fixed para que el overflow de la
                                          columna kanban no lo recorte; se cierra al scrollear/clickear fuera. --}}

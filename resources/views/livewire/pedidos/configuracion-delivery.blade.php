@@ -39,6 +39,13 @@
                     <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Listo → En camino requiere repartidor asignado.') }}</span>
                 </span>
             </label>
+            <label class="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" wire:model="convertirVentaAlEntregar" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                    {{ __('Convertir en venta al entregar') }}
+                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Al pasar a Entregado el pedido se factura automáticamente (requiere pagos completos y caja). Configuración compartida con pedidos de mostrador.') }}</span>
+                </span>
+            </label>
             <div>
                 <label for="cd-categoria-envio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría del renglón de envío') }}</label>
                 <select id="cd-categoria-envio" wire:model="conceptoCategoriaEnvioId"

@@ -224,6 +224,9 @@ class NuevoPedidoDelivery extends Component
     /** Promesa ya persistida del pedido en edición (se preserva si no se cambia). */
     public ?string $horaPactadaExistente = null;
 
+    /** Flag "Lo antes posible" ya persistido del pedido en edición. */
+    public bool $loAntesPosibleExistente = false;
+
     public bool $modoEdicion = false;
 
     /** Estado del pedido en modo edición (para mostrarlo y validar transiciones). */
@@ -989,6 +992,31 @@ class NuevoPedidoDelivery extends Component
     }
 
     /**
+     * Flag "Lo antes posible" que acompaña a hora_pactada_at al persistir:
+     * true solo cuando el operador eligió ASAP en modo franjas (o el pedido
+     * ya lo tenía y no se cambió la promesa).
+     */
+    protected function resolverLoAntesPosible(): bool
+    {
+        if ($this->modoPromesa === 'franjas') {
+            if ($this->franjaSeleccionada === 'asap') {
+                return true;
+            }
+            if ($this->franjaSeleccionada) {
+                return false;
+            }
+
+            return $this->modoEdicion && $this->loAntesPosibleExistente;
+        }
+
+        if ($this->demoraSeleccionadaMin !== null) {
+            return false;
+        }
+
+        return $this->modoEdicion && $this->loAntesPosibleExistente;
+    }
+
+    /**
      * hora_pactada_at que va al service al persistir:
      * - Franjas: horario elegido; 'asap' → null (Lo antes posible); sin
      *   elección en edición → preserva.
@@ -1599,6 +1627,10 @@ class NuevoPedidoDelivery extends Component
             ? CotizacionEnvio::ALCANCE_FUERA
             : ($this->entregaLatitud !== null ? CotizacionEnvio::ALCANCE_OK : CotizacionEnvio::ALCANCE_DESCONOCIDO);
         $this->horaPactadaExistente = $pedido->hora_pactada_at?->toDateTimeString();
+        $this->loAntesPosibleExistente = (bool) $pedido->lo_antes_posible;
+        if ($this->loAntesPosibleExistente && $this->modoPromesa === 'franjas') {
+            $this->franjaSeleccionada = 'asap';
+        }
 
         $this->items = $pedido->detalles
             ->filter(fn ($d) => ! $d->es_costo_envio)
@@ -2238,6 +2270,7 @@ class NuevoPedidoDelivery extends Component
             // Promesa de entrega (RF-15 core): explícita desde el alta; null en
             // manual sin botón (y el service no la autocalcula en ese modo).
             'hora_pactada_at' => $this->resolverHoraPactada(),
+            'lo_antes_posible' => $this->resolverLoAntesPosible(),
             '_actualizar_direccion_cliente' => ! $this->entregarEnOtraDireccion,
             'subtotal' => round((float) ($r['subtotal'] ?? 0) - $envio, 2),
             'iva' => round((float) ($r['iva_total'] ?? 0) - $ivaEnvio, 2),
