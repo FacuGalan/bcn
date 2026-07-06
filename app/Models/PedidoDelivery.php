@@ -36,6 +36,7 @@ use Illuminate\Support\Str;
  */
 class PedidoDelivery extends Model
 {
+    use \App\Models\Concerns\CalculaAlertaDemora;
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';

@@ -10,6 +10,7 @@ use App\Models\FormaPago;
 use App\Models\PedidoDelivery;
 use App\Models\PedidoDeliveryPago;
 use App\Models\Repartidor;
+use App\Models\Sucursal;
 use App\Services\Pedidos\PedidoDeliveryService;
 use App\Services\Pedidos\RepartidorService;
 use App\Traits\CajaAware;
@@ -935,10 +936,11 @@ class PedidosDelivery extends Component
             $this->aplicarBusqueda($query);
         }
 
-        // Orden Kanban: prioridad al `orden_kanban` (que el usuario manipula con
-        // drag dentro de la misma columna). Tiebreak por id DESC para casos en
-        // que dos pedidos compartan orden_kanban (no deberia, pero por las dudas).
-        $pedidos = $query->orderByDesc('orden_kanban')->orderByDesc('id')->limit(200)->get();
+        // Orden Kanban: los "Lo antes posible" van SIEMPRE arriba de su columna
+        // (no tienen hora comprometida: salen apenas se pueda). Después manda
+        // `orden_kanban` (drag del usuario dentro de la columna) con tiebreak
+        // por id DESC para casos en que dos pedidos compartan orden_kanban.
+        $pedidos = $query->orderByDesc('lo_antes_posible')->orderByDesc('orden_kanban')->orderByDesc('id')->limit(200)->get();
 
         // Inicializar cada columna con una Collection FRESCA. array_fill_keys con
         // collect() comparte la misma referencia entre todas las keys (bug subtle).
@@ -2280,10 +2282,15 @@ class PedidosDelivery extends Component
             ])->find($this->pedidoDetalleId)
             : null;
 
+        // Umbrales de alerta de demora de la sucursal (0 = deshabilitada).
+        $sucursalPanel = $this->sucursalActual() ? Sucursal::find($this->sucursalActual()) : null;
+
         return view('livewire.pedidos.pedidos-delivery', [
             'pedidos' => $pedidos,
             'borradores' => $borradores,
             'pedidosKanban' => $pedidosKanban,
+            'alertaAmarillaMin' => (int) ($sucursalPanel->pedido_alerta_amarilla_min ?? 0),
+            'alertaRojaMin' => (int) ($sucursalPanel->pedido_alerta_roja_min ?? 0),
             'transicionesKanban' => $transicionesKanban,
             'estadosKanban' => self::ESTADOS_KANBAN,
             'pedidoDetalle' => $pedidoDetalle,

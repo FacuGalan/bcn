@@ -29,6 +29,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 class Comercio extends Model implements \Illuminate\Contracts\Auth\Authenticatable
 {
     use HasFactory;
+
     // HasApiTokens + Authenticatable: tokens de integración de la API v1
     // (pedidos-delivery RF-11) emitidos POR COMERCIO con abilities. El guard
     // de Sanctum exige que el tokenable sea Authenticatable ($request->user()

@@ -89,6 +89,14 @@ class ConfiguracionDelivery extends Component
      */
     public bool $convertirVentaAlEntregar = false;
 
+    /**
+     * Alertas de pedidos demorados (columnas de sucursales, compartidas con
+     * mostrador). Minutos; 0 = deshabilitada.
+     */
+    public string $alertaAmarillaMin = '15';
+
+    public string $alertaRojaMin = '30';
+
     // ==================== ZONAS ====================
 
     public bool $showZonaModal = false;
@@ -146,6 +154,8 @@ class ConfiguracionDelivery extends Component
 
         $this->usaDelivery = (bool) $sucursal->usa_delivery;
         $this->convertirVentaAlEntregar = (bool) $sucursal->pedido_conversion_automatica_al_entregar;
+        $this->alertaAmarillaMin = (string) ($sucursal->pedido_alerta_amarilla_min ?? 15);
+        $this->alertaRojaMin = (string) ($sucursal->pedido_alerta_roja_min ?? 30);
         $this->georreferenciarPedidos = (bool) $config['georreferenciar_pedidos'];
         $this->radioEntregaKm = $config['radio_entrega_km'] !== null ? (string) $config['radio_entrega_km'] : '';
         $this->costoEnvioBase = (string) $config['costo_envio_base'];
@@ -235,6 +245,8 @@ class ConfiguracionDelivery extends Component
             $sucursal->update([
                 'usa_delivery' => $this->usaDelivery,
                 'pedido_conversion_automatica_al_entregar' => $this->convertirVentaAlEntregar,
+                'pedido_alerta_amarilla_min' => max(0, (int) $this->alertaAmarillaMin),
+                'pedido_alerta_roja_min' => max(0, (int) $this->alertaRojaMin),
                 'config_delivery' => $config,
             ]);
 

@@ -2873,6 +2873,8 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `pedido_delivery_ultimo_numero` int unsigned NOT NULL DEFAULT '0' COMMENT 'Contador correlativo de pedidos delivery (reset manual con permiso)',
   `imprime_comanda_automatico` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si imprime comanda automaticamente al confirmar pedido',
   `pedido_conversion_automatica_al_entregar` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si convierte pedido en venta automaticamente al pasar a entregado',
+  `pedido_alerta_amarilla_min` int unsigned NOT NULL DEFAULT '15' COMMENT 'Minutos para alerta amarilla de pedido demorado (0 = off, compartida delivery/mostrador)',
+  `pedido_alerta_roja_min` int unsigned NOT NULL DEFAULT '30' COMMENT 'Minutos para alerta roja de pedido demorado (0 = off, compartida delivery/mostrador)',
   `usa_beepers` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si la sucursal usa beepers llamadores (numero_beeper obligatorio al confirmar)',
   `usa_llamador` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si usa el monitor llamador de pedidos',
   `usa_consultor_precios` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si usa la pantalla consultor de precios (Clase B)',

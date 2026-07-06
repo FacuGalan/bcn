@@ -46,6 +46,21 @@
                     <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Al pasar a Entregado el pedido se factura automáticamente (requiere pagos completos y caja). Configuración compartida con pedidos de mostrador.') }}</span>
                 </span>
             </label>
+            <div class="flex flex-wrap items-end gap-3">
+                <div>
+                    <label for="cd-alerta-amarilla" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alerta amarilla (min)') }}</label>
+                    <input id="cd-alerta-amarilla" type="number" min="0" wire:model="alertaAmarillaMin"
+                        class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                </div>
+                <div>
+                    <label for="cd-alerta-roja" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alerta roja (min)') }}</label>
+                    <input id="cd-alerta-roja" type="number" min="0" wire:model="alertaRojaMin"
+                        class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                </div>
+                <p class="text-xs text-gray-500 dark:text-gray-400 basis-full sm:basis-auto sm:flex-1">
+                    {{ __('Resalta pedidos demorados en el panel: sin promesa mide desde la confirmación; con promesa avisa antes de vencer. 0 = sin alerta. Compartida con mostrador.') }}
+                </p>
+            </div>
             <div>
                 <label for="cd-categoria-envio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría del renglón de envío') }}</label>
                 <select id="cd-categoria-envio" wire:model="conceptoCategoriaEnvioId"

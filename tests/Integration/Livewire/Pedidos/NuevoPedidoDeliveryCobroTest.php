@@ -403,6 +403,32 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         $this->assertTrue($pedido->hora_pactada_at->equalTo($franja));
     }
 
+    // ==================== ALERTAS DE DEMORA ====================
+
+    public function test_alerta_demora_calcula_los_instantes_de_corte(): void
+    {
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 100, cajaId: $caja->id);
+
+        // Sin promesa: edad desde la confirmación.
+        $alerta = $pedido->alertaDemora(15, 30);
+        $this->assertNotNull($alerta);
+        $this->assertTrue($pedido->confirmado_at->copy()->addMinutes(15)->equalTo(\Illuminate\Support\Carbon::parse($alerta['amarillo'])));
+        $this->assertTrue($pedido->confirmado_at->copy()->addMinutes(30)->equalTo(\Illuminate\Support\Carbon::parse($alerta['rojo'])));
+
+        // Con promesa: amarillo ANTES de vencer, rojo al vencer.
+        $promesa = now()->addMinutes(40)->startOfSecond();
+        $pedido->update(['hora_pactada_at' => $promesa]);
+        $alerta = $pedido->fresh()->alertaDemora(15, 30);
+        $this->assertTrue($promesa->copy()->subMinutes(15)->equalTo(\Illuminate\Support\Carbon::parse($alerta['amarillo'])));
+        $this->assertTrue($promesa->equalTo(\Illuminate\Support\Carbon::parse($alerta['rojo'])));
+
+        // Umbrales en 0 = deshabilitada; pedido fuera de juego = sin alerta.
+        $this->assertNull($pedido->fresh()->alertaDemora(0, 0));
+        $pedido->update(['estado_pedido' => PedidoDelivery::ESTADO_CANCELADO]);
+        $this->assertNull($pedido->fresh()->alertaDemora(15, 30));
+    }
+
     public function test_promesa_existente_se_preserva_al_editar_sin_cambiarla(): void
     {
         $this->habilitarDelivery(['modo_promesa' => 'manual', 'botones_demora' => [10, 20]]);

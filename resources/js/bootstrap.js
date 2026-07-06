@@ -16,6 +16,9 @@ import './kanban.js';
 // Componente Alpine domicilioMapa (picker de Google Maps del domicilio)
 import './domicilio-mapa.js';
 
+// Componente Alpine demoraAlerta (resaltado de pedidos demorados, tick local)
+import './demora-alerta.js';
+
 // Modulo de impresion QZ Tray
 import './qz-integration.js';
 

@@ -149,6 +149,8 @@ class SmokePedidosDeliveryTest extends TestCase
             ->set('costoEnvioBase', '800')
             ->set('modoPromesa', 'automatica')
             ->set('convertirVentaAlEntregar', true)
+            ->set('alertaAmarillaMin', '20')
+            ->set('alertaRojaMin', '45')
             ->call('guardarConfig')
             ->assertDispatched('toast-success');
 
@@ -156,6 +158,8 @@ class SmokePedidosDeliveryTest extends TestCase
         $config = $sucursal->getConfigDelivery();
         $this->assertTrue((bool) $sucursal->usa_delivery);
         $this->assertTrue((bool) $sucursal->pedido_conversion_automatica_al_entregar, 'La config de conversión al entregar se guarda en la columna compartida con mostrador');
+        $this->assertSame(20, (int) $sucursal->pedido_alerta_amarilla_min);
+        $this->assertSame(45, (int) $sucursal->pedido_alerta_roja_min);
         $this->assertTrue((bool) $config['georreferenciar_pedidos']);
         $this->assertEqualsWithDelta(5.0, (float) $config['radio_entrega_km'], 0.01);
         $this->assertEqualsWithDelta(800.0, (float) $config['costo_envio_base'], 0.01);

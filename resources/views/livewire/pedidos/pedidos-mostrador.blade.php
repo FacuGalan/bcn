@@ -291,7 +291,9 @@
         {{-- Cards móvil --}}
         <div class="sm:hidden space-y-3">
             @forelse($pedidos as $pedido)
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4">
+                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4"
+                    x-data="demoraAlerta(@js($pedido->alertaDemora($alertaAmarillaMin, $alertaRojaMin)))" :class="clases()"
+                    wire:key="card-movil-{{ $pedido->id }}">
                     <div class="flex justify-between items-start mb-2">
                         <div class="flex-1">
                             <div class="flex items-center gap-2 flex-wrap">
@@ -302,6 +304,10 @@
                                         <span class="italic text-gray-500">{{ __('Borrador') }}</span>
                                     @endif
                                 </span>
+                                <span x-show="nivel !== 'ok'" x-cloak x-text="edad()"
+                                    :class="nivel === 'rojo' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'"
+                                    class="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight"
+                                    title="{{ __('Tiempo desde la confirmación') }}"></span>
                                 @if($pedido->numero_beeper)
                                     <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
                                         🔔 {{ $pedido->numero_beeper }}
@@ -457,7 +463,9 @@
                         @forelse($pedidos as $pedido)
                             <tr
                                 wire:key="row-{{ $pedido->id }}"
-                                :class="estaDestacado({{ $pedido->id }}) ? 'pedido-destacado-row' : 'hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'"
+                                x-data="demoraAlerta(@js($pedido->alertaDemora($alertaAmarillaMin, $alertaRojaMin)))"
+                                :class="[estaDestacado({{ $pedido->id }}) ? 'pedido-destacado-row' : 'hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors',
+                                    nivel === 'rojo' ? 'bg-red-50 dark:bg-red-900/10' : (nivel === 'amarillo' ? 'bg-amber-50 dark:bg-amber-900/10' : '')]"
                                 @click="marcarVisto({{ $pedido->id }})"
                             >
                                 <td class="px-4 py-3 whitespace-nowrap">
@@ -467,6 +475,10 @@
                                         @else
                                             <span class="italic text-gray-500 text-xs">{{ __('Borrador') }}</span>
                                         @endif
+                                        <span x-show="nivel !== 'ok'" x-cloak x-text="edad()"
+                                            :class="nivel === 'rojo' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'"
+                                            class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight align-middle"
+                                            title="{{ __('Tiempo desde la confirmación') }}"></span>
                                     </div>
                                     @if($pedido->numero_beeper)
                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
@@ -653,7 +665,8 @@
                             data-estado="{{ $estado }}">
                             @forelse($pedidosKanban[$estado] as $pedido)
                                 <div class="kanban-card bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2.5 cursor-move hover:shadow-md transition-shadow select-none"
-                                    :class="estaDestacado({{ $pedido->id }}) ? 'pedido-destacado-card' : ''"
+                                    x-data="demoraAlerta(@js($pedido->alertaDemora($alertaAmarillaMin, $alertaRojaMin)))"
+                                    :class="[estaDestacado({{ $pedido->id }}) ? 'pedido-destacado-card' : '', clases()]"
                                     @click="marcarVisto({{ $pedido->id }})"
                                     data-pedido-id="{{ $pedido->id }}"
                                     wire:key="kanban-card-{{ $pedido->id }}">
@@ -672,6 +685,10 @@
                                                     B{{ $pedido->numero_beeper }}
                                                 </span>
                                             @endif
+                                            <span x-show="nivel !== 'ok'" x-cloak x-text="edad()"
+                                                :class="nivel === 'rojo' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'"
+                                                class="text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight"
+                                                title="{{ __('Tiempo desde la confirmación') }}"></span>
                                         </div>
                                         @if($pedido->estado_pago === 'pagado')
                                             <span class="text-green-700 dark:text-green-400 font-bold text-xs">{{ __('Pagado') }}</span>

@@ -269,6 +269,22 @@
                             </div>
                         </div>
 
+                        <div class="flex flex-wrap items-end gap-3">
+                            <div>
+                                <label for="configPedidoAlertaAmarillaMin" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alerta amarilla (min)') }}</label>
+                                <input id="configPedidoAlertaAmarillaMin" type="number" min="0" wire:model="configPedidoAlertaAmarillaMin"
+                                    class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                            </div>
+                            <div>
+                                <label for="configPedidoAlertaRojaMin" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alerta roja (min)') }}</label>
+                                <input id="configPedidoAlertaRojaMin" type="number" min="0" wire:model="configPedidoAlertaRojaMin"
+                                    class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                            </div>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 basis-full sm:basis-auto sm:flex-1">
+                                {{ __('Resalta pedidos demorados en el panel: sin promesa mide desde la confirmación; con promesa avisa antes de vencer. 0 = sin alerta. Compartida con delivery.') }}
+                            </p>
+                        </div>
+
                         <div class="flex items-start">
                             <div class="flex items-center h-5">
                                 <input

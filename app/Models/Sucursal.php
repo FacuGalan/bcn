@@ -200,6 +200,7 @@ class Sucursal extends Model
         // Pedidos por Mostrador
         'pedido_mostrador_ultimo_numero', 'imprime_comanda_automatico',
         'pedido_conversion_automatica_al_entregar', 'usa_beepers',
+        'pedido_alerta_amarilla_min', 'pedido_alerta_roja_min',
         // Pedidos Delivery / Take-away (RF-05)
         'usa_delivery', 'config_delivery', 'pedido_delivery_ultimo_numero',
         // Geolocalización + Mercado Pago Stores
@@ -232,6 +233,8 @@ class Sucursal extends Model
         'pedido_mostrador_ultimo_numero' => 'integer',
         'imprime_comanda_automatico' => 'boolean',
         'pedido_conversion_automatica_al_entregar' => 'boolean',
+        'pedido_alerta_amarilla_min' => 'integer',
+        'pedido_alerta_roja_min' => 'integer',
         'usa_beepers' => 'boolean',
         'latitud' => 'decimal:7',
         'longitud' => 'decimal:7',
