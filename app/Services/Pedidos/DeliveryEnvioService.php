@@ -3,6 +3,7 @@
 namespace App\Services\Pedidos;
 
 use App\Models\DeliveryZona;
+use App\Models\PedidoDelivery;
 use App\Models\Sucursal;
 use Illuminate\Support\Carbon;
 
@@ -148,14 +149,16 @@ class DeliveryEnvioService
 
     /**
      * Franjas horarias elegibles para HOY con `modo_promesa=franjas` (RF-15):
-     * los horarios de atención del calendario (todo el día si no hay) se
-     * discretizan cada `franjas_intervalo_min`, desde el próximo slot futuro
-     * hasta el cierre. Devuelve Carbon[] ordenados; vacío si hoy no se atiende
-     * (feriado / día no laboral). Los CUPOS por franja quedan para Fase 8.
+     * los horarios de entrega que el comercio dio de alta A MANO en la config
+     * (`franjas`: hora exacta + días que aplica + tipo que sirve), filtrados
+     * por tipo de pedido, día de hoy, feriados/días laborales y hora futura.
+     * Devuelve Carbon[] ordenados; vacío si hoy no se atiende o no hay
+     * horarios que apliquen. Los CUPOS por franja quedan para Fase 8.
      *
+     * @param  string|null  $tipo  'delivery' | 'take_away' | null (ambos)
      * @return Carbon[]
      */
-    public function franjasDisponibles(Sucursal $sucursal, ?Carbon $desde = null): array
+    public function franjasDisponibles(Sucursal $sucursal, ?string $tipo = null, ?Carbon $desde = null): array
     {
         $config = $this->configDelivery($sucursal);
         $desde ??= now();
@@ -168,37 +171,30 @@ class DeliveryEnvioService
             return [];
         }
 
-        $intervalo = max(5, (int) ($config['franjas_intervalo_min'] ?? 30));
-
-        $rangos = $config['horarios_atencion'];
-        if (empty($rangos) || ! is_array($rangos)) {
-            $rangos = [['dias' => [1, 2, 3, 4, 5, 6, 7], 'desde' => '00:00', 'hasta' => '23:59']];
-        }
-
         $dia = $desde->isoWeekday();
         $slots = [];
-        foreach ($rangos as $rango) {
-            $dias = array_map('intval', (array) ($rango['dias'] ?? [1, 2, 3, 4, 5, 6, 7]));
+        foreach ((array) ($config['franjas'] ?? []) as $franja) {
+            $hora = trim((string) ($franja['hora'] ?? ''));
+            if ($hora === '') {
+                continue;
+            }
+
+            $dias = array_map('intval', (array) ($franja['dias'] ?? [1, 2, 3, 4, 5, 6, 7]));
             if (! in_array($dia, $dias, true)) {
                 continue;
             }
 
-            $inicio = $desde->copy()->setTimeFromTimeString((string) ($rango['desde'] ?? '00:00'));
-            $fin = $desde->copy()->setTimeFromTimeString((string) ($rango['hasta'] ?? '23:59'));
-            if ($fin->lessThan($inicio)) {
-                // Rango que cruza medianoche: hoy ofrecemos hasta las 23:59;
-                // la madrugada pertenece al día siguiente.
-                $fin = $desde->copy()->endOfDay();
+            // Flags de tipo (ausentes = aplica a ambos, retrocompatible).
+            if ($tipo === PedidoDelivery::TIPO_DELIVERY && ! ($franja['delivery'] ?? true)) {
+                continue;
+            }
+            if ($tipo === PedidoDelivery::TIPO_TAKE_AWAY && ! ($franja['take_away'] ?? true)) {
+                continue;
             }
 
-            // Primer slot: próximo múltiplo del intervalo >= max(apertura, ahora).
-            $t = $inicio->greaterThan($desde) ? $inicio->copy() : $desde->copy();
-            $minutos = $t->hour * 60 + $t->minute + ($t->second > 0 ? 1 : 0);
-            $t = $t->copy()->startOfDay()->addMinutes((int) (ceil($minutos / $intervalo) * $intervalo));
-
-            while ($t->lessThanOrEqualTo($fin)) {
-                $slots[$t->format('H:i')] = $t->copy();
-                $t = $t->addMinutes($intervalo);
+            $slot = $desde->copy()->setTimeFromTimeString($hora);
+            if ($slot->greaterThanOrEqualTo($desde)) {
+                $slots[$slot->format('H:i')] = $slot;
             }
         }
 

@@ -113,11 +113,11 @@ class Sucursal extends Model
         'demora_min_por_km' => 4,            // modo automática
         'usar_maps_para_demora' => false,    // Routes API (Fase 8)
         'botones_demora' => [0, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 90], // modo manual
-        // Modo franjas: horarios fijos generados desde horarios_atencion cada
-        // `franjas_intervalo_min`. Los CUPOS por franja quedan para Fase 8.
-        'franjas_intervalo_min' => 30,
+        // Modo franjas: horarios de entrega definidos A MANO por el comercio.
+        // Cada franja: hora exacta + días que aplica + a qué tipo sirve.
+        // Los CUPOS por franja (cupo_delivery/cupo_takeaway) quedan para Fase 8.
         'acepta_lo_antes_posible' => true,   // ofrece "Lo antes posible" (hora_pactada null)
-        'franjas' => [],                     // [{desde, hasta, cupo_delivery, cupo_takeaway}] (Fase 8: cupos)
+        'franjas' => [],                     // [{hora:'20:30', dias:[1..7], delivery:bool, take_away:bool}]
         // Pedidos programados (Fase 8, flag maestro OFF)
         'acepta_programados' => false,
         'programados_aparecen_min_antes' => 60,

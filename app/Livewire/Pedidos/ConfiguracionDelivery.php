@@ -74,7 +74,12 @@ class ConfiguracionDelivery extends Component
 
     public string $botonesDemora = '0, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60, 90';
 
-    public string $franjasIntervaloMin = '30';
+    /**
+     * Horarios de entrega del modo franjas, definidos a mano (RF-15).
+     *
+     * @var array<int, array{hora: string, dias: array<int,bool>, delivery: bool, take_away: bool}>
+     */
+    public array $franjas = [];
 
     public bool $aceptaLoAntesPosible = true;
 
@@ -162,7 +167,10 @@ class ConfiguracionDelivery extends Component
         $this->demoraBaseMin = (string) $config['demora_base_min'];
         $this->demoraMinPorKm = (string) $config['demora_min_por_km'];
         $this->botonesDemora = implode(', ', $config['botones_demora'] ?? []);
-        $this->franjasIntervaloMin = (string) ($config['franjas_intervalo_min'] ?? 30);
+        $this->franjas = collect($config['franjas'] ?? [])
+            ->map(fn ($f) => $this->franjaAForm((array) $f))
+            ->values()
+            ->toArray();
         $this->aceptaLoAntesPosible = (bool) ($config['acepta_lo_antes_posible'] ?? true);
     }
 
@@ -187,7 +195,7 @@ class ConfiguracionDelivery extends Component
             ->values()
             ->all();
 
-        // Merge sobre lo guardado: las keys de Fase 8 (franjas, programados,
+        // Merge sobre lo guardado: las keys de Fase 8 (programados,
         // usar_maps_para_demora) se preservan tal cual. (cast 'array')
         $guardada = is_array($sucursal->config_delivery) ? $sucursal->config_delivery : [];
 
@@ -212,7 +220,7 @@ class ConfiguracionDelivery extends Component
             'demora_base_min' => max(0, (int) $this->demoraBaseMin),
             'demora_min_por_km' => max(0, (float) $this->demoraMinPorKm),
             'botones_demora' => $botones ?: Sucursal::CONFIG_DELIVERY_DEFAULTS['botones_demora'],
-            'franjas_intervalo_min' => max(5, (int) $this->franjasIntervaloMin),
+            'franjas' => $this->franjasDesdeForm($this->franjas),
             'acepta_lo_antes_posible' => $this->aceptaLoAntesPosible,
         ]);
 
@@ -239,6 +247,59 @@ class ConfiguracionDelivery extends Component
     {
         unset($this->horariosAtencion[$index]);
         $this->horariosAtencion = array_values($this->horariosAtencion);
+    }
+
+    // ==================== FRANJAS (horarios de entrega a mano, RF-15) ====================
+
+    public function agregarFranja(): void
+    {
+        $this->franjas[] = $this->franjaAForm([]);
+    }
+
+    public function quitarFranja(int $index): void
+    {
+        unset($this->franjas[$index]);
+        $this->franjas = array_values($this->franjas);
+    }
+
+    /**
+     * Franja persistida {hora, dias:[1..7], delivery, take_away} → fila del
+     * form con los días como checkboxes (mismo patrón que los horarios).
+     */
+    protected function franjaAForm(array $franja): array
+    {
+        $dias = [];
+        foreach (range(1, 7) as $dia) {
+            $dias[$dia] = in_array($dia, $franja['dias'] ?? range(1, 7));
+        }
+
+        return [
+            'hora' => $franja['hora'] ?? '20:00',
+            'dias' => $dias,
+            'delivery' => (bool) ($franja['delivery'] ?? true),
+            'take_away' => (bool) ($franja['take_away'] ?? true),
+        ];
+    }
+
+    /**
+     * Filas del form → formato persistido, ordenado por hora. Se descartan las
+     * filas sin hora, sin días o que no sirven a ningún tipo.
+     *
+     * @return list<array{hora: string, dias: list<int>, delivery: bool, take_away: bool}>
+     */
+    protected function franjasDesdeForm(array $franjas): array
+    {
+        return collect($franjas)
+            ->map(fn ($f) => [
+                'hora' => trim((string) ($f['hora'] ?? '')),
+                'dias' => array_map('intval', array_keys(array_filter($f['dias'] ?? []))),
+                'delivery' => (bool) ($f['delivery'] ?? true),
+                'take_away' => (bool) ($f['take_away'] ?? true),
+            ])
+            ->filter(fn ($f) => $f['hora'] !== '' && ! empty($f['dias']) && ($f['delivery'] || $f['take_away']))
+            ->sortBy('hora')
+            ->values()
+            ->all();
     }
 
     public function agregarFeriado(): void

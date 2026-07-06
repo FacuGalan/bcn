@@ -1323,9 +1323,10 @@ class PedidosDelivery extends Component
             'modo_promesa' => $modoPromesa,
             'modo_promesa_manual' => $modoPromesa === 'manual',
             'botones_demora' => $config['botones_demora'] ?? [0, 10, 15, 20, 30, 45, 60],
-            // Modo franjas: horarios fijos de hoy + "Lo antes posible" (RF-15).
+            // Modo franjas: horarios de entrega de hoy para el TIPO del pedido
+            // + "Lo antes posible" (RF-15).
             'franjas' => $modoPromesa === 'franjas'
-                ? array_map(fn ($slot) => ['iso' => $slot->toDateTimeString(), 'label' => $slot->format('H:i')], $envioService->franjasDisponibles($sucursal))
+                ? array_map(fn ($slot) => ['iso' => $slot->toDateTimeString(), 'label' => $slot->format('H:i')], $envioService->franjasDisponibles($sucursal, $pedido->tipo))
                 : [],
             'acepta_asap' => (bool) ($config['acepta_lo_antes_posible'] ?? true),
         ];

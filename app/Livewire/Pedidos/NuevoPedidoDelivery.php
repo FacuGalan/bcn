@@ -680,12 +680,7 @@ class NuevoPedidoDelivery extends Component
         $this->botonesDemora = array_values(array_map('intval', (array) ($config['botones_demora'] ?? [])));
         $this->demoraBaseMin = (int) ($config['demora_base_min'] ?? 15);
         $this->aceptaLoAntesPosible = (bool) ($config['acepta_lo_antes_posible'] ?? true);
-        $this->franjasDisponibles = $this->modoPromesa === 'franjas'
-            ? array_map(
-                fn ($slot) => ['iso' => $slot->toDateTimeString(), 'label' => $slot->format('H:i')],
-                $this->envioService->franjasDisponibles($sucursal),
-            )
-            : [];
+        $this->cargarFranjasDisponibles();
 
         // Si el take-away está deshabilitado y el tipo actual es take_away,
         // volver a delivery (y viceversa cuando la sucursal no usa delivery).
@@ -734,6 +729,14 @@ class NuevoPedidoDelivery extends Component
             $this->resetEnvio();
         } elseif ($this->direccionEntrega && $this->entregaLatitud) {
             $this->cotizarEnvio();
+        }
+
+        // Las franjas dependen del tipo (cada horario dice a qué tipo sirve):
+        // recargar y descartar la elección previa si ya no aplica.
+        $this->cargarFranjasDisponibles();
+        if ($this->franjaSeleccionada && $this->franjaSeleccionada !== 'asap'
+            && ! in_array($this->franjaSeleccionada, array_column($this->franjasDisponibles, 'iso'), true)) {
+            $this->franjaSeleccionada = null;
         }
 
         $this->aplicarFormaVentaPorTipo();
@@ -924,6 +927,27 @@ class NuevoPedidoDelivery extends Component
     public function seleccionarFranja(string $valor): void
     {
         $this->franjaSeleccionada = $this->franjaSeleccionada === $valor ? null : $valor;
+    }
+
+    /**
+     * Recarga los horarios de entrega elegibles para el TIPO actual (las
+     * franjas configuradas dicen a qué tipo sirven y qué días aplican).
+     */
+    protected function cargarFranjasDisponibles(): void
+    {
+        if ($this->modoPromesa !== 'franjas' || ! $this->sucursalId) {
+            $this->franjasDisponibles = [];
+
+            return;
+        }
+
+        $sucursal = Sucursal::find($this->sucursalId);
+        $this->franjasDisponibles = $sucursal
+            ? array_map(
+                fn ($slot) => ['iso' => $slot->toDateTimeString(), 'label' => $slot->format('H:i')],
+                $this->envioService->franjasDisponibles($sucursal, $this->tipo),
+            )
+            : [];
     }
 
     /**

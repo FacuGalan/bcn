@@ -206,21 +206,50 @@
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                 </div>
             @elseif($modoPromesa === 'franjas')
-                <div>
-                    <label for="cd-franjas-intervalo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Intervalo entre horarios (min)') }}</label>
-                    <input id="cd-franjas-intervalo" type="number" min="5" step="5" wire:model="franjasIntervaloMin"
-                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
-                </div>
-                <div class="flex items-end pb-1.5">
+                <div class="sm:col-span-2 flex items-end pb-1.5">
                     <label class="inline-flex items-center gap-2 cursor-pointer">
                         <input type="checkbox" wire:model="aceptaLoAntesPosible"
                             class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                         <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Aceptar "Lo antes posible"') }}</span>
                     </label>
                 </div>
-                <p class="sm:col-span-3 text-[11px] text-gray-500 dark:text-gray-400 -mt-1">
-                    {{ __('Los horarios se generan desde el calendario de atención (ej. cada 30 min: 10:00, 10:30, 11:00...). Sin horarios cargados se ofrece todo el día.') }}
-                </p>
+                <div class="sm:col-span-3">
+                    <div class="flex items-center justify-between gap-2 mb-1">
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Horarios de entrega') }}</label>
+                        <button type="button" wire:click="agregarFranja" class="text-xs text-bcn-primary hover:underline">+ {{ __('Agregar horario') }}</button>
+                    </div>
+                    @forelse($franjas as $i => $franja)
+                        <div class="flex flex-wrap items-center gap-2 mb-1.5 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1.5">
+                            <input type="time" wire:model="franjas.{{ $i }}.hora" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1" />
+                            <div class="flex flex-wrap gap-1">
+                                @foreach($diasSemana as $dia => $label)
+                                    <label class="inline-flex items-center px-1.5 py-0.5 border rounded cursor-pointer text-[10px] {{ ($franjas[$i]['dias'][$dia] ?? false) ? 'border-bcn-primary bg-bcn-primary/10 text-bcn-primary font-semibold' : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400' }}">
+                                        <input type="checkbox" wire:model.live="franjas.{{ $i }}.dias.{{ $dia }}" class="sr-only" />
+                                        {{ $label }}
+                                    </label>
+                                @endforeach
+                            </div>
+                            <label class="inline-flex items-center gap-1 cursor-pointer text-[11px] text-gray-600 dark:text-gray-300">
+                                <input type="checkbox" wire:model.live="franjas.{{ $i }}.delivery"
+                                    class="rounded border-gray-300 dark:border-gray-600 text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5" />
+                                {{ __('Delivery') }}
+                            </label>
+                            <label class="inline-flex items-center gap-1 cursor-pointer text-[11px] text-gray-600 dark:text-gray-300">
+                                <input type="checkbox" wire:model.live="franjas.{{ $i }}.take_away"
+                                    class="rounded border-gray-300 dark:border-gray-600 text-violet-600 focus:ring-violet-500 w-3.5 h-3.5" />
+                                {{ __('Para llevar') }}
+                            </label>
+                            <button type="button" wire:click="quitarFranja({{ $i }})" class="text-red-500 hover:text-red-700 ml-auto" title="{{ __('Quitar') }}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                            </button>
+                        </div>
+                    @empty
+                        <p class="text-[11px] text-orange-600 dark:text-orange-400">{{ __('Sin horarios cargados no se puede pactar hora de entrega: agregá al menos uno.') }}</p>
+                    @endforelse
+                    <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                        {{ __('Cada horario define qué días aplica y si sirve para delivery, para llevar o ambos. Se descuentan feriados y días no laborales.') }}
+                    </p>
+                </div>
             @else
                 <div class="sm:col-span-2">
                     <label for="cd-botones" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Botones de demora (min, separados por coma)') }}</label>

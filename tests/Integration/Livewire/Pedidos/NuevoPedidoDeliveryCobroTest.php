@@ -280,11 +280,16 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
 
     public function test_promesa_franjas_persiste_el_horario_elegido(): void
     {
+        // Los horarios se dan de alta A MANO: hora + días + tipo que sirven.
         \Illuminate\Support\Carbon::setTestNow(now()->setTime(11, 10));
+        $todos = [1, 2, 3, 4, 5, 6, 7];
         $this->habilitarDelivery([
             'modo_promesa' => 'franjas',
-            'franjas_intervalo_min' => 30,
-            'horarios_atencion' => [['dias' => [1, 2, 3, 4, 5, 6, 7], 'desde' => '10:00', 'hasta' => '22:00']],
+            'franjas' => [
+                ['hora' => '11:00', 'dias' => $todos, 'delivery' => true, 'take_away' => true],
+                ['hora' => '11:30', 'dias' => $todos, 'delivery' => true, 'take_away' => true],
+                ['hora' => '12:00', 'dias' => $todos, 'delivery' => true, 'take_away' => true],
+            ],
         ]);
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
 
@@ -293,8 +298,8 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
             ->call('seleccionarArticulo', $articulo->id);
 
         $franjas = $componente->get('franjasDisponibles');
-        $this->assertNotEmpty($franjas);
-        $this->assertSame('11:30', $franjas[0]['label'], 'El primer slot es el próximo múltiplo del intervalo');
+        $this->assertCount(2, $franjas, 'El horario de las 11:00 ya pasó (son las 11:10)');
+        $this->assertSame('11:30', $franjas[0]['label']);
 
         $componente->call('seleccionarFranja', $franjas[1]['iso'])
             ->call('confirmarSinCobrar')
@@ -302,6 +307,35 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
 
         $pedido = PedidoDelivery::first();
         $this->assertSame($franjas[1]['iso'], $pedido->hora_pactada_at->toDateTimeString());
+
+        \Illuminate\Support\Carbon::setTestNow();
+    }
+
+    public function test_promesa_franjas_filtra_por_tipo_y_dia(): void
+    {
+        \Illuminate\Support\Carbon::setTestNow(now()->setTime(10, 0));
+        $todos = [1, 2, 3, 4, 5, 6, 7];
+        $this->habilitarDelivery([
+            'modo_promesa' => 'franjas',
+            'franjas' => [
+                ['hora' => '20:00', 'dias' => $todos, 'delivery' => true, 'take_away' => false],
+                ['hora' => '21:00', 'dias' => $todos, 'delivery' => false, 'take_away' => true],
+                // Un horario que NO aplica hoy (día siguiente ISO).
+                ['hora' => '22:00', 'dias' => [now()->addDay()->isoWeekday()], 'delivery' => true, 'take_away' => true],
+            ],
+        ]);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class);
+
+        // Tipo delivery (default): solo el horario de delivery de hoy.
+        $this->assertSame(['20:00'], array_column($componente->get('franjasDisponibles'), 'label'));
+
+        // Elegida la franja de delivery, al pasar a take-away se descarta y
+        // quedan solo los horarios de take-away.
+        $componente->call('seleccionarFranja', $componente->get('franjasDisponibles')[0]['iso'])
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->assertSet('franjaSeleccionada', null);
+        $this->assertSame(['21:00'], array_column($componente->get('franjasDisponibles'), 'label'));
 
         \Illuminate\Support\Carbon::setTestNow();
     }
