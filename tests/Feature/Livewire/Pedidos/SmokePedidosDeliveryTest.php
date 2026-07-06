@@ -90,6 +90,35 @@ class SmokePedidosDeliveryTest extends TestCase
         Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)->assertOk();
     }
 
+    public function test_configuracion_delivery_envio_monta(): void
+    {
+        // Sub-componente con Maps (montado a demanda por el padre).
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDeliveryEnvio::class)->assertOk();
+    }
+
+    public function test_configuracion_delivery_envio_guarda_solo_sus_keys(): void
+    {
+        // El guardado parcial del sub-componente no pisa las keys del padre.
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+        $sucursal->update(['config_delivery' => array_merge(
+            is_array($sucursal->config_delivery) ? $sucursal->config_delivery : [],
+            ['modo_promesa' => 'automatica'],
+        )]);
+
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDeliveryEnvio::class)
+            ->set('georreferenciarPedidos', true)
+            ->set('radioEntregaKm', '8')
+            ->set('costoEnvioBase', '700')
+            ->call('guardarEnvio')
+            ->assertDispatched('toast-success');
+
+        $config = \App\Models\Sucursal::find($this->sucursalId)->getConfigDelivery();
+        $this->assertTrue((bool) $config['georreferenciar_pedidos']);
+        $this->assertEqualsWithDelta(8.0, (float) $config['radio_entrega_km'], 0.01);
+        $this->assertEqualsWithDelta(700.0, (float) $config['costo_envio_base'], 0.01);
+        $this->assertSame('automatica', $config['modo_promesa'], 'Las keys del padre no se pisan');
+    }
+
     public function test_api_tokens_monta(): void
     {
         Livewire::test(\App\Livewire\Configuracion\ApiTokens::class)->assertOk();
@@ -144,9 +173,6 @@ class SmokePedidosDeliveryTest extends TestCase
     {
         Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
             ->set('usaDelivery', true)
-            ->set('georreferenciarPedidos', true)
-            ->set('radioEntregaKm', '5')
-            ->set('costoEnvioBase', '800')
             ->set('modoPromesa', 'automatica')
             ->set('convertirVentaAlEntregar', true)
             ->set('alertaAmarillaMin', '20')
@@ -160,9 +186,6 @@ class SmokePedidosDeliveryTest extends TestCase
         $this->assertTrue((bool) $sucursal->pedido_conversion_automatica_al_entregar, 'La config de conversión al entregar se guarda en la columna compartida con mostrador');
         $this->assertSame(20, (int) $sucursal->pedido_alerta_amarilla_min);
         $this->assertSame(45, (int) $sucursal->pedido_alerta_roja_min);
-        $this->assertTrue((bool) $config['georreferenciar_pedidos']);
-        $this->assertEqualsWithDelta(5.0, (float) $config['radio_entrega_km'], 0.01);
-        $this->assertEqualsWithDelta(800.0, (float) $config['costo_envio_base'], 0.01);
         $this->assertSame('automatica', $config['modo_promesa']);
         // Las keys de Fase 8 conservan su default (no se pisan).
         $this->assertFalse((bool) $config['acepta_programados']);
@@ -177,7 +200,7 @@ class SmokePedidosDeliveryTest extends TestCase
             ['lat' => -34.62, 'lng' => -58.39],
         ];
 
-        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDeliveryEnvio::class)
             ->call('abrirCrearZona')
             ->assertSet('showZonaModal', true)
             ->assertDispatched('zona-dibujo-iniciar')
@@ -205,7 +228,7 @@ class SmokePedidosDeliveryTest extends TestCase
 
     public function test_configuracion_delivery_zona_sin_poligono_no_guarda(): void
     {
-        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDeliveryEnvio::class)
             ->call('abrirCrearZona')
             ->set('zonaNombre', 'Sin dibujo')
             ->set('zonaCostoEnvio', '500')
@@ -233,7 +256,7 @@ class SmokePedidosDeliveryTest extends TestCase
             'poligono' => $poligono, 'costo_envio' => 700, 'orden' => 1, 'activo' => true,
         ]);
 
-        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDelivery::class)
+        Livewire::test(\App\Livewire\Pedidos\ConfiguracionDeliveryEnvio::class)
             ->call('reordenarZonas', [$b->id, $a->id])
             ->assertDispatched('zonas-actualizadas');
 

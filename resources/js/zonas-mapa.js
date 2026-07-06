@@ -258,7 +258,9 @@ document.addEventListener('alpine:init', () => {
 
             s.dibujo = new google.maps.Polygon({
                 map: s.map,
-                paths: path,
+                // OJO: [path] = UN anillo (aunque vacío). Un array plano vacío
+                // se interpreta como CERO anillos y getPath() devuelve undefined.
+                paths: [path],
                 strokeColor: '#0e7490',
                 strokeOpacity: 1,
                 strokeWeight: 2.5,
