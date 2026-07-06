@@ -13,9 +13,16 @@
  * medio agrega, click derecho sobre un vértice lo quita). El path se empuja
  * DEFERRED a la prop Livewire `zonaPoligono` (viaja recién al guardar).
  *
+ * GOTCHA (aprendido con el marker del domicilio, acá es PEOR): los objetos
+ * de Google Maps NO pueden vivir en el estado reactivo de Alpine — el Proxy
+ * rompe la identidad interna (Polygon.getPath() devuelve undefined, los
+ * listeners del MVCArray no cuelgan). TODOS los objetos de Maps viven en un
+ * WeakMap a nivel módulo keyed por el elemento raíz del componente; en el
+ * estado Alpine solo queda data plana (flags, contadores, payload de zonas).
+ *
  * Eventos Livewire (escuchados con x-on:*.window en el blade):
- *  - zona-dibujo-iniciar {poligono}  → entra en modo dibujo con ese path.
- *  - zona-dibujo-fin                 → sale del modo dibujo.
+ *  - zona-dibujo-iniciar {poligono, zonaId} → entra en modo dibujo.
+ *  - zona-dibujo-fin                        → sale del modo dibujo.
  *  - zonas-actualizadas {zonas, radioKm, centro} → redibuja overlays.
  */
 
@@ -25,6 +32,9 @@ const CENTRO_AR = { lat: -38.4161, lng: -63.6167 };
 
 // Paleta de zonas (borde/relleno). Se cicla por índice.
 const COLORES = ['#0891b2', '#d97706', '#7c3aed', '#dc2626', '#059669', '#db2777', '#2563eb', '#65a30d'];
+
+// Objetos de Google Maps por componente, FUERA del Proxy de Alpine.
+const STORES = new WeakMap();
 
 function aLatLng(pos) {
     const lat = typeof pos.lat === 'function' ? pos.lat() : pos.lat;
@@ -50,19 +60,22 @@ document.addEventListener('alpine:init', () => {
         radioKm: config.radioKm ?? null,
         zonas: config.zonas || [], // [{id, nombre, poligono, activo}]
 
-        map: null,
         cargando: false,
         error: false,
         editando: false,
         zonaEditandoId: null,
+        vertices: 0,
 
-        // Fuera del estado reactivo de Alpine (los objetos de Maps no toleran
-        // el Proxy — mismo gotcha que el marker del domicilio): se guardan en
-        // propiedades planas del closure vía Alpine.raw al usarlos.
-        _overlays: [],
-        _labels: [],
-        _circulo: null,
-        _dibujo: null,
+        /** Objetos de Maps del componente (no reactivos). */
+        st() {
+            let s = STORES.get(this.$root);
+            if (!s) {
+                s = { map: null, overlays: [], labels: [], circulo: null, dibujo: null, sucursalMarker: null };
+                STORES.set(this.$root, s);
+            }
+
+            return s;
+        },
 
         async init() {
             if (!this.key) {
@@ -88,7 +101,8 @@ document.addEventListener('alpine:init', () => {
                 google.maps.importLibrary('marker'),
             ]);
 
-            this.map = new Map(this.$refs.mapa, {
+            const s = this.st();
+            s.map = new Map(this.$refs.mapa, {
                 center: this.centro || CENTRO_AR,
                 zoom: this.centro ? 13 : 5,
                 mapId: this.mapId,
@@ -99,38 +113,85 @@ document.addEventListener('alpine:init', () => {
             });
 
             // Click en modo dibujo = agregar vértice al polígono en curso.
-            this.map.addListener('click', (ev) => {
-                if (this.editando && this._dibujo) {
-                    window.Alpine.raw(this._dibujo).getPath().push(ev.latLng);
+            s.map.addListener('click', (ev) => {
+                const st = this.st();
+                if (this.editando && st.dibujo) {
+                    st.dibujo.getPath().push(ev.latLng);
                 }
             });
 
+            this.marcarSucursal();
             this.redibujar();
         },
 
-        mapa() {
-            return window.Alpine.raw(this.map);
+        /**
+         * Pin del LOCAL de la sucursal, SIEMPRE visible (referencia para
+         * dibujar las zonas). Mismo estilo del pin del domicilio (gota
+         * naranja) con el ícono BCN adentro. No participa del redibujado de
+         * overlays: se crea una vez y solo se reposiciona si cambia el centro.
+         */
+        marcarSucursal() {
+            const s = this.st();
+            if (!s.map || !this.centro) {
+                return;
+            }
+
+            if (s.sucursalMarker) {
+                s.sucursalMarker.position = this.centro;
+
+                return;
+            }
+
+            const wrap = document.createElement('div');
+            wrap.style.cssText =
+                'position:relative;width:40px;height:51px;' +
+                'filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));';
+            wrap.innerHTML =
+                '<svg width="40" height="51" viewBox="0 0 40 51" xmlns="http://www.w3.org/2000/svg">' +
+                '<path d="M20 50 C14 38 4 27 4 17 A16 16 0 1 1 36 17 C36 27 26 38 20 50 Z" ' +
+                'fill="#FFAF22" stroke="#ffffff" stroke-width="2"/></svg>';
+            const disco = document.createElement('div');
+            disco.style.cssText =
+                'position:absolute;top:4px;left:7px;width:26px;height:26px;' +
+                'border-radius:50%;background:#ffffff;box-sizing:border-box;';
+            wrap.appendChild(disco);
+            const icon = document.createElement('img');
+            icon.src = '/pwa-icons/icon-192x192.png';
+            icon.alt = '';
+            icon.style.cssText =
+                'position:absolute;top:5px;left:8px;width:24px;height:24px;' +
+                'border-radius:50%;object-fit:cover;display:block;';
+            wrap.appendChild(icon);
+
+            s.sucursalMarker = new google.maps.marker.AdvancedMarkerElement({
+                map: s.map,
+                position: this.centro,
+                content: wrap,
+                title: 'Sucursal',
+                zIndex: 1000,
+            });
         },
 
         /** Redibuja círculo del radio general + polígonos de zonas (sin la editada). */
         redibujar() {
-            if (!this.map) {
+            const s = this.st();
+            if (!s.map) {
                 return;
             }
 
-            this._overlays.forEach((o) => o.setMap(null));
-            this._labels.forEach((m) => (m.map = null));
-            this._overlays = [];
-            this._labels = [];
-            if (this._circulo) {
-                this._circulo.setMap(null);
-                this._circulo = null;
+            s.overlays.forEach((o) => o.setMap(null));
+            s.labels.forEach((m) => (m.map = null));
+            s.overlays = [];
+            s.labels = [];
+            if (s.circulo) {
+                s.circulo.setMap(null);
+                s.circulo = null;
             }
 
             // Radio general (referencia, rige solo sin zonas dibujadas).
             if (this.centro && this.radioKm) {
-                this._circulo = new google.maps.Circle({
-                    map: this.mapa(),
+                s.circulo = new google.maps.Circle({
+                    map: s.map,
                     center: this.centro,
                     radius: Number(this.radioKm) * 1000,
                     strokeColor: '#6b7280',
@@ -143,7 +204,8 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.zonas.forEach((zona, i) => {
-                if (!Array.isArray(zona.poligono) || zona.poligono.length < 3) {
+                const poligono = Array.isArray(zona.poligono) ? zona.poligono : [];
+                if (poligono.length < 3) {
                     return;
                 }
                 if (this.editando && zona.id === this.zonaEditandoId) {
@@ -151,19 +213,18 @@ document.addEventListener('alpine:init', () => {
                 }
 
                 const color = COLORES[i % COLORES.length];
-                const poly = new google.maps.Polygon({
-                    map: this.mapa(),
-                    paths: zona.poligono,
+                s.overlays.push(new google.maps.Polygon({
+                    map: s.map,
+                    paths: poligono.map((v) => ({ lat: Number(v.lat), lng: Number(v.lng) })),
                     strokeColor: color,
                     strokeOpacity: zona.activo ? 0.9 : 0.4,
                     strokeWeight: 2,
                     fillColor: color,
                     fillOpacity: zona.activo ? 0.14 : 0.05,
                     clickable: false,
-                });
-                this._overlays.push(poly);
+                }));
 
-                const c = centroide(zona.poligono);
+                const c = centroide(poligono);
                 if (c) {
                     const div = document.createElement('div');
                     div.textContent = zona.nombre;
@@ -172,19 +233,19 @@ document.addEventListener('alpine:init', () => {
                         'background:rgba(255,255,255,.85);padding:1px 6px;border-radius:8px;' +
                         `border:1px solid ${color};white-space:nowrap;` +
                         (zona.activo ? '' : 'opacity:.5;');
-                    const label = new google.maps.marker.AdvancedMarkerElement({
-                        map: this.mapa(),
+                    s.labels.push(new google.maps.marker.AdvancedMarkerElement({
+                        map: s.map,
                         position: c,
                         content: div,
-                    });
-                    this._labels.push(label);
+                    }));
                 }
             });
         },
 
         /** Entra en modo dibujo con el path dado (edición) o vacío (alta). */
         iniciarDibujo(detail = {}) {
-            if (!this.map) {
+            const s = this.st();
+            if (!s.map) {
                 return;
             }
 
@@ -192,10 +253,11 @@ document.addEventListener('alpine:init', () => {
             this.editando = true;
             this.zonaEditandoId = detail.zonaId ?? null;
 
-            const path = Array.isArray(detail.poligono) ? detail.poligono : [];
+            const path = (Array.isArray(detail.poligono) ? detail.poligono : [])
+                .map((v) => ({ lat: Number(v.lat), lng: Number(v.lng) }));
 
-            this._dibujo = new google.maps.Polygon({
-                map: this.mapa(),
+            s.dibujo = new google.maps.Polygon({
+                map: s.map,
                 paths: path,
                 strokeColor: '#0e7490',
                 strokeOpacity: 1,
@@ -207,9 +269,9 @@ document.addEventListener('alpine:init', () => {
             });
 
             // Click derecho sobre un vértice: quitarlo.
-            this._dibujo.addListener('rightclick', (ev) => {
+            s.dibujo.addListener('rightclick', (ev) => {
                 if (ev.vertex != null) {
-                    window.Alpine.raw(this._dibujo).getPath().removeAt(ev.vertex);
+                    this.st().dibujo?.getPath().removeAt(ev.vertex);
                 }
             });
 
@@ -218,43 +280,40 @@ document.addEventListener('alpine:init', () => {
 
             const c = centroide(path);
             if (c) {
-                this.mapa().setCenter(c);
+                s.map.setCenter(c);
             }
         },
 
-        /** Reconecta los listeners del MVCArray y empuja el path a Livewire. */
+        /** Conecta los listeners del MVCArray y empuja el path a Livewire. */
         observarPath() {
-            const dibujo = window.Alpine.raw(this._dibujo);
-            const mvc = dibujo.getPath();
+            const mvc = this.st().dibujo.getPath();
             ['insert_at', 'remove_at', 'set_at'].forEach((ev) => mvc.addListener(ev, () => this.pushPath()));
             this.pushPath();
         },
 
         pushPath() {
-            const dibujo = this._dibujo ? window.Alpine.raw(this._dibujo) : null;
+            const dibujo = this.st().dibujo;
             const path = dibujo ? dibujo.getPath().getArray().map(aLatLng) : [];
             // Deferred: viaja con el próximo request (guardarZona).
             this.$wire.set('zonaPoligono', path, false);
             this.vertices = path.length;
         },
 
-        vertices: 0,
-
         /** Botón "Rehacer dibujo": vacía el path (los clicks vuelven a sumar). */
         rehacerDibujo() {
-            if (this._dibujo) {
-                window.Alpine.raw(this._dibujo).getPath().clear();
-            }
+            this.st().dibujo?.getPath().clear();
         },
 
         terminarDibujo() {
-            if (this._dibujo) {
-                window.Alpine.raw(this._dibujo).setMap(null);
-                this._dibujo = null;
+            const s = this.st();
+            if (s.dibujo) {
+                s.dibujo.setMap(null);
+                s.dibujo = null;
             }
             this.editando = false;
             this.zonaEditandoId = null;
             this.vertices = 0;
+            this.redibujar();
         },
 
         /** Evento zonas-actualizadas: payload nuevo desde Livewire. */
@@ -262,6 +321,7 @@ document.addEventListener('alpine:init', () => {
             this.zonas = detail.zonas ?? this.zonas;
             this.radioKm = detail.radioKm !== undefined ? detail.radioKm : this.radioKm;
             this.centro = detail.centro !== undefined ? detail.centro : this.centro;
+            this.marcarSucursal();
             this.redibujar();
         },
     }));
