@@ -21,7 +21,8 @@
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 {{ $georreferenciarPedidos ? '' : 'opacity-50' }}">
             <div>
                 <label for="cd-radio" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Radio de entrega (km)') }}</label>
-                <input id="cd-radio" type="number" step="0.1" min="0" wire:model="radioEntregaKm" placeholder="{{ __('Sin límite') }}"
+                {{-- .live: el círculo del mapa se redibuja mientras se edita (updatedRadioEntregaKm) --}}
+                <input id="cd-radio" type="number" step="0.1" min="0" wire:model.live.debounce.500ms="radioEntregaKm" placeholder="{{ __('Sin límite') }}"
                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" @disabled(! $georreferenciarPedidos) />
             </div>
             <div>
@@ -47,11 +48,16 @@
 
     {{-- ==================== ZONAS DE ENTREGA: MAPA + LISTA (RF-05/RF-06) ==================== --}}
     @if($georreferenciarPedidos)
+        {{-- OJO: el x-data debe quedar ESTÁTICO entre renders (solo config fija).
+             Si el valor del atributo cambia en un morph, Alpine limpia y re-inicializa
+             el componente entero → mapa recreado y dibujo en curso muerto. El payload
+             dinámico inicial (zonas/radio/centro) viaja en el <script> JSON dentro del
+             wire:ignore del mapa; los cambios posteriores, por el evento zonas-actualizadas. --}}
         <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 space-y-3"
-            x-data="zonasMapa(@js(array_merge($zonasMapa, [
+            x-data="zonasMapa(@js([
                 'key' => config('services.google_maps.key'),
                 'mapId' => config('services.google_maps.map_id'),
-            ])))"
+            ]))"
             x-on:zona-dibujo-iniciar.window="iniciarDibujo($event.detail)"
             x-on:zona-dibujo-fin.window="terminarDibujo()"
             x-on:zonas-actualizadas.window="actualizarZonas($event.detail)">
@@ -205,6 +211,9 @@
                 {{-- Columna derecha: mapa SIEMPRE visible con todas las zonas + radio general --}}
                 <div class="lg:col-span-3">
                     <div wire:ignore class="relative">
+                        {{-- Payload inicial del mapa: dentro del wire:ignore a propósito
+                             (queda "congelado" tras el mount; ver nota del x-data). --}}
+                        <script type="application/json" x-ref="payloadInicial">@json($zonasMapa)</script>
                         <div x-ref="mapa" class="w-full h-80 lg:h-[28rem] rounded-lg border border-gray-300 dark:border-gray-600"></div>
                         <div x-show="cargando" x-cloak class="absolute inset-0 flex items-center justify-center bg-gray-100/70 dark:bg-gray-900/70 rounded-lg">
                             <span class="text-sm text-gray-600 dark:text-gray-300">{{ __('Cargando mapa…') }}</span>

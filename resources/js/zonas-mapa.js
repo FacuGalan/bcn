@@ -20,6 +20,13 @@
  * WeakMap a nivel módulo keyed por el elemento raíz del componente; en el
  * estado Alpine solo queda data plana (flags, contadores, payload de zonas).
  *
+ * GOTCHA 2 (x-data ESTÁTICO): si el valor del atributo x-data cambia en un
+ * morph de Livewire, el MutationObserver de Alpine limpia y RE-INICIALIZA el
+ * componente entero (mapa recreado, editando=false, dibujo muerto). Por eso
+ * el x-data solo recibe config fija (key/mapId) y el payload dinámico inicial
+ * (zonas/radio/centro) se lee de un <script> JSON dentro del wire:ignore del
+ * mapa; las actualizaciones posteriores llegan por el evento zonas-actualizadas.
+ *
  * Eventos Livewire (escuchados con x-on:*.window en el blade):
  *  - zona-dibujo-iniciar {poligono, zonaId} → entra en modo dibujo.
  *  - zona-dibujo-fin                        → sale del modo dibujo.
@@ -56,9 +63,9 @@ document.addEventListener('alpine:init', () => {
     window.Alpine.data('zonasMapa', (config = {}) => ({
         key: config.key || '',
         mapId: config.mapId || 'DEMO_MAP_ID',
-        centro: config.centro || null, // sucursal {lat,lng} (null = sin georreferenciar)
-        radioKm: config.radioKm ?? null,
-        zonas: config.zonas || [], // [{id, nombre, poligono, activo}]
+        centro: null, // sucursal {lat,lng} (null = sin georreferenciar)
+        radioKm: null,
+        zonas: [], // [{id, nombre, poligono, activo}]
 
         cargando: false,
         error: false,
@@ -84,6 +91,7 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
+            this.leerPayloadInicial();
             this.cargando = true;
             try {
                 await cargarGoogleMaps(this.key);
@@ -93,6 +101,22 @@ document.addEventListener('alpine:init', () => {
                 this.error = true;
             }
             this.cargando = false;
+        },
+
+        /**
+         * Payload inicial (zonas/radio/centro) desde el <script> JSON dentro
+         * del wire:ignore del mapa — NO viaja en el x-data para que ese
+         * atributo quede estático entre renders (ver GOTCHA 2 arriba).
+         */
+        leerPayloadInicial() {
+            try {
+                const p = JSON.parse(this.$refs.payloadInicial?.textContent || '{}');
+                this.zonas = p.zonas ?? [];
+                this.radioKm = p.radioKm ?? null;
+                this.centro = p.centro ?? null;
+            } catch (e) {
+                console.error('[zonas-mapa] payload inicial ilegible', e);
+            }
         },
 
         async construir() {
