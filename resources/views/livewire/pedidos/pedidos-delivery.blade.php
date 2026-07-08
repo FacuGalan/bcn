@@ -698,13 +698,34 @@
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
                                     <div>{{ __('Ingresó') }}: <span class="font-medium text-gray-800 dark:text-gray-100">{{ $horaIngreso?->format('H:i') ?? '—' }}</span></div>
-                                    @if($pedido->lo_antes_posible)
-                                        <div class="text-sm font-bold text-sky-700 dark:text-sky-300">{{ __('Lo antes posible') }}</div>
-                                    @elseif($pedido->hora_pactada_at)
-                                        {{-- Hora de entrega RESALTADA: es el compromiso con el cliente --}}
-                                        <div>{{ __('Entrega') }}: <span class="text-sm font-bold text-bcn-primary">{{ $pedido->hora_pactada_at->format('H:i') }}</span></div>
+                                    @php $promesaEditable = ! in_array($pedido->estado_pedido, ['entregado', 'facturado', 'cancelado']) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.editar'); @endphp
+                                    @if($promesaEditable)
+                                        {{-- Hora de entrega RESALTADA y editable (botón inline: reloj en hover) --}}
+                                        <button type="button" wire:click="abrirEditarHoraEntrega({{ $pedido->id }})"
+                                            class="inline-flex items-center gap-1 group cursor-pointer text-left"
+                                            title="{{ __('Editar hora de entrega') }}">
+                                            @if($pedido->lo_antes_posible)
+                                                <span class="text-sm font-bold text-sky-700 dark:text-sky-300">{{ __('Lo antes posible') }}</span>
+                                            @elseif($pedido->hora_pactada_at)
+                                                <span>{{ __('Entrega') }}: <span class="text-sm font-bold text-bcn-primary">{{ $pedido->hora_pactada_at->format('H:i') }}</span></span>
+                                            @else
+                                                <span class="text-gray-400 dark:text-gray-500">{{ __('Sin hora pactada') }}</span>
+                                            @endif
+                                            <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-opacity flex-shrink-0"
+                                                  aria-hidden="true">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                            </span>
+                                        </button>
                                     @else
-                                        <div class="text-gray-400 dark:text-gray-500">{{ __('Sin hora pactada') }}</div>
+                                        @if($pedido->lo_antes_posible)
+                                            <div class="text-sm font-bold text-sky-700 dark:text-sky-300">{{ __('Lo antes posible') }}</div>
+                                        @elseif($pedido->hora_pactada_at)
+                                            <div>{{ __('Entrega') }}: <span class="text-sm font-bold text-bcn-primary">{{ $pedido->hora_pactada_at->format('H:i') }}</span></div>
+                                        @else
+                                            <div class="text-gray-400 dark:text-gray-500">{{ __('Sin hora pactada') }}</div>
+                                        @endif
                                     @endif
                                     {{-- Minutos desde la confirmación cuando la alerta está activa --}}
                                     <span x-show="nivel !== 'ok'" x-cloak x-text="edad()"
@@ -1714,6 +1735,88 @@
                 <button type="button" @click="close()"
                     class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
                     {{ __('Cancelar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- ==================== MODAL: EDITAR HORA DE ENTREGA ==================== --}}
+    @if($showHoraEntregaModal && !empty($horaEntregaInfo))
+        <x-bcn-modal
+            :title="__('Hora de entrega') . ' #' . $horaEntregaInfo['numero']"
+            color="bg-amber-500"
+            maxWidth="md"
+            onClose="cerrarEditarHoraEntrega"
+            submit="guardarHoraEntregaManual"
+        >
+            <x-slot:body>
+                <div class="space-y-4">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('Actual') }}:
+                        <span class="font-semibold text-gray-700 dark:text-gray-200">
+                            {{ $horaEntregaInfo['lo_antes_posible'] ? __('Lo antes posible') : ($horaEntregaInfo['hora_actual'] ?? __('Sin hora pactada')) }}
+                        </span>
+                    </p>
+
+                    @if($horaEntregaInfo['modo'] === 'franjas' && !empty($horaEntregaInfo['franjas']))
+                        {{-- Horarios configurados (como en el alta) --}}
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">{{ __('Horarios de entrega') }}</label>
+                            <div class="grid grid-cols-4 gap-1.5">
+                                @if($horaEntregaInfo['acepta_asap'])
+                                    <button type="button" wire:click="aplicarFranjaHoraEntrega"
+                                        class="col-span-2 px-1 py-1.5 border border-sky-300 dark:border-sky-600 rounded-md text-[11px] font-semibold text-sky-700 dark:text-sky-300 hover:bg-sky-600 hover:text-white transition-colors">
+                                        {{ __('Lo antes posible') }}
+                                    </button>
+                                @endif
+                                @foreach($horaEntregaInfo['franjas'] as $franja)
+                                    <button type="button" wire:click="aplicarFranjaHoraEntrega('{{ $franja['iso'] }}')"
+                                        class="px-1 py-1.5 border border-amber-300 dark:border-amber-600 rounded-md text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-500 hover:text-white transition-colors"
+                                        @if($franja['manana']) title="{{ __('Madrugada del día siguiente') }}" @endif>
+                                        {{ $franja['label'] }}@if($franja['manana'])<sup>+1</sup>@endif
+                                    </button>
+                                @endforeach
+                            </div>
+                        </div>
+                    @elseif($horaEntregaInfo['modo'] === 'manual' && !empty($horaEntregaInfo['botones']))
+                        {{-- Botones de demora (como en el alta): se suman a la hora ACTUAL --}}
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">{{ __('En cuántos minutos estará') }}</label>
+                            <div class="grid grid-cols-6 gap-1">
+                                @foreach($horaEntregaInfo['botones'] as $demora)
+                                    <button type="button" wire:click="aplicarDemoraHoraEntrega({{ (int) $demora }})"
+                                        class="px-1 py-1 border border-amber-300 dark:border-amber-600 rounded-md text-[11px] font-semibold text-amber-700 dark:text-amber-300 hover:bg-amber-500 hover:text-white transition-colors"
+                                        title="{{ (int) $demora === 0 ? __('Lo antes posible') : now()->addMinutes((int) $demora)->format('H:i') }}">
+                                        @if((int) $demora === 0) {{ __('Ya') }} @else +{{ (int) $demora }}′ @endif
+                                    </button>
+                                @endforeach
+                            </div>
+                            <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">{{ __('Los minutos se suman a la hora actual.') }}</p>
+                        </div>
+                    @else
+                        {{-- Modo automática (o sin quick-picks): ofrecer ASAP --}}
+                        <button type="button" wire:click="aplicarFranjaHoraEntrega"
+                            class="px-3 py-1.5 border border-sky-300 dark:border-sky-600 rounded-md text-xs font-semibold text-sky-700 dark:text-sky-300 hover:bg-sky-600 hover:text-white transition-colors">
+                            {{ __('Lo antes posible') }}
+                        </button>
+                    @endif
+
+                    {{-- Edición libre, disponible en todos los modos --}}
+                    <div>
+                        <label for="horaEntregaManual" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('O fijar hora exacta') }}</label>
+                        <input id="horaEntregaManual" type="datetime-local" wire:model="horaEntregaManual"
+                            class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                    </div>
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" wire:click="cerrarEditarHoraEntrega"
+                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button" wire:click="guardarHoraEntregaManual"
+                    class="px-4 py-2 bg-amber-500 rounded-md text-sm font-semibold text-white hover:bg-amber-600">
+                    {{ __('Guardar hora exacta') }}
                 </button>
             </x-slot:footer>
         </x-bcn-modal>

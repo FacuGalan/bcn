@@ -642,6 +642,38 @@ class PedidoDeliveryService
     }
 
     /**
+     * Actualiza la promesa de entrega de un pedido ACTIVO (edición rápida
+     * desde el panel): hora pactada explícita o "lo antes posible" (hora
+     * null + flag). NO re-cotiza el envío: el costo pactado no se toca.
+     */
+    public function actualizarPromesa(PedidoDelivery $pedido, ?Carbon $horaPactada, bool $loAntesPosible = false, ?int $usuarioId = null): void
+    {
+        if (in_array($pedido->estado_pedido, [
+            PedidoDelivery::ESTADO_ENTREGADO,
+            PedidoDelivery::ESTADO_FACTURADO,
+            PedidoDelivery::ESTADO_CANCELADO,
+        ], true)) {
+            throw new Exception("No se puede cambiar la hora de entrega de un pedido en estado '{$pedido->estado_pedido}'");
+        }
+
+        $pedido->update([
+            'hora_pactada_at' => $loAntesPosible ? null : $horaPactada,
+            'lo_antes_posible' => $loAntesPosible,
+        ]);
+
+        Log::info('Promesa de entrega actualizada', [
+            'pedido_id' => $pedido->id,
+            'hora_pactada_at' => $pedido->hora_pactada_at?->toDateTimeString(),
+            'lo_antes_posible' => $loAntesPosible,
+            'usuario_id' => $usuarioId ?: (int) auth()->id(),
+        ]);
+
+        // Refresca paneles y, si es un pedido externo, avisa al seguimiento.
+        $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_ESTADO_CAMBIADO);
+        $this->dispatchSeguimientoPublico($pedido, $pedido->estado_pedido);
+    }
+
+    /**
      * ¿La sucursal convierte los pedidos delivery en venta automáticamente al
      * entregar? Key propia del JSON config_delivery (separada de la columna
      * pedido_conversion_automatica_al_entregar, que quedó solo para mostrador).

@@ -464,6 +464,49 @@ class SmokePedidosDeliveryTest extends TestCase
         $this->assertTrue((bool) $componente->get('vueltaInfo')['repartidor_tercero']);
     }
 
+    public function test_editar_hora_entrega_con_botones_de_demora(): void
+    {
+        // Modal de hora de entrega (modo manual): +min se suma a la hora
+        // ACTUAL; "Ya" (+0) deja el pedido como "Lo antes posible".
+        $this->habilitarDelivery(['modo_promesa' => 'manual', 'botones_demora' => [0, 10, 20]]);
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 500);
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('abrirEditarHoraEntrega', $pedido->id)
+            ->assertSet('showHoraEntregaModal', true)
+            ->call('aplicarDemoraHoraEntrega', 20)
+            ->assertDispatched('toast-success');
+
+        $pedido->refresh();
+        $this->assertNotNull($pedido->hora_pactada_at);
+        $this->assertEqualsWithDelta(20, now()->diffInMinutes($pedido->hora_pactada_at), 2);
+        $this->assertFalse((bool) $pedido->lo_antes_posible);
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('abrirEditarHoraEntrega', $pedido->id)
+            ->call('aplicarDemoraHoraEntrega', 0)
+            ->assertDispatched('toast-success');
+
+        $pedido->refresh();
+        $this->assertNull($pedido->hora_pactada_at);
+        $this->assertTrue((bool) $pedido->lo_antes_posible);
+    }
+
+    public function test_editar_hora_entrega_manual_exacta(): void
+    {
+        $this->habilitarDelivery(['modo_promesa' => 'automatica']);
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 500);
+        $hora = now()->addHours(2)->startOfMinute();
+
+        Livewire::test(PedidosDelivery::class)
+            ->call('abrirEditarHoraEntrega', $pedido->id)
+            ->set('horaEntregaManual', $hora->format('Y-m-d\TH:i'))
+            ->call('guardarHoraEntregaManual')
+            ->assertDispatched('toast-success');
+
+        $this->assertTrue($pedido->fresh()->hora_pactada_at->equalTo($hora));
+    }
+
     public function test_asignar_repartidor_desde_panel(): void
     {
         $repartidor = Repartidor::create(['nombre' => 'Ana Bici', 'tipo' => 'propio', 'activo' => true]);

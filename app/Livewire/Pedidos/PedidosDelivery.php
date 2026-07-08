@@ -210,6 +210,140 @@ class PedidosDelivery extends Component
     /** @var array<int, bool> pedido_id => seleccionado */
     public array $salidaPedidosSeleccionados = [];
 
+    // ==================== MODAL: EDITAR HORA DE ENTREGA ====================
+
+    public bool $showHoraEntregaModal = false;
+
+    public ?int $pedidoHoraEntregaId = null;
+
+    /**
+     * Info del modal de hora de entrega: se arma según el modo de promesa de
+     * la sucursal (manual = botones +min sobre la hora ACTUAL, franjas =
+     * horarios configurados como en el alta) + edición libre siempre.
+     */
+    public array $horaEntregaInfo = [];
+
+    /** Hora exacta (datetime-local) para la edición libre. */
+    public string $horaEntregaManual = '';
+
+    public function abrirEditarHoraEntrega(int $pedidoId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.editar')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para editar pedidos'));
+
+            return;
+        }
+
+        $pedido = PedidoDelivery::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        if (in_array($pedido->estado_pedido, [
+            PedidoDelivery::ESTADO_ENTREGADO,
+            PedidoDelivery::ESTADO_FACTURADO,
+            PedidoDelivery::ESTADO_CANCELADO,
+        ], true)) {
+            $this->dispatch('toast-error', message: __("No se puede cambiar la hora de entrega de un pedido en estado ':estado'", ['estado' => $pedido->estado_pedido]));
+
+            return;
+        }
+
+        $config = $this->configDeliverySucursal();
+        $modo = (string) ($config['modo_promesa'] ?? 'manual');
+
+        $franjas = [];
+        if ($modo === 'franjas') {
+            $sucursal = Sucursal::find($pedido->sucursal_id);
+            $franjas = $sucursal
+                ? array_map(fn ($slot) => [
+                    'iso' => $slot->toDateTimeString(),
+                    'label' => $slot->format('H:i'),
+                    'manana' => ! $slot->isToday(),
+                ], app(\App\Services\Pedidos\DeliveryEnvioService::class)->franjasDisponibles($sucursal, $pedido->tipo))
+                : [];
+        }
+
+        $this->horaEntregaInfo = [
+            'numero' => $pedido->numero_visible,
+            'modo' => $modo,
+            'botones' => array_values((array) ($config['botones_demora'] ?? [])),
+            'franjas' => $franjas,
+            'acepta_asap' => (bool) ($config['acepta_lo_antes_posible'] ?? true),
+            'hora_actual' => $pedido->hora_pactada_at?->format('d/m H:i'),
+            'lo_antes_posible' => (bool) $pedido->lo_antes_posible,
+        ];
+        $this->horaEntregaManual = ($pedido->hora_pactada_at ?? now())->format('Y-m-d\TH:i');
+        $this->pedidoHoraEntregaId = $pedidoId;
+        $this->showHoraEntregaModal = true;
+    }
+
+    public function cerrarEditarHoraEntrega(): void
+    {
+        $this->showHoraEntregaModal = false;
+        $this->pedidoHoraEntregaId = null;
+        $this->horaEntregaInfo = [];
+        $this->horaEntregaManual = '';
+    }
+
+    /**
+     * Botón de demora del modal (modo manual): los minutos se suman a la hora
+     * ACTUAL (no a la promesa vieja). "Ya" (+0) = lo antes posible.
+     */
+    public function aplicarDemoraHoraEntrega(int $min): void
+    {
+        $this->aplicarHoraEntrega($min > 0 ? now()->addMinutes($min) : null, $min === 0);
+    }
+
+    /** Franja elegida (modo franjas); null = "Lo antes posible". */
+    public function aplicarFranjaHoraEntrega(?string $iso = null): void
+    {
+        $this->aplicarHoraEntrega(
+            $iso ? \Illuminate\Support\Carbon::parse($iso) : null,
+            $iso === null,
+        );
+    }
+
+    /** Edición libre: guarda la hora exacta del input. */
+    public function guardarHoraEntregaManual(): void
+    {
+        if (trim($this->horaEntregaManual) === '') {
+            $this->dispatch('toast-error', message: __('Elegí una hora de entrega'));
+
+            return;
+        }
+
+        try {
+            $hora = \Illuminate\Support\Carbon::parse($this->horaEntregaManual);
+        } catch (\Throwable) {
+            $this->dispatch('toast-error', message: __('Hora de entrega inválida'));
+
+            return;
+        }
+
+        $this->aplicarHoraEntrega($hora, false);
+    }
+
+    protected function aplicarHoraEntrega(?\Illuminate\Support\Carbon $hora, bool $loAntesPosible): void
+    {
+        $pedido = PedidoDelivery::find($this->pedidoHoraEntregaId);
+        if (! $pedido) {
+            return;
+        }
+
+        try {
+            $this->service->actualizarPromesa($pedido, $hora, $loAntesPosible);
+            $this->dispatch('toast-success', message: $loAntesPosible
+                ? __('El pedido quedó como "Lo antes posible"')
+                : __('Hora de entrega actualizada a :hora', ['hora' => $hora->format('d/m H:i')]));
+            $this->cerrarEditarHoraEntrega();
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
     // ==================== MODAL: REGISTRAR VUELTA (RF-08/D13) ====================
 
     public bool $showVueltaModal = false;
