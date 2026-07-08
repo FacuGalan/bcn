@@ -6,10 +6,13 @@
      Requiere $pedido con repartidor/zona eager-loaded.
      Flags opcionales (kanban compacto): $sinTipo oculta el chip de tipo (la
      card lo muestra junto al número), $sinEnvio oculta el costo de envío,
-     $sinPromesa oculta el chip de promesa (la tabla tiene columna Horarios). --}}
+     $sinPromesa oculta el chip de promesa (la tabla tiene columna Horarios),
+     $conDespacho convierte el renglón del repartidor en botón inline de
+     despacho ("Sin repartidor" clickeable cuando falta). --}}
 @php($sinTipo = $sinTipo ?? false)
 @php($sinEnvio = $sinEnvio ?? false)
 @php($sinPromesa = $sinPromesa ?? false)
+@php($conDespacho = $conDespacho ?? false)
 <div class="space-y-1 {{ $class ?? '' }}">
     {{-- 1. Chips: tipo + origen + promesa --}}
     <div class="flex flex-wrap items-center gap-1">
@@ -76,9 +79,29 @@
         @endif
 
         {{-- 3. Repartidor · envío --}}
-        @if($pedido->repartidor || (! $sinEnvio && (float) $pedido->costo_envio > 0))
+        @php($repartidorDespachable = $conDespacho && in_array($pedido->estado_pedido, ['confirmado', 'en_preparacion', 'listo'], true))
+        @if($pedido->repartidor || $repartidorDespachable || (! $sinEnvio && (float) $pedido->costo_envio > 0))
             <div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                @if($pedido->repartidor)
+                @if($repartidorDespachable)
+                    {{-- Botón inline de despacho: repartidor (o "Sin repartidor")
+                         visible + camión en hover. Sin repartidor abre el modal
+                         de despacho; con repartidor despacha (suma al viaje). --}}
+                    <button type="button"
+                            wire:click="despachar({{ $pedido->id }})"
+                            class="inline-flex items-center gap-1 group cursor-pointer"
+                            title="{{ $pedido->repartidor ? __('Despachar') : __('Elegir repartidor y despachar') }}">
+                        <span class="inline-flex items-center gap-0.5 {{ $pedido->repartidor ? '' : 'font-semibold text-orange-600 dark:text-orange-400' }}">
+                            <svg class="w-3 h-3 flex-shrink-0 {{ $pedido->repartidor ? 'text-gray-400' : 'text-orange-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                            {{ $pedido->repartidor?->nombre ?? __('Sin repartidor') }}
+                        </span>
+                        <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-opacity flex-shrink-0"
+                              aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                            </svg>
+                        </span>
+                    </button>
+                @elseif($pedido->repartidor)
                     <span class="inline-flex items-center gap-0.5" title="{{ __('Repartidor') }}">
                         <svg class="w-3 h-3 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                         {{ $pedido->repartidor->nombre }}

@@ -1417,6 +1417,7 @@
     "El valor debe ser un número": "The value must be a number",
     "El valor no puede ser negativo": "The value cannot be negative",
     "El webhook permite confirmar los pagos al instante, incluso si el cajero cierra el navegador. Sin webhook, el sistema detecta el pago por consulta periódica (más lento). Cada aplicación de Mercado Pago (QR, Point) tiene su propio webhook y su propia clave secreta: repita estos pasos en cada una.": "The webhook confirms payments instantly, even if the cashier closes the browser. Without a webhook, the system detects the payment by periodic polling (slower). Each Mercado Pago application (QR, Point) has its own webhook and its own secret key: repeat these steps in each one.",
+    "Elegir repartidor y despachar": "Choose courier and dispatch",
     "Elegir repartidor...": "Choose driver...",
     "Elegí al menos un permiso para el token": "Choose at least one permission for the token",
     "Elegí el horario de entrega pactado con el cliente.": "Choose the delivery time agreed with the customer.",

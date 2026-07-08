@@ -1417,6 +1417,7 @@
     "El valor debe ser un número": "El valor debe ser un número",
     "El valor no puede ser negativo": "El valor no puede ser negativo",
     "El webhook permite confirmar los pagos al instante, incluso si el cajero cierra el navegador. Sin webhook, el sistema detecta el pago por consulta periódica (más lento). Cada aplicación de Mercado Pago (QR, Point) tiene su propio webhook y su propia clave secreta: repita estos pasos en cada una.": "El webhook permite confirmar los pagos al instante, incluso si el cajero cierra el navegador. Sin webhook, el sistema detecta el pago por consulta periódica (más lento). Cada aplicación de Mercado Pago (QR, Point) tiene su propio webhook y su propia clave secreta: repita estos pasos en cada una.",
+    "Elegir repartidor y despachar": "Elegir repartidor y despachar",
     "Elegir repartidor...": "Elegir repartidor...",
     "Elegí al menos un permiso para el token": "Elegí al menos un permiso para el token",
     "Elegí el horario de entrega pactado con el cliente.": "Elegí el horario de entrega pactado con el cliente.",
