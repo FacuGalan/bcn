@@ -46,6 +46,14 @@ class PedidoPublicoController extends Controller
             'observaciones' => 'nullable|string|max:1000',
             'datos_fiscales' => 'nullable|array',
             'origen_referencia' => 'nullable|string|max:100',
+            // Promesa de entrega (RF-15): ASAP o franja elegida (modo franjas,
+            // ISO 8601 de GET /franjas). El service la valida contra la config.
+            'entrega.lo_antes_posible' => 'nullable|boolean',
+            'entrega.franja' => 'nullable|date',
+            // Pago declarado contra entrega/retiro (planificado): FP de
+            // GET /tiendas/{slug} y, para efectivo, "¿con cuánto pagás?".
+            'pago.forma_pago_id' => 'nullable|integer',
+            'pago.paga_con' => 'nullable|numeric|min:0',
         ]);
 
         $sucursal = $request->attributes->get('api_sucursal');
@@ -82,19 +90,37 @@ class PedidoPublicoController extends Controller
             abort(404);
         }
 
+        // "facturado" (convertido en venta) es jerga interna: para el
+        // consumidor el pedido sigue ENTREGADO. El canal de tiempo real
+        // tampoco emite facturado — misma verdad en GET y WebSocket.
+        $esFacturado = $pedido->estado_pedido === PedidoDelivery::ESTADO_FACTURADO;
+        $estadoPublico = $esFacturado ? PedidoDelivery::ESTADO_ENTREGADO : $pedido->estado_pedido;
+
+        $porAceptar = $pedido->estado_pedido === PedidoDelivery::ESTADO_BORRADOR
+            && $pedido->origen !== PedidoDelivery::ORIGEN_PANEL;
+
+        // D14: timeout de aceptación vencido ⇒ el consumidor lo ve demorado.
+        $timeoutMin = (int) (app(\App\Services\Pedidos\DeliveryEnvioService::class)
+            ->configDelivery($sucursal)['timeout_aceptacion_min'] ?? 0);
+        $demorado = $porAceptar
+            && $timeoutMin > 0
+            && $pedido->created_at->diffInMinutes(now()) >= $timeoutMin;
+
         return response()->json([
             'data' => [
                 'numero' => $pedido->numero_visible,
                 'tipo' => $pedido->tipo,
-                'estado' => $pedido->estado_pedido,
-                'estado_label' => $pedido->estado_label,
-                'por_aceptar' => $pedido->estado_pedido === PedidoDelivery::ESTADO_BORRADOR
-                    && $pedido->origen !== PedidoDelivery::ORIGEN_PANEL,
+                'estado' => $estadoPublico,
+                'estado_label' => $esFacturado ? __('Entregado') : $pedido->estado_label,
+                'por_aceptar' => $porAceptar,
+                'demorado' => $demorado,
                 'cancelado_motivo' => $pedido->estado_pedido === PedidoDelivery::ESTADO_CANCELADO
                     ? $pedido->motivo_cancelacion
                     : null,
                 'hora_pactada_at' => $pedido->hora_pactada_at?->toIso8601String(),
-                'repartidor_en_camino' => $pedido->estado_pedido === PedidoDelivery::ESTADO_EN_CAMINO
+                'lo_antes_posible' => (bool) $pedido->lo_antes_posible,
+                'repartidor_en_camino' => $pedido->tipo === PedidoDelivery::TIPO_DELIVERY
+                    && $pedido->estado_pedido === PedidoDelivery::ESTADO_EN_CAMINO
                     ? $pedido->repartidor?->nombre
                     : null,
                 'total_final' => (float) $pedido->total_final,

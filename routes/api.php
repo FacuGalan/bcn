@@ -50,6 +50,7 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         ->group(function () {
             Route::get('/', [\App\Http\Controllers\Api\V1\TiendaController::class, 'show'])->name('tienda.show');
             Route::get('/catalogo', [\App\Http\Controllers\Api\V1\TiendaController::class, 'catalogo'])->name('tienda.catalogo');
+            Route::get('/franjas', [\App\Http\Controllers\Api\V1\TiendaController::class, 'franjas'])->name('tienda.franjas');
             Route::post('/envios/cotizar', [\App\Http\Controllers\Api\V1\CotizacionController::class, 'envio'])->name('tienda.envios.cotizar');
             Route::post('/carrito/cotizar', [\App\Http\Controllers\Api\V1\CotizacionController::class, 'carrito'])->name('tienda.carrito.cotizar');
             Route::post('/pedidos', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'store'])

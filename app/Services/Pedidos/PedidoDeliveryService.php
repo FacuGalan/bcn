@@ -207,7 +207,8 @@ class PedidoDeliveryService
 
             // Promesa automática (RF-15 core): si no vino hora pactada y el
             // modo es 'automatica', calcular desde la distancia cotizada.
-            if (! $pedido->hora_pactada_at && $tipo === PedidoDelivery::TIPO_DELIVERY) {
+            // ASAP explícito NO calcula (hora y flag son excluyentes).
+            if (! $pedido->hora_pactada_at && ! $pedido->lo_antes_posible && $tipo === PedidoDelivery::TIPO_DELIVERY) {
                 $horaPactada = $this->envioService->calcularHoraPactada(
                     $sucursal,
                     $pedido->distancia_km !== null ? (float) $pedido->distancia_km : null
@@ -2667,14 +2668,23 @@ class PedidoDeliveryService
         }
 
         try {
+            // "facturado" es jerga interna (convertido en venta): de cara al
+            // consumidor el pedido sigue "entregado".
+            $estadoPublico = $estadoNuevo === PedidoDelivery::ESTADO_FACTURADO
+                ? PedidoDelivery::ESTADO_ENTREGADO
+                : $estadoNuevo;
+
             broadcast(new \App\Events\Broadcasting\PedidoSeguimientoPublicoBroadcast(
                 token: (string) $pedido->token_seguimiento,
-                estado: $estadoNuevo,
-                estadoLabel: $pedido->estado_label,
+                estado: $estadoPublico,
+                estadoLabel: $estadoNuevo === PedidoDelivery::ESTADO_FACTURADO
+                    ? __('Entregado')
+                    : $pedido->estado_label,
                 repartidor: $estadoNuevo === PedidoDelivery::ESTADO_EN_CAMINO
                     ? $pedido->repartidor()->value('nombre')
                     : null,
                 horaPactada: $pedido->hora_pactada_at?->toIso8601String(),
+                loAntesPosible: (bool) $pedido->lo_antes_posible,
             ));
         } catch (\Throwable $e) {
             Log::warning('No se pudo broadcastear seguimiento público', [

@@ -65,12 +65,26 @@ class CotizacionController extends Controller
 
         $sucursal = $request->attributes->get('api_sucursal');
 
+        // Consumidor logueado con cliente materializado (D11): la cotización
+        // del checkout usa SU cliente (precios especiales/promos por cliente)
+        // — el mismo que usará el POST del pedido, para que checkout y pedido
+        // muestren el MISMO total. Solo mapping existente: cotizar nunca crea
+        // clientes.
+        $clienteId = null;
+        $consumidor = $request->user('sanctum');
+        if ($consumidor instanceof \App\Models\Consumidor) {
+            $clienteId = $consumidor->clienteIdEn((int) $sucursal->comercio_id);
+            if ($clienteId && ! \App\Models\Cliente::find($clienteId)) {
+                $clienteId = null;
+            }
+        }
+
         $resultado = $cotizador->cotizar(
             $sucursal,
             $datos['tipo'],
             $datos['items'],
             $datos['cupon_codigo'] ?? null,
-            null, // consumidores con cliente materializado: proyecto tienda
+            $clienteId,
         );
 
         return response()->json([

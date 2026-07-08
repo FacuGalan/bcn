@@ -42,7 +42,37 @@ forma uniforme:
 
 ### `GET /v1/tiendas/{slug}`
 Datos públicos de la tienda: nombre, ubicación, si está abierta ahora,
-horarios/calendario y config de entrega.
+horarios/calendario, config de entrega, **contrato de promesa** y **formas de
+pago declarables**:
+
+```json
+{
+  "entrega": {
+    "modo_promesa": "franjas|automatica|manual",
+    "acepta_lo_antes_posible": true,
+    "demora_base_min": 20,        // solo modo automatica (estimación "~X min")
+    "demora_min_por_km": 5,       // solo modo automatica
+    "usa_franjas": false          // true ⇒ consultar GET /franjas
+  },
+  "formas_pago": [
+    { "id": 1, "nombre": "Efectivo", "codigo": "efectivo", "permite_vuelto": true }
+  ]
+}
+```
+
+`formas_pago` son las declarables **contra entrega/retiro** (el pago online
+integrado es otro circuito, pendiente en el spec de integraciones);
+`permite_vuelto: true` habilita el campo `paga_con` del alta de pedido.
+
+### `GET /v1/tiendas/{slug}/franjas?tipo=delivery|take_away`
+Horarios de entrega/retiro de la JORNADA con lugar (modo `franjas`):
+```json
+{ "modo_promesa": "franjas", "acepta_lo_antes_posible": true,
+  "franjas": [ { "hora": "2026-07-08T20:30:00-03:00", "label": "20:30" } ] }
+```
+Vacío si la sucursal no trabaja por franjas. El valor `hora` es el que se
+manda en `entrega.franja` del alta (la API rechaza horarios inventados o
+vencidos). Los cupos por franja llegan en Fase 8.
 
 ### `GET /v1/tiendas/{slug}/catalogo?tipo=delivery|take_away`
 Catálogo visible según RF-17 (activo + vendible + visible en tienda +
@@ -89,10 +119,25 @@ Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
   "cliente": { "nombre": "Juan", "telefono": "11...", "email": "j@x.com" },
   "direccion": { "direccion": "Av. Siempreviva 742", "referencia": "3B",
                  "latitud": -34.60, "longitud": -58.38, "localidad_id": null },
+  "entrega": { "lo_antes_posible": true },
+  "pago": { "forma_pago_id": 1, "paga_con": 20000 },
   "observaciones": "sin cebolla",
   "datos_fiscales": { "cuit": "20-...-3" }
 }
 ```
+`entrega` (opcional — "¿cuándo lo querés?"):
+- `franja` (solo modo `franjas`): un `hora` de `GET /franjas`; inventada o
+  vencida → 422. Sin franja: default "lo antes posible" si la config lo
+  ofrece; si no, 422 pidiendo elegir.
+- `lo_antes_posible: true`: solo si `acepta_lo_antes_posible`; si no → 422.
+- Modo `automatica`: la hora la calcula el sistema por distancia. Modo
+  `manual` + aceptación manual: la pacta el comercio al aceptar.
+
+`pago` (opcional — "¿cómo pagás?"): declara el pago **contra entrega/retiro**
+como planificado (no cobra nada): `forma_pago_id` de `GET /tiendas/{slug}` y,
+si `permite_vuelto`, `paga_con` (efectivo con el que paga → el repartidor sale
+con el vuelto). `paga_con` menor al total → 422.
+
 Reglas:
 - Tienda cerrada (calendario/horarios) → 422.
 - Con georreferenciación activa: coordenadas obligatorias, fuera de alcance → 422.
@@ -103,11 +148,32 @@ Reglas:
 - Respuesta 201 con el pedido, incluido `token_seguimiento`.
 - Consumidor logueado (Bearer del guard consumidores): el pedido guarda su
   identidad; el alta de cliente en el comercio depende de la política del
-  comercio.
+  comercio. El `carrito/cotizar` con ese mismo Bearer cotiza con su cliente
+  (precios especiales) — checkout y pedido muestran el MISMO total.
 
 ### `GET /v1/tiendas/{slug}/pedidos/{token_seguimiento}`
 Seguimiento público (el token ULID es la credencial): estado + label, hora
-pactada, repartidor en camino, timestamps y el canal de tiempo real.
+pactada / `lo_antes_posible`, `demorado` (por aceptar con el timeout del
+comercio vencido), repartidor en camino, timestamps y el canal de tiempo real.
+
+**Máquina de estados del seguimiento** (render por `estado`; el `estado_label`
+ya viene resuelto por tipo):
+
+| `estado` | delivery | take_away |
+|---|---|---|
+| `borrador` + `por_aceptar` | esperando confirmación del comercio | ídem |
+| `confirmado` | confirmado | confirmado |
+| `en_preparacion` | en preparación | en preparación |
+| `listo` | listo para enviar (**salteable** si la sucursal no usa este paso) | listo (salteable) |
+| `en_camino` | en camino 🛵 (`repartidor_en_camino`) | **"Para retirar"** — el cliente pasa a buscarlo (`repartidor_en_camino` siempre null) |
+| `entregado` | entregado | retirado/entregado |
+| `cancelado` | con `cancelado_motivo` | ídem |
+
+El estado interno `facturado` (convertido en venta) **nunca se expone**: el
+GET lo devuelve como `entregado` y el canal de tiempo real no lo emite.
+Cualquier estado puede saltearse (p. ej. aceptación automática con comanda
+directa pasa confirmado→en_preparacion al toque): renderizar por progreso
+acumulado, no por secuencia estricta.
 
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
@@ -132,7 +198,11 @@ Modificaciones operativas puntuales:
   "repartidor_id": 3, "observaciones": "...", "observacion_estado": "..." }
 ```
 `en_camino` con repartidor asignado crea la salida de reparto implícita
-(mismo circuito que el panel). La edición completa del carrito es del panel.
+(mismo circuito que el panel); para **take-away** significa "listo para
+retirar" (sin salida). `entregado` sobre un pedido que está EN una salida de
+reparto → 422: la entrega de un pedido en la calle se registra con la VUELTA
+del repartidor desde el panel (ahí se cargan los cobros contra entrega).
+La edición completa del carrito es del panel.
 
 ### `GET /v1/delivery/config` *(config:read)*
 Config operativa de la sucursal (horarios, radio, costos, aceptación, etc.).
@@ -144,7 +214,8 @@ Config operativa de la sucursal (horarios, radio, costos, aceptación, etc.).
 - **Seguimiento público** (canal público, sin auth):
   `pedidos-delivery.seguimiento.{token_seguimiento}` — evento
   `SeguimientoActualizado` `{ estado, estado_label, repartidor,
-  hora_pactada_at, at }` en cada cambio de estado de un pedido externo.
+  hora_pactada_at, lo_antes_posible, at }` en cada cambio de estado de un
+  pedido externo (también cuando el comercio edita la hora pactada).
 - **Panel/integraciones** (canal privado del comercio):
   `comercios.{comercioId}.pedidos-delivery` — evento `PedidoDeliveryBroadcast`
   `{ pedidoId, sucursalId, tipo, at }` con tipos `creado`, `estado_cambiado`,

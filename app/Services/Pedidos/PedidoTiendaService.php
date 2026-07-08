@@ -96,6 +96,11 @@ class PedidoTiendaService
 
         $aceptacionManual = ($config['aceptacion_pedidos_externos'] ?? 'manual') !== 'automatica';
 
+        // Promesa de entrega elegida por el CONSUMIDOR (RF-15): franja (modo
+        // franjas) o "lo antes posible". Validada contra la config — la API
+        // pública no negocia.
+        [$horaPactada, $loAntesPosible] = $this->resolverPromesa($sucursal, $config, $tipo, $payload, $aceptacionManual);
+
         $data = [
             'tipo' => $tipo,
             'origen' => $payload['origen'] ?? PedidoDelivery::ORIGEN_TIENDA,
@@ -136,12 +141,18 @@ class PedidoTiendaService
             'costo_envio' => $costoEnvio,
             'costo_envio_manual' => false,
             'distancia_km' => $cotizacionEnvio?->distanciaKm,
+            'hora_pactada_at' => $horaPactada,
+            'lo_antes_posible' => $loAntesPosible,
             '_actualizar_direccion_cliente' => false, // el consumidor gestiona sus direcciones globales
         ];
 
         $detalles = $this->construirDetalles($resultado);
 
         $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $aceptacionManual);
+
+        // Pago declarado contra entrega/retiro (planificado, D14): "pago con
+        // efectivo, con $X" queda en el pedido — el panel/vuelta lo confirma.
+        $this->registrarPagoDeclarado($sucursal, $pedido, $payload['pago'] ?? null);
 
         // Aceptación automática (D14): comandar solo (marca los renglones y
         // transiciona a en_preparacion; la impresión física sigue el circuito
@@ -158,6 +169,115 @@ class PedidoTiendaService
         }
 
         return $pedido;
+    }
+
+    /**
+     * Resuelve la promesa elegida por el consumidor → [hora_pactada_at, asap].
+     *
+     * - `entrega.franja` (solo modo franjas): debe ser una franja VIGENTE de
+     *   franjasDisponibles — la API no acepta horarios inventados.
+     * - `entrega.lo_antes_posible`: solo si la config lo ofrece.
+     * - Sin elección: modo franjas exige elegir (o ASAP si está ofrecido);
+     *   en automática/manual, con aceptación AUTOMÁTICA el pedido no puede
+     *   quedar sin promesa (nadie la pacta después): automática la calcula
+     *   crearPedido por distancia; manual queda ASAP si la config lo ofrece.
+     *   Con aceptación MANUAL queda para el modal de aceptación (D14).
+     */
+    protected function resolverPromesa(Sucursal $sucursal, array $config, string $tipo, array $payload, bool $aceptacionManual): array
+    {
+        $modo = (string) ($config['modo_promesa'] ?? 'manual');
+        $aceptaAsap = (bool) ($config['acepta_lo_antes_posible'] ?? true);
+        $franjaElegida = $payload['entrega']['franja'] ?? null;
+        $pidioAsap = (bool) ($payload['entrega']['lo_antes_posible'] ?? false);
+
+        if ($franjaElegida !== null) {
+            if ($modo !== 'franjas') {
+                throw new Exception(__('Esta tienda no trabaja con franjas horarias'));
+            }
+
+            $elegida = \Illuminate\Support\Carbon::parse($franjaElegida);
+            foreach ($this->envioService->franjasDisponibles($sucursal, $tipo) as $slot) {
+                if ($slot->equalTo($elegida)) {
+                    return [$slot, false];
+                }
+            }
+
+            throw new Exception(__('La franja elegida ya no está disponible: consultá los horarios vigentes'));
+        }
+
+        if ($pidioAsap) {
+            if (! $aceptaAsap) {
+                throw new Exception(__('Esta tienda no ofrece entrega "lo antes posible": elegí un horario'));
+            }
+
+            return [null, true];
+        }
+
+        // Sin elección explícita.
+        if ($modo === 'franjas') {
+            if ($aceptaAsap) {
+                return [null, true];
+            }
+
+            throw new Exception(__('Elegí un horario de entrega (franja)'));
+        }
+
+        // automática: crearPedido calcula por distancia (hora null acá).
+        // manual + aceptación automática: ASAP honesto si la config lo ofrece
+        // (nadie va a pactar hora después); con aceptación manual, el modal
+        // de aceptación la define (D14).
+        if ($modo === 'manual' && ! $aceptacionManual && $aceptaAsap) {
+            return [null, true];
+        }
+
+        return [null, false];
+    }
+
+    /**
+     * Registra el pago DECLARADO por el consumidor como planificado (nunca
+     * cobra): FP pública de la sucursal + "¿con cuánto pagás?" para efectivo
+     * (vuelto planificado, mismo patrón del panel). Sin `pago` es no-op.
+     */
+    protected function registrarPagoDeclarado(Sucursal $sucursal, PedidoDelivery $pedido, ?array $pago): void
+    {
+        $formaPagoId = (int) ($pago['forma_pago_id'] ?? 0);
+        if (! $formaPagoId) {
+            return;
+        }
+
+        $formaPago = \App\Models\FormaPago::find($formaPagoId);
+
+        $conceptoCodigo = strtoupper((string) $formaPago?->conceptoPago?->codigo);
+        $esDeclarable = $formaPago
+            && $formaPago->activo
+            && ! $formaPago->solo_sistema
+            && ! $formaPago->es_mixta
+            && ! in_array($conceptoCodigo, ['CTA_CTE', 'CUENTA_CORRIENTE', 'PUNTOS'], true)
+            && $formaPago->estaHabilitadaEnSucursal((int) $sucursal->id);
+
+        if (! $esDeclarable) {
+            throw new Exception(__('La forma de pago elegida no está disponible en esta tienda'));
+        }
+
+        $total = round((float) $pedido->total_final, 2);
+        $pagaCon = isset($pago['paga_con']) ? round((float) $pago['paga_con'], 2) : null;
+
+        $permiteVuelto = (bool) ($formaPago->conceptoPago?->permite_vuelto ?? false);
+        if ($pagaCon !== null && ! $permiteVuelto) {
+            $pagaCon = null; // "paga con" solo tiene sentido con efectivo
+        }
+        if ($pagaCon !== null && $pagaCon > 0 && $pagaCon < $total) {
+            throw new Exception(__('El monto declarado no cubre el total del pedido'));
+        }
+
+        $this->pedidoService->agregarPago($pedido, [
+            'forma_pago_id' => $formaPago->id,
+            'monto_base' => $total,
+            'monto_final' => $total,
+            'monto_recibido' => $pagaCon && $pagaCon > 0 ? $pagaCon : null,
+            'vuelto' => $pagaCon && $pagaCon > $total ? round($pagaCon - $total, 2) : 0,
+            'planificado' => true,
+        ]);
     }
 
     /**

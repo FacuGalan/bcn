@@ -71,6 +71,7 @@ class PedidoDeliveryResource extends JsonResource
                 ])->values()
                 : [],
             'hora_pactada_at' => $pedido->hora_pactada_at?->toIso8601String(),
+            'lo_antes_posible' => (bool) $pedido->lo_antes_posible,
             'token_seguimiento' => $pedido->token_seguimiento,
             'observaciones' => $pedido->observaciones,
             'fecha' => $pedido->fecha?->toIso8601String(),

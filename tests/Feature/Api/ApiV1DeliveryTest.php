@@ -309,4 +309,188 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.sucursal_id', $this->sucursalId)
             ->assertJsonPath('data.usa_delivery', true);
     }
+
+    // ==================== CONTRATO DE PROMESA Y PAGO (rev20) ====================
+
+    protected function formaPagoEfectivoEnSucursal(): \App\Models\FormaPago
+    {
+        $fp = $this->crearFormaPagoEfectivo()['formaPago'];
+        $fp->sucursales()->attach($this->sucursalId, ['activo' => true]);
+
+        return $fp;
+    }
+
+    public function test_tienda_show_expone_contrato_de_promesa_y_formas_de_pago(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'modo_promesa' => 'automatica',
+                'demora_base_min' => 20,
+                'demora_min_por_km' => 5,
+                'acepta_lo_antes_posible' => true,
+            ]),
+        ]);
+        $fp = $this->formaPagoEfectivoEnSucursal();
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.entrega.modo_promesa', 'automatica')
+            ->assertJsonPath('data.entrega.acepta_lo_antes_posible', true)
+            ->assertJsonPath('data.entrega.demora_base_min', 20)
+            ->assertJsonPath('data.entrega.usa_franjas', false);
+
+        $formasPago = collect($respuesta->json('data.formas_pago'));
+        $efectivo = $formasPago->firstWhere('id', $fp->id);
+        $this->assertNotNull($efectivo, 'El efectivo habilitado en la sucursal se expone');
+        $this->assertTrue((bool) $efectivo['permite_vuelto']);
+    }
+
+    public function test_franjas_endpoint_devuelve_horarios_de_la_jornada_por_tipo(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'modo_promesa' => 'franjas',
+                'franjas' => [
+                    ['hora' => '23:58', 'dias' => [1, 2, 3, 4, 5, 6, 7], 'delivery' => true, 'take_away' => false],
+                    ['hora' => '23:59', 'dias' => [1, 2, 3, 4, 5, 6, 7], 'delivery' => true, 'take_away' => true],
+                ],
+            ]),
+        ]);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test/franjas?tipo=take_away')
+            ->assertOk()
+            ->assertJsonPath('data.modo_promesa', 'franjas');
+
+        $franjas = collect($respuesta->json('data.franjas'));
+        $this->assertCount(1, $franjas, 'Solo la franja habilitada para take-away');
+        $this->assertSame('23:59', $franjas->first()['label']);
+    }
+
+    public function test_pedido_externo_con_franja_valida_fija_la_hora_pactada(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'modo_promesa' => 'franjas',
+                'franjas' => [['hora' => '23:59', 'dias' => [1, 2, 3, 4, 5, 6, 7], 'delivery' => true, 'take_away' => true]],
+            ]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $franja = $this->getJson('/api/v1/tiendas/tienda-test/franjas')->json('data.franjas.0.hora');
+        $this->assertNotNull($franja);
+
+        $payload = $this->payloadPedido($articulo->id) + ['entrega' => ['franja' => $franja]];
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertNotNull($pedido->hora_pactada_at);
+        $this->assertSame('23:59', $pedido->hora_pactada_at->format('H:i'));
+        $this->assertFalse((bool) $pedido->lo_antes_posible);
+    }
+
+    public function test_pedido_externo_con_franja_inventada_es_rechazado(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'modo_promesa' => 'franjas',
+                'franjas' => [['hora' => '23:59', 'dias' => [1, 2, 3, 4, 5, 6, 7], 'delivery' => true, 'take_away' => true]],
+            ]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id) + ['entrega' => ['franja' => now()->addDays(3)->toIso8601String()]];
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertStatus(422);
+    }
+
+    public function test_pedido_externo_lo_antes_posible_respeta_la_config(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Con ASAP ofrecido (default): el pedido nace con el flag.
+        $payload = $this->payloadPedido($articulo->id) + ['entrega' => ['lo_antes_posible' => true]];
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+        $this->assertTrue((bool) PedidoDelivery::find($respuesta->json('data.id'))->lo_antes_posible);
+
+        // Con ASAP deshabilitado: rechazado con mensaje claro.
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode(['acepta_lo_antes_posible' => false]),
+        ]);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertStatus(422);
+    }
+
+    public function test_pedido_externo_declara_pago_efectivo_con_vuelto_planificado(): void
+    {
+        $fp = $this->formaPagoEfectivoEnSucursal();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id) + [
+            'pago' => ['forma_pago_id' => $fp->id, 'paga_con' => 20000],
+        ];
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+
+        $pedido = PedidoDelivery::with('pagos')->find($respuesta->json('data.id'));
+        $pago = $pedido->pagos->firstWhere('forma_pago_id', $fp->id);
+
+        $this->assertNotNull($pago, 'El pago declarado queda planificado en el pedido');
+        $this->assertSame('planificado', $pago->estado);
+        $this->assertEqualsWithDelta((float) $pedido->total_final, (float) $pago->monto_final, 0.01);
+        $this->assertEqualsWithDelta(20000.0, (float) $pago->monto_recibido, 0.01);
+        $this->assertEqualsWithDelta(20000.0 - (float) $pedido->total_final, (float) $pago->vuelto, 0.01);
+        $this->assertSame(PedidoDelivery::ESTADO_BORRADOR, $pedido->estado_pedido, 'Declarar pago NO confirma el borrador');
+    }
+
+    public function test_pedido_externo_con_forma_de_pago_no_habilitada_es_rechazado(): void
+    {
+        // FP sin habilitar en la sucursal (sin pivot).
+        $fp = $this->crearFormaPagoEfectivo()['formaPago'];
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id) + [
+            'pago' => ['forma_pago_id' => $fp->id],
+        ];
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertStatus(422);
+    }
+
+    public function test_seguimiento_muestra_entregado_cuando_el_pedido_esta_facturado(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $token = $respuesta->json('data.token_seguimiento');
+
+        PedidoDelivery::find($respuesta->json('data.id'))->update([
+            'estado_pedido' => PedidoDelivery::ESTADO_FACTURADO,
+            'entregado_at' => now(),
+        ]);
+
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.estado', PedidoDelivery::ESTADO_ENTREGADO)
+            ->assertJsonPath('data.estado_label', 'Entregado');
+    }
+
+    public function test_seguimiento_take_away_en_camino_es_para_retirar_sin_repartidor(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['tipo'] = 'take_away';
+        unset($payload['direccion']);
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+        $token = $respuesta->json('data.token_seguimiento');
+
+        PedidoDelivery::find($respuesta->json('data.id'))->update([
+            'estado_pedido' => PedidoDelivery::ESTADO_EN_CAMINO,
+            'en_camino_at' => now(),
+        ]);
+
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.estado', PedidoDelivery::ESTADO_EN_CAMINO)
+            ->assertJsonPath('data.estado_label', 'Para retirar')
+            ->assertJsonPath('data.repartidor_en_camino', null);
+    }
 }

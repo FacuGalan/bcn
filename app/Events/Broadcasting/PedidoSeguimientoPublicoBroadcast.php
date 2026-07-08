@@ -24,6 +24,7 @@ class PedidoSeguimientoPublicoBroadcast implements ShouldBroadcastNow
         public string $estadoLabel,
         public ?string $repartidor = null,
         public ?string $horaPactada = null,
+        public bool $loAntesPosible = false,
     ) {}
 
     /**
@@ -49,6 +50,7 @@ class PedidoSeguimientoPublicoBroadcast implements ShouldBroadcastNow
             'estado_label' => $this->estadoLabel,
             'repartidor' => $this->repartidor,
             'hora_pactada_at' => $this->horaPactada,
+            'lo_antes_posible' => $this->loAntesPosible,
             'at' => now()->toIso8601String(),
         ];
     }
