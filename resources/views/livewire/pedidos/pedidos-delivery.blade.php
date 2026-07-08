@@ -2152,7 +2152,7 @@
                         <p class="text-xs text-gray-500 dark:text-gray-400 -mt-1">{{ __('Salió') }}: {{ $vueltaInfo['salida_at'] }}</p>
                     @endif
 
-                    @if($vueltaInfo['hay_efectivo'] && ! $vueltaInfo['fondo_abierto'])
+                    @if($vueltaInfo['hay_efectivo'] && ! $vueltaInfo['fondo_abierto'] && ! ($vueltaInfo['repartidor_tercero'] ?? false))
                         <div class="bg-blue-50 dark:bg-blue-900/20 border border-blue-300 dark:border-blue-700 rounded-lg p-3">
                             <p class="text-sm text-blue-800 dark:text-blue-200">
                                 {{ __('El repartidor no tiene fondo abierto: al confirmar se abre uno automáticamente en $0 para alojar los cobros en efectivo.') }}
@@ -2226,15 +2226,21 @@
 
                     {{-- ===== Rendición del repartidor (D4/D13): caja chica + cobros de esta vuelta ===== --}}
                     @if($vueltaInfo['fondo_abierto'] || $vueltaInfo['hay_efectivo'])
-                        @php $esperadoV = $this->vueltaEfectivoEsperado; @endphp
+                        @php
+                            $esperadoV = $this->vueltaEfectivoEsperado;
+                            $esTerceroV = (bool) ($vueltaInfo['repartidor_tercero'] ?? false);
+                        @endphp
                         <div class="border border-emerald-200 dark:border-emerald-800 rounded-lg p-3 space-y-3 bg-emerald-50/50 dark:bg-emerald-900/10">
                             <h4 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Rendición del repartidor') }}</h4>
 
                             <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-                                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 px-2 py-1.5">
-                                    <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ __('Caja chica') }}</span>
-                                    <span class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($esperadoV['fondo'], 2, ',', '.') }}</span>
-                                </div>
+                                {{-- Tercero: no maneja caja chica del comercio --}}
+                                @unless($esTerceroV)
+                                    <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 px-2 py-1.5">
+                                        <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ __('Caja chica') }}</span>
+                                        <span class="text-sm font-bold text-gray-900 dark:text-white">${{ number_format($esperadoV['fondo'], 2, ',', '.') }}</span>
+                                    </div>
+                                @endunless
                                 <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 px-2 py-1.5">
                                     <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ __('Cobros en efectivo') }}</span>
                                     <span class="text-sm font-bold text-emerald-700 dark:text-emerald-400">+${{ number_format($esperadoV['cobros'], 2, ',', '.') }}</span>
@@ -2246,14 +2252,23 @@
                                     </div>
                                 @endif
                                 <div class="bg-white dark:bg-gray-800 rounded-md border-2 border-emerald-400 dark:border-emerald-600 px-2 py-1.5 {{ $vueltaInfo['envio_del_repartidor'] ? '' : 'col-span-2' }}">
-                                    <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ __('Efectivo esperado encima') }}</span>
-                                    <span class="text-sm font-bold text-bcn-primary">${{ number_format($esperadoV['esperado'], 2, ',', '.') }}</span>
+                                    <span class="block text-[11px] text-gray-500 dark:text-gray-400">{{ $esTerceroV ? __('Entrega a caja') : __('Efectivo esperado encima') }}</span>
+                                    <span class="text-sm font-bold text-bcn-primary">${{ number_format($esTerceroV ? max(0, $this->vueltaMontoSoloPedidos) : $esperadoV['esperado'], 2, ',', '.') }}</span>
                                 </div>
                             </div>
                             @if($vueltaInfo['envio_del_repartidor'])
-                                <p class="text-[11px] text-gray-500 dark:text-gray-400 -mt-1">{{ __('El envío es del repartidor: se descuenta del fondo por cada pedido entregado.') }}</p>
+                                <p class="text-[11px] text-gray-500 dark:text-gray-400 -mt-1">{{ $esTerceroV ? __('El envío es del repartidor: se descuenta de lo que entrega a caja.') : __('El envío es del repartidor: se descuenta del fondo por cada pedido entregado.') }}</p>
                             @endif
 
+                            @if($esTerceroV)
+                                {{-- Tercero: única opción — entrega lo cobrado (neto de sus envíos) --}}
+                                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 px-3 py-2">
+                                    <p class="text-sm text-gray-800 dark:text-gray-200">
+                                        {{ __('Repartidor externo: al confirmar entrega a caja lo cobrado en efectivo descontando sus envíos.') }}
+                                        <span class="font-bold text-bcn-primary">${{ number_format(max(0, $this->vueltaMontoSoloPedidos), 2, ',', '.') }}</span>
+                                    </p>
+                                </div>
+                            @else
                             <div class="space-y-1.5">
                                 <label class="flex items-center gap-2 cursor-pointer">
                                     <input type="radio" wire:model.live="vueltaRendicionModo" value="nada"
@@ -2304,9 +2319,10 @@
                                     @endif
                                 </label>
                             </div>
+                            @endif
 
-                            @if($vueltaRendicionModo !== 'nada' && ! $vueltaInfo['tiene_caja'])
-                                <p class="text-xs text-amber-700 dark:text-amber-300">{{ __('Necesitás una caja activa para mover efectivo del fondo: seleccioná una caja o dejá "Se queda todo".') }}</p>
+                            @if($vueltaRendicionModo !== 'nada' && ! $vueltaInfo['tiene_caja'] && ($esTerceroV ? $this->vueltaMontoSoloPedidos > 0.005 : true))
+                                <p class="text-xs text-amber-700 dark:text-amber-300">{{ $esTerceroV ? __('Necesitás una caja activa para ingresar lo que entrega el repartidor.') : __('Necesitás una caja activa para mover efectivo del fondo: seleccioná una caja o dejá "Se queda todo".') }}</p>
                             @endif
                         </div>
                     @endif

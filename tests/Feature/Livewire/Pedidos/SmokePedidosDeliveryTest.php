@@ -443,6 +443,27 @@ class SmokePedidosDeliveryTest extends TestCase
         $this->assertSame(PedidoDelivery::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
     }
 
+    public function test_vuelta_de_repartidor_tercero_solo_ofrece_devolver_pedidos(): void
+    {
+        // Tercero: sin caja chica del comercio — la vuelta arranca directo en
+        // "devolver los pedidos" (cobros − envíos) como única rendición.
+        $repartidor = Repartidor::create(['nombre' => 'Rappi Juan', 'tipo' => 'tercero', 'activo' => true]);
+        $repartidor->sucursales()->attach($this->sucursalId);
+
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->crearCajaAbierta($this->sucursalId)->id);
+        $this->service->asignarRepartidor($pedido, $repartidor->id);
+        $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_LISTO);
+        app(RepartidorService::class)->despacharPedido($pedido->fresh());
+        $pedido->refresh();
+
+        $componente = Livewire::test(PedidosDelivery::class)
+            ->call('abrirVuelta', (int) $pedido->salida_id)
+            ->assertSet('showVueltaModal', true)
+            ->assertSet('vueltaRendicionModo', 'devolver_pedidos');
+
+        $this->assertTrue((bool) $componente->get('vueltaInfo')['repartidor_tercero']);
+    }
+
     public function test_asignar_repartidor_desde_panel(): void
     {
         $repartidor = Repartidor::create(['nombre' => 'Ana Bici', 'tipo' => 'propio', 'activo' => true]);

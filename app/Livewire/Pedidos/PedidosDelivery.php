@@ -1823,11 +1823,14 @@ class PedidosDelivery extends Component
         }
 
         $fondo = $salida->repartidor->fondoAbierto((int) $salida->sucursal_id);
+        // Repartidor TERCERO: no maneja caja chica del comercio — su única
+        // rendición posible es entregar lo cobrado descontando sus envíos.
+        $esTercero = $salida->repartidor->tipo === Repartidor::TIPO_TERCERO;
 
         $this->vueltaSalidaId = $salida->id;
         $this->vueltaResultados = [];
         $this->vueltaCobros = [];
-        $this->vueltaRendicionModo = 'nada';
+        $this->vueltaRendicionModo = $esTercero ? 'devolver_pedidos' : 'nada';
         $this->vueltaRendicionMonto = '';
 
         $pedidosInfo = [];
@@ -1881,6 +1884,8 @@ class PedidosDelivery extends Component
             // Repartidor tercero con envío propio: los envíos de los pedidos
             // entregados se le liquidan (salen del fondo) en esta vuelta (D3).
             'envio_del_repartidor' => (bool) $salida->repartidor->envio_es_del_repartidor,
+            // Tercero: sin caja chica — única rendición = devolver los pedidos.
+            'repartidor_tercero' => $esTercero,
             'hay_efectivo' => $hayEfectivo,
             'tiene_caja' => $this->cajaActual() !== null,
             'pedidos' => $pedidosInfo,
@@ -1996,12 +2001,16 @@ class PedidosDelivery extends Component
 
         // "Devuelve solo los pedidos" es un devolver con monto calculado:
         // los cobros de esta vuelta (netos de envíos); la caja chica se la queda.
+        // Con monto 0 (nada de efectivo cobrado, o los envíos lo consumen) no
+        // hay movimiento que registrar — caso típico del repartidor tercero.
         $rendicion = match (true) {
-            $this->vueltaRendicionModo === 'devolver_pedidos' => [
-                'modo' => 'devolver',
-                'monto' => $this->vueltaMontoSoloPedidos,
-                'caja_id' => $this->cajaActual(),
-            ],
+            $this->vueltaRendicionModo === 'devolver_pedidos' => $this->vueltaMontoSoloPedidos > 0.005
+                ? [
+                    'modo' => 'devolver',
+                    'monto' => $this->vueltaMontoSoloPedidos,
+                    'caja_id' => $this->cajaActual(),
+                ]
+                : null,
             $this->vueltaRendicionModo !== 'nada' => [
                 'modo' => $this->vueltaRendicionModo,
                 'monto' => (float) $this->vueltaRendicionMonto,
