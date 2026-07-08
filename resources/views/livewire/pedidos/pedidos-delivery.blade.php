@@ -534,14 +534,8 @@
                             {{ __('Ver') }}
                         </button>
                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                            {{-- Delivery despacha desde el renglón del repartidor (badges);
-                                 take-away conserva su botón "Para retirar". --}}
-                            @if($pedido->tipo !== 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
-                                <button wire:click="despachar({{ $pedido->id }})"
-                                    class="inline-flex items-center px-2.5 py-1.5 border border-cyan-400 dark:border-cyan-500 rounded text-xs bg-cyan-600 text-white hover:bg-cyan-700">
-                                    {{ __('Para retirar') }}
-                                </button>
-                            @endif
+                            {{-- El despacho/para-retirar vive en los badges de entrega:
+                                 renglón del repartidor (delivery) o chip "Para llevar" (take-away). --}}
                             {{-- Entregar/Estado viven en el badge-botón de estado de arriba --}}
                             @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_delivery.convertir_venta'))
                                 <button wire:click="abrirConvertir({{ $pedido->id }})"
@@ -805,17 +799,8 @@
                                             </svg>
                                         </button>
                                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                                            {{-- Delivery despacha desde el renglón del repartidor (columna
-                                                 Entrega); take-away conserva su botón "Para retirar". --}}
-                                            @if($pedido->tipo !== 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
-                                                <button wire:click="despachar({{ $pedido->id }})"
-                                                    class="inline-flex items-center px-2 py-1 border border-cyan-400 dark:border-cyan-500 rounded text-xs bg-cyan-600 text-white hover:bg-cyan-700"
-                                                    title="{{ __('Listo para retirar') }}">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-                                                    </svg>
-                                                </button>
-                                            @endif
+                                            {{-- El despacho/para-retirar vive en los badges de la columna
+                                                 Entrega (repartidor o chip "Para llevar"). --}}
                                             {{-- Entregar y Cambiar estado se movieron al badge-botón de la
                                                  columna Estado (el modal preselecciona el paso siguiente). --}}
                                             @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_delivery.convertir_venta'))
