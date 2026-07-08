@@ -228,7 +228,7 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         ]);
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
 
-        Livewire::test(NuevoPedidoDelivery::class)
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
             ->call('seleccionarArticulo', $articulo->id)
             ->call('abrirModalDireccion')
             ->set('domDireccion', 'Av. Siempreviva 742')
@@ -236,6 +236,15 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
             ->set('costoEnvio', 500)
             ->set('formaPagoId', (string) $fp->id)
             ->call('confirmarSinCobrar')
+            ->assertNotDispatched('toast-error');
+
+        // Efectivo admite vuelto → primero pregunta "¿con cuánto paga?" para
+        // dejar el vuelto calculado en el pago planificado.
+        $componente->assertSet('showVueltoPlanificadoModal', true);
+        $this->assertEqualsWithDelta(1400.0, (float) $componente->get('vueltoPlanificadoTotal'), 0.01);
+
+        $componente->set('vueltoPlanificadoRecibido', '2000')
+            ->call('confirmarVueltoPlanificado')
             ->assertNotDispatched('toast-error');
 
         $pedido = PedidoDelivery::with('pagos')->first();
@@ -251,6 +260,30 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         $this->assertEqualsWithDelta(1400.0, (float) $pago->monto_final, 0.01);
         $this->assertEqualsWithDelta(-100.0, (float) $pago->monto_ajuste, 0.01);
         $this->assertEqualsWithDelta(1500.0, (float) $pago->monto_base, 0.01);
+        // Vuelto planificado: paga con $2000 → vuelto $600.
+        $this->assertEqualsWithDelta(2000.0, (float) $pago->monto_recibido, 0.01);
+        $this->assertEqualsWithDelta(600.0, (float) $pago->vuelto, 0.01);
+    }
+
+    public function test_confirmar_sin_cobrar_omitiendo_vuelto_no_guarda_recibido(): void
+    {
+        ['formaPago' => $fp] = $this->crearFormaPagoEfectivo();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('formaPagoId', (string) $fp->id)
+            ->call('confirmarSinCobrar')
+            ->assertSet('showVueltoPlanificadoModal', true)
+            ->call('omitirVueltoPlanificado')
+            ->assertNotDispatched('toast-error');
+
+        $pago = PedidoDelivery::with('pagos')->first()?->pagos->first();
+        $this->assertNotNull($pago);
+        $this->assertSame('planificado', $pago->estado);
+        $this->assertNull($pago->monto_recibido);
+        $this->assertEqualsWithDelta(0.0, (float) $pago->vuelto, 0.01);
     }
 
     public function test_confirmar_sin_cobrar_sin_fp_no_crea_pagos(): void

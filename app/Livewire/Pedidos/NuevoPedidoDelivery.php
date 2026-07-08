@@ -270,6 +270,17 @@ class NuevoPedidoDelivery extends Component
     /** Modo de control de stock de la sucursal. */
     public string $controlStock = 'permitir';
 
+    /**
+     * Modal "¿Con cuánto paga?" al confirmar SIN COBRAR con una FP simple que
+     * admite vuelto (efectivo): deja monto_recibido/vuelto calculados en el
+     * pago PLANIFICADO para que el repartidor sepa el cambio a llevar.
+     */
+    public bool $showVueltoPlanificadoModal = false;
+
+    public string $vueltoPlanificadoRecibido = '';
+
+    public float $vueltoPlanificadoTotal = 0;
+
     // ==================== MODAL CONCEPTO LIBRE ====================
 
     public bool $mostrarModalConcepto = false;
@@ -2057,6 +2068,84 @@ class NuevoPedidoDelivery extends Component
             return;
         }
 
+        // FP simple que admite vuelto (efectivo) sin desglose: preguntar con
+        // cuánto va a pagar el cliente para dejar el VUELTO calculado en el
+        // pago planificado (el repartidor sale sabiendo cuánto cambio llevar).
+        // Se puede omitir.
+        if ($this->debePreguntarVueltoPlanificado($esInvitacionCompleta)) {
+            $this->vueltoPlanificadoTotal = (float) (($this->ajusteFormaPagoInfo['total_con_ajuste'] ?? 0) ?: $totalFinal);
+            $this->vueltoPlanificadoRecibido = '';
+            $this->showVueltoPlanificadoModal = true;
+
+            return;
+        }
+
+        $this->persistirSinCobrar($esInvitacionCompleta);
+    }
+
+    /**
+     * ¿"Confirmar sin cobrar" va a crear el pago planificado con una FP que
+     * admite vuelto? Entonces vale la pena preguntar el monto recibido.
+     */
+    protected function debePreguntarVueltoPlanificado(bool $esInvitacionCompleta): bool
+    {
+        if ($esInvitacionCompleta || ! empty($this->desglosePagos) || ! $this->formaPagoId) {
+            return false;
+        }
+        if ($this->modoEdicion && $this->cuentaPagosOriginales > 0) {
+            return false;
+        }
+
+        $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->formaPagoId);
+        if (! $fp || ($fp['es_mixta'] ?? false) || ! ($fp['permite_vuelto'] ?? false)) {
+            return false;
+        }
+
+        $total = (float) (($this->ajusteFormaPagoInfo['total_con_ajuste'] ?? 0) ?: ($this->resultado['total_final'] ?? 0));
+
+        return $total > 0.005;
+    }
+
+    /** Confirma el modal de vuelto planificado y persiste el pedido. */
+    public function confirmarVueltoPlanificado(): void
+    {
+        $recibido = (float) $this->vueltoPlanificadoRecibido;
+
+        if ($recibido > 0 && $recibido < $this->vueltoPlanificadoTotal - 0.005) {
+            $this->dispatch('toast-error', message: __('El monto recibido no puede ser menor al total del pedido'));
+
+            return;
+        }
+
+        $this->showVueltoPlanificadoModal = false;
+        $this->persistirSinCobrar();
+    }
+
+    /** "No sé con cuánto paga": confirma sin dato de vuelto. */
+    public function omitirVueltoPlanificado(): void
+    {
+        $this->vueltoPlanificadoRecibido = '';
+        $this->showVueltoPlanificadoModal = false;
+        $this->persistirSinCobrar();
+    }
+
+    public function cerrarVueltoPlanificado(): void
+    {
+        $this->showVueltoPlanificadoModal = false;
+        $this->vueltoPlanificadoRecibido = '';
+    }
+
+    /**
+     * Persiste el "confirmar sin cobrar" (cuerpo original; separado para poder
+     * intercalar el modal de vuelto planificado entre validación y persistencia).
+     */
+    protected function persistirSinCobrar(?bool $esInvitacionCompleta = null): void
+    {
+        if ($esInvitacionCompleta === null) {
+            $totalFinal = (float) ($this->resultado['total_final'] ?? 0);
+            $esInvitacionCompleta = $this->esInvitacionTotal && $totalFinal <= 0.005;
+        }
+
         try {
             $data = $this->construirDataPedido();
             $detalles = $this->construirDetallesPedido();
@@ -2112,6 +2201,8 @@ class NuevoPedidoDelivery extends Component
             $this->dispatch('toast-success', message: $msg);
 
             $this->mostrarModalPago = false;
+            $this->vueltoPlanificadoRecibido = '';
+            $this->vueltoPlanificadoTotal = 0;
             $this->dispatch('pedido-guardado');
         } catch (Exception $e) {
             Log::error('Error al confirmar sin cobrar', [
@@ -2187,6 +2278,11 @@ class NuevoPedidoDelivery extends Component
             'recargo_cuotas_porcentaje' => $cuotas > 1 ? ($this->ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? null) : null,
             'recargo_cuotas_monto' => $cuotas > 1 ? $recargoCuotas : null,
             'monto_cuota' => $cuotas > 1 ? ($this->ajusteFormaPagoInfo['valor_cuota'] ?? null) : null,
+            // Vuelto planificado: si el operador cargó con cuánto paga el
+            // cliente, el pago sale con el vuelto YA calculado (el repartidor
+            // sabe cuánto cambio llevar; la vuelta lo precarga).
+            'monto_recibido' => ((float) $this->vueltoPlanificadoRecibido) > 0 ? round((float) $this->vueltoPlanificadoRecibido, 2) : null,
+            'vuelto' => ((float) $this->vueltoPlanificadoRecibido) > 0 ? round(max(0, (float) $this->vueltoPlanificadoRecibido - $montoFinal), 2) : 0,
             'es_cuenta_corriente' => $esCC,
             'afecta_caja' => ! $esCC,
             'planificado' => true,

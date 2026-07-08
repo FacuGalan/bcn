@@ -99,9 +99,12 @@
                     <input id="cd-alerta-roja" type="number" min="0" wire:model="alertaRojaMin"
                         class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                 </div>
-                <p class="text-xs text-gray-500 dark:text-gray-400 basis-full sm:basis-auto sm:flex-1">
-                    {{ __('Resalta pedidos demorados en el panel: sin promesa mide desde la confirmación; con promesa avisa antes de vencer. 0 = sin alerta. Compartida con mostrador.') }}
-                </p>
+                <div class="text-xs text-gray-500 dark:text-gray-400 basis-full space-y-1">
+                    <p class="font-medium text-gray-600 dark:text-gray-300">{{ __('Cómo funcionan las alertas de demora (0 = desactivada, compartidas con mostrador):') }}</p>
+                    <p>• {{ __('Pedido SIN hora pactada ("lo antes posible"): los minutos se miden desde que se confirmó. Con 15/30, a los 15 minutos de vida el pedido se pinta amarillo y a los 30 rojo.') }}</p>
+                    <p>• {{ __('Pedido CON hora pactada: el amarillo avisa esos minutos ANTES de la hora comprometida (ej: 15 = amarillo un cuarto de hora antes de la entrega) y el rojo aparece al vencer la hora pactada — en este caso el valor del rojo no se usa.') }}</p>
+                    <p>• {{ __('El contador que aparece junto al número del pedido muestra siempre los minutos desde la confirmación, para dimensionar cuánto hace que está en curso.') }}</p>
+                </div>
             </div>
             <div>
                 <label for="cd-categoria-envio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría del renglón de envío') }}</label>

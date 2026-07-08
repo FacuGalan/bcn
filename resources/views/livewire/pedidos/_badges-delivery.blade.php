@@ -5,9 +5,11 @@
        3. Zona · repartidor · envío (renglón operativo).
      Requiere $pedido con repartidor/zona eager-loaded.
      Flags opcionales (kanban compacto): $sinTipo oculta el chip de tipo (la
-     card lo muestra junto al número), $sinEnvio oculta el costo de envío. --}}
+     card lo muestra junto al número), $sinEnvio oculta el costo de envío,
+     $sinPromesa oculta el chip de promesa (la tabla tiene columna Horarios). --}}
 @php($sinTipo = $sinTipo ?? false)
 @php($sinEnvio = $sinEnvio ?? false)
+@php($sinPromesa = $sinPromesa ?? false)
 <div class="space-y-1 {{ $class ?? '' }}">
     {{-- 1. Chips: tipo + origen + promesa --}}
     <div class="flex flex-wrap items-center gap-1">
@@ -32,7 +34,8 @@
         @endif
 
         {{-- Promesa de entrega (RF-15): vencida en rojo mientras el pedido siga activo --}}
-        @if($pedido->hora_pactada_at)
+        @if($sinPromesa)
+        @elseif($pedido->hora_pactada_at)
             @php($promesaVencida = $pedido->hora_pactada_at->isPast() && ! in_array($pedido->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
             <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $promesaVencida ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' }}"
                 title="{{ $pedido->tipo === \App\Models\PedidoDelivery::TIPO_TAKE_AWAY ? __('Listo para retirar') : __('Entrega estimada') }}: {{ $pedido->hora_pactada_at->format('d/m H:i') }}">

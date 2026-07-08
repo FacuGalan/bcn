@@ -731,6 +731,7 @@ class PedidosDelivery extends Component
                 PedidoDeliveryPago::ESTADO_ACTIVO,
                 PedidoDeliveryPago::ESTADO_PLANIFICADO,
             ]),
+            'pagos.formaPago:id,nombre', // desplegable de planificados en la lista
         ])
             ->where('sucursal_id', $this->sucursalActual());
 
@@ -1831,16 +1832,19 @@ class PedidosDelivery extends Component
                 $esEfectivo = strtoupper((string) $pago->formaPago?->conceptoPago?->codigo) === 'EFECTIVO';
                 $hayEfectivo = $hayEfectivo || $esEfectivo;
 
+                // Si el alta dejó el vuelto planificado (¿con cuánto paga?),
+                // precargamos ESE recibido — el repartidor salió con ese dato.
                 $this->vueltaCobros[$pago->id] = [
                     'pedido_id' => $pedido->id,
                     'cobrar' => true,
-                    'monto_recibido' => (string) $pago->monto_final,
+                    'monto_recibido' => (string) ($pago->monto_recibido ?? $pago->monto_final),
                 ];
 
                 $pagosInfo[] = [
                     'id' => $pago->id,
                     'forma_pago' => $pago->formaPago?->nombre ?? __('Sin especificar'),
                     'monto_final' => (float) $pago->monto_final,
+                    'vuelto' => (float) ($pago->vuelto ?? 0),
                     'es_efectivo' => $esEfectivo,
                 ];
             }

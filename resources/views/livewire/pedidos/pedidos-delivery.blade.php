@@ -594,6 +594,9 @@
                                     @include('livewire.pedidos._sort-icon', ['field' => 'fecha'])
                                 </button>
                             </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                {{ __('Horarios') }}
+                            </th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 <button type="button" wire:click="sortBy('total_final')" class="group inline-flex items-center gap-1 w-full justify-end hover:text-bcn-primary transition-colors select-none">
                                     {{ __('Total') }}
@@ -601,15 +604,15 @@
                                 </button>
                             </th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                <button type="button" wire:click="sortBy('estado_pedido')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
-                                    {{ __('Estado') }}
-                                    @include('livewire.pedidos._sort-icon', ['field' => 'estado_pedido'])
-                                </button>
-                            </th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 <button type="button" wire:click="sortBy('estado_pago')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
                                     {{ __('Pago') }}
                                     @include('livewire.pedidos._sort-icon', ['field' => 'estado_pago'])
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                <button type="button" wire:click="sortBy('estado_pedido')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
+                                    {{ __('Estado') }}
+                                    @include('livewire.pedidos._sort-icon', ['field' => 'estado_pedido'])
                                 </button>
                             </th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Acciones') }}</th>
@@ -657,18 +660,43 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3">
-                                    @include('livewire.pedidos._badges-delivery', ['pedido' => $pedido, 'class' => 'max-w-[16rem]'])
+                                    {{-- Tipo + dirección + zona + repartidor (la promesa va en Horarios) --}}
+                                    @include('livewire.pedidos._badges-delivery', ['pedido' => $pedido, 'class' => 'max-w-[16rem]', 'sinPromesa' => true])
                                 </td>
+                                @php
+                                    // Vuelto total (planificado o cobrado) y planificados para el desplegable.
+                                    $vueltoPedido = (float) $pedido->pagos->sum('vuelto');
+                                    $pagosPlanificadosLista = $pedido->pagos->where('estado', 'planificado');
+                                    $horaIngreso = $pedido->confirmado_at ?? $pedido->fecha;
+                                @endphp
                                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
-                                    {{ $pedido->fecha->format('d/m/Y H:i') }}
+                                    {{ $pedido->fecha->format('d/m/Y') }}
+                                    @if($pedido->hora_pactada_at && ! $pedido->hora_pactada_at->isSameDay($pedido->fecha))
+                                        {{-- Entrega pactada para OTRO día (programado / madrugada +1) --}}
+                                        <div class="text-xs font-semibold text-violet-700 dark:text-violet-300">
+                                            {{ __('Entrega') }}: {{ $pedido->hora_pactada_at->format('d/m/Y') }}
+                                        </div>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
+                                    <div>{{ __('Ingresó') }}: <span class="font-medium text-gray-800 dark:text-gray-100">{{ $horaIngreso?->format('H:i') ?? '—' }}</span></div>
+                                    @if($pedido->lo_antes_posible)
+                                        <div class="text-sky-700 dark:text-sky-300 font-semibold">{{ __('Lo antes posible') }}</div>
+                                    @elseif($pedido->hora_pactada_at)
+                                        <div>{{ __('Entrega') }}: <span class="font-medium text-gray-800 dark:text-gray-100">{{ $pedido->hora_pactada_at->format('H:i') }}</span></div>
+                                    @else
+                                        <div class="text-gray-400 dark:text-gray-500">{{ __('Sin hora pactada') }}</div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right">
                                     <div class="text-sm font-bold text-bcn-secondary dark:text-white">
                                         ${{ number_format($pedido->total_final, 2, ',', '.') }}
                                     </div>
-                                </td>
-                                <td class="px-4 py-3 whitespace-nowrap">
-                                    <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" :label="$pedido->estado_label" />
+                                    @if($vueltoPedido > 0.005)
+                                        <div class="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                                            {{ __('Vuelto') }}: ${{ number_format($vueltoPedido, 2, ',', '.') }}
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.cobrar'))
@@ -693,11 +721,31 @@
                                             {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
                                         </div>
                                     @endif
-                                    @if($pedido->total_planificado > 0)
-                                        <div class="text-[10px] text-blue-700 dark:text-blue-400 {{ $pedido->total_cobrado > 0 && $pedido->estado_pago !== 'pagado' ? '' : 'mt-0.5' }}">
-                                            {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
+                                    @if($pagosPlanificadosLista->isNotEmpty())
+                                        {{-- Desplegable con el detalle de lo planificado (FP + monto + vuelto) --}}
+                                        <div x-data="{ openPlan: false }" class="mt-0.5">
+                                            <button type="button" @click.stop="openPlan = !openPlan"
+                                                class="inline-flex items-center gap-0.5 text-[10px] text-blue-700 dark:text-blue-400 hover:underline">
+                                                {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
+                                                <svg class="w-3 h-3 transition-transform" :class="openPlan && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                            <div x-show="openPlan" x-cloak class="mt-1 space-y-0.5">
+                                                @foreach($pagosPlanificadosLista as $pp)
+                                                    <div class="text-[10px] text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                                        {{ $pp->formaPago?->nombre ?? __('Sin especificar') }}: ${{ number_format($pp->monto_final, 2, ',', '.') }}
+                                                        @if((float) $pp->vuelto > 0.005)
+                                                            <span class="text-amber-700 dark:text-amber-400">({{ __('vuelto') }} ${{ number_format($pp->vuelto, 2, ',', '.') }})</span>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            </div>
                                         </div>
                                     @endif
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" :label="$pedido->estado_label" />
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-1 flex-wrap">
@@ -2132,6 +2180,9 @@
                                                 {{ $pagoV['forma_pago'] }} — ${{ number_format($pagoV['monto_final'], 2, ',', '.') }}
                                                 @if($pagoV['es_efectivo'])
                                                     <span class="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">({{ __('al fondo') }})</span>
+                                                @endif
+                                                @if(($pagoV['vuelto'] ?? 0) > 0.005)
+                                                    <span class="text-[10px] font-semibold text-amber-700 dark:text-amber-400">({{ __('vuelto') }} ${{ number_format($pagoV['vuelto'], 2, ',', '.') }})</span>
                                                 @endif
                                             </span>
                                         </label>

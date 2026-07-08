@@ -978,6 +978,97 @@
     @include("livewire.carrito._modal-vuelto")
     @include("livewire.carrito._modal-esperando-pago-integracion")
     @include("livewire.carrito._boton-pantalla-cliente")
+
+    {{-- Modal "¿Con cuánto paga?" al confirmar SIN COBRAR con efectivo:
+         deja el vuelto calculado en el pago planificado (contra entrega).
+         Espejo visual de _modal-vuelto pero con opción de OMITIR. --}}
+    @if($showVueltoPlanificadoModal)
+        <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true"
+            x-data="{
+                recibido: 0,
+                totalAPagar: {{ (float) $vueltoPlanificadoTotal }},
+                get vuelto() {
+                    return Math.max(0, Math.round((this.recibido - this.totalAPagar) * 100) / 100);
+                },
+                get esInsuficiente() {
+                    return this.recibido > 0 && this.recibido < this.totalAPagar - 0.01;
+                },
+                init() {
+                    this.$nextTick(() => this.$refs.inputRecibidoPlan?.focus());
+                },
+                confirmar() {
+                    if (this.recibido <= 0) { $wire.omitirVueltoPlanificado(); return; }
+                    if (!this.esInsuficiente) {
+                        $wire.set('vueltoPlanificadoRecibido', String(this.recibido)).then(() => {
+                            $wire.confirmarVueltoPlanificado();
+                        });
+                    }
+                }
+            }"
+            @keydown.escape.window="$wire.cerrarVueltoPlanificado()"
+            @keydown.enter.window.prevent="confirmar()">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cerrarVueltoPlanificado"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full w-full">
+                    <div class="bg-emerald-600 px-4 py-3 sm:px-6">
+                        <h3 class="text-lg leading-6 font-medium text-white flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                            {{ __('¿Con cuánto paga el cliente?') }}
+                        </h3>
+                    </div>
+
+                    <div class="px-4 py-5 sm:p-6 space-y-4">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('El pedido queda sin cobrar (se cobra contra entrega). Si sabés con cuánto va a pagar, el vuelto queda calculado y el repartidor sale con el cambio justo. Podés omitirlo.') }}
+                        </p>
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 text-center">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Total a pagar') }}</p>
+                            <p class="text-3xl font-extrabold text-gray-900 dark:text-white">${{ number_format($vueltoPlanificadoTotal, 2, ',', '.') }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto recibido') }}</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-emerald-600 dark:text-emerald-400 font-bold text-lg">$</span>
+                                <input type="number" step="0.01" min="0" x-ref="inputRecibidoPlan"
+                                    @input="recibido = parseFloat($event.target.value) || 0"
+                                    class="w-full pl-8 pr-3 py-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50 text-2xl font-bold text-right">
+                            </div>
+                        </div>
+                        <div class="rounded-xl p-4 text-center border-2 transition-colors" x-show="recibido > 0" x-cloak
+                            :class="esInsuficiente
+                                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'">
+                            <p class="text-xs uppercase tracking-wide mb-1"
+                                :class="esInsuficiente ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                x-text="esInsuficiente ? '{{ __('Falta') }}' : '{{ __('Vuelto') }}'"></p>
+                            <p class="text-4xl font-extrabold"
+                                :class="esInsuficiente ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                x-text="'$' + (esInsuficiente ? (totalAPagar - recibido) : vuelto).toFixed(2).replace('.', ',')"></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-row-reverse gap-2">
+                        <button type="button" @click="confirmar()" :disabled="esInsuficiente"
+                            class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-5 py-2.5 text-base font-medium text-white sm:text-sm transition focus:outline-none"
+                            :class="!esInsuficiente ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-400 cursor-not-allowed'">
+                            {{ __('Confirmar pedido') }}
+                        </button>
+                        <button type="button" wire:click="omitirVueltoPlanificado"
+                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2.5 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 sm:text-sm">
+                            {{ __('Omitir vuelto') }}
+                        </button>
+                        <button type="button" wire:click="cerrarVueltoPlanificado"
+                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2.5 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 sm:text-sm mr-auto">
+                            {{ __('Volver') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
     </div>{{-- /modal contenedor con margen --}}
 </div>
 @endif
