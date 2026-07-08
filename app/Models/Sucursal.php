@@ -100,6 +100,14 @@ class Sucursal extends Model
         'exigir_repartidor' => true,         // listo → en_camino exige repartidor
         'takeaway_habilitado' => true,
         'usa_estado_listo' => true,          // OFF: columna Listo oculta; preparación pasa directo a envío/retiro
+        // Conversión automática a venta al entregar — PROPIA de delivery
+        // (mostrador sigue usando la columna pedido_conversion_automatica_al_entregar)
+        'conversion_automatica_al_entregar' => false,
+        // Numeración display PROPIA de delivery (contador en columnas
+        // pedido_delivery_display_*; mostrador usa sus propias columnas)
+        'usa_numeracion_display' => true,
+        'numeracion_display_modo' => 'diario', // diario | manual
+        'numeracion_display_horas' => [6],     // horas de reset del modo diario
         // Pedidos externos (tienda/API, D14)
         'aceptacion_pedidos_externos' => 'manual',  // manual | automatica
         'imprimir_comanda_al_aceptar' => false,

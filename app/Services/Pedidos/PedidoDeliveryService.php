@@ -14,6 +14,7 @@ use App\Models\Cliente;
 use App\Models\Cupon;
 use App\Models\CuponUso;
 use App\Models\FormaPago;
+use App\Models\FormaPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
 use App\Models\MovimientoCaja;
 use App\Models\MovimientoStock;
@@ -28,6 +29,7 @@ use App\Models\Sucursal;
 use App\Models\TipoIva;
 use App\Models\Venta;
 use App\Models\VentaPago;
+use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\VentaService;
 use Exception;
 use Illuminate\Support\Carbon;
@@ -578,11 +580,11 @@ class PedidoDeliveryService
             throw new Exception("Transición no permitida: {$anterior} -> {$nuevoEstado}");
         }
 
-        if ($nuevoEstado === PedidoDelivery::ESTADO_EN_CAMINO) {
-            if ($pedido->tipo !== PedidoDelivery::TIPO_DELIVERY) {
-                throw new Exception('Un pedido take-away no puede pasar a en camino');
-            }
-
+        // en_camino es compartido: para DELIVERY es "en camino" (exige
+        // repartidor según config); para TAKE-AWAY es "listo para retirar"
+        // (sin repartidor ni salida — el cliente pasa a buscarlo).
+        if ($nuevoEstado === PedidoDelivery::ESTADO_EN_CAMINO
+            && $pedido->tipo === PedidoDelivery::TIPO_DELIVERY) {
             $config = $this->envioService->configDelivery(Sucursal::findOrFail($pedido->sucursal_id));
             if ($config['exigir_repartidor'] && ! $pedido->repartidor_id) {
                 throw new Exception('Asignar un repartidor antes de despachar el pedido');
@@ -630,13 +632,23 @@ class PedidoDeliveryService
             $this->dispatchSeguimientoPublico($pedido, $nuevoEstado);
         });
 
-        // Conversión automática post-commit (config compartida con mostrador).
+        // Conversión automática post-commit (config PROPIA de delivery).
         if ($convertirAutomatico && $nuevoEstado === PedidoDelivery::ESTADO_ENTREGADO) {
             $sucursal = Sucursal::find($pedido->sucursal_id);
-            if ($sucursal && $sucursal->pedido_conversion_automatica_al_entregar) {
+            if ($sucursal && $this->conversionAutomaticaAlEntregar($sucursal)) {
                 $this->convertirEnVenta($pedido->fresh());
             }
         }
+    }
+
+    /**
+     * ¿La sucursal convierte los pedidos delivery en venta automáticamente al
+     * entregar? Key propia del JSON config_delivery (separada de la columna
+     * pedido_conversion_automatica_al_entregar, que quedó solo para mostrador).
+     */
+    public function conversionAutomaticaAlEntregar(Sucursal $sucursal): bool
+    {
+        return (bool) ($sucursal->getConfigDelivery()['conversion_automatica_al_entregar'] ?? false);
     }
 
     /**
@@ -1095,7 +1107,9 @@ class PedidoDeliveryService
 
         $this->guardConversionConPagosSuficientes($pedido);
 
-        $venta = DB::connection('pymes_tenant')->transaction(function () use ($pedido) {
+        $pagosFiscales = [];
+
+        $venta = DB::connection('pymes_tenant')->transaction(function () use ($pedido, &$pagosFiscales) {
             $this->materializarPagosPlanificados($pedido);
 
             $pedido->load(['detalles.opcionales', 'detalles.promocionesAplicadas', 'pagos']);
@@ -1157,6 +1171,17 @@ class PedidoDeliveryService
             $this->procesarCanjesPuntos($pedido, $venta);
             $this->registrarUsoCupon($pedido, $venta);
 
+            // Emisión fiscal (rev9): los pagos cuya FP está marcada "factura
+            // fiscal" quedan pre-marcados pendiente_de_facturar; el comprobante
+            // se emite POST-commit (mismo patrón que el cobro QR): un fallo de
+            // ARCA no revierte la conversión y los pagos quedan reintentables
+            // desde Cajas → Pendientes de facturación.
+            $pagosFiscales = $this->pagosAFacturarDeVenta($venta);
+            if (! empty($pagosFiscales)) {
+                VentaPago::whereIn('id', array_column($pagosFiscales, 'id'))
+                    ->update(['estado_facturacion' => VentaPago::ESTADO_FACT_PENDIENTE]);
+            }
+
             $pedido->update([
                 'estado_pedido' => PedidoDelivery::ESTADO_FACTURADO,
                 'venta_id' => $venta->id,
@@ -1177,12 +1202,135 @@ class PedidoDeliveryService
         // directa: los puntos son secundarios y no deben tumbar la conversión).
         $this->acreditarPuntosGanados($pedido, $venta);
 
+        // Comprobante fiscal POST-commit (una falla no revierte la conversión).
+        $this->emitirComprobanteFiscalDeConversion($venta, $pagosFiscales);
+
         Log::info('Pedido delivery convertido en venta', [
             'pedido_id' => $pedido->id,
             'venta_id' => $venta->id,
         ]);
 
         return $venta;
+    }
+
+    /**
+     * Pagos ACTIVOS de la venta cuya forma de pago está marcada para factura
+     * fiscal (override por sucursal en formas_pago_sucursales o flag general
+     * de la FP). Excluye pagos por puntos. Es la regla de emisión de la
+     * conversión: "se facturan las formas de pago marcadas como fiscales".
+     *
+     * @return list<array{id: int, monto_final: float}>
+     */
+    protected function pagosAFacturarDeVenta(Venta $venta): array
+    {
+        $flags = [];
+        $pagos = [];
+
+        foreach ($venta->pagos()->where('estado', 'activo')->get() as $pago) {
+            if ($pago->es_pago_puntos) {
+                continue;
+            }
+
+            $fpId = (int) $pago->forma_pago_id;
+            if (! array_key_exists($fpId, $flags)) {
+                $porSucursal = FormaPagoSucursal::where('forma_pago_id', $fpId)
+                    ->where('sucursal_id', $venta->sucursal_id)
+                    ->value('factura_fiscal');
+                $flags[$fpId] = $porSucursal !== null
+                    ? (bool) $porSucursal
+                    : (bool) FormaPago::find($fpId)?->factura_fiscal;
+            }
+
+            if ($flags[$fpId]) {
+                $pagos[] = ['id' => (int) $pago->id, 'monto_final' => (float) $pago->monto_final];
+            }
+        }
+
+        return $pagos;
+    }
+
+    /**
+     * Emite el comprobante fiscal de la conversión (POST-commit). Si el total
+     * fiscal es PARCIAL (mezcla de FP fiscales y no fiscales) se pasa un
+     * desglose de IVA prorrateado — calcularDetallesIva del service fiscal
+     * trabaja sobre la venta completa y AFIP exige ImpTotal = ImpNeto + ImpIVA.
+     * Ante un fallo, los pagos ya quedaron `pendiente_de_facturar`.
+     */
+    protected function emitirComprobanteFiscalDeConversion(Venta $venta, array $pagosFiscales): void
+    {
+        if (empty($pagosFiscales)) {
+            return;
+        }
+
+        try {
+            $venta = $venta->fresh(['sucursal', 'caja', 'cliente', 'detalles', 'pagos']);
+
+            $totalFiscal = round(array_sum(array_column($pagosFiscales, 'monto_final')), 2);
+            $opciones = ['pagos_facturar' => $pagosFiscales];
+
+            if ($totalFiscal < (float) $venta->total_final - 0.01) {
+                $opciones['total_a_facturar'] = $totalFiscal;
+                $opciones['desglose_iva'] = $this->desgloseIvaProporcional($venta, $totalFiscal);
+            }
+
+            $comprobante = (new ComprobanteFiscalService)->crearComprobanteFiscal($venta, $opciones);
+
+            Log::info('Comprobante fiscal emitido en conversión de pedido delivery', [
+                'venta_id' => $venta->id,
+                'comprobante_id' => $comprobante->id,
+                'cae' => $comprobante->cae,
+            ]);
+        } catch (Exception $e) {
+            Log::warning('Conversión sin comprobante fiscal: los pagos quedan pendiente de facturar', [
+                'venta_id' => $venta->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Desglose de IVA de la venta escalado a un total parcial (formato
+     * `por_alicuota` que consume crearComprobanteFiscal). Agrupa los detalles
+     * por alícuota, escala por la proporción facturada y fuerza
+     * Σ(neto+iva) == total parcial ajustando la última alícuota (paridad con
+     * recalcularDesgloseIvaFiscal del flujo de venta directa).
+     *
+     * @return array{por_alicuota: list<array{porcentaje: float, neto: float, iva: float}>}
+     */
+    protected function desgloseIvaProporcional(Venta $venta, float $totalFiscal): array
+    {
+        $grupos = [];
+        foreach ($venta->detalles as $detalle) {
+            $p = (float) ($detalle->iva_porcentaje ?? 21);
+            $grupos[(string) $p] = ($grupos[(string) $p] ?? 0) + (float) ($detalle->total ?? $detalle->subtotal);
+        }
+
+        // El ajuste por forma de pago se distribuye por peso de cada alícuota.
+        $ajuste = (float) ($venta->ajuste_forma_pago ?? 0);
+        $totalDetalles = array_sum($grupos) ?: 1;
+
+        $factor = $totalFiscal / max(0.01, $totalDetalles + $ajuste);
+
+        $porAlicuota = [];
+        $sumaAcum = 0.0;
+        $claves = array_keys($grupos);
+        foreach ($claves as $i => $clave) {
+            $p = (float) $clave;
+            $conIva = ($grupos[$clave] + $ajuste * ($grupos[$clave] / $totalDetalles)) * $factor;
+            $neto = round($conIva / (1 + $p / 100), 2);
+            $iva = round($conIva - $neto, 2);
+
+            // Última alícuota: absorber el residuo de redondeo para que
+            // Σ(neto+iva) == totalFiscal exacto (requisito AFIP).
+            if ($i === count($claves) - 1) {
+                $iva = round($totalFiscal - $sumaAcum - $neto, 2);
+            }
+
+            $sumaAcum += $neto + $iva;
+            $porAlicuota[] = ['porcentaje' => $p, 'neto' => $neto, 'iva' => $iva];
+        }
+
+        return ['por_alicuota' => $porAlicuota];
     }
 
     // ==================== NUMERACION ====================
@@ -1222,6 +1370,34 @@ class PedidoDeliveryService
             'sucursal_id' => $sucursalId,
             'usuario_id' => $usuarioId,
         ]);
+    }
+
+    // ==================== NUMERACIÓN DISPLAY (overrides del trait) ====================
+    // Delivery tiene contador y configuración PROPIOS (rev9): la config vive en
+    // el JSON config_delivery y el contador en pedido_delivery_display_*.
+
+    protected function configNumeracionDisplay(object $suc): array
+    {
+        $guardada = $suc->config_delivery
+            ? (json_decode($suc->config_delivery, true) ?: [])
+            : [];
+        $config = array_merge(Sucursal::CONFIG_DELIVERY_DEFAULTS, $guardada);
+
+        return [
+            'usa' => (bool) $config['usa_numeracion_display'],
+            'modo' => (string) $config['numeracion_display_modo'],
+            'horas' => $this->horasResetDisplay($config['numeracion_display_horas']),
+        ];
+    }
+
+    protected function columnaContadorDisplay(): string
+    {
+        return 'pedido_delivery_display_ultimo_numero';
+    }
+
+    protected function columnaSegmentoDisplay(): string
+    {
+        return 'pedido_delivery_display_segmento_at';
     }
 
     // ==================== COMANDA / IMPRESION ====================
@@ -2324,11 +2500,6 @@ class PedidoDeliveryService
     }
 
     /**
-     * Broadcast PÚBLICO para el monitor llamador. SOLO take-away (RF-03): el
-     * take-away `listo` se anuncia como "listo para retirar" con su número
-     * display (secuencia compartida con mostrador); delivery no se canta.
-     */
-    /**
      * Seguimiento público del pedido (RF-11): canal
      * pedidos-delivery.seguimiento.{token}. Aplica a pedidos EXTERNOS
      * (tienda/API) en cualquier cambio de estado; best-effort.
@@ -2357,37 +2528,14 @@ class PedidoDeliveryService
         }
     }
 
+    /**
+     * rev9: los pedidos delivery/take-away YA NO impactan el llamador de
+     * mostrador (numeración independiente + circuito propio "listo para
+     * retirar"). Se conserva el hook como no-op documentado por si a futuro
+     * el delivery gana su propia pantalla pública.
+     */
     private function dispatchLlamadorPublico(PedidoDelivery $pedido, string $estadoNuevo, string $estadoAnterior): void
     {
-        if ($pedido->tipo !== PedidoDelivery::TIPO_TAKE_AWAY) {
-            return;
-        }
-
-        $relevantes = [PedidoDelivery::ESTADO_EN_PREPARACION, PedidoDelivery::ESTADO_LISTO];
-
-        if (! in_array($estadoNuevo, $relevantes, true) && ! in_array($estadoAnterior, $relevantes, true)) {
-            return;
-        }
-
-        try {
-            $suc = Sucursal::where('id', $pedido->sucursal_id)
-                ->first(['usa_llamador', 'token_publico']);
-
-            if (! $suc || ! $suc->usa_llamador || ! $suc->token_publico) {
-                return;
-            }
-
-            broadcast(new \App\Events\Broadcasting\PedidoLlamadorPublicoBroadcast(
-                $suc->token_publico,
-                (int) $pedido->numero_visible,
-                $pedido->nombreLlamador(),
-                $estadoNuevo,
-            ));
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo broadcastear PedidoLlamadorPublicoBroadcast (delivery)', [
-                'pedido_id' => $pedido->id,
-                'error' => $e->getMessage(),
-            ]);
-        }
+        // Intencionalmente vacío (ver docblock).
     }
 }

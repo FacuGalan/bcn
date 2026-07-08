@@ -7,14 +7,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Numeración de DISPLAY (turno) compartida entre PedidoMostradorService y
- * PedidoDeliveryService.
+ * Numeración de DISPLAY (turno) de los pedidos, compartida como LÓGICA entre
+ * PedidoMostradorService y PedidoDeliveryService pero con CONTADOR Y CONFIG
+ * PROPIOS por módulo (rev9 del spec pedidos-delivery: el llamador ya no se
+ * comparte, así que cada módulo numera y resetea por su cuenta):
  *
- * El contador `sucursales.pedido_display_ultimo_numero` es ÚNICO por sucursal
- * y lo COMPARTEN mostrador y delivery a propósito: el llamador/pantalla
- * pública canta números únicos sin colisiones entre ambos módulos. Extraído
- * a trait para que la lógica (lockForUpdate + segmentos de reset diario) no
- * divergiera al espejarse (spec pedidos-delivery, nota de implementación).
+ * - Mostrador (default del trait): config en columnas de `sucursales`
+ *   (`usa_numeracion_display`, `numeracion_display_modo/_horas`) y contador
+ *   `pedido_display_ultimo_numero` / `pedido_display_segmento_at`.
+ * - Delivery: PedidoDeliveryService overridea los hooks para leer la config
+ *   del JSON `config_delivery` y usar el contador
+ *   `pedido_delivery_display_ultimo_numero` / `_segmento_at`.
  */
 trait ConNumeracionDisplay
 {
@@ -31,36 +34,38 @@ trait ConNumeracionDisplay
                 ->table('sucursales')
                 ->where('id', $sucursalId)
                 ->lockForUpdate()
-                ->first([
-                    'usa_numeracion_display', 'numeracion_display_modo',
-                    'numeracion_display_horas', 'pedido_display_ultimo_numero',
-                    'pedido_display_segmento_at',
-                ]);
+                ->first();
 
-            if (! $suc || ! $suc->usa_numeracion_display) {
+            if (! $suc) {
                 return null;
             }
 
-            $contador = (int) ($suc->pedido_display_ultimo_numero ?? 0);
+            $config = $this->configNumeracionDisplay($suc);
+
+            if (! $config['usa']) {
+                return null;
+            }
+
+            $columnaContador = $this->columnaContadorDisplay();
+            $columnaSegmento = $this->columnaSegmentoDisplay();
+
+            $contador = (int) ($suc->{$columnaContador} ?? 0);
             $update = [];
 
-            if (($suc->numeracion_display_modo ?? 'diario') === 'diario') {
-                $segmentoActual = $this->inicioSegmentoDisplay(
-                    $this->horasResetDisplay($suc->numeracion_display_horas),
-                    now()
-                );
-                $segmentoGuardado = $suc->pedido_display_segmento_at
-                    ? Carbon::parse($suc->pedido_display_segmento_at)
+            if (($config['modo'] ?? 'diario') === 'diario') {
+                $segmentoActual = $this->inicioSegmentoDisplay($config['horas'], now());
+                $segmentoGuardado = $suc->{$columnaSegmento}
+                    ? Carbon::parse($suc->{$columnaSegmento})
                     : null;
 
                 if (! $segmentoGuardado || $segmentoGuardado->lt($segmentoActual)) {
                     $contador = 0;
-                    $update['pedido_display_segmento_at'] = $segmentoActual->toDateTimeString();
+                    $update[$columnaSegmento] = $segmentoActual->toDateTimeString();
                 }
             }
 
             $siguiente = $contador + 1;
-            $update['pedido_display_ultimo_numero'] = $siguiente;
+            $update[$columnaContador] = $siguiente;
 
             DB::connection('pymes_tenant')
                 ->table('sucursales')
@@ -79,23 +84,58 @@ trait ConNumeracionDisplay
         DB::connection('pymes_tenant')
             ->table('sucursales')
             ->where('id', $sucursalId)
-            ->update(['pedido_display_ultimo_numero' => 0, 'pedido_display_segmento_at' => null]);
+            ->update([
+                $this->columnaContadorDisplay() => 0,
+                $this->columnaSegmentoDisplay() => null,
+            ]);
 
         Log::info('Numeración display reiniciada manualmente', [
             'sucursal_id' => $sucursalId,
             'usuario_id' => $usuarioId,
+            'contador' => $this->columnaContadorDisplay(),
         ]);
     }
 
+    // ==================== HOOKS (override por módulo) ====================
+
     /**
-     * Normaliza la lista de horas de reset (json crudo del row) a enteros 0-23
-     * ordenados y sin duplicados. Default `[6]`.
+     * Config de numeración display desde la fila `sucursales` lockeada.
+     * Default: columnas compartidas históricas (mostrador).
+     *
+     * @return array{usa: bool, modo: string, horas: list<int>}
+     */
+    protected function configNumeracionDisplay(object $suc): array
+    {
+        return [
+            'usa' => (bool) $suc->usa_numeracion_display,
+            'modo' => $suc->numeracion_display_modo ?? 'diario',
+            'horas' => $this->horasResetDisplay($suc->numeracion_display_horas),
+        ];
+    }
+
+    protected function columnaContadorDisplay(): string
+    {
+        return 'pedido_display_ultimo_numero';
+    }
+
+    protected function columnaSegmentoDisplay(): string
+    {
+        return 'pedido_display_segmento_at';
+    }
+
+    // ==================== INTERNOS ====================
+
+    /**
+     * Normaliza la lista de horas de reset (json crudo del row o array ya
+     * decodificado) a enteros 0-23 ordenados y sin duplicados. Default `[6]`.
      *
      * @return list<int>
      */
-    private function horasResetDisplay(?string $json): array
+    protected function horasResetDisplay(string|array|null $horas): array
     {
-        $horas = $json ? (json_decode($json, true) ?: []) : [];
+        if (is_string($horas)) {
+            $horas = json_decode($horas, true) ?: [];
+        }
         $horas = array_values(array_unique(array_filter(
             array_map('intval', is_array($horas) ? $horas : []),
             fn ($h) => $h >= 0 && $h <= 23

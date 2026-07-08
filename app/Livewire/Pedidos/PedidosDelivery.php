@@ -970,7 +970,10 @@ class PedidosDelivery extends Component
             ]),
         ])
             ->where('sucursal_id', $sucursalId)
-            ->whereIn('estado_pedido', self::ESTADOS_KANBAN);
+            // FACTURADO también se muestra (en la columna Entregado, con chip):
+            // con conversión automática el pedido pasa entregado → facturado en
+            // el acto y sin esto "desaparecía" del kanban al volver el repartidor.
+            ->whereIn('estado_pedido', array_merge(self::ESTADOS_KANBAN, [PedidoDelivery::ESTADO_FACTURADO]));
 
         $this->aplicarFiltrosDelivery($query);
 
@@ -1001,8 +1004,11 @@ class PedidosDelivery extends Component
         }
 
         foreach ($pedidos as $pedido) {
-            if (isset($agrupados[$pedido->estado_pedido])) {
-                $agrupados[$pedido->estado_pedido]->push($pedido);
+            $columna = $pedido->estado_pedido === PedidoDelivery::ESTADO_FACTURADO
+                ? PedidoDelivery::ESTADO_ENTREGADO
+                : $pedido->estado_pedido;
+            if (isset($agrupados[$columna])) {
+                $agrupados[$columna]->push($pedido);
             }
         }
 
@@ -1142,10 +1148,8 @@ class PedidosDelivery extends Component
         }
         $transiciones = array_values(array_filter($transiciones, fn ($e) => ! in_array($e, $excluidos, true)));
 
-        // en_camino solo aplica a delivery (el modal no debe ofrecerlo a take-away).
-        if ($pedido->tipo !== PedidoDelivery::TIPO_DELIVERY) {
-            $transiciones = array_values(array_diff($transiciones, [PedidoDelivery::ESTADO_EN_CAMINO]));
-        }
+        // en_camino aplica a ambos tipos: delivery = "en camino" (despacho con
+        // salida); take-away = "listo para retirar" (el label lo pone la vista).
 
         if (empty($transiciones)) {
             $this->dispatch('toast-error', message: __('No hay transiciones disponibles desde este estado'));
@@ -1153,10 +1157,19 @@ class PedidosDelivery extends Component
             return;
         }
 
+        // Mapa estado => label: en_camino se muestra como "Para retirar" en
+        // take-away (mismo estado, semántica distinta).
+        $labels = [];
+        foreach ($transiciones as $estado) {
+            $labels[$estado] = $estado === PedidoDelivery::ESTADO_EN_CAMINO && $pedido->tipo !== PedidoDelivery::TIPO_DELIVERY
+                ? __('Para retirar')
+                : __(PedidoDelivery::ESTADOS[$estado] ?? $estado);
+        }
+
         $this->pedidoEstadoId = $pedido->id;
         $this->nuevoEstado = $transiciones[0];
         $this->observacionEstado = '';
-        $this->transicionesDisponibles = $transiciones;
+        $this->transicionesDisponibles = $labels;
         $this->showCambiarEstadoModal = true;
     }
 
@@ -1213,9 +1226,9 @@ class PedidosDelivery extends Component
     /**
      * Marca un pedido como ENTREGADO sin abrir el modal de cambio de estado.
      * Valida que la transicion sea legal (CONFIRMADO/EN_PREPARACION/LISTO ->
-     * ENTREGADO) antes de invocar el service. Si la sucursal tiene
-     * `pedido_conversion_automatica_al_entregar=true`, el service se encarga
-     * de convertir en venta como efecto secundario.
+     * ENTREGADO) antes de invocar el service. Si la config de delivery tiene
+     * `conversion_automatica_al_entregar=true`, el service se encarga de
+     * convertir en venta (con comprobantes fiscales) como efecto secundario.
      */
     public function entregarRapido(int $pedidoId): void
     {
@@ -1519,6 +1532,10 @@ class PedidosDelivery extends Component
             ->get(['id', 'nombre', 'tipo']);
     }
 
+    /**
+     * Modal único de despacho (rev9): elegir repartidor Y despachar en un
+     * paso. Reemplaza el par "Asignar repartidor" + "Despachar".
+     */
     public function abrirAsignarRepartidor(int $pedidoId): void
     {
         if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores')) {
@@ -1540,11 +1557,23 @@ class PedidosDelivery extends Component
             return;
         }
 
+        if (! in_array($pedido->estado_pedido, PedidoDelivery::ESTADOS_DESPACHABLES, true)) {
+            $this->dispatch('toast-error', message: __("El pedido no está en un estado despachable (estado actual: ':estado')", ['estado' => $pedido->estado_pedido]));
+
+            return;
+        }
+
         $this->pedidoRepartidorId = $pedidoId;
         $this->repartidorSeleccionadoId = (string) ($pedido->repartidor_id ?? '');
         $this->showRepartidorModal = true;
     }
 
+    /**
+     * Confirma el despacho: asigna el repartidor elegido y despacha en el
+     * acto. Si el repartidor ya está en la calle, el pedido se SUMA a su
+     * viaje en curso (una sola salida por repartidor). Sin repartidor solo
+     * se permite si la sucursal no lo exige (pase directo a en camino).
+     */
     public function confirmarAsignarRepartidor(): void
     {
         $pedido = PedidoDelivery::find($this->pedidoRepartidorId);
@@ -1552,14 +1581,30 @@ class PedidosDelivery extends Component
             return;
         }
 
+        $repartidorId = $this->repartidorSeleccionadoId !== '' ? (int) $this->repartidorSeleccionadoId : null;
+
         try {
-            $this->service->asignarRepartidor(
-                $pedido,
-                $this->repartidorSeleccionadoId !== '' ? (int) $this->repartidorSeleccionadoId : null,
-            );
-            $this->dispatch('toast-success', message: $this->repartidorSeleccionadoId !== ''
-                ? __('Repartidor asignado')
-                : __('Repartidor desasignado'));
+            if ($repartidorId === null) {
+                if ($this->configDeliverySucursal()['exigir_repartidor'] ?? true) {
+                    $this->dispatch('toast-error', message: __('Elegí un repartidor para despachar'));
+
+                    return;
+                }
+
+                $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_EN_CAMINO);
+                $this->dispatch('toast-success', message: __('Pedido despachado sin repartidor'));
+                $this->cerrarAsignarRepartidor();
+
+                return;
+            }
+
+            $this->service->asignarRepartidor($pedido, $repartidorId);
+            $salida = $this->repartidorService->despacharPedido($pedido->fresh());
+
+            $enViaje = $salida->pedidosActuales()->count();
+            $this->dispatch('toast-success', message: $enViaje > 1
+                ? __('Pedido sumado al viaje de :repartidor (:n pedidos)', ['repartidor' => $salida->repartidor?->nombre, 'n' => $enViaje])
+                : __('Pedido despachado con :repartidor', ['repartidor' => $salida->repartidor?->nombre]));
             $this->cerrarAsignarRepartidor();
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -1576,10 +1621,12 @@ class PedidosDelivery extends Component
     // ==================== DESPACHAR (RF-08: salida implícita) ====================
 
     /**
-     * Pasa un pedido listo → en_camino. Con repartidor asignado crea y
-     * registra la salida implícita de 1 pedido (RepartidorService); sin
-     * repartidor y con `exigir_repartidor` desactivado, cambia el estado
-     * directo (no hay circuito de fondo posible).
+     * Pasa un pedido despachable → en_camino:
+     * - TAKE-AWAY: en_camino = "listo para retirar" (sin repartidor ni salida).
+     * - DELIVERY con repartidor: despacho directo; si el repartidor ya está en
+     *   la calle el pedido se SUMA a su viaje (una salida por repartidor).
+     * - DELIVERY sin repartidor: abre el modal de despacho (elegir repartidor
+     *   y despachar en un paso).
      */
     public function despachar(int $pedidoId): void
     {
@@ -1596,15 +1643,31 @@ class PedidosDelivery extends Component
             return;
         }
 
-        try {
-            if ($pedido->repartidor_id) {
-                $this->repartidorService->despacharPedido($pedido);
-            } else {
-                // Sin repartidor: cambiarEstado valida exigir_repartidor y
-                // rechaza con mensaje claro si la sucursal lo exige.
+        // Take-away: pasa a "Para retirar" directo, sin circuito de reparto.
+        if ($pedido->tipo !== PedidoDelivery::TIPO_DELIVERY) {
+            try {
                 $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_EN_CAMINO);
+                $this->dispatch('toast-success', message: __('Pedido listo para retirar'));
+            } catch (Exception $e) {
+                $this->dispatch('toast-error', message: $e->getMessage());
             }
-            $this->dispatch('toast-success', message: __('Pedido despachado'));
+
+            return;
+        }
+
+        // Delivery sin repartidor: el despacho se completa desde el modal.
+        if (! $pedido->repartidor_id) {
+            $this->abrirAsignarRepartidor($pedidoId);
+
+            return;
+        }
+
+        try {
+            $salida = $this->repartidorService->despacharPedido($pedido);
+            $enViaje = $salida->pedidosActuales()->count();
+            $this->dispatch('toast-success', message: $enViaje > 1
+                ? __('Pedido sumado al viaje de :repartidor (:n pedidos)', ['repartidor' => $salida->repartidor?->nombre, 'n' => $enViaje])
+                : __('Pedido despachado'));
         } catch (Exception $e) {
             Log::error('Error al despachar pedido delivery', [
                 'pedido_id' => $pedidoId,
@@ -1672,14 +1735,18 @@ class PedidosDelivery extends Component
         }
 
         try {
-            $salida = $this->repartidorService->crearSalida(
+            // Une-o-crea (rev9): si el repartidor ya está en la calle, los
+            // pedidos se suman a su viaje en curso en vez de abrir otro.
+            $salida = $this->repartidorService->despacharPedidos(
                 sucursalId: (int) $this->sucursalActual(),
                 repartidorId: (int) $this->salidaRepartidorId,
                 pedidoIds: array_map('intval', $pedidoIds),
             );
-            $this->repartidorService->registrarSalida($salida);
 
-            $this->dispatch('toast-success', message: __('Salida registrada: :n pedido(s) en camino', ['n' => count($pedidoIds)]));
+            $enViaje = $salida->pedidosActuales()->count();
+            $this->dispatch('toast-success', message: $enViaje > count($pedidoIds)
+                ? __(':n pedido(s) sumados al viaje de :repartidor (:total en total)', ['n' => count($pedidoIds), 'repartidor' => $salida->repartidor?->nombre, 'total' => $enViaje])
+                : __('Salida registrada: :n pedido(s) en camino', ['n' => count($pedidoIds)]));
             $this->cerrarArmarSalida();
         } catch (Exception $e) {
             Log::error('Error al armar salida', [

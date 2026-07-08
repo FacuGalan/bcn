@@ -153,6 +153,35 @@ class PantallaPublicaLlamadorTest extends TestCase
         });
     }
 
+    public function test_take_away_de_delivery_no_entra_al_llamador(): void
+    {
+        // rev9 delivery: el llamador es SOLO de mostrador — los take-away de
+        // delivery tienen su propio circuito ("Para retirar") y numeración.
+        Sucursal::find($this->sucursalId)->update(['token_publico' => 'TOKDLV', 'usa_llamador' => true]);
+
+        $pedidoTa = \App\Models\PedidoDelivery::create([
+            'sucursal_id' => $this->sucursalId,
+            'tipo' => \App\Models\PedidoDelivery::TIPO_TAKE_AWAY,
+            'usuario_id' => 1,
+            'fecha' => now(),
+            'numero' => 99,
+            'estado_pedido' => \App\Models\PedidoDelivery::ESTADO_EN_PREPARACION,
+            'estado_pago' => \App\Models\PedidoDelivery::ESTADO_PAGO_PENDIENTE,
+            'total_final' => 500,
+            'nombre_cliente_temporal' => 'Tomás',
+        ]);
+
+        // Ni en el snapshot…
+        $snapshot = app(PantallaPublicaService::class)->pedidosParaLlamador(Sucursal::find($this->sucursalId));
+        $this->assertCount(0, $snapshot['en_preparacion']);
+
+        // …ni en el broadcast en vivo.
+        Event::fake([PedidoLlamadorPublicoBroadcast::class]);
+        app(\App\Services\Pedidos\PedidoDeliveryService::class)
+            ->cambiarEstado($pedidoTa, \App\Models\PedidoDelivery::ESTADO_LISTO);
+        Event::assertNotDispatched(PedidoLlamadorPublicoBroadcast::class);
+    }
+
     public function test_sin_usa_llamador_no_emite_evento(): void
     {
         // Sucursal con token pero llamador DESACTIVADO: no debe publicarse nada

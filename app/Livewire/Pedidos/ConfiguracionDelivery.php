@@ -86,10 +86,23 @@ class ConfiguracionDelivery extends Component
     public bool $aceptaLoAntesPosible = true;
 
     /**
-     * Espejo de sucursales.pedido_conversion_automatica_al_entregar (columna,
-     * NO key del JSON config_delivery): compartida con pedidos de mostrador.
+     * Key `conversion_automatica_al_entregar` del JSON config_delivery —
+     * PROPIA de delivery (rev9). Mostrador sigue usando su columna
+     * pedido_conversion_automatica_al_entregar desde su propia config.
      */
     public bool $convertirVentaAlEntregar = false;
+
+    /**
+     * Numeración display PROPIA de delivery (rev9): keys del JSON
+     * config_delivery + contador pedido_delivery_display_* en sucursales.
+     * Mostrador conserva sus columnas y su UI en el modal de sucursal.
+     */
+    public bool $usaNumeracionDisplay = true;
+
+    public string $numeracionDisplayModo = 'diario';
+
+    /** Horas de reset del modo diario, CSV (ej: "6" o "6, 18"). */
+    public string $numeracionDisplayHoras = '6';
 
     /**
      * Alertas de pedidos demorados (columnas de sucursales, compartidas con
@@ -134,7 +147,11 @@ class ConfiguracionDelivery extends Component
         $config = $sucursal->getConfigDelivery();
 
         $this->usaDelivery = (bool) $sucursal->usa_delivery;
-        $this->convertirVentaAlEntregar = (bool) $sucursal->pedido_conversion_automatica_al_entregar;
+        $this->convertirVentaAlEntregar = (bool) ($config['conversion_automatica_al_entregar'] ?? false);
+        $this->usaNumeracionDisplay = (bool) ($config['usa_numeracion_display'] ?? true);
+        $modoNumeracion = (string) ($config['numeracion_display_modo'] ?? 'diario');
+        $this->numeracionDisplayModo = in_array($modoNumeracion, ['diario', 'manual'], true) ? $modoNumeracion : 'diario';
+        $this->numeracionDisplayHoras = implode(', ', (array) ($config['numeracion_display_horas'] ?? [6]));
         $this->alertaAmarillaMin = (string) ($sucursal->pedido_alerta_amarilla_min ?? 15);
         $this->alertaRojaMin = (string) ($sucursal->pedido_alerta_roja_min ?? 30);
         $this->conceptoCategoriaEnvioId = $config['concepto_categoria_envio_id'] !== null ? (string) $config['concepto_categoria_envio_id'] : '';
@@ -196,10 +213,22 @@ class ConfiguracionDelivery extends Component
         // Las keys de envío/alcance (georreferenciar, radio, costos por km)
         // las guarda el sub-componente ConfiguracionDeliveryEnvio: el merge
         // sobre lo persistido las preserva.
+        $horasReset = collect(explode(',', $this->numeracionDisplayHoras))
+            ->map(fn ($v) => (int) trim($v))
+            ->filter(fn ($v) => $v >= 0 && $v <= 23)
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
         $config = array_merge($guardada, [
             'concepto_categoria_envio_id' => $this->conceptoCategoriaEnvioId !== '' ? (int) $this->conceptoCategoriaEnvioId : null,
             'exigir_repartidor' => $this->exigirRepartidor,
             'usa_estado_listo' => $this->usaEstadoListo,
+            'conversion_automatica_al_entregar' => $this->convertirVentaAlEntregar,
+            'usa_numeracion_display' => $this->usaNumeracionDisplay,
+            'numeracion_display_modo' => in_array($this->numeracionDisplayModo, ['diario', 'manual'], true) ? $this->numeracionDisplayModo : 'diario',
+            'numeracion_display_horas' => $horasReset ?: [6],
             'takeaway_habilitado' => $this->takeawayHabilitado,
             'aceptacion_pedidos_externos' => in_array($this->aceptacionPedidosExternos, ['manual', 'automatica'], true)
                 ? $this->aceptacionPedidosExternos
@@ -220,7 +249,6 @@ class ConfiguracionDelivery extends Component
         try {
             $sucursal->update([
                 'usa_delivery' => $this->usaDelivery,
-                'pedido_conversion_automatica_al_entregar' => $this->convertirVentaAlEntregar,
                 'pedido_alerta_amarilla_min' => max(0, (int) $this->alertaAmarillaMin),
                 'pedido_alerta_roja_min' => max(0, (int) $this->alertaRojaMin),
                 'config_delivery' => $config,
@@ -230,6 +258,21 @@ class ConfiguracionDelivery extends Component
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }
+    }
+
+    /**
+     * Reinicia a 0 el contador display PROPIO de delivery (con permiso).
+     */
+    public function reiniciarNumeracionDisplay(\App\Services\Pedidos\PedidoDeliveryService $service): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.resetear_numeracion')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para reiniciar la numeración'));
+
+            return;
+        }
+
+        $service->reiniciarNumeracionDisplay((int) $this->sucursalActual(), (int) auth()->id());
+        $this->dispatch('toast-success', message: __('Numeración de pedidos delivery reiniciada'));
     }
 
     // ==================== HORARIOS (repeater compartido) ====================

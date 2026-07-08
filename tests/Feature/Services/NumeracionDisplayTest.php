@@ -131,4 +131,69 @@ class NumeracionDisplayTest extends TestCase
         $this->assertSame(5, $conDisplay->numero_visible);
         $this->assertSame(1387, $sinDisplay->numero_visible);
     }
+
+    // ==================== DELIVERY: CONTADOR Y CONFIG PROPIOS (rev9) ====================
+
+    public function test_delivery_numera_independiente_de_mostrador(): void
+    {
+        // Mostrador: columnas compartidas históricas. Delivery: keys del JSON
+        // config_delivery + contador pedido_delivery_display_*. Cada módulo
+        // avanza SIN mover el contador del otro.
+        $this->configurar([
+            'usa_numeracion_display' => true,
+            'numeracion_display_modo' => 'manual',
+            'config_delivery' => [
+                'usa_numeracion_display' => true,
+                'numeracion_display_modo' => 'manual',
+            ],
+        ]);
+
+        $delivery = app(\App\Services\Pedidos\PedidoDeliveryService::class);
+
+        $this->assertSame(1, $this->siguiente());          // mostrador → 1
+        $this->assertSame(2, $this->siguiente());          // mostrador → 2
+        $this->assertSame(1, $delivery->siguienteNumeroDisplay($this->sucursalId)); // delivery arranca en 1
+        $this->assertSame(2, $delivery->siguienteNumeroDisplay($this->sucursalId));
+        $this->assertSame(3, $this->siguiente(), 'El contador de mostrador no se movió por delivery');
+
+        $suc = Sucursal::find($this->sucursalId);
+        $this->assertSame(3, (int) $suc->pedido_display_ultimo_numero);
+        $this->assertSame(2, (int) $suc->pedido_delivery_display_ultimo_numero);
+    }
+
+    public function test_delivery_sin_numeracion_display_cae_al_permanente(): void
+    {
+        // Config de delivery apagada aunque mostrador la tenga prendida.
+        $this->configurar([
+            'usa_numeracion_display' => true,
+            'numeracion_display_modo' => 'manual',
+            'config_delivery' => ['usa_numeracion_display' => false],
+        ]);
+
+        $delivery = app(\App\Services\Pedidos\PedidoDeliveryService::class);
+
+        $this->assertNull($delivery->siguienteNumeroDisplay($this->sucursalId));
+        $this->assertSame(1, $this->siguiente(), 'Mostrador sigue numerando');
+    }
+
+    public function test_reinicio_manual_de_delivery_no_toca_mostrador(): void
+    {
+        $this->configurar([
+            'usa_numeracion_display' => true,
+            'numeracion_display_modo' => 'manual',
+            'config_delivery' => [
+                'usa_numeracion_display' => true,
+                'numeracion_display_modo' => 'manual',
+            ],
+        ]);
+
+        $delivery = app(\App\Services\Pedidos\PedidoDeliveryService::class);
+        $this->siguiente();                                  // mostrador → 1
+        $delivery->siguienteNumeroDisplay($this->sucursalId); // delivery → 1
+
+        $delivery->reiniciarNumeracionDisplay($this->sucursalId, 1);
+
+        $this->assertSame(1, $delivery->siguienteNumeroDisplay($this->sucursalId), 'Delivery reinició');
+        $this->assertSame(2, $this->siguiente(), 'Mostrador NO reinició');
+    }
 }

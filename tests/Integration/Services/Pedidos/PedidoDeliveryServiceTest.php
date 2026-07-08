@@ -240,8 +240,10 @@ class PedidoDeliveryServiceTest extends TestCase
         $this->assertSame(PedidoDelivery::ESTADO_LISTO, $pedido->fresh()->estado_pedido);
     }
 
-    public function test_take_away_no_puede_pasar_a_en_camino(): void
+    public function test_take_away_pasa_a_en_camino_como_para_retirar(): void
     {
+        // rev9: en_camino es compartido — para take-away significa "listo para
+        // retirar" (sin exigir repartidor ni salida de reparto).
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
         $pedido = $this->service->crearPedido(
             data: $this->datosBaseDelivery(overrides: [
@@ -252,10 +254,16 @@ class PedidoDeliveryServiceTest extends TestCase
         );
         $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_LISTO);
 
-        $this->expectException(Exception::class);
-        $this->expectExceptionMessage('take-away');
-
         $this->service->cambiarEstado($pedido->fresh(), PedidoDelivery::ESTADO_EN_CAMINO);
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $pedido->estado_pedido);
+        $this->assertNull($pedido->repartidor_id);
+        $this->assertSame(__('Para retirar'), $pedido->estado_label);
+
+        // Y de ahí se entrega directo (sin vuelta: no hay salida).
+        $this->service->cambiarEstado($pedido->fresh(), PedidoDelivery::ESTADO_ENTREGADO, convertirAutomatico: false);
+        $this->assertSame(PedidoDelivery::ESTADO_ENTREGADO, $pedido->fresh()->estado_pedido);
     }
 
     public function test_reasignar_repartidor_bloqueado_en_camino(): void
@@ -368,6 +376,49 @@ class PedidoDeliveryServiceTest extends TestCase
         $pedido->refresh();
         $this->assertSame(PedidoDelivery::ESTADO_FACTURADO, $pedido->estado_pedido);
         $this->assertSame($venta->id, (int) $pedido->venta_id);
+    }
+
+    public function test_convertir_marca_pagos_de_fp_fiscal_para_facturar(): void
+    {
+        // FP marcada "factura fiscal": la conversión intenta emitir el
+        // comprobante POST-commit. En tests ARCA no está configurado → el pago
+        // queda `pendiente_de_facturar` (reintentable desde Cajas), y la
+        // conversión NUNCA se revierte por un fallo fiscal.
+        $fpId = $this->formaPagoEfectivo();
+        \App\Models\FormaPago::where('id', $fpId)->update(['factura_fiscal' => true]);
+
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->cajaId);
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $fpId,
+            'monto_base' => 1000,
+            'monto_final' => 1000,
+        ]);
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+
+        $pago = $venta->pagos()->first();
+        $this->assertSame(\App\Models\VentaPago::ESTADO_FACT_PENDIENTE, $pago->estado_facturacion);
+        $this->assertSame(PedidoDelivery::ESTADO_FACTURADO, $pedido->fresh()->estado_pedido, 'El fallo de ARCA no revierte la conversión');
+    }
+
+    public function test_convertir_sin_fp_fiscal_no_marca_pagos(): void
+    {
+        $fpId = $this->formaPagoEfectivo();
+        \App\Models\FormaPago::where('id', $fpId)->update(['factura_fiscal' => false]);
+
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->cajaId);
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $fpId,
+            'monto_base' => 1000,
+            'monto_final' => 1000,
+        ]);
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+
+        $this->assertNotSame(
+            \App\Models\VentaPago::ESTADO_FACT_PENDIENTE,
+            $venta->pagos()->first()->estado_facturacion,
+        );
     }
 
     public function test_convertir_sin_caja_exige_caja_o_falla_claro(): void

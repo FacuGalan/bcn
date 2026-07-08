@@ -164,9 +164,10 @@ class RepartidorService
     }
 
     /**
-     * Pase manual listo → en_camino de UN pedido con repartidor: crea la
-     * salida implícita de 1 pedido y la registra en el acto, para que la
-     * vuelta/cobros/fondo operen siempre sobre salidas.
+     * Pase manual listo → en_camino de UN pedido con repartidor. Delegado en
+     * despacharPedidos: si el repartidor ya está EN LA CALLE, el pedido se
+     * SUMA a ese viaje (no se abre una salida paralela); si no, se crea y
+     * registra la salida implícita de 1 pedido.
      *
      * Si la sucursal permite despachar sin repartidor
      * (`exigir_repartidor` = false) y el pedido no tiene uno, no hay circuito
@@ -178,11 +179,57 @@ class RepartidorService
             throw new Exception('Asignar un repartidor antes de despachar el pedido');
         }
 
-        return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $usuarioId) {
+        return $this->despacharPedidos(
+            sucursalId: (int) $pedido->sucursal_id,
+            repartidorId: (int) $pedido->repartidor_id,
+            pedidoIds: [$pedido->id],
+            usuarioId: $usuarioId,
+        );
+    }
+
+    /**
+     * Despacha pedidos con un repartidor, UN VIAJE por repartidor (rev9): si
+     * ya tiene una salida `en_camino` en la sucursal, los pedidos se SUMAN a
+     * ese viaje (attach al pivot + pase a en_camino de cada uno) — despachar
+     * 4 pedidos de a uno con Jose en la calle NO abre 4 salidas paralelas.
+     * Sin salida en curso, crea la salida y la registra en el acto.
+     */
+    public function despacharPedidos(int $sucursalId, int $repartidorId, array $pedidoIds, ?int $usuarioId = null): DeliverySalida
+    {
+        if (empty($pedidoIds)) {
+            throw new Exception('Una salida necesita al menos un pedido');
+        }
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($sucursalId, $repartidorId, $pedidoIds, $usuarioId) {
+            $abierta = DeliverySalida::where('repartidor_id', $repartidorId)
+                ->where('sucursal_id', $sucursalId)
+                ->where('estado', DeliverySalida::ESTADO_EN_CAMINO)
+                ->lockForUpdate()
+                ->orderByDesc('salida_at')
+                ->first();
+
+            if ($abierta) {
+                $this->attachPedidosASalida($abierta, $pedidoIds);
+
+                foreach (PedidoDelivery::whereIn('id', $pedidoIds)->get() as $pedido) {
+                    if ($pedido->estado_pedido !== PedidoDelivery::ESTADO_EN_CAMINO) {
+                        $this->pedidoService->cambiarEstado($pedido, PedidoDelivery::ESTADO_EN_CAMINO);
+                    }
+                }
+
+                Log::info('Pedidos sumados a salida en camino', [
+                    'salida_id' => $abierta->id,
+                    'repartidor_id' => $repartidorId,
+                    'pedidos' => $pedidoIds,
+                ]);
+
+                return $abierta->fresh();
+            }
+
             $salida = $this->crearSalida(
-                sucursalId: (int) $pedido->sucursal_id,
-                repartidorId: (int) $pedido->repartidor_id,
-                pedidoIds: [$pedido->id],
+                sucursalId: $sucursalId,
+                repartidorId: $repartidorId,
+                pedidoIds: $pedidoIds,
                 usuarioId: $usuarioId,
             );
 
@@ -307,8 +354,9 @@ class RepartidorService
 
         // Conversión automática POST-vuelta: individual y fuera de la
         // transacción — una falla (ARCA, sin caja) no rompe la vuelta.
+        // Config PROPIA de delivery (key del JSON config_delivery).
         $sucursal = $salida->sucursal()->first();
-        if ($sucursal && $sucursal->pedido_conversion_automatica_al_entregar) {
+        if ($sucursal && $this->pedidoService->conversionAutomaticaAlEntregar($sucursal)) {
             foreach ($entregadosIds as $pedidoId) {
                 $pedido = PedidoDelivery::find($pedidoId);
                 if (! $pedido || $pedido->venta_id) {

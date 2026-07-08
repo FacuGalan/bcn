@@ -2871,6 +2871,8 @@ CREATE TABLE `{{PREFIX}}sucursales` (
   `facturacion_fiscal_automatica` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si emite factura fiscal automáticamente según formas de pago',
   `pedido_mostrador_ultimo_numero` int unsigned NOT NULL DEFAULT '0' COMMENT 'Contador correlativo de pedidos por mostrador (reset manual con permiso)',
   `pedido_delivery_ultimo_numero` int unsigned NOT NULL DEFAULT '0' COMMENT 'Contador correlativo de pedidos delivery (reset manual con permiso)',
+  `pedido_delivery_display_ultimo_numero` int unsigned NOT NULL DEFAULT '0' COMMENT 'Contador de numeracion display propia de delivery (separado de mostrador)',
+  `pedido_delivery_display_segmento_at` datetime DEFAULT NULL COMMENT 'Inicio del segmento vigente del contador display de delivery (reset diario)',
   `imprime_comanda_automatico` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si imprime comanda automaticamente al confirmar pedido',
   `pedido_conversion_automatica_al_entregar` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Si convierte pedido en venta automaticamente al pasar a entregado',
   `pedido_alerta_amarilla_min` int unsigned NOT NULL DEFAULT '15' COMMENT 'Minutos para alerta amarilla de pedido demorado (0 = off, compartida delivery/mostrador)',

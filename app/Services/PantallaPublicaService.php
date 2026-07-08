@@ -166,22 +166,15 @@ class PantallaPublicaService
             'nombre' => $p->nombreLlamador(),
         ];
 
-        // Los TAKE-AWAY de delivery comparten numero_display con mostrador
-        // (contador único por sucursal) y se anuncian en el mismo llamador
-        // (RF-03). Los delivery puros NO: los retira el repartidor.
-        $takeAway = fn (string $estado) => \App\Models\PedidoDelivery::query()
-            ->where('sucursal_id', $sucursal->id)
-            ->where('tipo', \App\Models\PedidoDelivery::TIPO_TAKE_AWAY)
-            ->where('estado_pedido', $estado)
-            ->with('cliente:id,nombre')
-            ->get();
-
+        // SOLO pedidos de MOSTRADOR (rev9 delivery): los take-away de delivery
+        // ya NO se anuncian acá — tienen su propio circuito ("listo para
+        // retirar" en el panel) y su numeración display es independiente, así
+        // que sus números colisionarían con los de mostrador.
         $enPreparacion = PedidoMostrador::query()
             ->where('sucursal_id', $sucursal->id)
             ->where('estado_pedido', PedidoMostrador::ESTADO_EN_PREPARACION)
             ->with('cliente:id,nombre')
             ->get()
-            ->concat($takeAway(\App\Models\PedidoDelivery::ESTADO_EN_PREPARACION))
             ->sortBy(fn ($p) => (int) $p->numero_visible)
             ->values();
 
@@ -190,7 +183,6 @@ class PantallaPublicaService
             ->where('estado_pedido', PedidoMostrador::ESTADO_LISTO)
             ->with('cliente:id,nombre')
             ->get()
-            ->concat($takeAway(\App\Models\PedidoDelivery::ESTADO_LISTO))
             ->sortByDesc(fn ($p) => (int) $p->numero_visible)
             ->values();
 

@@ -13,7 +13,6 @@ use App\Models\PedidoDeliveryPago;
 use App\Models\Repartidor;
 use App\Models\RepartidorFondo;
 use App\Models\RepartidorFondoMovimiento;
-use App\Models\Sucursal;
 use App\Models\Venta;
 use App\Services\Pedidos\PedidoDeliveryService;
 use App\Services\Pedidos\RepartidorService;
@@ -412,6 +411,48 @@ class RepartidorServiceTest extends TestCase
         $this->assertSame(2, DeliverySalidaPedido::where('pedido_id', $pedido->id)->count());
     }
 
+    public function test_despachos_sucesivos_se_suman_al_viaje_en_curso(): void
+    {
+        // rev9: UN viaje por repartidor — despachar de a uno con el repartidor
+        // en la calle suma los pedidos a su salida en_camino (no abre otra).
+        $repartidor = $this->crearRepartidorHabilitado();
+        $this->abrirFondoDe($repartidor);
+        $p1 = $this->pedidoListoConPagoPlanificado($repartidor);
+        $p2 = $this->pedidoListoConPagoPlanificado($repartidor);
+
+        $salida1 = $this->repartidorService->despacharPedido($p1, usuarioId: 1);
+        $salida2 = $this->repartidorService->despacharPedido($p2->fresh(), usuarioId: 1);
+
+        $this->assertSame($salida1->id, $salida2->id, 'El segundo despacho se suma al viaje en curso');
+        $this->assertSame(2, $salida1->fresh()->pedidosActuales()->count());
+        $this->assertSame(PedidoDelivery::ESTADO_EN_CAMINO, $p2->fresh()->estado_pedido);
+        $this->assertSame($salida1->id, (int) $p2->fresh()->salida_id);
+
+        // La vuelta de ESA salida liquida ambos pedidos.
+        $pago1 = $p1->pagos()->first();
+        $pago2 = $p2->pagos()->first();
+        $this->repartidorService->registrarVuelta($salida1->fresh(), [
+            $p1->id => ['resultado' => DeliverySalidaPedido::RESULTADO_ENTREGADO, 'cobros' => [['pago_id' => $pago1->id]]],
+            $p2->id => ['resultado' => DeliverySalidaPedido::RESULTADO_ENTREGADO, 'cobros' => [['pago_id' => $pago2->id]]],
+        ], usuarioId: 1);
+
+        $this->assertSame(PedidoDelivery::ESTADO_ENTREGADO, $p1->fresh()->estado_pedido);
+        $this->assertSame(PedidoDelivery::ESTADO_ENTREGADO, $p2->fresh()->estado_pedido);
+    }
+
+    public function test_despacho_con_otro_repartidor_no_se_suma_al_viaje_ajeno(): void
+    {
+        $repartidor1 = $this->crearRepartidorHabilitado();
+        $repartidor2 = $this->crearRepartidorHabilitado();
+        $p1 = $this->pedidoListoConPagoPlanificado($repartidor1);
+        $p2 = $this->pedidoListoConPagoPlanificado($repartidor2);
+
+        $salida1 = $this->repartidorService->despacharPedido($p1, usuarioId: 1);
+        $salida2 = $this->repartidorService->despacharPedido($p2->fresh(), usuarioId: 1);
+
+        $this->assertNotSame($salida1->id, $salida2->id);
+    }
+
     public function test_vuelta_exige_resultado_de_todos_los_pedidos(): void
     {
         $repartidor = $this->crearRepartidorHabilitado();
@@ -430,7 +471,8 @@ class RepartidorServiceTest extends TestCase
 
     public function test_vuelta_con_conversion_automatica_factura_post_vuelta(): void
     {
-        Sucursal::where('id', $this->sucursalId)->update(['pedido_conversion_automatica_al_entregar' => true]);
+        // rev9: la conversión al entregar es key propia del JSON config_delivery.
+        $this->habilitarDelivery(['conversion_automatica_al_entregar' => true]);
         $repartidor = $this->crearRepartidorHabilitado();
         $this->abrirFondoDe($repartidor);
         $pedido = $this->pedidoListoConPagoPlanificado($repartidor, total: 1000);

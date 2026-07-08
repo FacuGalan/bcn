@@ -50,9 +50,44 @@
                 <input type="checkbox" wire:model="convertirVentaAlEntregar" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                 <span class="text-sm text-gray-700 dark:text-gray-300">
                     {{ __('Convertir en venta al entregar') }}
-                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Al pasar a Entregado el pedido se factura automáticamente (requiere pagos completos y caja). Configuración compartida con pedidos de mostrador.') }}</span>
+                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Al pasar a Entregado el pedido se convierte en venta con todos sus movimientos y se emiten los comprobantes fiscales de las formas de pago marcadas como fiscales (requiere pagos completos y caja). Propia de delivery, no afecta mostrador.') }}</span>
                 </span>
             </label>
+            {{-- Numeración display PROPIA de delivery (rev9, separada de mostrador) --}}
+            <div class="sm:col-span-2 border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
+                <label class="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" wire:model.live="usaNumeracionDisplay" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                        {{ __('Numerar pedidos por turno (número de display)') }}
+                        <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('El panel muestra un número corto propio de delivery, independiente del de mostrador. Desactivado: se usa el número correlativo permanente.') }}</span>
+                    </span>
+                </label>
+                @if($usaNumeracionDisplay)
+                    <div class="flex flex-wrap items-end gap-3 pl-6">
+                        <div>
+                            <label for="cd-num-modo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Reinicio del contador') }}</label>
+                            <select id="cd-num-modo" wire:model.live="numeracionDisplayModo"
+                                class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                                <option value="diario">{{ __('Automático (por horario)') }}</option>
+                                <option value="manual">{{ __('Manual (con botón)') }}</option>
+                            </select>
+                        </div>
+                        @if($numeracionDisplayModo === 'diario')
+                            <div>
+                                <label for="cd-num-horas" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Horas de reinicio (0-23)') }}</label>
+                                <input id="cd-num-horas" type="text" wire:model="numeracionDisplayHoras" placeholder="6, 18"
+                                    class="w-28 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                            </div>
+                        @else
+                            <button type="button" wire:click="reiniciarNumeracionDisplay"
+                                wire:confirm="{{ __('¿Reiniciar la numeración de pedidos delivery a 0?') }}"
+                                class="px-3 py-1.5 border border-amber-300 dark:border-amber-600 rounded-md text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30">
+                                {{ __('Reiniciar numeración ahora') }}
+                            </button>
+                        @endif
+                    </div>
+                @endif
+            </div>
             <div class="flex flex-wrap items-end gap-3">
                 <div>
                     <label for="cd-alerta-amarilla" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alerta amarilla (min)') }}</label>

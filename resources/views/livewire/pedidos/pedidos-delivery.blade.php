@@ -518,10 +518,13 @@
                             {{ __('Ver') }}
                         </button>
                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                            @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
+                            @if(in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
+                                {{-- Botón único (rev9): asigna repartidor Y despacha (suma al
+                                     viaje en curso si el repartidor está en la calle). En
+                                     take-away pasa el pedido a "Para retirar". --}}
                                 <button wire:click="despachar({{ $pedido->id }})"
                                     class="inline-flex items-center px-2.5 py-1.5 border border-cyan-400 dark:border-cyan-500 rounded text-xs bg-cyan-600 text-white hover:bg-cyan-700">
-                                    {{ __('Despachar') }}
+                                    {{ $pedido->tipo === 'delivery' ? __('Despachar') : __('Para retirar') }}
                                 </button>
                             @endif
                             @if(in_array('entregado', \App\Models\PedidoDelivery::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? []))
@@ -529,12 +532,6 @@
                                     @if(!($pedido->estado_pedido === 'en_camino' && $pedido->salida_id)) wire:confirm="{{ __('¿Marcar este pedido como entregado?') }}" @endif
                                     class="inline-flex items-center px-2.5 py-1.5 border border-emerald-300 dark:border-emerald-600 rounded text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30">
                                     {{ __('Entregar') }}
-                                </button>
-                            @endif
-                            @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
-                                <button wire:click="abrirAsignarRepartidor({{ $pedido->id }})"
-                                    class="inline-flex items-center px-2.5 py-1.5 border rounded text-xs {{ $pedido->repartidor_id ? 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30' : 'border-orange-300 dark:border-orange-600 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/30' }}">
-                                    {{ $pedido->repartidor_id ? __('Repartidor') : __('Asignar') }}
                                 </button>
                             @endif
                             <button wire:click="abrirCambiarEstado({{ $pedido->id }})"
@@ -723,19 +720,12 @@
                                             </svg>
                                         </button>
                                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                                            @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
-                                                <button wire:click="abrirAsignarRepartidor({{ $pedido->id }})"
-                                                    class="inline-flex items-center px-2 py-1 border rounded text-xs {{ $pedido->repartidor_id ? 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30' : 'border-orange-300 dark:border-orange-600 text-orange-700 dark:text-orange-300 hover:bg-orange-50 dark:hover:bg-orange-900/30' }}"
-                                                    title="{{ $pedido->repartidor_id ? __('Cambiar repartidor') : __('Asignar repartidor') }}">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                                                    </svg>
-                                                </button>
-                                            @endif
-                                            @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
+                                            @if(in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
+                                                {{-- Botón único (rev9): asigna repartidor Y despacha; en
+                                                     take-away pasa el pedido a "Para retirar". --}}
                                                 <button wire:click="despachar({{ $pedido->id }})"
                                                     class="inline-flex items-center px-2 py-1 border border-cyan-400 dark:border-cyan-500 rounded text-xs bg-cyan-600 text-white hover:bg-cyan-700"
-                                                    title="{{ __('Despachar (en camino)') }}">
+                                                    title="{{ $pedido->tipo === 'delivery' ? __('Despachar') : __('Listo para retirar') }}">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
                                                     </svg>
@@ -816,7 +806,8 @@
                 'confirmado' => __('Confirmado'),
                 'en_preparacion' => __('En preparación'),
                 'listo' => __('Listo'),
-                'en_camino' => __('En camino'),
+                // Columna compartida: delivery viaja, take-away espera retiro
+                'en_camino' => __('En camino / Retiro'),
                 'entregado' => __('Entregado'),
             ];
             $estadoColores = [
@@ -879,6 +870,13 @@
                                                     B{{ $pedido->numero_beeper }}
                                                 </span>
                                             @endif
+                                            @if($pedido->estado_pedido === 'facturado')
+                                                {{-- Convertido en venta (conversión automática): se muestra en
+                                                     la columna Entregado con este chip --}}
+                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">
+                                                    {{ __('Facturado') }}
+                                                </span>
+                                            @endif
                                             {{-- Contador de demora (solo cuando la alerta está activa) --}}
                                             <span x-show="nivel !== 'ok'" x-cloak x-text="edad()"
                                                 :class="nivel === 'rojo' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'"
@@ -927,11 +925,14 @@
                                             <div x-show="open" x-cloak x-transition.opacity
                                                 class="fixed z-50 w-56 rounded-md bg-white dark:bg-gray-700 shadow-lg ring-1 ring-black ring-opacity-5 py-1"
                                                 :style="`top:${pos.top}px;left:${pos.left}px`">
-                                                @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
+                                                @if(in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']))
+                                                    {{-- Botón único (rev9): asigna repartidor Y despacha (o "Para
+                                                         retirar" en take-away). Con el repartidor en la calle, el
+                                                         pedido se suma a su viaje en curso. --}}
                                                     <button type="button" wire:click="despachar({{ $pedido->id }})" @click="open = false"
                                                         class="flex w-full items-center px-3 py-2 text-xs font-semibold text-cyan-700 dark:text-cyan-300 hover:bg-gray-100 dark:hover:bg-gray-600">
                                                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" /></svg>
-                                                        {{ __('Despachar (en camino)') }}
+                                                        {{ $pedido->tipo === 'delivery' ? __('Despachar') : __('Listo para retirar') }}
                                                     </button>
                                                 @endif
                                                 @if($pedido->estado_pedido === 'en_camino' && $pedido->salida_id && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
@@ -941,6 +942,16 @@
                                                         {{ __('Registrar vuelta') }}
                                                     </button>
                                                 @endif
+                                                @if(! $pedido->salida_id && in_array('entregado', \App\Models\PedidoDelivery::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? []))
+                                                    {{-- Entrega directa (sin salida de reparto): típico take-away
+                                                         "Para retirar" cuando el cliente pasa a buscarlo --}}
+                                                    <button type="button" wire:click="entregarRapido({{ $pedido->id }})" @click="open = false"
+                                                        wire:confirm="{{ __('¿Marcar este pedido como entregado?') }}"
+                                                        class="flex w-full items-center px-3 py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+                                                        {{ __('Entregar') }}
+                                                    </button>
+                                                @endif
                                                 @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.cobrar'))
                                                     <button type="button" wire:click="cobrarRapido({{ $pedido->id }})" @click="open = false"
                                                         class="flex w-full items-center px-3 py-2 text-xs text-green-700 dark:text-green-300 hover:bg-gray-100 dark:hover:bg-gray-600">
@@ -948,11 +959,13 @@
                                                         {{ $pedido->total_planificado > 0 ? __('Confirmar pagos planificados') : __('Cobrar') }}
                                                     </button>
                                                 @endif
-                                                @if($pedido->tipo === 'delivery' && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
+                                                @if($pedido->tipo === 'delivery' && $pedido->repartidor_id && in_array($pedido->estado_pedido, ['confirmado','en_preparacion','listo']) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores'))
+                                                    {{-- Con repartidor pre-asignado, "Despachar" sale directo;
+                                                         esta entrada permite CAMBIARLO antes de despachar. --}}
                                                     <button type="button" wire:click="abrirAsignarRepartidor({{ $pedido->id }})" @click="open = false"
-                                                        class="flex w-full items-center px-3 py-2 text-xs {{ $pedido->repartidor_id ? 'text-gray-700 dark:text-gray-200' : 'text-orange-700 dark:text-orange-300' }} hover:bg-gray-100 dark:hover:bg-gray-600">
+                                                        class="flex w-full items-center px-3 py-2 text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600">
                                                         <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                                        {{ $pedido->repartidor_id ? __('Cambiar repartidor') : __('Asignar repartidor') }}
+                                                        {{ __('Cambiar repartidor y despachar') }}
                                                     </button>
                                                 @endif
                                                 @php
@@ -1590,8 +1603,8 @@
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Nuevo estado') }}</label>
                         <select wire:model="nuevoEstado"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 text-sm">
-                            @foreach($transicionesDisponibles as $estado)
-                                <option value="{{ $estado }}">{{ __($estadosPedido[$estado] ?? $estado) }}</option>
+                            @foreach($transicionesDisponibles as $estado => $label)
+                                <option value="{{ $estado }}">{{ $label }}</option>
                             @endforeach
                         </select>
                     </div>
@@ -1949,10 +1962,10 @@
         </x-bcn-modal>
     @endif
 
-    {{-- ==================== MODAL: ASIGNAR REPARTIDOR (RF-08) ==================== --}}
+    {{-- ==================== MODAL: DESPACHAR (elegir repartidor + salir, RF-08/rev9) ==================== --}}
     @if($showRepartidorModal)
         <x-bcn-modal
-            :title="__('Asignar repartidor')"
+            :title="__('Despachar pedido')"
             color="bg-cyan-600"
             maxWidth="md"
             onClose="cerrarAsignarRepartidor"
@@ -1969,6 +1982,9 @@
                             @endforeach
                         </select>
                     </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">
+                        {{ __('Al confirmar, el pedido sale en camino. Si el repartidor ya está en la calle, se suma a su viaje en curso.') }}
+                    </p>
                     @if($repartidores->isEmpty())
                         <p class="text-xs text-amber-600 dark:text-amber-400">
                             {{ __('No hay repartidores activos habilitados en esta sucursal. Crealos desde el módulo Repartidores.') }}
@@ -1983,7 +1999,7 @@
                 </button>
                 <button type="button" wire:click="confirmarAsignarRepartidor"
                     class="px-4 py-2 bg-cyan-600 rounded-md text-sm font-semibold text-white hover:bg-cyan-700">
-                    {{ __('Guardar') }}
+                    {{ __('Despachar') }}
                 </button>
             </x-slot:footer>
         </x-bcn-modal>

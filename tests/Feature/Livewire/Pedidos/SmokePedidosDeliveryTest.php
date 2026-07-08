@@ -183,7 +183,9 @@ class SmokePedidosDeliveryTest extends TestCase
         $sucursal = \App\Models\Sucursal::find($this->sucursalId);
         $config = $sucursal->getConfigDelivery();
         $this->assertTrue((bool) $sucursal->usa_delivery);
-        $this->assertTrue((bool) $sucursal->pedido_conversion_automatica_al_entregar, 'La config de conversión al entregar se guarda en la columna compartida con mostrador');
+        // rev9: la conversión al entregar es key PROPIA del JSON config_delivery
+        // (la columna pedido_conversion_automatica_al_entregar quedó para mostrador).
+        $this->assertTrue((bool) $config['conversion_automatica_al_entregar']);
         $this->assertSame(20, (int) $sucursal->pedido_alerta_amarilla_min);
         $this->assertSame(45, (int) $sucursal->pedido_alerta_roja_min);
         $this->assertSame('automatica', $config['modo_promesa']);

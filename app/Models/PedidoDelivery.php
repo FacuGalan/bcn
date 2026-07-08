@@ -470,7 +470,13 @@ class PedidoDelivery extends Model
     public function getEstadoLabelAttribute(): string
     {
         if ($this->estado_pedido === self::ESTADO_LISTO) {
-            return $this->es_delivery ? __('Listo para enviar') : __('Listo para retirar');
+            return $this->es_delivery ? __('Listo para enviar') : __('Listo');
+        }
+
+        // en_camino es compartido: para take-away significa que el pedido
+        // espera al cliente en el local ("para retirar"), no que viaja.
+        if ($this->estado_pedido === self::ESTADO_EN_CAMINO && ! $this->es_delivery) {
+            return __('Para retirar');
         }
 
         return __(self::ESTADOS[$this->estado_pedido] ?? $this->estado_pedido);
