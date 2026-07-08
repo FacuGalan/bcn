@@ -940,13 +940,6 @@
                                                     B{{ $pedido->numero_beeper }}
                                                 </span>
                                             @endif
-                                            @if($pedido->estado_pedido === 'facturado')
-                                                {{-- Convertido en venta (conversión automática): se muestra en
-                                                     la columna Entregado con este chip --}}
-                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">
-                                                    {{ __('Facturado') }}
-                                                </span>
-                                            @endif
                                             {{-- Contador de demora (solo cuando la alerta está activa) --}}
                                             <span x-show="nivel !== 'ok'" x-cloak x-text="edad()"
                                                 :class="nivel === 'rojo' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'"

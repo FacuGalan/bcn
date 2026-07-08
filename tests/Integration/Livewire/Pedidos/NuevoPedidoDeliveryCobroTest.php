@@ -495,6 +495,46 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         $this->assertTrue((bool) $pedido->lo_antes_posible, 'El flag ASAP debe persistirse para mostrarse en el panel');
     }
 
+    public function test_promesa_manual_boton_ya_queda_lo_antes_posible(): void
+    {
+        // "Ya" (+0) NO fija hora pactada (nacería vencida → alerta roja
+        // instantánea): equivale a "Lo antes posible" del modo franjas.
+        $this->habilitarDelivery(['modo_promesa' => 'manual', 'botones_demora' => [0, 10, 20]]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('seleccionarDemora', 0)
+            ->call('confirmarSinCobrar')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::first();
+        $this->assertNull($pedido->hora_pactada_at);
+        $this->assertTrue((bool) $pedido->lo_antes_posible);
+    }
+
+    public function test_aceptar_pedido_externo_con_demora_cero_queda_lo_antes_posible(): void
+    {
+        $this->habilitarDelivery(['modo_promesa' => 'manual', 'botones_demora' => [0, 10, 20]]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelivery(total: 500, overrides: ['origen' => PedidoDelivery::ORIGEN_TIENDA]),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 500)],
+            esBorrador: true,
+        );
+
+        Livewire::test(\App\Livewire\Pedidos\PedidosDelivery::class)
+            ->call('abrirAceptar', $pedido->id)
+            ->call('confirmarAceptar', 0)
+            ->assertDispatched('toast-success');
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertNull($pedido->hora_pactada_at, '"Ya" no debe fijar hora pactada');
+        $this->assertTrue((bool) $pedido->lo_antes_posible);
+    }
+
     public function test_aceptar_pedido_externo_lo_antes_posible_marca_el_flag(): void
     {
         $this->habilitarDelivery(['modo_promesa' => 'franjas']);

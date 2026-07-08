@@ -519,7 +519,7 @@
                                 </svg>
                                 {{ ($modoPromesa === 'franjas' ? '' : '~').$this->horaPactadaEstimada->format($this->horaPactadaEstimada->isToday() ? 'H:i' : 'd/m H:i') }}
                             </span>
-                        @elseif($franjaSeleccionada === 'asap')
+                        @elseif($franjaSeleccionada === 'asap' || $demoraSeleccionadaMin === 0)
                             <span class="text-xs font-semibold text-cyan-700 dark:text-cyan-300">{{ __('Lo antes posible') }}</span>
                         @endif
                     </div>
@@ -577,9 +577,13 @@
                             @endforeach
                         </div>
                         <p class="text-[11px] text-gray-400 dark:text-gray-500">
-                            {{ $demoraSeleccionadaMin !== null
-                                ? __('El botón fija la hora pactada y se informa al consumidor.')
-                                : __('Opcional: elegí en cuántos minutos estará.') }}
+                            @if($demoraSeleccionadaMin === 0)
+                                {{ __('"Ya" = lo antes posible: sin hora comprometida, la demora se mide desde la confirmación.') }}
+                            @elseif($demoraSeleccionadaMin !== null)
+                                {{ __('El botón fija la hora pactada y se informa al consumidor.') }}
+                            @else
+                                {{ __('Opcional: elegí en cuántos minutos estará.') }}
+                            @endif
                         </p>
                     @endif
                 </div>

@@ -1003,7 +1003,11 @@ class NuevoPedidoDelivery extends Component
         }
 
         if ($this->demoraSeleccionadaMin !== null) {
-            return now()->addMinutes($this->demoraSeleccionadaMin);
+            // "Ya" (+0) = lo antes posible: sin hora comprometida (si fijara
+            // now() nacería con la promesa vencida y la alerta en rojo).
+            return $this->demoraSeleccionadaMin > 0
+                ? now()->addMinutes($this->demoraSeleccionadaMin)
+                : null;
         }
 
         if ($this->modoEdicion && $this->horaPactadaExistente) {
@@ -1040,7 +1044,8 @@ class NuevoPedidoDelivery extends Component
         }
 
         if ($this->demoraSeleccionadaMin !== null) {
-            return false;
+            // Botón "Ya" (+0): equivale a "Lo antes posible" del modo franjas.
+            return $this->demoraSeleccionadaMin === 0;
         }
 
         return $this->modoEdicion && $this->loAntesPosibleExistente;
@@ -1069,7 +1074,10 @@ class NuevoPedidoDelivery extends Component
         }
 
         if ($this->demoraSeleccionadaMin !== null) {
-            return now()->addMinutes($this->demoraSeleccionadaMin)->toDateTimeString();
+            // "Ya" (+0) → sin hora pactada (lo antes posible).
+            return $this->demoraSeleccionadaMin > 0
+                ? now()->addMinutes($this->demoraSeleccionadaMin)->toDateTimeString()
+                : null;
         }
 
         if ($this->modoEdicion && $this->horaPactadaExistente) {

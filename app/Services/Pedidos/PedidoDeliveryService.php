@@ -712,15 +712,17 @@ class PedidoDeliveryService
         if ($horaPactada !== null) {
             $pedido->update(['hora_pactada_at' => $horaPactada, 'lo_antes_posible' => false]);
             $pedido->refresh();
-        } elseif ($demoraMin !== null && $demoraMin >= 0) {
+        } elseif ($demoraMin !== null && $demoraMin > 0) {
             $pedido->update(['hora_pactada_at' => now()->addMinutes($demoraMin), 'lo_antes_posible' => false]);
             $pedido->refresh();
-        } elseif ($loAntesPosible) {
+        } elseif ($loAntesPosible || $demoraMin === 0) {
+            // "Ya" (+0) = lo antes posible: sin hora comprometida — con
+            // now() el pedido nacería vencido (alerta roja instantánea).
             $pedido->update(['lo_antes_posible' => true]);
             $pedido->refresh();
         }
 
-        if (! $pedido->hora_pactada_at && $pedido->tipo === PedidoDelivery::TIPO_DELIVERY) {
+        if (! $pedido->hora_pactada_at && ! $pedido->lo_antes_posible && $pedido->tipo === PedidoDelivery::TIPO_DELIVERY) {
             $sucursal = Sucursal::findOrFail($pedido->sucursal_id);
             $horaPactada = $this->envioService->calcularHoraPactada(
                 $sucursal,

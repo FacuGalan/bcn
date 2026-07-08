@@ -971,10 +971,9 @@ class PedidosDelivery extends Component
             ]),
         ])
             ->where('sucursal_id', $sucursalId)
-            // FACTURADO también se muestra (en la columna Entregado, con chip):
-            // con conversión automática el pedido pasa entregado → facturado en
-            // el acto y sin esto "desaparecía" del kanban al volver el repartidor.
-            ->whereIn('estado_pedido', array_merge(self::ESTADOS_KANBAN, [PedidoDelivery::ESTADO_FACTURADO]));
+            // Facturado/cancelado son terminales: el kanban es el tablero
+            // operativo — los convertidos en venta viven en la vista Lista.
+            ->whereIn('estado_pedido', self::ESTADOS_KANBAN);
 
         $this->aplicarFiltrosDelivery($query);
 
@@ -1005,11 +1004,8 @@ class PedidosDelivery extends Component
         }
 
         foreach ($pedidos as $pedido) {
-            $columna = $pedido->estado_pedido === PedidoDelivery::ESTADO_FACTURADO
-                ? PedidoDelivery::ESTADO_ENTREGADO
-                : $pedido->estado_pedido;
-            if (isset($agrupados[$columna])) {
-                $agrupados[$columna]->push($pedido);
+            if (isset($agrupados[$pedido->estado_pedido])) {
+                $agrupados[$pedido->estado_pedido]->push($pedido);
             }
         }
 
