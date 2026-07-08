@@ -8,11 +8,14 @@
      card lo muestra junto al número), $sinEnvio oculta el costo de envío,
      $sinPromesa oculta el chip de promesa (la tabla tiene columna Horarios),
      $conDespacho convierte el renglón del repartidor en botón inline de
-     despacho ("Sin repartidor" clickeable cuando falta). --}}
+     despacho ("Sin repartidor" clickeable cuando falta), $conPromesaEditable
+     convierte el chip de promesa en botón inline (reloj en hover → modal de
+     hora de entrega según modo de promesa — paridad con la tabla, rev16). --}}
 @php($sinTipo = $sinTipo ?? false)
 @php($sinEnvio = $sinEnvio ?? false)
 @php($sinPromesa = $sinPromesa ?? false)
 @php($conDespacho = $conDespacho ?? false)
+@php($conPromesaEditable = ($conPromesaEditable ?? false) && ! in_array($pedido->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
 <div class="space-y-1 {{ $class ?? '' }}">
     {{-- 1. Chips: tipo + origen + promesa --}}
     <div class="flex flex-wrap items-center gap-1">
@@ -64,23 +67,56 @@
             </span>
         @endif
 
-        {{-- Promesa de entrega (RF-15): vencida en rojo mientras el pedido siga activo --}}
-        @if($sinPromesa)
-        @elseif($pedido->hora_pactada_at)
-            @php($promesaVencida = $pedido->hora_pactada_at->isPast() && ! in_array($pedido->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
-            <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $promesaVencida ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' }}"
-                title="{{ $pedido->tipo === \App\Models\PedidoDelivery::TIPO_TAKE_AWAY ? __('Listo para retirar') : __('Entrega estimada') }}: {{ $pedido->hora_pactada_at->format('d/m H:i') }}">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                {{ $pedido->hora_pactada_at->isToday() ? $pedido->hora_pactada_at->format('H:i') : $pedido->hora_pactada_at->format('d/m H:i') }}
-            </span>
-        @elseif($pedido->lo_antes_posible)
-            {{-- Promesa ASAP (modo franjas): sin hora fija, sale cuando se puede --}}
-            <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200"
-                title="{{ __('El cliente pidió que se entregue lo antes posible') }}">
-                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                {{ __('Lo antes posible') }}
-            </span>
-        @endif
+        {{-- Promesa de entrega (RF-15): vencida en rojo mientras el pedido siga
+             activo. Con $conPromesaEditable el chip es botón (reloj en hover →
+             modal de hora según modo de promesa, paridad con la tabla). --}}
+        @unless($sinPromesa)
+            @php($chipPromesa = null)
+            @if($pedido->hora_pactada_at)
+                @php($promesaVencida = $pedido->hora_pactada_at->isPast() && ! in_array($pedido->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
+                @php($chipPromesa = 'hora')
+            @elseif($pedido->lo_antes_posible)
+                @php($chipPromesa = 'asap')
+            @elseif($conPromesaEditable)
+                @php($chipPromesa = 'sin_hora')
+            @endif
+
+            @if($chipPromesa)
+                @if($conPromesaEditable)
+                    <button type="button" wire:click="abrirEditarHoraEntrega({{ $pedido->id }})"
+                            class="inline-flex items-center gap-1 group cursor-pointer"
+                            title="{{ __('Editar hora de entrega') }}">
+                @endif
+                @if($chipPromesa === 'hora')
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $promesaVencida ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' }} {{ $conPromesaEditable ? 'select-none' : '' }}"
+                        title="{{ $pedido->tipo === \App\Models\PedidoDelivery::TIPO_TAKE_AWAY ? __('Listo para retirar') : __('Entrega estimada') }}: {{ $pedido->hora_pactada_at->format('d/m H:i') }}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {{ $pedido->hora_pactada_at->isToday() ? $pedido->hora_pactada_at->format('H:i') : $pedido->hora_pactada_at->format('d/m H:i') }}
+                    </span>
+                @elseif($chipPromesa === 'asap')
+                    {{-- Promesa ASAP: sin hora fija, sale cuando se puede --}}
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200 {{ $conPromesaEditable ? 'select-none' : '' }}"
+                        title="{{ __('El cliente pidió que se entregue lo antes posible') }}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        {{ __('Lo antes posible') }}
+                    </span>
+                @else
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 select-none">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {{ __('Sin hora pactada') }}
+                    </span>
+                @endif
+                @if($conPromesaEditable)
+                        <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-opacity flex-shrink-0"
+                              aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </span>
+                    </button>
+                @endif
+            @endif
+        @endunless
     </div>
 
     @if($pedido->tipo === \App\Models\PedidoDelivery::TIPO_DELIVERY)

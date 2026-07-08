@@ -400,6 +400,16 @@
                                     {{ __('Convertir') }}
                                 </button>
                             @endif
+                            @php
+                                $estadoComandaMovil = $pedido->estado_comanda;
+                                $comandarLabelMovil = $estadoComandaMovil === 'comandado'
+                                    ? __('Reimprimir')
+                                    : __('Comandar');
+                            @endphp
+                            <button wire:click="comandarPedido({{ $pedido->id }})"
+                                class="inline-flex items-center px-2.5 py-1.5 border border-blue-300 dark:border-blue-600 rounded text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30">
+                                {{ $comandarLabelMovil }}
+                            </button>
                             @if(auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cancelar'))
                                 <button wire:click="abrirCancelar({{ $pedido->id }})"
                                     class="inline-flex items-center px-2.5 py-1.5 border border-red-300 dark:border-red-600 rounded text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30">

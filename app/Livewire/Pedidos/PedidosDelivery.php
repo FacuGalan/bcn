@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 use Livewire\WithPagination;
 
@@ -344,6 +345,8 @@ class PedidosDelivery extends Component
 
     public bool $showVueltaModal = false;
 
+    /** Locked: la salida objetivo la fija SOLO abrirVuelta (gateado por permiso). */
+    #[Locked]
     public ?int $vueltaSalidaId = null;
 
     /** @var array<int, array{resultado: string, motivo: string}> pedido_id => resultado */
@@ -1720,6 +1723,12 @@ class PedidosDelivery extends Component
      */
     public function confirmarAsignarRepartidor(): void
     {
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para gestionar repartidores'));
+
+            return;
+        }
+
         $pedido = PedidoDelivery::find($this->pedidoRepartidorId);
         if (! $pedido) {
             return;
@@ -1870,6 +1879,12 @@ class PedidosDelivery extends Component
      */
     public function confirmarArmarSalida(): void
     {
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para gestionar repartidores'));
+
+            return;
+        }
+
         $pedidoIds = array_keys(array_filter($this->salidaPedidosSeleccionados));
 
         if ($this->salidaRepartidorId === '' || empty($pedidoIds)) {
@@ -2099,6 +2114,15 @@ class PedidosDelivery extends Component
 
     public function confirmarVuelta(): void
     {
+        // Re-chequeo: abrir el modal está gateado, pero el confirm mueve
+        // dinero (cobros al fondo + rendición) — no confiar en el estado
+        // del componente ante un payload Livewire manipulado.
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.repartidores')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para gestionar repartidores'));
+
+            return;
+        }
+
         $salida = DeliverySalida::find($this->vueltaSalidaId);
         if (! $salida) {
             return;

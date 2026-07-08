@@ -466,7 +466,8 @@ class RepartidorService
      * cobro_pedido por el efectivo recibido y vuelto por el cambio entregado
      * (el neto es el monto del pago, y el fondo refleja el arqueo físico).
      *
-     * Camino compartido por la vuelta y por el cobro manual desde el panel.
+     * Único caller: la vuelta del repartidor (registrarCobroDeVuelta). El
+     * cobro manual desde el panel va al circuito de caja, nunca al fondo.
      *
      * `$cajaAutoAperturaId`: si el repartidor NO tiene fondo abierto, se abre
      * uno en $0 contra esa caja (informacional: con $0 no hay MovimientoCaja)

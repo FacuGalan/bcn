@@ -110,10 +110,12 @@ class PedidoDelivery extends Model
     ];
 
     /**
-     * Transiciones de estado_pedido permitidas. El service valida contra este
-     * mapa Y contra el tipo: `en_camino` es SOLO para delivery (take-away
-     * salta listo → entregado); `en_camino → listo` es la vuelta fallida
-     * (re-despacho, RF-08).
+     * Transiciones de estado_pedido permitidas. `en_camino` es COMPARTIDO
+     * (rev15): delivery = "en camino" (exige repartidor según config, viaja
+     * en salidas); take-away = "listo para retirar" (sin repartidor ni
+     * salida). `en_camino → listo` es la vuelta fallida (re-despacho, RF-08).
+     * Entregar un pedido que está EN una salida en la calle exige la vuelta
+     * (el service lo bloquea fuera de ese circuito).
      */
     public const TRANSICIONES_PERMITIDAS = [
         self::ESTADO_BORRADOR => [self::ESTADO_CONFIRMADO, self::ESTADO_CANCELADO],
@@ -528,9 +530,10 @@ class PedidoDelivery extends Model
     }
 
     /**
-     * Número a mostrar cara-al-público (llamador, comanda, kanban): el de
-     * display (turno, contador COMPARTIDO con mostrador) si existe, si no el
-     * correlativo permanente propio de delivery.
+     * Número a mostrar cara-al-público (comanda, kanban, seguimiento): el de
+     * display (turno, contador y config PROPIOS de delivery desde rev9 —
+     * separados de mostrador; el llamador es solo-mostrador) si existe, si no
+     * el correlativo permanente propio de delivery.
      */
     public function getNumeroVisibleAttribute(): ?int
     {
