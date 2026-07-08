@@ -644,6 +644,8 @@ class PedidosMostrador extends Component
                 PedidoMostradorPago::ESTADO_ACTIVO,
                 PedidoMostradorPago::ESTADO_PLANIFICADO,
             ]),
+            // Para el desplegable de pagos planificados en la lista (FP + monto)
+            'pagos.formaPago:id,nombre',
         ])
             ->where('sucursal_id', $this->sucursalActual());
 

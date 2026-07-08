@@ -335,7 +335,23 @@
                         </div>
                     </div>
                     <div class="flex gap-2 flex-wrap mb-2 items-center">
-                        <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" />
+                        @if(! in_array($pedido->estado_pedido, ['cancelado', 'facturado']))
+                            {{-- Badge-botón: abre el cambio de estado (paso siguiente preseleccionado) --}}
+                            <button type="button"
+                                    wire:click="abrirCambiarEstado({{ $pedido->id }})"
+                                    class="inline-flex items-center gap-1 group cursor-pointer"
+                                    title="{{ __('Cambiar estado') }}">
+                                <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" class="select-none" />
+                                <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-opacity flex-shrink-0"
+                                      aria-hidden="true">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                    </svg>
+                                </span>
+                            </button>
+                        @else
+                            <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" class="cursor-default select-none" />
+                        @endif
                         @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar'))
                             <button type="button"
                                     wire:click="cobrarRapido({{ $pedido->id }})"
@@ -377,17 +393,7 @@
                             {{ __('Ver') }}
                         </button>
                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                            @if(in_array('entregado', \App\Models\PedidoMostrador::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? []))
-                                <button wire:click="entregarRapido({{ $pedido->id }})"
-                                    wire:confirm="{{ __('¿Marcar este pedido como entregado?') }}"
-                                    class="inline-flex items-center px-2.5 py-1.5 border border-emerald-300 dark:border-emerald-600 rounded text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30">
-                                    {{ __('Entregar') }}
-                                </button>
-                            @endif
-                            <button wire:click="abrirCambiarEstado({{ $pedido->id }})"
-                                class="inline-flex items-center px-2.5 py-1.5 border border-blue-300 dark:border-blue-600 rounded text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-                                {{ __('Estado') }}
-                            </button>
+                            {{-- Entregar/Estado viven en el badge-botón de estado de arriba --}}
                             @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.convertir_venta'))
                                 <button wire:click="abrirConvertir({{ $pedido->id }})"
                                     class="inline-flex items-center px-2.5 py-1.5 border border-bcn-primary rounded text-xs text-bcn-primary hover:bg-bcn-primary hover:text-white">
@@ -445,15 +451,15 @@
                                 </button>
                             </th>
                             <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-                                <button type="button" wire:click="sortBy('estado_pedido')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
-                                    {{ __('Estado') }}
-                                    @include('livewire.pedidos._sort-icon', ['field' => 'estado_pedido'])
-                                </button>
-                            </th>
-                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                 <button type="button" wire:click="sortBy('estado_pago')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
                                     {{ __('Pago') }}
                                     @include('livewire.pedidos._sort-icon', ['field' => 'estado_pago'])
+                                </button>
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                <button type="button" wire:click="sortBy('estado_pedido')" class="group inline-flex items-center gap-1 hover:text-bcn-primary transition-colors select-none">
+                                    {{ __('Estado') }}
+                                    @include('livewire.pedidos._sort-icon', ['field' => 'estado_pedido'])
                                 </button>
                             </th>
                             <th class="px-4 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Acciones') }}</th>
@@ -468,18 +474,41 @@
                                     nivel === 'rojo' ? 'bg-red-50 dark:bg-red-900/10' : (nivel === 'amarillo' ? 'bg-amber-50 dark:bg-amber-900/10' : '')]"
                                 @click="marcarVisto({{ $pedido->id }})"
                             >
+                                @php
+                                    $puedeEditar = ! in_array($pedido->estado_pedido, ['cancelado', 'facturado']) && $pedido->estado_pago === 'pendiente';
+                                    // Vuelto total y planificados para el desplegable de Pago.
+                                    $vueltoPedido = (float) $pedido->pagos->sum('vuelto');
+                                    $pagosPlanificadosLista = $pedido->pagos->where('estado', 'planificado');
+                                @endphp
                                 <td class="px-4 py-3 whitespace-nowrap">
-                                    <div class="text-sm font-bold text-bcn-secondary dark:text-white">
-                                        @if($pedido->numero)
-                                            #{{ $pedido->numero_visible }}
-                                        @else
-                                            <span class="italic text-gray-500 text-xs">{{ __('Borrador') }}</span>
-                                        @endif
-                                        <span x-show="nivel !== 'ok'" x-cloak x-text="edad()"
-                                            :class="nivel === 'rojo' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'"
-                                            class="ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight align-middle"
-                                            title="{{ __('Tiempo desde la confirmación') }}"></span>
-                                    </div>
+                                    @if($puedeEditar)
+                                        {{-- Edición circunstancial: número visible + lápiz en hover --}}
+                                        <button type="button" wire:click="abrirModalEditarPedido({{ $pedido->id }})"
+                                            class="inline-flex items-center gap-1 group cursor-pointer"
+                                            title="{{ __('Editar pedido') }}">
+                                            <span class="text-sm font-bold text-bcn-secondary dark:text-white">
+                                                @if($pedido->numero)
+                                                    #{{ $pedido->numero_visible }}
+                                                @else
+                                                    <span class="italic text-gray-500 text-xs">{{ __('Borrador') }}</span>
+                                                @endif
+                                            </span>
+                                            <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-opacity flex-shrink-0"
+                                                  aria-hidden="true">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                </svg>
+                                            </span>
+                                        </button>
+                                    @else
+                                        <div class="text-sm font-bold text-bcn-secondary dark:text-white">
+                                            @if($pedido->numero)
+                                                #{{ $pedido->numero_visible }}
+                                            @else
+                                                <span class="italic text-gray-500 text-xs">{{ __('Borrador') }}</span>
+                                            @endif
+                                        </div>
+                                    @endif
                                     @if($pedido->numero_beeper)
                                         <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-mono font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 mt-1">
                                             🔔 {{ $pedido->numero_beeper }}
@@ -502,14 +531,21 @@
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">
                                     {{ $pedido->fecha->format('d/m/Y H:i') }}
+                                    {{-- Minutos desde la confirmación cuando la alerta está activa --}}
+                                    <span x-show="nivel !== 'ok'" x-cloak x-text="edad()"
+                                        :class="nivel === 'rojo' ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200'"
+                                        class="inline-block ml-1 text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-tight align-middle"
+                                        title="{{ __('Tiempo desde la confirmación') }}"></span>
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right">
                                     <div class="text-sm font-bold text-bcn-secondary dark:text-white">
                                         ${{ number_format($pedido->total_final, 2, ',', '.') }}
                                     </div>
-                                </td>
-                                <td class="px-4 py-3 whitespace-nowrap">
-                                    <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" />
+                                    @if($vueltoPedido > 0.005)
+                                        <div class="text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+                                            {{ __('Vuelto') }}: ${{ number_format($vueltoPedido, 2, ',', '.') }}
+                                        </div>
+                                    @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap">
                                     @if(($pedido->total_planificado > 0 || $pedido->total_cobrado < $pedido->total_final - 0.005) && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.cobrar'))
@@ -534,24 +570,51 @@
                                             {{ __('Cob.') }}: ${{ number_format($pedido->total_cobrado, 2, ',', '.') }}
                                         </div>
                                     @endif
-                                    @if($pedido->total_planificado > 0)
-                                        <div class="text-[10px] text-blue-700 dark:text-blue-400 {{ $pedido->total_cobrado > 0 && $pedido->estado_pago !== 'pagado' ? '' : 'mt-0.5' }}">
-                                            {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
+                                    @if($pagosPlanificadosLista->isNotEmpty())
+                                        {{-- Desplegable con el detalle de lo planificado (FP + monto + vuelto) --}}
+                                        <div x-data="{ openPlan: false }" class="mt-0.5">
+                                            <button type="button" @click.stop="openPlan = !openPlan"
+                                                class="inline-flex items-center gap-0.5 text-[10px] text-blue-700 dark:text-blue-400 hover:underline">
+                                                {{ __('Plan.') }}: ${{ number_format($pedido->total_planificado, 2, ',', '.') }}
+                                                <svg class="w-3 h-3 transition-transform" :class="openPlan && 'rotate-180'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                                                </svg>
+                                            </button>
+                                            <div x-show="openPlan" x-cloak class="mt-1 space-y-0.5">
+                                                @foreach($pagosPlanificadosLista as $pp)
+                                                    <div class="text-[10px] text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                                                        {{ $pp->formaPago?->nombre ?? __('Sin especificar') }}: ${{ number_format($pp->monto_final, 2, ',', '.') }}
+                                                        @if((float) $pp->vuelto > 0.005)
+                                                            <span class="text-amber-700 dark:text-amber-400">({{ __('vuelto') }} ${{ number_format($pp->vuelto, 2, ',', '.') }})</span>
+                                                        @endif
+                                                    </div>
+                                                @endforeach
+                                            </div>
                                         </div>
+                                    @endif
+                                </td>
+                                <td class="px-4 py-3 whitespace-nowrap">
+                                    @if(! in_array($pedido->estado_pedido, ['cancelado', 'facturado']))
+                                        {{-- Badge-botón: click abre el cambio de estado con el siguiente
+                                             paso natural preseleccionado (se puede saltear en el modal) --}}
+                                        <button type="button"
+                                                wire:click="abrirCambiarEstado({{ $pedido->id }})"
+                                                class="inline-flex items-center gap-1 group cursor-pointer"
+                                                title="{{ __('Cambiar estado') }}">
+                                            <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" class="select-none" />
+                                            <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-opacity flex-shrink-0"
+                                                  aria-hidden="true">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                                </svg>
+                                            </span>
+                                        </button>
+                                    @else
+                                        <x-pedidos.badge-estado-pedido :estado="$pedido->estado_pedido" class="cursor-default select-none" />
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
                                     <div class="flex justify-end gap-1 flex-wrap">
-                                        @php $puedeEditar = ! in_array($pedido->estado_pedido, ['cancelado', 'facturado']) && $pedido->estado_pago === 'pendiente'; @endphp
-                                        @if($puedeEditar)
-                                            <button wire:click="abrirModalEditarPedido({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-amber-300 dark:border-amber-600 rounded text-xs text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-900/30"
-                                                title="{{ __('Editar pedido') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                                </svg>
-                                            </button>
-                                        @endif
                                         <button wire:click="verDetalle({{ $pedido->id }})"
                                             class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700"
                                             title="{{ __('Ver detalle') }}">
@@ -561,29 +624,14 @@
                                             </svg>
                                         </button>
                                         @if(!in_array($pedido->estado_pedido, ['cancelado','facturado']))
-                                            @if(in_array('entregado', \App\Models\PedidoMostrador::TRANSICIONES_PERMITIDAS[$pedido->estado_pedido] ?? []))
-                                                <button wire:click="entregarRapido({{ $pedido->id }})"
-                                                    wire:confirm="{{ __('¿Marcar este pedido como entregado?') }}"
-                                                    class="inline-flex items-center px-2 py-1 border border-emerald-300 dark:border-emerald-600 rounded text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                                                    title="{{ __('Marcar como entregado') }}">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                </button>
-                                            @endif
-                                            <button wire:click="abrirCambiarEstado({{ $pedido->id }})"
-                                                class="inline-flex items-center px-2 py-1 border border-blue-300 dark:border-blue-600 rounded text-xs text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                                                title="{{ __('Cambiar estado') }}">
-                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                                                </svg>
-                                            </button>
+                                            {{-- Editar vive en el N° (lápiz en hover); Entregar y Cambiar
+                                                 estado se movieron al badge-botón de la columna Estado. --}}
                                             @if($pedido->estado_pedido !== 'borrador' && auth()->user()?->hasPermissionTo('func.pedidos_mostrador.convertir_venta'))
                                                 <button wire:click="abrirConvertir({{ $pedido->id }})"
-                                                    class="inline-flex items-center px-2 py-1 border border-bcn-primary rounded text-xs text-bcn-primary hover:bg-bcn-primary hover:text-white"
+                                                    class="inline-flex items-center px-2 py-1 border border-emerald-300 dark:border-emerald-600 rounded text-xs text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
                                                     title="{{ __('Convertir en venta') }}">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                                                     </svg>
                                                 </button>
                                             @endif
