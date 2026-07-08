@@ -228,12 +228,8 @@ class PedidosDelivery extends Component
 
     public function abrirEditarHoraEntrega(int $pedidoId): void
     {
-        if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.editar')) {
-            $this->dispatch('toast-error', message: __('No tenés permiso para editar pedidos'));
-
-            return;
-        }
-
+        // Sin gate de permiso: mismo criterio que editar pedido / cambiar
+        // estado (no existe un permiso func.pedidos_delivery.editar).
         $pedido = PedidoDelivery::find($pedidoId);
         if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
             $this->dispatch('toast-error', message: __('Pedido no encontrado'));

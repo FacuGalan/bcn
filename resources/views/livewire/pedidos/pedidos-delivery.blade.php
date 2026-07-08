@@ -698,7 +698,9 @@
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
                                     <div>{{ __('Ingresó') }}: <span class="font-medium text-gray-800 dark:text-gray-100">{{ $horaIngreso?->format('H:i') ?? '—' }}</span></div>
-                                    @php $promesaEditable = ! in_array($pedido->estado_pedido, ['entregado', 'facturado', 'cancelado']) && auth()->user()?->hasPermissionTo('func.pedidos_delivery.editar'); @endphp
+                                    {{-- Sin gate de permiso: mismo criterio que editar/cambiar estado
+                                         (no existe un permiso func.pedidos_delivery.editar) --}}
+                                    @php $promesaEditable = ! in_array($pedido->estado_pedido, ['entregado', 'facturado', 'cancelado']); @endphp
                                     @if($promesaEditable)
                                         {{-- Hora de entrega RESALTADA y editable (botón inline: reloj en hover) --}}
                                         <button type="button" wire:click="abrirEditarHoraEntrega({{ $pedido->id }})"
