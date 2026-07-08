@@ -1,6 +1,6 @@
 # Pedidos Delivery / Take-Away + API v1 - Especificación
 
-## Estado: APROBADO (2026-07-02) — EN IMPLEMENTACIÓN
+## Estado: APROBADO (2026-07-02) — FASES 1-6 COMPLETAS + REVISIONES rev1-21
 
 > Spec creado el 2026-07-02 tras /sdd-explore + seis rondas de decisiones con el
 > usuario (D1-D22; la sexta define alcance CORE vs Fase 8, origen polimórfico en
@@ -9,7 +9,142 @@
 > spec dejó planificada ("a futuro habrá `pedidos_delivery*`"). Incluye la capa
 > API REST v1 (pendiente PR2.D de mostrador) y reserva el diseño de datos para la
 > TIENDA ONLINE (proyecto aparte que consumirá esta API).
-> Pendiente de aprobación del usuario antes de /sdd-apply.
+> **IMPORTANTE (/sdd-verify): leer primero la sección "Enmiendas post-entrega
+> (rev1-21)"** — las revisiones de pulido con el usuario CAMBIARON decisiones
+> de este spec; donde una enmienda contradiga un RF/criterio, MANDA la enmienda.
+
+---
+
+## Enmiendas post-entrega (rev1-21) — MANDAN sobre el spec original
+
+Revisiones acordadas EN VIVO con el usuario tras las fases 1-6 (commits
+`8c2488d..de31f21`). Cada punto SUPERSEDE lo que el spec diga en contrario:
+
+### E1 — Estados: `en_camino` es COMPARTIDO (supersede D9/RF-03, rev15)
+Take-away ya NO "salta listo → entregado": pasa por `en_camino` con semántica
+"**Para retirar**" (sin repartidor ni salida; el cliente pasa a buscarlo).
+`repartidor_en_camino` es null y el label lo resuelve `estado_label` por tipo.
+Nuevas transiciones: `confirmado/en_preparacion → en_camino/entregado` (salto
+de `listo`). Criterio de aceptación 1 (take-away por `listo`) SIN EFECTO.
+
+### E2 — `usa_estado_listo` configurable (nuevo, rev "estado listo opcional")
+Key de `config_delivery` (default true). OFF: la columna Listo se oculta del
+kanban (fallback si hay pedidos por vuelta fallida), el modal de estado no la
+ofrece y preparación despacha directo; `cambiarEstado` backfillea `listo_at`.
+
+### E3 — Numeración display PROPIA + llamador solo-mostrador (supersede RF-05/RF-03, rev9)
+`numero_display` de delivery tiene contador (`pedido_delivery_display_*`) y
+config propios (`usa_numeracion_display`, `numeracion_display_modo`,
+`numeracion_display_horas`) — NO comparte el contador de mostrador. El
+llamador/pantalla pública es SOLO mostrador (`dispatchLlamadorPublico` de
+delivery es no-op documentado). Criterio "take-away listo aparece en el
+llamador (secuencia compartida)" SIN EFECTO; el circuito take-away usa el
+chip "Para llevar" → "Para retirar" en el panel.
+
+### E4 — Zonas por POLÍGONO con costos por franja horaria (supersede RF-05/RF-06 zonas, commits 7fd6522+)
+Las zonas se DIBUJAN en el mapa (`poligono` JSON, ray casting en
+`DeliveryZona::contienePunto`); las zonas por radio quedaron legacy y no
+cotizan. `rangos_horarios` pasó de "cuándo está activa la zona" a **franjas de
+COSTO** (`costoPara(hora)`: más caro de noche, etc.). Con zonas dibujadas
+activas NO hay fallback por km: fuera de todas ⇒ `fuera_de_alcance`. Sin
+zonas rige el radio general + costo por km. Criterio de aceptación de la zona
+radio-3km-con-fallback SIN EFECTO. El ajuste % por FP y el recargo de cuotas
+EXCLUYEN el renglón de envío (envío = valor fijo, hook `baseAjustePagoDesglose`).
+
+### E5 — Conversión: config PROPIA + comprobantes FISCALES (supersede RF-10 "no emite CAE", rev9)
+`conversion_automatica_al_entregar` es key del JSON `config_delivery`
+(SEPARADA de la columna de mostrador). La conversión SÍ emite los
+comprobantes fiscales de los pagos con FP fiscal: pre-marca
+`pendiente_de_facturar` en transacción y emite POST-commit con catch
+(prorrateo de IVA proporcional forzando Σ=total); una falla de ARCA no
+revierte la conversión. La conversión automática corre en try/catch en TODOS
+los caminos (vuelta, cambiarEstado con `cajaConversionId`): la entrega nunca
+falla por la facturación — el pedido queda "por facturar" y se loguea.
+
+### E6 — Promesa: franjas manuales ADELANTADAS + ASAP + hora editable (supersede RF-15/D22 parcial)
+- `modo_promesa='franjas'` ya es elegible: franjas definidas A MANO
+  (`franjas: [{hora, dias, delivery, take_away}]`, cruce de medianoche
+  soportado). Los CUPOS por franja siguen en Fase 8.
+- `lo_antes_posible` (columna nueva en `pedidos_delivery` + key
+  `acepta_lo_antes_posible`): promesa válida sin hora ("Ya" = +0). Hora y
+  flag son EXCLUYENTES en todos los caminos (crear/actualizar/promesa).
+- Hora de entrega editable inline (`actualizarPromesa`, modal según modo de
+  promesa) desde tabla y cards móviles — sin gate de permiso (E8).
+- Alertas de demora: columnas `sucursales.pedido_alerta_amarilla_min/roja_min`
+  (compartidas con mostrador) + píldora de minutos en las vistas; kanban
+  ordena ASAP primero.
+- `timeout_aceptacion_min` (D14): vencido resalta el pedido "Demorado" en el
+  strip por-aceptar y el seguimiento público expone `demorado` (no cancela solo).
+
+### E7 — Vuelta con mini-rendición y viaje ÚNICO (extiende RF-08/RF-09, rev9/12)
+- UN viaje por repartidor: despachar con el repartidor en la calle SUMA el
+  pedido a su salida `en_camino` (lockForUpdate) — nunca salidas paralelas.
+- La vuelta incluye balanceo del fondo: `nada` (se queda todo) /
+  `devolver_pedidos` (entrega SOLO los cobros de esta vuelta, neto de envíos
+  de terceros) / `devolver` monto / `cerrar` (rendición con diferencia) /
+  `reforzar`. Repartidor TERCERO: forzado a `devolver_pedidos` (sin caja
+  chica). Auto-apertura de fondo $0 si no tiene (informacional).
+- Vuelto planificado: al confirmar sin cobrar con efectivo se pregunta "¿con
+  cuánto paga?" → `monto_recibido`/`vuelto` planificados; la vuelta los
+  precarga y el repartidor sale con el cambio.
+
+### E8 — Permisos REALES (supersede RF-14)
+Existen SOLO: `func.pedidos_delivery.{cobrar, convertir_venta, cancelar,
+resetear_numeracion, repartidores, forzar_alcance, config}` + `func.api.tokens`
++ permisos de menú. **NO existen** `.ver/.crear/.editar/.cambiar_estado`:
+criterio acordado (fix 305e2fa) — las acciones de flujo (crear/editar/cambiar
+estado/despachar/comandar) no llevan permiso funcional; el acceso lo gobierna
+el permiso de menú. Los `confirmar*` de vuelta/salida/asignación re-chequean
+`repartidores` server-side y `vueltaSalidaId` es `#[Locked]` (rev21).
+
+### E9 — Consistencia de pedidos EN SALIDA (rev19, revisión integral)
+`desvincularDeSalida()` (pivot append-only: `no_entregado` + motivo, o DELETE
+si la salida estaba `armando`) se invoca al cancelar, al volver a `listo`
+desde la calle y al entregar/convertir pedidos de salidas sin partir.
+`convertirEnVenta` BLOQUEA pedidos `en_camino` con salida en la calle (los
+cobros contra entrega van al fondo vía vuelta) y `cambiarEstado` exige la
+vuelta para entregarlos (flag interno `viaVuelta` para el camino legítimo —
+cubre el PATCH de la API). Pedidos sin caja (tienda/API) cobrados por panel:
+`agregarPago`/`confirmarPagoPlanificado` aceptan caja de contexto y el pedido
+la adopta (criterio de convertirEnVenta); cobro que afecta caja sin ninguna
+caja ⇒ excepción. FP con integración (QR) no se puede confirmar en la vuelta
+(exige su circuito de confirmación).
+
+### E10 — Contrato API para la tienda (rev20, extiende RF-11/RF-12)
+- `GET /tiendas/{slug}`: bloque `entrega` (modo_promesa, acepta_lo_antes_posible,
+  demoras de automática, usa_franjas) + `formas_pago` declarables contra entrega.
+- `GET /tiendas/{slug}/franjas?tipo=`: slots de la jornada (modo franjas).
+- `POST pedidos`: `entrega.{franja|lo_antes_posible}` (validados contra config
+  — franja inventada/vencida ⇒ 422) y `pago.{forma_pago_id, paga_con}` → pago
+  PLANIFICADO con vuelto (nunca cobra). Con aceptación automática el pedido
+  externo nunca queda sin promesa.
+- Seguimiento público: `facturado` NUNCA se expone (GET lo mapea a `entregado`
+  y el broadcast no lo emite), + `lo_antes_posible` + `demorado`;
+  `repartidor_en_camino` solo tipo delivery. Broadcast y
+  `PedidoDeliveryResource` incluyen `lo_antes_posible`.
+- `carrito/cotizar` con Bearer de consumidor usa SU cliente materializado
+  (checkout y pedido, mismo total — D12).
+- Máquina de estados del seguimiento documentada por tipo en
+  `docs/api-v1-delivery.md`.
+
+### E11 — UI del panel (rev10-18)
+Lista reordenada con **botones inline sobre el dato** (patrón
+/boton-inline-hover): editar en N°, despacho en el repartidor / chip "Para
+llevar", hora editable en Horarios (y chip de promesa en cards móviles),
+cobrar en el badge de pago (desplegable de planificados con FP+monto+vuelto),
+cambiar estado en el badge de estado (siguiente paso preseleccionado);
+Acciones acotada a Ver/Convertir/Comandar/Cancelar. Kanban con dropdown único
+"Acciones" (position:fixed). El MISMO formato se replicó en pedidos-mostrador
+(rev17/18) adaptado a su estructura. Facturados fuera del kanban (rev13).
+Vista "En la calle" (salidas en curso) + strip "por aceptar" con Demorado.
+
+### E12 — Config UI dedicada (ajuste de implementación Fase 5)
+`ConfiguracionDelivery` es página propia (`/pedidos/delivery/configuracion`,
+permiso `func.pedidos_delivery.config`) + `ConfiguracionDeliveryEnvio`
+(zonas por polígono con mapa). Keys reales de `config_delivery`: ver
+`Sucursal::CONFIG_DELIVERY_DEFAULTS` (fuente de verdad, incluye
+`usa_estado_listo`, `conversion_automatica_al_entregar`,
+`usa_numeracion_display/modo/horas`, `acepta_lo_antes_posible`, `franjas`).
 
 ---
 
@@ -1170,8 +1305,24 @@ Traducciones: 51 claves (3871 parejas). Pendiente conocido: link de
 navegación a /configuracion/api-tokens (menú o botón en Configuración) y el
 alta de `tiendas` es por consola/soporte en v1.
 
+### Revisiones post-entrega rev1-21 [COMPLETAS — 2026-07-08]
+Ver la sección "Enmiendas post-entrega" al inicio (E1-E12): franjas manuales,
+usa_estado_listo, conversión fiscal con config propia, numeración display
+separada, take-away vía en_camino, viaje único, mini-rendición en la vuelta,
+vuelto planificado, lo_antes_posible + hora editable, zonas por polígono,
+lista/kanban con botones inline (+ port a mostrador), revisión integral con
+3 agentes (rev19-21: consistencia de salidas, caja de contexto, contrato API
+completo para la tienda, hardening de permisos, paridad móvil).
+Tests agregados: PedidoDeliverySalidaConsistenciaTest (9) + 9 en
+ApiV1DeliveryTest (contrato de promesa/pago/estados públicos).
+
 ### Fase 7: Verificación + docs [PENDIENTE]
-/sdd-verify + @docs-sync + manual de usuario.
+/sdd-verify (leer PRIMERO las enmiendas E1-E12) + @docs-sync + manual de
+usuario. Pendientes arrastrados: columnas RF-16/17 al final del import/export
+de artículos; alta de `tiendas` por consola (documentar en manual); test del
+prorrateo de IVA de la conversión fiscal parcial; 87 claves de traducción
+PREEXISTENTES de master que en/pt muestran en español (deuda aparte, no de
+esta rama); mejoras espejables a mostrador (D19 + caja de contexto A4).
 
 ### Fase 8: Extensiones de promesa [DIFERIDO POST-CORE — D22]
 Franjas horarias con cupos (config UI + validación + endpoint `/franjas`) +
