@@ -985,7 +985,7 @@
     @if($showVueltoPlanificadoModal)
         <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true"
             x-data="{
-                recibido: 0,
+                recibido: {{ (float) $vueltoPlanificadoTotal }},
                 totalAPagar: {{ (float) $vueltoPlanificadoTotal }},
                 get vuelto() {
                     return Math.max(0, Math.round((this.recibido - this.totalAPagar) * 100) / 100);
@@ -994,7 +994,12 @@
                     return this.recibido > 0 && this.recibido < this.totalAPagar - 0.01;
                 },
                 init() {
-                    this.$nextTick(() => this.$refs.inputRecibidoPlan?.focus());
+                    // Como el modal de cobro directo: arranca con el total cargado
+                    // (pago justo, vuelto $0) y el foco lo selecciona para pisarlo.
+                    this.$nextTick(() => {
+                        const input = this.$refs.inputRecibidoPlan;
+                        if (input) { input.value = this.recibido; input.focus(); input.select(); }
+                    });
                 },
                 confirmar() {
                     if (this.recibido <= 0) { $wire.omitirVueltoPlanificado(); return; }
@@ -1037,7 +1042,7 @@
                                     class="w-full pl-8 pr-3 py-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50 text-2xl font-bold text-right">
                             </div>
                         </div>
-                        <div class="rounded-xl p-4 text-center border-2 transition-colors" x-show="recibido > 0" x-cloak
+                        <div class="rounded-xl p-4 text-center border-2 transition-colors"
                             :class="esInsuficiente
                                 ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                                 : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'">

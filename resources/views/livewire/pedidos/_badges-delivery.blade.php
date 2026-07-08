@@ -27,6 +27,13 @@
             @endif
         @endunless
 
+        {{-- Zona: al lado del chip de tipo (dato de clasificación, no operativo) --}}
+        @if($pedido->zona)
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200">
+                {{ $pedido->zona->nombre }}
+            </span>
+        @endif
+
         @if($pedido->origen !== \App\Models\PedidoDelivery::ORIGEN_PANEL)
             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $pedido->origen === 'tienda' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/50 dark:text-pink-200' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' }}">
                 {{ __(\App\Models\PedidoDelivery::ORIGENES[$pedido->origen] ?? $pedido->origen) }}
@@ -53,28 +60,24 @@
     </div>
 
     @if($pedido->tipo === \App\Models\PedidoDelivery::TIPO_DELIVERY)
-        {{-- 2. Dirección (renglón propio, referencia inline) --}}
+        {{-- 2. Dirección (renglón propio, referencia inline) — RESALTADA: es el
+             dato operativo clave del reparto --}}
         @if($pedido->direccion_entrega)
-            <div class="flex items-start gap-1 text-[11px] text-gray-700 dark:text-gray-200 min-w-0"
+            <div class="flex items-start gap-1 text-xs text-gray-900 dark:text-white min-w-0"
                 title="{{ $pedido->direccion_entrega }}{{ $pedido->direccion_referencia ? ' — '.$pedido->direccion_referencia : '' }}">
-                <svg class="w-3 h-3 flex-shrink-0 mt-0.5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-                <span class="truncate font-medium">{{ $pedido->direccion_entrega }}</span>
+                <svg class="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span class="truncate font-bold">{{ $pedido->direccion_entrega }}</span>
                 @if($pedido->direccion_referencia)
-                    <span class="truncate text-gray-400 dark:text-gray-500">· {{ $pedido->direccion_referencia }}</span>
+                    <span class="truncate font-normal text-gray-500 dark:text-gray-400">· {{ $pedido->direccion_referencia }}</span>
                 @endif
             </div>
         @else
             <div class="text-[11px] italic text-orange-600 dark:text-orange-400">{{ __('Sin dirección de entrega') }}</div>
         @endif
 
-        {{-- 3. Zona · repartidor · envío --}}
-        @if($pedido->zona || $pedido->repartidor || (! $sinEnvio && (float) $pedido->costo_envio > 0))
+        {{-- 3. Repartidor · envío --}}
+        @if($pedido->repartidor || (! $sinEnvio && (float) $pedido->costo_envio > 0))
             <div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
-                @if($pedido->zona)
-                    <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200">
-                        {{ $pedido->zona->nombre }}
-                    </span>
-                @endif
                 @if($pedido->repartidor)
                     <span class="inline-flex items-center gap-0.5" title="{{ __('Repartidor') }}">
                         <svg class="w-3 h-3 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>

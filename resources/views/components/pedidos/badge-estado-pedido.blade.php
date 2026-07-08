@@ -14,6 +14,8 @@
     };
 @endphp
 
-<span {{ $attributes->merge(['class' => 'inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold cursor-default select-none ' . $config['classes']]) }}>
+{{-- El cursor lo decide el caller: dentro del badge-botón (cambio de estado
+     inline) debe heredar pointer; suelto, los callers pasan cursor-default. --}}
+<span {{ $attributes->merge(['class' => 'inline-flex items-center px-2 py-0.5 rounded text-sm font-semibold ' . $config['classes']]) }}>
     {{ $label ?? $config['label'] }}
 </span>

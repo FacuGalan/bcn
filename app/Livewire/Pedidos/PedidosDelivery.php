@@ -1199,6 +1199,18 @@ class PedidosDelivery extends Component
             return;
         }
 
+        // Entregar un pedido EN LA CALLE pasa por la VUELTA de su salida (ahí
+        // se cargan los cobros contra entrega, D13) — igual que entregarRapido.
+        if ($this->nuevoEstado === PedidoDelivery::ESTADO_ENTREGADO
+            && $pedido->estado_pedido === PedidoDelivery::ESTADO_EN_CAMINO
+            && $pedido->salida_id) {
+            $this->showCambiarEstadoModal = false;
+            $this->resetCambiarEstadoState();
+            $this->abrirVuelta((int) $pedido->salida_id);
+
+            return;
+        }
+
         try {
             $this->service->cambiarEstado($pedido, $this->nuevoEstado, $this->observacionEstado ?: null);
             $this->dispatch('toast-success', message: __('Estado actualizado'));
