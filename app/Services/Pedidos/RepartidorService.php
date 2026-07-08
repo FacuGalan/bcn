@@ -313,6 +313,7 @@ class RepartidorService
                         $pedido,
                         PedidoDelivery::ESTADO_ENTREGADO,
                         convertirAutomatico: false,
+                        viaVuelta: true,
                     );
 
                     $entregadosIds[] = $pedido->id;
@@ -326,7 +327,7 @@ class RepartidorService
                         'motivo' => $res['motivo'],
                     ]);
 
-                    $this->pedidoService->cambiarEstado($pedido, PedidoDelivery::ESTADO_LISTO, $res['motivo']);
+                    $this->pedidoService->cambiarEstado($pedido, PedidoDelivery::ESTADO_LISTO, $res['motivo'], viaVuelta: true);
                     $pedido->update(['salida_id' => null]);
                 }
             }
@@ -980,8 +981,22 @@ class RepartidorService
             return;
         }
 
+        // Una FP con integración (QR) exige su propio ciclo de cobro con
+        // confirmación del proveedor — materializarla acá dejaría un pago
+        // "activo" sin transacción asociada (misma regla que el panel en
+        // cobrarRapido). Se confirma después desde "Cobrar pendiente".
+        $formaPago = $pago->formaPago()->first();
+        if ($formaPago && $formaPago->tieneIntegracion()) {
+            throw new Exception(
+                "El pago con {$formaPago->nombre} del pedido #{$pedido->numero} usa una integración (QR): ".
+                'destildalo en la vuelta y confirmalo desde "Cobrar pendiente" con el circuito de pago.'
+            );
+        }
+
         $this->pedidoService->confirmarPagoPlanificado($pago, [
             'referencia' => $cobro['referencia'] ?? null,
+        ], [
+            'caja_id' => $cajaAutoAperturaId,
         ]);
     }
 

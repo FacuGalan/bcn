@@ -3045,8 +3045,13 @@ class NuevoPedidoDelivery extends Component
             // gestionan desde la lista (acción "Cobrar pendiente").
             // Si es invitación total: no hay pagos para agregar.
             if (! $esInvitacionCompleta && ! ($this->modoEdicion && $this->cuentaPagosOriginales > 0)) {
+                $cajaContextoId = $this->cajaSeleccionada ?? caja_activa();
                 foreach ($this->desglosePagos as $pago) {
-                    $this->pedidoService->agregarPago($pedido, $this->normalizarPagoDelDesglose($pago));
+                    $this->pedidoService->agregarPago(
+                        $pedido,
+                        $this->normalizarPagoDelDesglose($pago),
+                        cajaContextoId: $cajaContextoId ? (int) $cajaContextoId : null,
+                    );
                 }
             }
 
@@ -3169,11 +3174,13 @@ class NuevoPedidoDelivery extends Component
 
             // Persistir cada pago del desglose como ACTIVO (planificadoForzado=false).
             // El service maneja la transaccion, MovimientoCaja y el recalculo
-            // de estado_pago del pedido.
+            // de estado_pago del pedido. La caja del operador viaja como
+            // contexto: pedidos de tienda/API (sin caja propia) la adoptan (A4).
             foreach ($this->desglosePagos as $pago) {
                 $this->pedidoService->agregarPago(
                     $pedido,
                     $this->normalizarPagoDelDesglose($pago, planificadoForzado: false),
+                    cajaContextoId: $cajaId ? (int) $cajaId : null,
                 );
             }
 

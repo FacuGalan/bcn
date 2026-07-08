@@ -1196,7 +1196,7 @@ class PedidosDelivery extends Component
         }
 
         try {
-            $this->service->cambiarEstado($pedido, $nuevoEstado);
+            $this->service->cambiarEstado($pedido, $nuevoEstado, cajaConversionId: $this->cajaActual());
             $this->dispatch('toast-success', message: __('Estado actualizado'));
         } catch (Exception $e) {
             Log::error('Error al cambiar estado via drag&drop', [
@@ -1220,9 +1220,12 @@ class PedidosDelivery extends Component
     public function reordenarColumna(string $estado, array $idsOrdenados): void
     {
         try {
+            // Sin filtro de caja: el kanban de delivery muestra TODAS las
+            // cajas (y pedidos de tienda sin caja) — filtrar acá hacía que
+            // reordenar pedidos de otra caja no persistiera nada.
             $this->service->reordenarColumna(
                 sucursalId: (int) $this->sucursalActual(),
-                cajaId: $this->cajaActual(),
+                cajaId: null,
                 estado: $estado,
                 idsOrdenados: $idsOrdenados,
             );
@@ -1338,7 +1341,7 @@ class PedidosDelivery extends Component
         }
 
         try {
-            $this->service->cambiarEstado($pedido, $this->nuevoEstado, $this->observacionEstado ?: null);
+            $this->service->cambiarEstado($pedido, $this->nuevoEstado, $this->observacionEstado ?: null, cajaConversionId: $this->cajaActual());
             $this->dispatch('toast-success', message: __('Estado actualizado'));
             $this->showCambiarEstadoModal = false;
             $this->resetCambiarEstadoState();
@@ -1394,7 +1397,7 @@ class PedidosDelivery extends Component
         }
 
         try {
-            $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_ENTREGADO);
+            $this->service->cambiarEstado($pedido, PedidoDelivery::ESTADO_ENTREGADO, cajaConversionId: $this->cajaActual());
             $this->dispatch('toast-success', message: __('Pedido entregado'));
         } catch (Exception $e) {
             Log::error('Error al entregar pedido rapido', [
@@ -1462,7 +1465,9 @@ class PedidosDelivery extends Component
 
         try {
             foreach ($planificados as $pago) {
-                $this->service->confirmarPagoPlanificado($pago);
+                // Caja de contexto: pedidos de tienda/API sin caja propia
+                // toman la caja de quien cobra (A4).
+                $this->service->confirmarPagoPlanificado($pago, [], ['caja_id' => $this->cajaActual()]);
             }
             $this->dispatch('toast-success', message: __(':n pago(s) confirmados', ['n' => $planificados->count()]));
         } catch (Exception $e) {
@@ -2328,7 +2333,7 @@ class PedidosDelivery extends Component
         }
 
         try {
-            $this->service->confirmarPagoPlanificado($pago);
+            $this->service->confirmarPagoPlanificado($pago, [], ['caja_id' => $this->cajaActual()]);
             $this->dispatch('toast-success', message: __('Pago confirmado'));
             $this->abrirCobrar($this->pedidoCobrarId); // Re-cargar modal con estado fresco
         } catch (Exception $e) {
@@ -2394,7 +2399,7 @@ class PedidosDelivery extends Component
         $pedidoId = $pago->pedido_delivery_id;
 
         try {
-            $this->service->confirmarPagoPlanificado($pago);
+            $this->service->confirmarPagoPlanificado($pago, [], ['caja_id' => $this->cajaActual()]);
 
             $pedido = PedidoDelivery::find($pedidoId);
             if ($pedido) {
@@ -2680,6 +2685,13 @@ class PedidosDelivery extends Component
         // Umbrales de alerta de demora de la sucursal (0 = deshabilitada).
         $sucursalPanel = $this->sucursalActual() ? Sucursal::find($this->sucursalActual()) : null;
 
+        // Timeout de aceptación de externos (D14): vencido, el pedido "por
+        // aceptar" se resalta como demorado (no se cancela solo).
+        $timeoutAceptacionMin = $sucursalPanel
+            ? (int) (app(\App\Services\Pedidos\DeliveryEnvioService::class)
+                ->configDelivery($sucursalPanel)['timeout_aceptacion_min'] ?? 0)
+            : 0;
+
         return view('livewire.pedidos.pedidos-delivery', [
             'pedidos' => $pedidos,
             'borradores' => $borradores,
@@ -2698,6 +2710,7 @@ class PedidosDelivery extends Component
             'salidasEnCurso' => $this->salidasEnCurso(),
             'pedidosParaSalida' => $this->showArmarSalidaModal ? $this->pedidosParaSalida() : collect(),
             'pedidosPorAceptar' => $this->pedidosPorAceptar(),
+            'timeoutAceptacionMin' => $timeoutAceptacionMin,
         ]);
     }
 

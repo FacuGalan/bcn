@@ -13,6 +13,8 @@ use App\Models\Caja;
 use App\Models\Cliente;
 use App\Models\Cupon;
 use App\Models\CuponUso;
+use App\Models\DeliverySalida;
+use App\Models\DeliverySalidaPedido;
 use App\Models\FormaPago;
 use App\Models\FormaPagoSucursal;
 use App\Models\IntegracionPagoTransaccion;
@@ -49,8 +51,9 @@ use Illuminate\Support\Facades\Log;
  *   Excluido de descuentos/cupones/promos/puntos.
  * - Dirección de entrega con snapshot + persistencia en cliente (D6/D18) y
  *   cotización/alcance vía DeliveryEnvioService (D5/D7).
- * - Estado `en_camino` (solo delivery) con exigencia de repartidor según
- *   config; take-away salta listo → entregado y se anuncia en el llamador.
+ * - Estado `en_camino` compartido: delivery = "en camino" (exige repartidor
+ *   según config, viaja en salidas); take-away = "listo para retirar" (sin
+ *   repartidor ni salida — el cliente pasa a buscarlo). (rev15)
  * - Cobro contra entrega al FONDO del repartidor (D13): override
  *   `destino_fondo` en confirmarPagoPlanificado — sin MovimientoCaja.
  * - Conversión a venta con los fixes D19 (CuponUso, puntos ganados,
@@ -293,6 +296,10 @@ class PedidoDeliveryService
 
             $esTakeAway = $tipo === PedidoDelivery::TIPO_TAKE_AWAY;
 
+            $loAntesPosible = array_key_exists('lo_antes_posible', $data)
+                ? (bool) $data['lo_antes_posible']
+                : (bool) $pedido->lo_antes_posible;
+
             $pedido->update([
                 'tipo' => $tipo,
                 'cliente_id' => $data['cliente_id'] ?? $pedido->cliente_id,
@@ -341,10 +348,11 @@ class PedidoDeliveryService
                 'distancia_km' => $esTakeAway ? null : ($data['distancia_km'] ?? $pedido->distancia_km),
                 'fuera_de_alcance' => $esTakeAway ? false : (bool) ($data['fuera_de_alcance'] ?? $pedido->fuera_de_alcance),
                 'repartidor_id' => $esTakeAway ? null : ($data['repartidor_id'] ?? $pedido->repartidor_id),
-                'hora_pactada_at' => $data['hora_pactada_at'] ?? $pedido->hora_pactada_at,
-                'lo_antes_posible' => array_key_exists('lo_antes_posible', $data)
-                    ? (bool) $data['lo_antes_posible']
-                    : (bool) $pedido->lo_antes_posible,
+                // ASAP y hora pactada son excluyentes: pasar a "lo antes
+                // posible" LIMPIA la hora previa (el `??` no deja llegar un
+                // null explícito y quedaban las dos verdades a la vez).
+                'hora_pactada_at' => $loAntesPosible ? null : ($data['hora_pactada_at'] ?? $pedido->hora_pactada_at),
+                'lo_antes_posible' => $loAntesPosible,
             ]);
 
             $this->guardarPromocionesPedido($pedido, $data);
@@ -568,7 +576,7 @@ class PedidoDeliveryService
      * individual y fuera de su transacción (una falla de ARCA no puede dejar
      * la vuelta a medias).
      */
-    public function cambiarEstado(PedidoDelivery $pedido, string $nuevoEstado, ?string $observacion = null, bool $convertirAutomatico = true): void
+    public function cambiarEstado(PedidoDelivery $pedido, string $nuevoEstado, ?string $observacion = null, bool $convertirAutomatico = true, bool $viaVuelta = false, ?int $cajaConversionId = null): void
     {
         $anterior = $pedido->estado_pedido;
 
@@ -591,6 +599,18 @@ class PedidoDeliveryService
             }
         }
 
+        // Entregar un pedido que está EN LA CALLE pasa por la vuelta del
+        // repartidor (ahí se registran los cobros contra entrega al fondo,
+        // D13). Bypasearla dejaría el viaje imposible de cerrar y el efectivo
+        // de la calle contabilizado en caja. Aplica a la API y a cualquier
+        // caller que no intercepte antes (el panel abre el modal de vuelta).
+        if ($nuevoEstado === PedidoDelivery::ESTADO_ENTREGADO
+            && ! $viaVuelta
+            && $pedido->salida_id
+            && $pedido->salida()->value('estado') === DeliverySalida::ESTADO_EN_CAMINO) {
+            throw new Exception('El pedido está en una salida de reparto: registrá la vuelta del repartidor para entregarlo');
+        }
+
         $timestampField = match ($nuevoEstado) {
             PedidoDelivery::ESTADO_CONFIRMADO => 'confirmado_at',
             PedidoDelivery::ESTADO_EN_PREPARACION => 'en_preparacion_at',
@@ -601,7 +621,23 @@ class PedidoDeliveryService
             default => null,
         };
 
-        DB::connection('pymes_tenant')->transaction(function () use ($pedido, $nuevoEstado, $anterior, $timestampField, $observacion) {
+        DB::connection('pymes_tenant')->transaction(function () use ($pedido, $nuevoEstado, $anterior, $timestampField, $observacion, $viaVuelta) {
+            // Volver a `listo` desde la calle (vuelta fallida manual/drag) o
+            // entregar/cancelar un pedido de una salida que nunca partió: el
+            // pedido se desvincula del viaje para que la vuelta no lo espere.
+            // La vuelta real maneja su propio pivot (viaVuelta).
+            if (! $viaVuelta && $pedido->salida_id && in_array($nuevoEstado, [
+                PedidoDelivery::ESTADO_LISTO,
+                PedidoDelivery::ESTADO_ENTREGADO,
+                PedidoDelivery::ESTADO_CANCELADO,
+            ], true)) {
+                $this->desvincularDeSalida($pedido, $observacion ?: match ($nuevoEstado) {
+                    PedidoDelivery::ESTADO_LISTO => 'Vuelto a listo desde el panel',
+                    PedidoDelivery::ESTADO_ENTREGADO => 'Entregado sin registrar la vuelta',
+                    default => 'Pedido cancelado',
+                });
+            }
+
             $update = ['estado_pedido' => $nuevoEstado];
             if ($timestampField) {
                 $update[$timestampField] = now();
@@ -632,13 +668,53 @@ class PedidoDeliveryService
             $this->dispatchSeguimientoPublico($pedido, $nuevoEstado);
         });
 
-        // Conversión automática post-commit (config PROPIA de delivery).
+        // Conversión automática post-commit (config PROPIA de delivery), en
+        // try/catch: la entrega ya quedó registrada — una falla acá (sin caja,
+        // pagos insuficientes, ARCA) deja el pedido "por facturar" y se
+        // loguea, no revienta al caller con la entrega ya hecha.
         if ($convertirAutomatico && $nuevoEstado === PedidoDelivery::ESTADO_ENTREGADO) {
             $sucursal = Sucursal::find($pedido->sucursal_id);
             if ($sucursal && $this->conversionAutomaticaAlEntregar($sucursal)) {
-                $this->convertirEnVenta($pedido->fresh());
+                try {
+                    $this->convertirEnVenta($pedido->fresh(), cajaId: $cajaConversionId);
+                } catch (Exception $e) {
+                    Log::warning('Pedido entregado quedó por facturar (conversión automática falló)', [
+                        'pedido_id' => $pedido->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
             }
         }
+    }
+
+    /**
+     * Saca al pedido de su salida actual dejando el historial consistente:
+     * salida `armando` → se borra la fila del pivot (nunca salió a la calle);
+     * salida registrada → el intento queda como no_entregado con motivo
+     * (pivot append-only), así la vuelta no exige un resultado imposible.
+     * Siempre limpia `salida_id`.
+     */
+    protected function desvincularDeSalida(PedidoDelivery $pedido, string $motivo): void
+    {
+        if (! $pedido->salida_id) {
+            return;
+        }
+
+        $salida = DeliverySalida::find($pedido->salida_id);
+
+        if ($salida && $salida->estaArmando()) {
+            $salida->salidaPedidos()->where('pedido_id', $pedido->id)->delete();
+        } elseif ($salida) {
+            $salida->salidaPedidos()
+                ->where('pedido_id', $pedido->id)
+                ->where('resultado', DeliverySalidaPedido::RESULTADO_PENDIENTE)
+                ->update([
+                    'resultado' => DeliverySalidaPedido::RESULTADO_NO_ENTREGADO,
+                    'motivo' => mb_substr($motivo, 0, 255),
+                ]);
+        }
+
+        $pedido->update(['salida_id' => null]);
     }
 
     /**
@@ -827,7 +903,7 @@ class PedidoDeliveryService
      * el cobro contra entrega viaja como PLANIFICADO y se confirma a la
      * vuelta del repartidor (RF-08) o desde el panel.
      */
-    public function agregarPago(PedidoDelivery $pedido, array $datosPago): PedidoDeliveryPago
+    public function agregarPago(PedidoDelivery $pedido, array $datosPago, ?int $cajaContextoId = null): PedidoDeliveryPago
     {
         if (in_array($pedido->estado_pedido, [
             PedidoDelivery::ESTADO_CANCELADO,
@@ -838,7 +914,7 @@ class PedidoDeliveryService
 
         $esPlanificado = (bool) ($datosPago['planificado'] ?? false);
 
-        return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $datosPago, $esPlanificado) {
+        return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $datosPago, $esPlanificado, $cajaContextoId) {
             if ($pedido->estado_pedido === PedidoDelivery::ESTADO_BORRADOR && ! $esPlanificado) {
                 $this->confirmarBorrador($pedido);
                 $pedido->refresh();
@@ -846,6 +922,20 @@ class PedidoDeliveryService
 
             $formaPago = FormaPago::findOrFail($datosPago['forma_pago_id']);
             $afectaCaja = (bool) ($datosPago['afecta_caja'] ?? $formaPago->afecta_caja ?? true);
+
+            // Pedidos sin caja (tienda/API) cobrados desde el panel: la caja
+            // de quien cobra queda asignada al pedido (igual criterio que
+            // convertirEnVenta) — sin esto el cobro quedaría activo SIN
+            // MovimientoCaja y ese dinero nunca entraría a ningún ledger.
+            if (! $esPlanificado && $afectaCaja && ! $pedido->caja_id && $cajaContextoId) {
+                Caja::findOrFail($cajaContextoId);
+                $pedido->update(['caja_id' => $cajaContextoId]);
+                $pedido->refresh();
+            }
+
+            if (! $esPlanificado && $afectaCaja && ! $pedido->caja_id) {
+                throw new Exception('No hay caja para registrar el cobro: abrí una caja o cobrá desde una terminal con caja activa');
+            }
 
             $movimientoCajaId = null;
             if (! $esPlanificado && $afectaCaja && ! empty($pedido->caja_id)) {
@@ -900,6 +990,9 @@ class PedidoDeliveryService
      * `$opciones['destino_fondo']` (bool) + `$opciones['repartidor_fondo_id']`.
      * El movimiento del fondo (tipo cobro_pedido) lo registra RepartidorService
      * al procesar la vuelta — acá solo se marca el pago.
+     *
+     * `$opciones['caja_id']`: caja de contexto para pedidos SIN caja propia
+     * (tienda/API) — queda asignada al pedido, como en convertirEnVenta.
      */
     public function confirmarPagoPlanificado(PedidoDeliveryPago $pago, array $datosCobro = [], array $opciones = []): PedidoDeliveryPago
     {
@@ -922,6 +1015,14 @@ class PedidoDeliveryService
             }
 
             $formaPago = FormaPago::findOrFail($pago->forma_pago_id);
+
+            // Caja de contexto para pedidos sin caja (tienda/API): la caja de
+            // quien confirma queda asignada al pedido antes del movimiento.
+            if (! $destinoFondo && $pago->afecta_caja && ! $pedido->caja_id && ! empty($opciones['caja_id'])) {
+                Caja::findOrFail((int) $opciones['caja_id']);
+                $pedido->update(['caja_id' => (int) $opciones['caja_id']]);
+                $pedido->refresh();
+            }
 
             $update = [
                 'estado' => PedidoDeliveryPago::ESTADO_ACTIVO,
@@ -1070,6 +1171,11 @@ class PedidoDeliveryService
         DB::connection('pymes_tenant')->transaction(function () use ($pedido, $motivo) {
             $usuarioId = (int) auth()->id() ?: $pedido->usuario_id;
 
+            // Un pedido en salida no puede quedar colgado del viaje: sin esto
+            // la vuelta exigiría un resultado imposible desde `cancelado` y la
+            // salida (y el fondo) quedarían imposibles de cerrar.
+            $this->desvincularDeSalida($pedido, 'Pedido cancelado: '.$motivo);
+
             foreach ($pedido->pagos()->where('estado', PedidoDeliveryPago::ESTADO_ACTIVO)->get() as $pago) {
                 $this->anularPago($pago, motivo: 'Cancelación del pedido');
             }
@@ -1127,6 +1233,22 @@ class PedidoDeliveryService
 
         if ($pedido->estado_pedido === PedidoDelivery::ESTADO_BORRADOR) {
             throw new Exception('Confirmar el pedido antes de convertirlo en venta');
+        }
+
+        // Un pedido EN LA CALLE se factura después de la vuelta: sus cobros
+        // contra entrega en efectivo van al FONDO del repartidor (D13), no a
+        // caja — materializarlos acá los contabilizaría en la caja del pedido
+        // y el viaje quedaría imposible de cerrar.
+        if ($pedido->salida_id) {
+            $salida = DeliverySalida::find($pedido->salida_id);
+            if ($salida && $salida->estado === DeliverySalida::ESTADO_EN_CAMINO
+                && $pedido->estado_pedido === PedidoDelivery::ESTADO_EN_CAMINO) {
+                throw new Exception('El pedido está en reparto: registrá la vuelta del repartidor antes de convertirlo en venta');
+            }
+            if ($salida && $salida->estaArmando()) {
+                $this->desvincularDeSalida($pedido, 'Convertido en venta antes de salir a reparto');
+                $pedido->refresh();
+            }
         }
 
         if ($cajaId !== null && ! $pedido->caja_id) {

@@ -260,11 +260,21 @@
                 <span class="text-xs text-orange-700 dark:text-orange-300">{{ __('Pedidos de la tienda/API esperando confirmación') }}</span>
             </div>
             @foreach($pedidosPorAceptar as $pedidoPA)
-                <div class="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-gray-800 rounded-md px-3 py-2 border border-orange-200 dark:border-orange-800">
+                @php
+                    // D14: timeout de aceptación vencido ⇒ resaltar (no se cancela solo).
+                    $aceptacionDemorada = $timeoutAceptacionMin > 0
+                        && $pedidoPA->created_at->diffInMinutes(now()) >= $timeoutAceptacionMin;
+                @endphp
+                <div class="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-gray-800 rounded-md px-3 py-2 border {{ $aceptacionDemorada ? 'border-red-400 dark:border-red-600 ring-1 ring-red-300 dark:ring-red-700' : 'border-orange-200 dark:border-orange-800' }}">
                     <div class="flex-1 min-w-0">
                         <span class="text-sm font-semibold text-gray-900 dark:text-white">
                             {{ $pedidoPA->nombre_cliente_final ?? __('Sin cliente') }}
                         </span>
+                        @if($aceptacionDemorada)
+                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 animate-pulse align-middle">
+                                {{ __('Demorado') }}
+                            </span>
+                        @endif
                         <span class="text-xs text-gray-500 dark:text-gray-400">
                             — {{ __(\App\Models\PedidoDelivery::TIPOS[$pedidoPA->tipo] ?? $pedidoPA->tipo) }}
                             · {{ __(\App\Models\PedidoDelivery::ORIGENES[$pedidoPA->origen] ?? $pedidoPA->origen) }}
