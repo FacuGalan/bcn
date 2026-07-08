@@ -1780,7 +1780,7 @@ class PedidosDelivery extends Component
 
             $pedidosInfo[] = [
                 'id' => $pedido->id,
-                'numero' => $pedido->numero,
+                'numero' => $pedido->numero_visible,
                 'cliente' => $pedido->nombre_cliente_final ?? __('Sin cliente'),
                 'direccion' => $pedido->direccion_entrega,
                 'total' => (float) $pedido->total_final,
@@ -1983,7 +1983,7 @@ class PedidosDelivery extends Component
         $this->pedidoCancelarId = $pedido->id;
         $this->motivoCancelacion = '';
         $this->cancelarPedidoInfo = [
-            'numero' => $pedido->numero,
+            'numero' => $pedido->numero_visible,
             'identificador' => $pedido->identificador,
             'cliente' => $pedido->nombre_cliente_final ?? __('Sin cliente'),
             'total' => (float) $pedido->total_final,
@@ -2072,7 +2072,7 @@ class PedidosDelivery extends Component
 
         $this->pedidoCobrarId = $pedido->id;
         $this->cobrarPedidoInfo = [
-            'numero' => $pedido->numero,
+            'numero' => $pedido->numero_visible,
             'identificador' => $pedido->identificador,
             'total' => (float) $pedido->total_final,
             'total_cobrado' => (float) $pedido->total_cobrado,
@@ -2278,7 +2278,7 @@ class PedidosDelivery extends Component
 
         $this->pedidoConvertirId = $pedido->id;
         $this->convertirPedidoInfo = [
-            'numero' => $pedido->numero,
+            'numero' => $pedido->numero_visible,
             'identificador' => $pedido->identificador,
             'cliente' => $pedido->nombre_cliente_final ?? __('Sin cliente'),
             'total' => (float) $pedido->total_final,

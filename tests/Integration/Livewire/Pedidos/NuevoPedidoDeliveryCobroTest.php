@@ -206,6 +206,68 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
         $this->assertSame(PedidoDelivery::ESTADO_PAGO_PAGADO, $pedido->estado_pago);
     }
 
+    // ==================== FP SIMPLE → PAGO PLANIFICADO ====================
+
+    public function test_confirmar_sin_cobrar_con_fp_simple_crea_pago_planificado(): void
+    {
+        // BUG: elegir una FP en el dropdown y "Confirmar sin cobrar" la
+        // descartaba: el pedido quedaba sin pagos, la vuelta del repartidor no
+        // sabía que cobraba efectivo y el descuento por FP vivía solo en el
+        // header (un cobro posterior con otra FP recalculaba el total y dejaba
+        // un pendiente fantasma).
+        ['concepto' => $concepto] = $this->crearFormaPagoEfectivo();
+        $fp = FormaPago::create([
+            'nombre' => 'Efectivo 10% off',
+            'codigo' => 'efectivo_desc',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => -10,
+            'activo' => true,
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalDireccion')
+            ->set('domDireccion', 'Av. Siempreviva 742')
+            ->call('confirmarDireccion')
+            ->set('costoEnvio', 500)
+            ->set('formaPagoId', (string) $fp->id)
+            ->call('confirmarSinCobrar')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::with('pagos')->first();
+        $this->assertNotNull($pedido);
+        // $1000 productos -10% + $500 envío (fijo, sin ajuste) = $1400.
+        $this->assertEqualsWithDelta(1400.0, (float) $pedido->total_final, 0.01);
+        $this->assertSame(PedidoDelivery::ESTADO_PAGO_PENDIENTE, $pedido->estado_pago);
+
+        $pago = $pedido->pagos->first();
+        $this->assertNotNull($pago, 'La FP simple debe persistirse como pago planificado');
+        $this->assertSame('planificado', $pago->estado);
+        $this->assertSame($fp->id, (int) $pago->forma_pago_id);
+        $this->assertEqualsWithDelta(1400.0, (float) $pago->monto_final, 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $pago->monto_ajuste, 0.01);
+        $this->assertEqualsWithDelta(1500.0, (float) $pago->monto_base, 0.01);
+    }
+
+    public function test_confirmar_sin_cobrar_sin_fp_no_crea_pagos(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        Livewire::test(NuevoPedidoDelivery::class)
+            ->set('tipo', PedidoDelivery::TIPO_TAKE_AWAY)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('confirmarSinCobrar')
+            ->assertNotDispatched('toast-error');
+
+        $pedido = PedidoDelivery::with('pagos')->first();
+        $this->assertNotNull($pedido);
+        $this->assertCount(0, $pedido->pagos);
+    }
+
     // ==================== CONSUMIDOR FINAL EN EL COBRO ====================
 
     public function test_cobro_con_desglose_sin_cliente_queda_como_consumidor_final(): void

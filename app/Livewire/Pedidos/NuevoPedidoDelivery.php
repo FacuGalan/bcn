@@ -2092,14 +2092,23 @@ class NuevoPedidoDelivery extends Component
                     foreach ($this->desglosePagos as $pago) {
                         $this->pedidoService->agregarPago($pedido, $this->normalizarPagoDelDesglose($pago, planificadoForzado: true));
                     }
+                } elseif (! $esInvitacionCompleta && $this->formaPagoId
+                    && ! ($this->ajusteFormaPagoInfo['es_mixta'] ?? false)
+                    && (float) $pedido->total_final > 0.005) {
+                    // FP simple elegida en el dropdown sin abrir el desglose:
+                    // persistirla como UN pago planificado por el total. Sin
+                    // esto la forma de pago se pierde (el cobro contra entrega
+                    // no sabe que es efectivo y la edición vuelve vacía).
+                    $this->pedidoService->agregarPago($pedido, $this->pagoPlanificadoDesdeFormaSimple($pedido));
+                    $cuentaDesglose = 1;
                 }
             }
 
             $msg = $this->modoEdicion
                 ? __('Pedido actualizado sin cobrar')
                 : ($cuentaDesglose > 0
-                    ? __('Pedido #:numero confirmado con :n pagos planificados', ['numero' => $pedido->numero, 'n' => $cuentaDesglose])
-                    : __('Pedido confirmado sin cobrar #:numero', ['numero' => $pedido->numero]));
+                    ? __('Pedido #:numero confirmado con :n pagos planificados', ['numero' => $pedido->numero_visible, 'n' => $cuentaDesglose])
+                    : __('Pedido confirmado sin cobrar #:numero', ['numero' => $pedido->numero_visible]));
             $this->dispatch('toast-success', message: $msg);
 
             $this->mostrarModalPago = false;
@@ -2148,6 +2157,39 @@ class NuevoPedidoDelivery extends Component
             'tipo_cambio_id' => $pago['tipo_cambio_id'] ?? null,
             'tipo_cambio_tasa' => $pago['tipo_cambio_tasa'] ?? null,
             'planificado' => $planificadoForzado ? true : (bool) ($pago['planificado'] ?? false),
+        ];
+    }
+
+    /**
+     * Arma el payload de UN pago planificado a partir de la forma de pago
+     * simple del dropdown (sin desglose). Cubre el total_final persistido del
+     * pedido (incluye envío y ajuste por FP); el ajuste/cuotas salen de
+     * ajusteFormaPagoInfo, ya calculado para esa FP.
+     */
+    protected function pagoPlanificadoDesdeFormaSimple(PedidoDelivery $pedido): array
+    {
+        $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->formaPagoId);
+        $codigo = $fp['codigo'] ?? FormaPago::find($this->formaPagoId)?->codigo;
+        $esCC = strtoupper((string) $codigo) === 'CTA_CTE';
+
+        $montoFinal = (float) $pedido->total_final;
+        $montoAjuste = (float) ($this->ajusteFormaPagoInfo['monto'] ?? 0);
+        $recargoCuotas = (float) ($this->ajusteFormaPagoInfo['recargo_cuotas_monto'] ?? 0);
+        $cuotas = (int) ($this->ajusteFormaPagoInfo['cuotas'] ?? 1);
+
+        return [
+            'forma_pago_id' => (int) $this->formaPagoId,
+            'monto_base' => round($montoFinal - $montoAjuste - $recargoCuotas, 2),
+            'ajuste_porcentaje' => (float) ($this->ajusteFormaPagoInfo['porcentaje'] ?? 0),
+            'monto_ajuste' => $montoAjuste,
+            'monto_final' => $montoFinal,
+            'cuotas' => $cuotas > 1 ? $cuotas : null,
+            'recargo_cuotas_porcentaje' => $cuotas > 1 ? ($this->ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? null) : null,
+            'recargo_cuotas_monto' => $cuotas > 1 ? $recargoCuotas : null,
+            'monto_cuota' => $cuotas > 1 ? ($this->ajusteFormaPagoInfo['valor_cuota'] ?? null) : null,
+            'es_cuenta_corriente' => $esCC,
+            'afecta_caja' => ! $esCC,
+            'planificado' => true,
         ];
     }
 
@@ -2200,7 +2242,7 @@ class NuevoPedidoDelivery extends Component
                 $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $esBorrador);
                 $msg = $esBorrador
                     ? __('Borrador guardado')
-                    : __('Pedido confirmado #:numero', ['numero' => $pedido->numero]);
+                    : __('Pedido confirmado #:numero', ['numero' => $pedido->numero_visible]);
                 $this->dispatch('toast-success', message: $msg);
             }
 
@@ -2911,7 +2953,7 @@ class NuevoPedidoDelivery extends Component
 
             $msg = $this->modoEdicion
                 ? __('Pedido actualizado')
-                : __('Pedido confirmado #:numero', ['numero' => $pedido->numero]);
+                : __('Pedido confirmado #:numero', ['numero' => $pedido->numero_visible]);
             $this->dispatch('toast-success', message: $msg);
 
             $this->mostrarModalPago = false;

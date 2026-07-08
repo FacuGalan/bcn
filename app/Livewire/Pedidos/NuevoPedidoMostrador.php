@@ -1427,6 +1427,15 @@ class NuevoPedidoMostrador extends Component
                     foreach ($this->desglosePagos as $pago) {
                         $this->pedidoService->agregarPago($pedido, $this->normalizarPagoDelDesglose($pago, planificadoForzado: true));
                     }
+                } elseif (! $esInvitacionCompleta && $this->formaPagoId
+                    && ! ($this->ajusteFormaPagoInfo['es_mixta'] ?? false)
+                    && (float) $pedido->total_final > 0.005) {
+                    // FP simple elegida en el dropdown sin abrir el desglose:
+                    // persistirla como UN pago planificado por el total. Sin
+                    // esto la forma de pago elegida se pierde (paridad con
+                    // NuevoPedidoDelivery::confirmarSinCobrar).
+                    $this->pedidoService->agregarPago($pedido, $this->pagoPlanificadoDesdeFormaSimple($pedido));
+                    $cuentaDesglose = 1;
                 }
             }
 
@@ -1483,6 +1492,39 @@ class NuevoPedidoMostrador extends Component
             'tipo_cambio_id' => $pago['tipo_cambio_id'] ?? null,
             'tipo_cambio_tasa' => $pago['tipo_cambio_tasa'] ?? null,
             'planificado' => $planificadoForzado ? true : (bool) ($pago['planificado'] ?? false),
+        ];
+    }
+
+    /**
+     * Arma el payload de UN pago planificado a partir de la forma de pago
+     * simple del dropdown (sin desglose). Cubre el total_final persistido del
+     * pedido (incluye ajuste por FP); el ajuste/cuotas salen de
+     * ajusteFormaPagoInfo, ya calculado para esa FP.
+     */
+    protected function pagoPlanificadoDesdeFormaSimple(PedidoMostrador $pedido): array
+    {
+        $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->formaPagoId);
+        $codigo = $fp['codigo'] ?? FormaPago::find($this->formaPagoId)?->codigo;
+        $esCC = strtoupper((string) $codigo) === 'CTA_CTE';
+
+        $montoFinal = (float) $pedido->total_final;
+        $montoAjuste = (float) ($this->ajusteFormaPagoInfo['monto'] ?? 0);
+        $recargoCuotas = (float) ($this->ajusteFormaPagoInfo['recargo_cuotas_monto'] ?? 0);
+        $cuotas = (int) ($this->ajusteFormaPagoInfo['cuotas'] ?? 1);
+
+        return [
+            'forma_pago_id' => (int) $this->formaPagoId,
+            'monto_base' => round($montoFinal - $montoAjuste - $recargoCuotas, 2),
+            'ajuste_porcentaje' => (float) ($this->ajusteFormaPagoInfo['porcentaje'] ?? 0),
+            'monto_ajuste' => $montoAjuste,
+            'monto_final' => $montoFinal,
+            'cuotas' => $cuotas > 1 ? $cuotas : null,
+            'recargo_cuotas_porcentaje' => $cuotas > 1 ? ($this->ajusteFormaPagoInfo['recargo_cuotas_porcentaje'] ?? null) : null,
+            'recargo_cuotas_monto' => $cuotas > 1 ? $recargoCuotas : null,
+            'monto_cuota' => $cuotas > 1 ? ($this->ajusteFormaPagoInfo['valor_cuota'] ?? null) : null,
+            'es_cuenta_corriente' => $esCC,
+            'afecta_caja' => ! $esCC,
+            'planificado' => true,
         ];
     }
 
