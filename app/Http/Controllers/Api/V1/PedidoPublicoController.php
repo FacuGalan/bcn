@@ -26,6 +26,12 @@ class PedidoPublicoController extends Controller
      */
     public function store(Request $request, PedidoTiendaService $tiendaService): JsonResponse
     {
+        // Consumidor logueado (opcional): bearer token del guard consumidores.
+        // Se resuelve ANTES de validar: con consumidor, `cliente.nombre` es
+        // opcional (la identidad viene del token, no de un campo del payload).
+        $consumidor = $request->user('sanctum');
+        $consumidor = $consumidor instanceof Consumidor ? $consumidor : null;
+
         $datos = $request->validate([
             'tipo' => 'required|in:delivery,take_away',
             'items' => 'required|array|min:1|max:100',
@@ -34,7 +40,7 @@ class PedidoPublicoController extends Controller
             'items.*.opcionales' => 'nullable|array',
             'items.*.opcionales.*.opcional_id' => 'required|integer',
             'items.*.opcionales.*.cantidad' => 'nullable|numeric|min:0.001',
-            'cliente.nombre' => 'required_without:consumidor|string|max:150',
+            'cliente.nombre' => ($consumidor ? 'nullable' : 'required').'|string|max:150',
             'cliente.telefono' => 'nullable|string|max:30',
             'cliente.email' => 'nullable|email|max:150',
             'direccion.direccion' => 'required_if:tipo,delivery|string|max:255',
@@ -58,10 +64,6 @@ class PedidoPublicoController extends Controller
 
         $sucursal = $request->attributes->get('api_sucursal');
         $tienda = $request->attributes->get('api_tienda');
-
-        // Consumidor logueado (opcional): bearer token del guard consumidores.
-        $consumidor = $request->user('sanctum');
-        $consumidor = $consumidor instanceof Consumidor ? $consumidor : null;
 
         $datos['origen'] = PedidoDelivery::ORIGEN_TIENDA;
 

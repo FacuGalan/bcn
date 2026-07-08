@@ -1,6 +1,6 @@
 # Pedidos Delivery / Take-Away + API v1 - Especificación
 
-## Estado: APROBADO (2026-07-02) — FASES 1-6 COMPLETAS + REVISIONES rev1-21
+## Estado: IMPLEMENTADO (2026-07-08) — /sdd-verify APROBADO (matriz en Fase 7)
 
 > Spec creado el 2026-07-02 tras /sdd-explore + seis rondas de decisiones con el
 > usuario (D1-D22; la sexta define alcance CORE vs Fase 8, origen polimórfico en
@@ -1316,13 +1316,70 @@ completo para la tienda, hardening de permisos, paridad móvil).
 Tests agregados: PedidoDeliverySalidaConsistenciaTest (9) + 9 en
 ApiV1DeliveryTest (contrato de promesa/pago/estados públicos).
 
-### Fase 7: Verificación + docs [PENDIENTE]
-/sdd-verify (leer PRIMERO las enmiendas E1-E12) + @docs-sync + manual de
-usuario. Pendientes arrastrados: columnas RF-16/17 al final del import/export
-de artículos; alta de `tiendas` por consola (documentar en manual); test del
-prorrateo de IVA de la conversión fiscal parcial; 87 claves de traducción
-PREEXISTENTES de master que en/pt muestran en español (deuda aparte, no de
-esta rama); mejoras espejables a mostrador (D19 + caja de contexto A4).
+### Fase 7: Verificación + docs [COMPLETA — 2026-07-08]
+/sdd-verify ejecutado (matriz abajo) + @docs-sync + PR. La generación de
+tests de verificación destapó y corrigió DOS bugs reales de Fase 6:
+(a) la validación del POST público usaba `required_without:consumidor` sobre
+un campo inexistente (el consumidor viene del Bearer) — un consumidor
+logueado sin `cliente.nombre` recibía 422 siempre; (b) `resolverClienteId`
+leía `$sucursal->comercio_id` (columna que NO existe en la tabla tenant) —
+la D11 nunca resolvía cliente ni mapping; ahora usa el comercio activo de
+TenantService (+ `tienda_alta_cliente_automatica`/`rubro_id` faltaban en el
+$fillable de Comercio).
+
+#### Spec Compliance Matrix (criterios activos: 28 = 30 − 2 Fase 8)
+
+Resultado: **18 OK · 9 PARCIAL · 0 SIN COBERTURA · 3 sin efecto (con
+reemplazo testeado) · 2 Fase 8**. Suites: ApiV1DeliveryTest 30,
+PedidoDeliverySalidaConsistenciaTest 9, RepartidorServiceTest 32,
+DeliveryEnvioServiceTest 17, PedidoDeliveryServiceTest, SmokePedidosDeliveryTest
+31, NuevoPedidoDeliveryCobroTest 21, NumeracionDisplayTest,
+PantallaPublicaLlamadorTest — todas verdes.
+
+| # | Criterio | Estado | Evidencia |
+|---|---|---|---|
+| 1 | Take-away por `listo` | SIN EFECTO (E1) | reemplazo: `test_take_away_pasa_a_en_camino_como_para_retirar` + `test_seguimiento_take_away_en_camino_es_para_retirar_sin_repartidor` |
+| 2 | Dirección + georref ON/OFF | OK | `test_delivery_confirmado_sin_direccion_es_rechazado`, `test_georreferenciacion_apagada_devuelve_desconocido…` |
+| 3 | Zona radio + fallback horario | SIN EFECTO (E4) | reemplazo: `test_zona_poligono_pisa_el_calculo_por_km`, `test_con_zonas_dibujadas_fuera_de_todas_es_fuera_de_alcance`, `test_franja_de_costo_pisa_el_default…` |
+| 4 | Cálculo km + forzar alcance | OK | `test_calculo_por_km_con_base_y_km_incluidos`, `test_fuera_del_radio…`, `test_pedido_publico_fuera_de_alcance_es_rechazado` (API); gate del panel sin test (PARCIAL menor) |
+| 5 | Envío renglón-concepto | PARCIAL | totales/IVA/paridad conversión/ajuste-FP testeados; comanda y Σitems ARCA sin test directo |
+| 6 | Conversión: puntos+cupón+opcionales | PARCIAL | cupón y opcionales testeados; puntos ganados sin test delivery directo |
+| 7 | Llamador secuencia compartida | SIN EFECTO (E3) | reemplazo: `test_delivery_numera_independiente_de_mostrador`, `test_take_away_de_delivery_no_entra_al_llamador` |
+| 8 | API token sin sesión | OK | `test_integracion_lista_pedidos_con_token_y_ability` + 401/403 |
+| 9 | Entrega no pisa dirección fiscal | OK | `test_establecer_direccion_persiste_entrega_en_cliente_sin_pisar_fiscal` |
+| 10 | Salida 3 pedidos + vuelta mixta | OK | `test_crear_y_registrar_salida…`, `test_vuelta_con_cobro_efectivo_al_fondo…`, `test_vuelta_no_entregado_vuelve_a_listo…` |
+| 11 | Fondo apertura/diferencia/neto | OK | `test_abrir_fondo_crea_egreso…`, `test_rendir_con_faltante…`, `test_rendir_fondo_exacto…` |
+| 12 | Efectivo→fondo, QR→normal | OK | `test_confirmar_pago_planificado_al_fondo_no_crea_movimiento_caja`, `test_vuelta_con_pago_planificado_de_fp_integrada_es_rechazada` |
+| 13 | Cupos por franja | FASE 8 | — |
+| 14 | Demora automática | OK | `test_demora_automatica_base_mas_minutos_por_km` |
+| 15 | Modo manual + demora | OK | `test_aceptar_pedido_externo_lo_confirma_con_demora`, `…demora_cero_queda_lo_antes_posible` |
+| 16 | Programados ocultos | FASE 8 | — |
+| 17 | `acepta_programados` OFF | PARCIAL | default OFF testeado; rechazo API implícito (el POST no acepta el campo) |
+| 18 | Origen polimórfico en ventas | OK | `test_convertir_en_venta_persiste_origen_polimorfico` (+ espejo mostrador) |
+| 19 | Catálogo RF-17 | PARCIAL | criterio principal testeado; orden/imagen categorías y destacados sin asert |
+| 20 | Aceptación automática + comanda | PARCIAL | confirmado-directo testeado; impresión automática sin test |
+| 21 | Rechazo pagado → a devolver | PARCIAL | caso sin pago testeado; `a_devolver=true` sin test |
+| 22 | `disponible_delivery` filtra | OK (API) | `test_catalogo_respeta_criterio_rf17`; advertencia del panel sin test (menor) |
+| 23 | Vuelta fallida + re-despacho | OK | `test_vuelta_no_entregado…`, `test_volver_a_listo_desde_la_calle_desvincula_y_permite_redespachar` |
+| 24 | Tercero liquida envíos | OK | `test_rendicion_liquida_envios_de_terceros`, `test_vuelta_liquida_envios_del_tercero…` |
+| 25 | Precarga dirección cliente | PARCIAL | persistencia testeada; precarga del editor sin test |
+| 26 | API integración CRUD + público | OK | `test_integracion_post_crea_pedido_con_origen_api`, PATCH, seguimiento, cancelación |
+| 27 | Consumidor D11 ON/OFF | OK (mapping) | `test_consumidor_sin_alta_automatica_queda_sin_cliente_tenant`, `test_consumidor_con_alta_automatica_crea_cliente_y_mapping`. La acción MANUAL "convertir en cliente" del panel se DIFIERE al proyecto tienda (sería UI muerta sin login de consumidores) |
+| 28 | Por aceptar en vivo + canal público | PARCIAL | flujo por-aceptar y estados públicos testeados; emisión del broadcast sin Event::fake |
+| 29 | Paridad carrito | PARCIAL | envío/cupón/ajustes/planificados testeados; sin espejo completo de ParidadVenta |
+| 30 | Permisos + smokes + matrices | OK | 31 smokes + matrices Envío/Repartidor; enforcement E8 verificado por código (revisión integral), sin test dedicado |
+
+**Veredicto: APROBADO.** Todos los criterios Tier 1 (dinero/stock/ledger:
+#5 núcleo, #10-12, #23-24, más rev19) tienen tests que PASAN; los PARCIAL
+son aserciones secundarias de features cuyo camino principal está cubierto,
+anotados como deuda de test para Fase 8 / proyecto tienda.
+
+Pendientes arrastrados (post-PR): columnas RF-16/17 al final del
+import/export de artículos; alta de `tiendas` por consola (documentado en
+docs/api-v1-delivery.md); test del prorrateo de IVA de la conversión fiscal
+parcial; acción "convertir en cliente" del panel (proyecto tienda); 87
+claves de traducción PREEXISTENTES de master que en/pt muestran en español
+(deuda aparte); mejoras espejables a mostrador (D19 + caja de contexto A4).
 
 ### Fase 8: Extensiones de promesa [DIFERIDO POST-CORE — D22]
 Franjas horarias con cupos (config UI + validación + endpoint `/franjas`) +

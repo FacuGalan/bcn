@@ -3042,6 +3042,219 @@ Cada pantalla tiene su propio set de iconos bajo `public/pwa-icons/`:
 - **AudioContext**: se crea y reanuda en la misma primera interaccion (politica de autoplay). Si el navegador bloquea la creacion, `audioCtx` queda en `null` y el sonido se omite silenciosamente.
 - **Sonido de exito (`playSuccess`)**: arpegio ascendente Do (523 Hz) → Mi (659 Hz) → Sol (784 Hz) con osciladores `triangle`, separados 85 ms, envolvente exponencial rapida (ataque 20 ms, caida 320 ms). Se dispara en `mostrarResultado()` cada vez que se encuentra un articulo. Distinto del chime de atencion del llamador (que usa una sola nota y canal distinto).
 
+### 2.16 Pedidos Delivery / Take-Away
+
+Modulo "espejo" de Pedidos por Mostrador (D1, spec `.claude/specs/pedidos-delivery.md`): mismas tablas satelite, mismo carrito (`Concerns/Carrito/*`), mismos services agnosticos (PrecioService, OpcionalService, CuponService, PuntosService), pero con tablas propias `pedidos_delivery*` (no columnas nullable en mostrador) y la dimension logistica que agrega: direccion georreferenciada, costo de envio, repartidores, salidas/vueltas y fondo de cambio. Tambien es la base de la **API REST v1** (Sanctum) y de la reserva de datos para la futura tienda online (consumidores globales, tiendas por sucursal).
+
+#### Tabla: `pedidos_delivery`
+Tiene TODAS las columnas de `pedidos_mostrador` (ver 2.12: numero, numero_display, identificador, numero_beeper, sucursal_id, cliente_id, datos de cliente temporal, caja_id, canal_venta_id, forma_venta_id, lista_precio_id, usuario_id, fecha, estado_pago, subtotal/iva/descuento/total/total_final, descuento general, cupon, puntos, invitaciones, observaciones, motivo_cancelacion, timestamps de estado, venta_id, convertido_at, orden_kanban, SoftDeletes) MAS las columnas propias:
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `tipo` | enum('delivery','take_away') | Obligatorio al alta |
+| `estado_pedido` | enum(...mostrador..., `en_camino`) | Agrega `en_camino`, COMPARTIDO entre delivery y take-away (ver logica 3.14) |
+| `email_cliente_temporal` | varchar(150) nullable | Invitados de tienda/API |
+| `direccion_entrega` | varchar(255) nullable | Snapshot inmutable (NULL en take_away) |
+| `direccion_referencia` | varchar(255) nullable | Piso/depto/indicaciones |
+| `localidad_entrega_id` | bigint nullable | Ref soft a localidades (config) |
+| `latitud` / `longitud` | decimal(10,7) nullable | Snapshot geo |
+| `zona_id` | bigint FK nullable | `delivery_zonas` que matcheo al cotizar (ON DELETE SET NULL) |
+| `costo_envio` | decimal(12,2) | Fuente logistica del costo; el monto se materializa como renglon-concepto en el detalle (D17, ver 3.14) |
+| `costo_envio_manual` | boolean | Pisado a mano (D7) |
+| `costo_envio_usuario_id` | bigint nullable | FK logico config.users: quien lo piso |
+| `distancia_km` | decimal(8,2) nullable | Calculada al cotizar (Haversine) |
+| `fuera_de_alcance` | boolean | Confirmado con permiso `forzar_alcance` |
+| `repartidor_id` | bigint FK nullable | `repartidores` (ON DELETE SET NULL) |
+| `salida_id` | bigint FK nullable | `delivery_salidas` ACTUAL (ON DELETE SET NULL); el historial completo vive en el pivot `delivery_salida_pedidos` |
+| `en_camino_at` | timestamp nullable | Metrica logistica |
+| `no_entregado_motivo` | varchar(255) nullable | Ultima vuelta fallida |
+| `hora_pactada_at` | timestamp nullable | Promesa de entrega/retiro (RF-15) |
+| `lo_antes_posible` | boolean | Promesa ASAP del modo franjas/manual; EXCLUYENTE con `hora_pactada_at` (rev10) |
+| `programado_para` | timestamp nullable | Pedido programado (estructura creada, logica Fase 8/D22) |
+| `datos_fiscales_snapshot` | json nullable | DNI/CUIT opcional del checkout de tienda |
+| `origen` | enum('panel','tienda','api') | Default `panel` |
+| `origen_referencia` | varchar(100) nullable | Id externo del integrador |
+| `consumidor_id` | bigint nullable | FK logico a `config.consumidores` |
+| `token_seguimiento` | char(26) UNIQUE nullable | ULID, generado en el hook `creating` de TODO pedido; credencial del seguimiento publico |
+
+**Indices propios**: `tipo`, `(repartidor_id, estado_pedido)`, `salida_id`, `origen`, `consumidor_id`, `token_seguimiento` (unique) — ademas del espejo de indices de mostrador.
+
+**Estados `estado_pedido`** (`App\Models\PedidoDelivery::ESTADOS`): iguales a mostrador (`borrador`, `confirmado`, `en_preparacion`, `listo`, `entregado`, `facturado`, `cancelado`) mas **`en_camino`**. `ESTADOS_DESPACHABLES` = `['confirmado', 'en_preparacion', 'listo']` (desde donde se puede despachar/pasar a "para retirar"). Ver logica de negocio 3.14 para la semantica compartida de `en_camino` y las transiciones completas.
+
+#### Tablas satelite (espejo de las de mostrador, ver 2.12)
+`pedidos_delivery_detalle`, `pedido_delivery_detalle_opcionales`, `pedido_delivery_detalle_promociones`, `pedido_delivery_promociones`, `pedidos_delivery_pagos` — mismas columnas que sus pares de mostrador, MAS:
+
+- `pedidos_delivery_detalle.es_costo_envio` (boolean, default 0): identifica el renglon-concepto del costo de envio (D17) gestionado por `PedidoDeliveryService` (crea/actualiza/elimina al recotizar o editar), excluido de descuentos/cupones/promos/puntos y del ajuste por forma de pago.
+- `pedidos_delivery_pagos.destino_fondo` (boolean, default 0) + `repartidor_fondo_id` (FK nullable a `repartidor_fondos`): el cobro contra entrega en efectivo entra al FONDO del repartidor en vez de generar `MovimientoCaja` (D13, ver 3.14).
+- `pedidos_delivery.usuario_id` y `pedidos_delivery_pagos.creado_por_usuario_id` son NULLABLE (a diferencia de mostrador): pedidos de tienda/API y pagos online acreditados por webhook no tienen operador humano.
+
+#### Tabla: `repartidores`
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | |
+| `nombre` | varchar(150) | |
+| `telefono` | varchar(30) nullable | |
+| `tipo` | enum('propio','tercero') default 'propio' | D3 |
+| `envio_es_del_repartidor` | boolean default 0 | Si true, el costo de envio cobrado se liquida al repartidor en la rendicion (no es ingreso del comercio) |
+| `user_id` | bigint nullable | FK logico `config.users` (app futura de repartidores) |
+| `activo` | boolean default 1 | |
+| `created_at`/`updated_at` | timestamp | |
+
+Pivot `repartidor_sucursal` (`repartidor_id`, `sucursal_id`, UNIQUE compuesto): sucursales donde el repartidor puede operar.
+
+#### Tabla: `repartidor_fondos` (RF-09, D4)
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `repartidor_id` / `sucursal_id` | bigint FK | Un fondo abierto por repartidor+sucursal |
+| `caja_origen_id` | bigint FK | Caja de la que salio el cambio (egreso) |
+| `estado` | enum('abierto','rendido') default 'abierto' | Ciclo LARGO: puede quedar abierto entre salidas |
+| `monto_inicial` | decimal(12,2) | |
+| `monto_rendido` | decimal(12,2) nullable | Declarado al cerrar |
+| `diferencia` | decimal(12,2) nullable | sobrante(+)/faltante(-) vs saldo teorico |
+| `caja_rendicion_id` | bigint FK nullable | Caja donde ingreso la rendicion |
+| `usuario_apertura_id` / `usuario_cierre_id` | bigint | FK logico config.users |
+| `abierto_at` / `rendido_at` | timestamp | |
+
+#### Tabla: `repartidor_fondo_movimientos` (append-only)
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `fondo_id` | bigint FK CASCADE | |
+| `tipo` | enum('entrega_inicial','refuerzo','cobro_pedido','vuelto','liquidacion_envios','devolucion','rendicion','ajuste') | `devolucion` agregado en rev12 (vuelta de repartidor tercero sin caja chica) |
+| `monto` | decimal(12,2) | Con signo segun tipo |
+| `pedido_id` | bigint FK nullable | `pedidos_delivery` (cobros/vueltos) |
+| `movimiento_caja_id` | bigint FK nullable | Egreso/ingreso de caja vinculado (apertura/refuerzo/rendicion) |
+| `usuario_id` | bigint | FK logico config.users |
+| `detalle` | varchar(255) nullable | |
+| `created_at` | timestamp | Sin `updated_at` (append-only) |
+
+El saldo teorico del fondo se calcula sumando estos movimientos (`RepartidorService::saldoTeorico()`), nunca se persiste como columna.
+
+#### Tabla: `delivery_zonas`
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `sucursal_id` | bigint FK CASCADE | |
+| `nombre` | varchar(100) | |
+| `centro_lat` / `centro_lng` | decimal(10,7) | Legacy (v1 radio): centro del circulo. Con zonas dibujadas activas (E4) el alcance lo define `poligono` |
+| `radio_km` | decimal(8,2) | Legacy: zona = circulo. Las zonas dibujadas no usan este campo para cotizar |
+| `poligono` | json nullable | Coordenadas del poligono dibujado en el mapa (E4); `DeliveryZona::contienePunto()` hace ray casting. Con zonas dibujadas activas, fuera de todas ⇒ `fuera_de_alcance` (sin fallback a radio/km) |
+| `costo_envio` | decimal(12,2) | Costo base de la zona; pisado por `rangos_horarios` si aplica |
+| `rangos_horarios` | json nullable | E4: franjas de COSTO (no de disponibilidad) — `[{dias:[1..7], desde, hasta, costo}]`; `DeliveryZona::costoPara($hora)` resuelve el costo segun el momento |
+| `orden` | int default 0 | Prioridad de match |
+| `activo` | boolean default 1 | |
+
+#### Tabla: `delivery_salidas`
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `sucursal_id` / `repartidor_id` | bigint FK | |
+| `estado` | enum('armando','en_camino','finalizada') default 'armando' | |
+| `salida_at` / `vuelta_at` | timestamp nullable | |
+| `usuario_id` | bigint | Quien la registro |
+| `observaciones` | varchar(255) nullable | |
+
+Un repartidor tiene **un unico viaje activo** por vez: despachar un pedido nuevo con un repartidor que ya esta `en_camino` SUMA el pedido a esa misma salida (lock `lockForUpdate`), nunca crea una salida paralela (E7).
+
+#### Tabla: `delivery_salida_pedidos` (pivot append-only)
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `salida_id` | bigint FK CASCADE | |
+| `pedido_id` | bigint FK CASCADE | `pedidos_delivery` |
+| `resultado` | enum('pendiente','entregado','no_entregado') default 'pendiente' | |
+| `motivo` | varchar(255) nullable | |
+
+Conserva TODO el historial de intentos (incluidos re-despachos); `pedidos_delivery.salida_id` solo apunta a la salida ACTUAL.
+
+#### Cambios en tablas existentes (tenant)
+
+- **`clientes`**: `direccion_entrega`, `direccion_entrega_referencia` (varchar(255) nullable), `latitud`/`longitud` (decimal(10,7) nullable) — domicilio de ENTREGA, separado de `direccion` (fiscal, usado por ARCA/impresion/padron y NUNCA pisado).
+- **`sucursales`**: `usa_delivery` (boolean), `config_delivery` (json nullable, DEFAULTS en `Sucursal::CONFIG_DELIVERY_DEFAULTS`, mergeados via `Sucursal::configDelivery()` — patron `config_llamador`), `pedido_delivery_ultimo_numero` (contador propio del correlativo), `pedido_delivery_display_ultimo_numero` / `pedido_delivery_display_segmento_at` (numeracion display PROPIA de delivery, separada del contador de mostrador desde rev9 — E3), `pedido_alerta_amarilla_min` / `pedido_alerta_roja_min` (int, defaults 15/30, COMPARTIDAS entre delivery y mostrador para las alertas visuales de demora).
+- **`articulos`**: `disponible_delivery` / `disponible_take_away` / `permite_programado` (boolean default 1, RF-16); `orden` (int, 0), `destacado` (boolean, 0), `permite_venta_sin_stock` (boolean, 0) (RF-17).
+- **`articulos_sucursales`**: `visible_tienda` (boolean, default 1) — visibilidad en el catalogo de la tienda de esa sucursal, independiente de `vendible` (pantalla POS interna).
+- **`categorias`**: `imagen_path` (varchar(255) nullable), `orden` (int, 0).
+- **`ventas`**: `origen_type` (varchar(30) nullable) + `origen_id` (bigint nullable) — morph al pedido de origen (NULL = venta POS directa). Indice `(origen_type, origen_id)`. Lo setean AMBAS conversiones (delivery y mostrador).
+
+**`morphMap`** (`AppServiceProvider`): `'PedidoMostrador' => App\Models\PedidoMostrador`, `'PedidoDelivery' => App\Models\PedidoDelivery`, ademas de `'Articulo'`, `'Opcional'`, `'Comercio'`, `'Consumidor'`. Aliasar `PedidoMostrador` cambio su `getMorphClass()`: la migracion `normalize_cobrable_type_pedido_mostrador` actualizo las transacciones de integracion historicas que guardaban el FQCN completo.
+
+#### Tablas en BD `config` (cross-comercio, RF-13 — reserva para la tienda online)
+
+| Tabla | Columnas clave | Notas |
+|---|---|---|
+| `tiendas` | `comercio_id` FK, `sucursal_id` (FK logico tenant), `slug` UNIQUE(60), `habilitada`, `dominio_propio` UNIQUE nullable | UNIQUE(`comercio_id`,`sucursal_id`). La tienda es POR SUCURSAL (D15): el slug identifica comercio+sucursal, sin ambiguedad. En v1 se alta por consola/soporte |
+| `rubros` | `nombre`, `slug` UNIQUE, `activo` | Catalogo global (hamburgueseria, pizzeria...). `comercios.rubro_id` (FK nullable) referencia esta tabla — CONVIVE con `comercios.rubro` (string, MCC de Mercado Pago) |
+| `consumidores` | `nombre`, `email` UNIQUE, `password`, `telefono`, `email_verified_at`, `remember_token` | Cuenta GLOBAL cross-comercio (D8), guard `consumidores` + Sanctum. Solo estructura + guard; registro/login los implementa el proyecto tienda |
+| `consumidor_direcciones` | `consumidor_id` FK CASCADE, `alias`, `direccion`, `referencia`, `localidad_id` nullable, `latitud`/`longitud` nullable, `es_default` | Direcciones reutilizables en cualquier comercio |
+| `consumidor_comercio` | `consumidor_id` FK, `comercio_id` FK, `cliente_id` (FK logico al `clientes` tenant) | UNIQUE(`consumidor_id`,`comercio_id`). Se crea SOLO segun `comercios.tienda_alta_cliente_automatica` (default OFF, D11) o manualmente ("convertir en cliente", diferido al proyecto tienda) |
+| `personal_access_tokens` | Sanctum estandar (`tokenable_type/id` morph, `token`, `abilities`, `last_used_at`, `expires_at`) | Vive en CONFIG (no en tenant): los tokenables (`Comercio`, futuro `Consumidor`) son cross-tenant. `Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class)` |
+
+`comercios` gana `rubro_id` (FK nullable a `rubros`) y `tienda_alta_cliente_automatica` (boolean, default 0).
+
+#### Permisos del modulo
+
+Migracion `add_pedidos_delivery_menu_permisos_y_seeds` (menu + permisos) y `create_api_tiendas_y_consumidores` (`api.tokens`). Asignados a Administrador/Super Administrador via `ProvisionComercioCommand::seedRolesYPermisos()`. **No existen** permisos `.ver/.crear/.editar/.cambiar_estado` (E8): las acciones de flujo (crear/editar/cambiar estado/despachar/comandar) se gobiernan por el permiso de MENU, no por uno funcional.
+
+| Permiso | Accion protegida |
+|---|---|
+| `func.pedidos_delivery.cobrar` | Cobrar pedido (rapido, desglose, confirmar planificados) |
+| `func.pedidos_delivery.convertir_venta` | Convertir pedido en venta |
+| `func.pedidos_delivery.cancelar` | Cancelar pedido |
+| `func.pedidos_delivery.resetear_numeracion` | Reiniciar el correlativo/display de delivery |
+| `func.pedidos_delivery.repartidores` | ABM de repartidores + despachar/asignar + salidas/vueltas + fondos |
+| `func.pedidos_delivery.forzar_alcance` | Confirmar un pedido fuera del area de entrega |
+| `func.pedidos_delivery.config` | Configuracion de delivery de la sucursal (zonas, promesa, aceptacion, calendario) |
+| `func.api.tokens` | Emitir/revocar tokens de integracion de la API |
+
+Los `confirmar*` de vuelta/salida/asignacion re-chequean `repartidores` server-side (no confian solo en el gate de UI); `vueltaSalidaId` es `#[Locked]` en el componente Livewire (rev21, hardening de permisos).
+
+#### Patrones de consulta SQL utiles
+
+**Pedidos delivery activos de la sucursal hoy:**
+```sql
+SELECT p.*, c.nombre AS cliente_nombre, r.nombre AS repartidor_nombre
+FROM {PREFIX}pedidos_delivery p
+LEFT JOIN {PREFIX}clientes c ON p.cliente_id = c.id
+LEFT JOIN {PREFIX}repartidores r ON p.repartidor_id = r.id
+WHERE p.sucursal_id = ?
+  AND p.estado_pedido NOT IN ('facturado', 'cancelado')
+  AND DATE(p.fecha) = CURDATE()
+  AND p.deleted_at IS NULL
+ORDER BY p.lo_antes_posible DESC, p.hora_pactada_at ASC;
+```
+
+**Saldo teorico de un fondo de repartidor:**
+```sql
+SELECT COALESCE(SUM(monto), 0) AS saldo_teorico
+FROM {PREFIX}repartidor_fondo_movimientos
+WHERE fondo_id = ?;
+```
+
+**Total "en fondos de repartidores" (fondos abiertos de una caja, para tesoreria):**
+```sql
+SELECT rf.id, rf.repartidor_id,
+       (SELECT COALESCE(SUM(monto), 0) FROM {PREFIX}repartidor_fondo_movimientos WHERE fondo_id = rf.id) AS saldo_teorico
+FROM {PREFIX}repartidor_fondos rf
+WHERE rf.caja_origen_id = ?
+  AND rf.estado = 'abierto';
+```
+
+**Pedidos "por aceptar" (origen externo, sin confirmar):**
+```sql
+SELECT *
+FROM {PREFIX}pedidos_delivery
+WHERE sucursal_id = ?
+  AND estado_pedido = 'borrador'
+  AND origen IN ('tienda', 'api')
+  AND deleted_at IS NULL
+ORDER BY fecha ASC;
+```
+
+**Pedidos en una salida de reparto en curso:**
+```sql
+SELECT p.*
+FROM {PREFIX}pedidos_delivery p
+INNER JOIN {PREFIX}delivery_salidas s ON p.salida_id = s.id
+WHERE s.repartidor_id = ?
+  AND s.estado = 'en_camino';
+```
+
 ---
 
 ## 3. Logica de Negocio
@@ -3921,6 +4134,145 @@ Permisos de menu: `menu.fiscal`, `menu.fiscal-posicion`, `menu.fiscal-libros`, `
 
 ---
 
+### 3.14 Pedidos Delivery / Take-Away (circuito completo)
+
+Modulo espejo de Pedidos por Mostrador (3.1) con la dimension logistica agregada. `PedidoDeliveryService` (`app/Services/Pedidos/PedidoDeliveryService.php`) es el UNICO camino de escritura: Livewire (`PedidosDelivery`, `NuevoPedidoDelivery`, `Repartidores`, `ConfiguracionDelivery`) y los controllers de la API v1 lo consumen por igual, con los mismos payloads y validaciones.
+
+#### Estados y transiciones
+
+`PedidoDelivery::TRANSICIONES_PERMITIDAS`:
+```
+borrador → confirmado, cancelado
+confirmado → en_preparacion, en_camino, entregado, cancelado
+en_preparacion → listo, en_camino, entregado, cancelado
+listo → en_camino, entregado, cancelado
+en_camino → entregado, listo (vuelta fallida), cancelado
+entregado → facturado, cancelado
+facturado / cancelado → (terminales)
+```
+
+**`en_camino` es un estado COMPARTIDO entre delivery y take-away** (E1, supersede el diseño original donde take-away saltaba `listo → entregado`):
+- **Delivery**: `en_camino` = el repartidor tiene el pedido en la calle (`repartidor_en_camino` no-null, `salida_id` seteado).
+- **Take-away**: `en_camino` = "**Para retirar**" — el cliente puede pasar a buscarlo. `repartidor_id`/`salida_id` quedan NULL; el chip "Para llevar" del panel se convierte en boton ("Para retirar") que llama a `despachar()` sin exigir repartidor. El label se resuelve por tipo via el accessor `estado_label` (no hay dos estados separados).
+- El salto `confirmado/en_preparacion → en_camino` (sin pasar por `listo`) esta permitido: `usa_estado_listo=false` (ver abajo) o el pase directo del take-away lo usan.
+
+**`usa_estado_listo` (config, default true)**: si esta en OFF, la columna "Listo" se oculta del Kanban, el modal de cambio de estado no la ofrece, y `avanzarAEnPreparacionSiCorresponde`/`cambiarEstado` saltan directo a `en_camino`/entrega, haciendo backfill de `listo_at` para no romper reportes que asuman el timestamp.
+
+**Cancelar un pedido `en_camino`**: si tiene una salida en la calle, se registra a traves de la VUELTA (no se puede cancelar directo desde el panel — E9); sus pagos se contraasientan (incluido el efectivo del fondo, con movimiento inverso `repartidor_fondo_movimientos`).
+
+#### Renglon-concepto del costo de envio (D17)
+
+El costo de envio NUNCA es solo un campo de encabezado: `costo_envio`/`costo_envio_manual`/`distancia_km`/`zona_id` son la fuente logistica (kanban, cotizacion, auditoria), pero el monto se materializa como un **renglon `pedidos_delivery_detalle` con `es_costo_envio=true`** (mecanismo `es_concepto` ya existente, sin stock, con `tipo_iva_id` 21% y `concepto_categoria_id` configurable). `PedidoDeliveryService` lo crea/actualiza/elimina por delta cada vez que se recotiza o edita el pedido. Sin este renglon, `calcularDetallesIva` (que arma neto/IVA solo desde los detalles) dejaria `ImpTotal ≠ ImpNeto+ImpIVA` — rechazo directo de ARCA.
+
+El renglon de envio **NO participa** de descuento general, cupones, promociones, puntos ni del ajuste por forma de pago (hook `baseAjustePagoDesglose` lo excluye de la base sobre la que se calcula el ajuste/recargo de cuotas): se calcula y suma aparte de toda la cascada de beneficios.
+
+#### Cotizacion de envio (`DeliveryEnvioService`)
+
+`cotizar(Sucursal, ?lat, ?lng, ?Carbon $cuando): CotizacionEnvio` resuelve en orden:
+1. Sin coordenadas → sin cotizacion (`alcance = desconocido`), costo manual.
+2. **Zonas dibujadas activas** (poligono, E4): `DeliveryZona::contienePunto()` (ray casting) — la primera que matchea por `orden` fija el costo. `rangos_horarios` de la zona son franjas de **costo** (no de disponibilidad): `costoPara($hora)` puede subir el precio de noche, por ejemplo. **Con zonas dibujadas activas NO hay fallback**: fuera de todas ⇒ `fuera_de_alcance`.
+3. **Sin zonas activas**: distancia a la sucursal (Haversine) → dentro de `radio_entrega_km` ⇒ `costo_base + max(0, km − km_incluidos) × costo_km`; fuera ⇒ `fuera_de_alcance`.
+
+El costo cotizado siempre se puede **pisar a mano** en el panel (`costo_envio_manual=true` + usuario); "fuera de alcance" solo se puede forzar con el permiso `func.pedidos_delivery.forzar_alcance` — la API publica NUNCA permite forzarlo.
+
+#### Repartidores, salidas y vueltas (`RepartidorService`)
+
+- **Viaje UNICO por repartidor** (E7): despachar un pedido con un repartidor que ya esta `en_camino` **suma el pedido a su salida actual** (`lockForUpdate` sobre la salida `en_camino` del repartidor) — nunca se crean salidas paralelas. El pase manual de un solo pedido (`despacharPedido`) crea una salida implicita de 1 si no hay una en curso.
+- **Vuelta** (`registrarVuelta`): por cada pedido de la salida se marca `entregado` o `no_entregado` (motivo, vuelve a `listo` para re-despacho, pagos previos persisten). Los cobros se registran **ANTES** de marcar entregado (el guard de conversion exige pagos suficientes).
+  - **Efectivo**: `confirmarCobroContraEntrega` marca el pago como planificado→activo con `destino_fondo=true` — **NO crea `MovimientoCaja`**, solo un movimiento `cobro_pedido` (y `vuelto` si aplica) en `repartidor_fondo_movimientos` (D13). El dinero "vive" en el fondo hasta que se rinde.
+  - **No efectivo** (QR/transferencia en la puerta): circuito normal de pagos, nunca toca el fondo. Una FP con integracion (QR) **no puede confirmarse desde la vuelta** (exige su propio circuito de confirmacion — `test_vuelta_con_pago_planificado_de_fp_integrada_es_rechazada`).
+  - **Mini-rendicion** (`vueltaRendicionModo`, E7): `nada` (se queda todo, sigue repartiendo) / `devolver_pedidos` (entrega SOLO los cobros de esta vuelta, netos de envios de terceros si `envio_es_del_repartidor`) / `devolver` (monto elegido) / `cerrar` (rendicion completa: declarado vs teorico, diferencia sobrante/faltante, cierra el fondo) / `reforzar` (agrega efectivo ademas de la vuelta). **Repartidor tercero**: forzado a `devolver_pedidos` (no tiene caja chica propia). Sin fondo abierto se auto-abre uno en $0 (informacional, para que el ledger tenga de donde salir).
+  - **Vuelto planificado**: al confirmar un pedido sin cobrar con la intencion de efectivo contra entrega, se pregunta "¿con cuanto paga?" → `monto_recibido`/`vuelto` quedan planificados en el pago; la vuelta los precarga para que el repartidor salga con el cambio exacto.
+- **Conversion automatica a venta al entregar** (config `conversion_automatica_al_entregar`, propia de delivery): corre **POST-vuelta, individual y FUERA de la transaccion de la vuelta** — una falla de ARCA en un pedido no puede dejar la vuelta a medias ni bloquear la entrega de los demas. El flag `convertirAutomatico` de `cambiarEstado` permite que la vuelta suprima la conversion en-transaccion y la dispare por afuera.
+- **Reasignacion de repartidor**: libre hasta `listo`; en `en_camino` solo via vuelta fallida + re-despacho (evita salidas/fondos cruzados).
+
+#### Fondo del repartidor — regla contable (D13)
+
+El efectivo cobrado en la calle NUNCA genera `MovimientoCaja` al registrarse: vive en `repartidor_fondos`/`repartidor_fondo_movimientos` (append-only). Al **rendir** (o devolver en la vuelta), se genera **UN ingreso neto** a la caja receptora (inicial + cobros − vueltos − liquidacion de envios de terceros). Los movimientos del fondo NO llevan turno de caja (el fondo es cross-turno, puede quedar abierto entre cierres). El cierre de caja **advierte** si hay fondos abiertos con esa caja como origen (no bloquea) — implementado en los TRES caminos de cierre existentes: `TurnoActual::abrirModalCierre` (grupal e individual) y `CajaService::cerrarCajaConTesoreria` (key `advertencias` + `Log::warning`). Tesoreria muestra una linea informativa "En fondos de repartidores (abiertos)" (suma de saldos teoricos) para que la plata nunca sea invisible entre la vuelta y la rendicion.
+
+#### Consistencia de pedidos en salida (E9, rev19)
+
+`desvincularDeSalida()` (pivot append-only: marca `no_entregado` + motivo, o hace DELETE si la salida seguia `armando`) se invoca al **cancelar** un pedido en salida, al **volver a `listo`** desde la calle (vuelta fallida) y al **entregar/convertir** pedidos de salidas que nunca partieron. `convertirEnVenta` **bloquea** pedidos `en_camino` con salida `en_camino` (esos cobros van al fondo via vuelta, no se pueden materializar por afuera); `cambiarEstado` exige pasar por la vuelta para entregarlos, salvo el flag interno `viaVuelta` (el camino legitimo que usa la propia vuelta y el PATCH de la API).
+
+**Caja de contexto**: pedidos de tienda/API (sin caja propia) cobrados desde el panel: `agregarPago`/`confirmarPagoPlanificado` aceptan una caja de contexto (la de quien ejecuta la accion) y el pedido la adopta — mismo criterio que usa `convertirEnVenta`. Un cobro que afecta caja sin ninguna caja disponible lanza excepcion (nunca se materializa "flotando").
+
+#### Promesa de entrega (RF-15)
+
+`hora_pactada_at` segun `modo_promesa` de la sucursal:
+- **`franjas`**: horarios definidos A MANO por el comercio (`config_delivery.franjas`: `[{hora, dias, delivery, take_away}]`, soporta cruce de medianoche). Los cupos por franja son Fase 8.
+- **`automatica`**: `hora_pactada = ahora + demora_base_min + demora_min_por_km × km` (la distancia sale de la cotizacion de envio). `usar_maps_para_demora` (Google Routes API) es Fase 8.
+- **`manual`**: se fija al ACEPTAR el pedido con un modal de botones de demora (`botones_demora`, configurable).
+- **`lo_antes_posible`** (columna + key `acepta_lo_antes_posible`): promesa valida sin hora ("Ya" = +0). **Excluyente** con `hora_pactada_at` en TODOS los caminos (crear/actualizar/promesa/API).
+- **Alertas de demora**: `sucursales.pedido_alerta_amarilla_min`/`pedido_alerta_roja_min` (COMPARTIDAS con mostrador) alimentan `CalculaAlertaDemora` (trait) para pintar el kanban/lista; el kanban ordena "lo antes posible" primero.
+- **`timeout_aceptacion_min`** (D14): vencido sin aceptar resalta el pedido "Demorado" en el strip por-aceptar y el seguimiento publico expone `demorado: true` — NO cancela solo.
+
+#### Pedidos externos y aceptacion (D14)
+
+`config_delivery.aceptacion_pedidos_externos`:
+- **`manual`** (default): todo pedido de `origen IN ('tienda','api')` entra en `borrador` ("por aceptar", con badge/sonido en tiempo real). **Aceptar** (`aceptarPedidoExterno`) lo confirma y, si `modo_promesa=manual`, abre el modal de demora. **Rechazar** (`rechazarPedidoExterno`) lo cancela; si tenia pago online acreditado queda marcado **"a devolver"** (devolucion manual v1) y se avisa al consumidor por su canal de seguimiento.
+- **`automatica`**: el pedido entra `confirmado` directo; si `imprimir_comanda_al_aceptar`, la comanda sale sola por la comandera.
+- El pedido por aceptar **no descuenta stock** (patron borrador); al aceptar se valida stock y se respetan los precios/promos ya COTIZADOS al crearlo (snapshot en los renglones).
+- Pago online acreditado: `afecta_caja=0` (se concilia por el circuito de integraciones de pago existente); una caja solo interviene si un operador cobra desde el panel.
+
+#### Consumidor ↔ Cliente (D11)
+
+El pedido de tienda/API SIEMPRE guarda `consumidor_id` (FK logico a `config.consumidores`) + snapshot de contacto. El `cliente_id` tenant solo se completa si existe `consumidor_comercio` para ese comercio:
+- `comercios.tienda_alta_cliente_automatica = true`: el primer pedido crea el `cliente` tenant + el mapping automaticamente.
+- `false` (default): el pedido queda solo con `consumidor_id`; la accion "convertir en cliente" del panel (crea cliente + mapping, vincula pedidos previos) queda **diferida al proyecto tienda** (seria UI muerta sin login de consumidores implementado).
+- Puntos, cupones por cliente y cuenta corriente solo aplican cuando el cliente esta materializado.
+- `resolverClienteId` usa el **comercio activo de `TenantService`** (no una columna `sucursal->comercio_id`, que no existe en tenant — bug real corregido en Fase 7/sdd-verify).
+
+#### Gaps de mostrador que delivery NO hereda (D19)
+
+Corregidos a nivel service (y anotados como mejora pendiente de espejar en mostrador):
+- **Puntos ganados**: `convertirEnVenta` de delivery los acredita siempre que haya cliente (en mostrador solo se acreditan desde el Livewire de venta directa, la conversion nunca los acredita).
+- **Cupon**: la conversion de delivery registra `CuponUso` e incrementa `uso_actual` (mostrador solo copia montos).
+- **Opcionales**: `mapearDetalleAArrayVenta` de delivery migra los opcionales a `venta_detalle_opcionales` (mostrador no los migra).
+- **`cierre_turno_id`**: `marcarTransaccionesCierre` marca tambien `pedidos_delivery_pagos` (excluyendo los `destino_fondo`, que no tienen turno).
+
+---
+
+### 3.15 API v1 Pedidos Delivery (Sanctum + tienda)
+
+Base nueva bajo `/api/v1` (`routes/api.php`), documentada en detalle en `docs/api-v1-delivery.md`. Errores JSON uniformes `{error:{code,message,details}}` (bootstrap/app.php): excepciones "peladas" de los services → 422 con mensaje; el resto → 500 generico logueado.
+
+#### Audiencias y autenticacion
+
+1. **Publico por tienda** (sin auth, throttle 60/min): rutas `/v1/tiendas/{slug}/...`. El `slug` (tabla `config.tiendas`) identifica comercio+sucursal (D15, la tienda es POR SUCURSAL) — resuelto por `ApiTenantMiddleware` (alias `api.tenant`) sin abrir la BD tenant primero.
+2. **Integracion** (Bearer Sanctum, throttle 120/min): tokens de `personal_access_tokens` (BD config) con **abilities** (`pedidos:read`, `pedidos:write`, `config:read`, `catalogo:read`) emitidos por comercio desde `/configuracion/api-tokens`. Sucursal por header `X-Sucursal-Id` (default: principal). El tokenable es `Comercio` (implementa `Authenticatable` + `HasApiTokens`, `sanctum.guard=null` porque no es un `User`).
+3. **Consumidores** (guard `consumidores`, futuro proyecto tienda): el endpoint publico de pedidos acepta opcionalmente su Bearer.
+
+**Permisos sin sesion**: `User::loadAllPermissions` cachea por `session('comercio_activo_id')` y devuelve vacio sin sesion — bajo Sanctum, `hasPermissionTo()` de los services denegaria siempre. Se extendio para aceptar el **comercio explicito** que dejo `ApiTenantMiddleware` en `TenantService`, sin romper el camino web. Los tokens de integracion autorizan por abilities (no por permisos de usuario); los services solo chequean permisos cuando hay un usuario actor real.
+
+#### Endpoints publicos (por slug)
+
+- `GET /v1/tiendas/{slug}`: datos de la tienda + bloque `entrega` (modo_promesa, acepta_lo_antes_posible, demoras, usa_franjas) + `formas_pago` declarables contra entrega/retiro.
+- `GET /v1/tiendas/{slug}/franjas?tipo=`: slots de la jornada en modo franjas (cupos = Fase 8).
+- `GET /v1/tiendas/{slug}/catalogo?tipo=`: catalogo segun criterio RF-17 (activo + vendible + `visible_tienda` + disponible por tipo); agotados vienen marcados `pedible:false`. Precios FINALES calculados por `PrecioService` (nunca localmente, D12).
+- `POST /v1/tiendas/{slug}/envios/cotizar`: `{latitud, longitud, ?hora_pactada}` → `{alcance, pedible, costo_envio, distancia_km, zona, demora_estimada_min}`.
+- `POST /v1/tiendas/{slug}/carrito/cotizar`: cotizacion server-side del carrito completo (**`CotizadorCarritoTienda`**, harness headless del trait `WithCalculoVenta` — mismo motor de precios/promos/cupones que el panel). Con Bearer de consumidor, cotiza con SU cliente materializado (mismo total que el checkout, D12).
+- `POST /v1/tiendas/{slug}/pedidos` (throttle 15/min, `PedidoTiendaService`): alta de pedido invitado o consumidor. `entrega.{franja|lo_antes_posible}` validados contra la config (franja inventada/vencida → 422); `pago.{forma_pago_id, paga_con}` crea un pago PLANIFICADO (nunca cobra). Bloqueos: fuera de horario/alcance/agotados → 422. Entra "por aceptar" o `confirmado` segun `aceptacion_pedidos_externos`.
+- `GET /v1/tiendas/{slug}/pedidos/{token_seguimiento}`: seguimiento publico. El estado interno `facturado` **NUNCA se expone** (el GET lo mapea a `entregado`, el broadcast no lo emite). Incluye `lo_antes_posible`, `demorado` (timeout vencido), `repartidor_en_camino` (solo delivery).
+- `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`: cancelacion por el consumidor, permitida hasta `confirmado` (antes de `en_preparacion`).
+
+#### Endpoints de integracion (Bearer + `X-Sucursal-Id`)
+
+- `GET /v1/pedidos-delivery` / `GET /v1/pedidos-delivery/{id}` (`pedidos:read`).
+- `POST /v1/pedidos-delivery` (`pedidos:write`): mismo payload del endpoint publico, origen `api` + `origen_referencia` del integrador.
+- `PATCH /v1/pedidos-delivery/{id}` (`pedidos:write`): `{estado, repartidor_id, observaciones, observacion_estado}`. `en_camino` con repartidor crea la salida implicita (mismo circuito que el panel); `entregado` sobre un pedido EN una salida en la calle → 422 (se entrega via la vuelta del panel, E9).
+- `GET /v1/delivery/config` / `GET /v1/repartidores` (`config:read`).
+
+#### Tiempo real (Reverb)
+
+- **Seguimiento publico** (canal PUBLICO, sin auth): `pedidos-delivery.seguimiento.{token_seguimiento}`, evento `SeguimientoActualizado` (`PedidoSeguimientoPublicoBroadcast`, `ShouldBroadcastNow`) con `{estado, estado_label, repartidor, hora_pactada_at, lo_antes_posible, at}` en cada cambio de estado de un pedido externo.
+- **Panel/integraciones** (canal privado del comercio): `comercios.{comercioId}.pedidos-delivery`, evento `PedidoDeliveryBroadcast` (`{pedidoId, sucursalId, tipo, at}`, tipos `creado`/`estado_cambiado`/`pago_cambiado`/`cancelado`/`convertido_venta`) — extiende `TenantBroadcastEvent`, mismo patron que `PedidoMostradorBroadcast`.
+
+#### Alta de una tienda
+
+`config.tiendas` se crea por consola/soporte en v1 (no hay UI): `Tienda::create(['comercio_id' => ..., 'sucursal_id' => ..., 'slug' => ..., 'habilitada' => true])`.
+
+---
+
 ## 4. Patrones de Consulta
 
 ### 4.1 Consultas Comunes
@@ -4387,6 +4739,13 @@ ORDER BY imp.tipo, imp.jurisdiccion;
 | ConciliacionCuenta | `generando`, `pendiente_revision`, `aplicada`, `descartada`, `error` | `generando` y `pendiente_revision` son activos (solo uno por cuenta). `aplicada`/`descartada`/`error` son terminales. |
 | ConciliacionFila.clasificacion | `matcheado`, `solo_proveedor`, `solo_sistema`, `ya_registrado` | |
 | ConciliacionFila.accion | `generar_movimiento`, `ignorar`, `sin_accion` | `sin_accion` para filas `solo_sistema` y `ya_registrado`; propuestas arrancan en `generar_movimiento`. |
+| PedidoDelivery.estado_pedido | `borrador`, `confirmado`, `en_preparacion`, `listo`, `en_camino`, `entregado`, `facturado`, `cancelado` | `en_camino` es COMPARTIDO: delivery = en la calle con repartidor; take-away = "Para retirar" (sin repartidor). `listo` es opcional (`usa_estado_listo`) |
+| PedidoDelivery.tipo | `delivery`, `take_away` | Determina si exige direccion/repartidor/envio |
+| PedidoDelivery.origen | `panel`, `tienda`, `api` | `tienda`/`api` entran "por aceptar" o `confirmado` segun `aceptacion_pedidos_externos` |
+| RepartidorFondo.estado | `abierto`, `rendido` | Ciclo largo: puede quedar `abierto` entre salidas, no se exige rendir a la vuelta |
+| RepartidorFondoMovimiento.tipo | `entrega_inicial`, `refuerzo`, `cobro_pedido`, `vuelto`, `liquidacion_envios`, `devolucion`, `rendicion`, `ajuste` | Append-only, sin `updated_at`. El saldo teorico del fondo = suma de `monto` (con signo) |
+| DeliverySalida.estado | `armando`, `en_camino`, `finalizada` | Un repartidor tiene UN viaje activo a la vez |
+| DeliverySalidaPedido.resultado | `pendiente`, `entregado`, `no_entregado` | Pivot append-only (historial de intentos, incl. re-despachos) |
 
 **Formatos de fecha:**
 - Fechas se almacenan como `timestamp` o `date` en MySQL.
@@ -4413,12 +4772,12 @@ ORDER BY imp.tipo, imp.jurisdiccion;
 
 **Soft deletes:**
 Las siguientes tablas usan soft delete (`deleted_at` no nulo = eliminado):
-- `ventas`, `clientes`, `articulos`, `categorias`, `cobros`, `promociones`, `promociones_especiales`, `listas_precios`, `grupos_opcionales`, `opcionales`, `comprobantes_fiscales`, `grupos_etiquetas`, `etiquetas`, `impresoras`, `cuits`, `puntos_venta`.
+- `ventas`, `clientes`, `articulos`, `categorias`, `cobros`, `promociones`, `promociones_especiales`, `listas_precios`, `grupos_opcionales`, `opcionales`, `comprobantes_fiscales`, `grupos_etiquetas`, `etiquetas`, `impresoras`, `cuits`, `puntos_venta`, `pedidos_delivery` (espejo de `pedidos_mostrador`, que tambien usa soft delete).
 
 Al consultar estas tablas, siempre agregar `AND deleted_at IS NULL` a menos que se quieran incluir registros eliminados.
 
 **Patron append-only (ledger):**
-Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa`, `movimientos_fiscales`, `venta_pagos` (para cambios de pago), `integraciones_pago_eventos` y `conciliaciones_cuenta`/`conciliacion_filas` siguen el patron append-only:
+Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa`, `movimientos_fiscales`, `venta_pagos` (para cambios de pago), `integraciones_pago_eventos`, `conciliaciones_cuenta`/`conciliacion_filas`, `repartidor_fondo_movimientos` y `delivery_salida_pedidos` (historial de intentos de entrega) siguen el patron append-only:
 - Los registros nunca se modifican ni eliminan.
 - Las anulaciones se hacen creando un **contraasiento** que invierte los montos (movimientos) o marcando el registro como `estado = 'anulado'` y creando uno nuevo (venta_pagos).
 - El original se vincula al contraasiento via `anulado_por_movimiento_id` (movimientos) o via `venta_pago_reemplazado_id` (venta_pagos).

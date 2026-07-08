@@ -291,7 +291,12 @@ class PedidoTiendaService
             return null;
         }
 
-        $comercioId = (int) $sucursal->comercio_id;
+        // La sucursal es TENANT (sin comercio_id): el comercio es el activo
+        // del proceso, que api.tenant ya configuró en TenantService.
+        $comercioId = (int) (app(\App\Services\TenantService::class)->getComercioId() ?? 0);
+        if (! $comercioId) {
+            return null;
+        }
 
         $clienteId = $consumidor->clienteIdEn($comercioId);
         if ($clienteId && Cliente::find($clienteId)) {

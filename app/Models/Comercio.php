@@ -63,6 +63,8 @@ class Comercio extends Model implements \Illuminate\Contracts\Auth\Authenticatab
         'prefijo',
         'max_usuarios',
         'rubro',
+        'rubro_id',
+        'tienda_alta_cliente_automatica',
     ];
 
     public const RUBRO_GASTRONOMIA = 'gastronomia';
@@ -85,6 +87,7 @@ class Comercio extends Model implements \Illuminate\Contracts\Auth\Authenticatab
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'tienda_alta_cliente_automatica' => 'boolean',
     ];
 
     /**

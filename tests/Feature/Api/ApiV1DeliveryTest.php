@@ -472,6 +472,107 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.estado_label', 'Entregado');
     }
 
+    public function test_integracion_post_crea_pedido_con_origen_api(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $token = $this->comercio->createToken('test', ['pedidos:write'])->plainTextToken;
+
+        $respuesta = $this->withHeaders([
+            'Authorization' => 'Bearer '.$token,
+            'X-Sucursal-Id' => (string) $this->sucursalId,
+        ])
+            ->postJson('/api/v1/pedidos-delivery', $this->payloadPedido($articulo->id) + [
+                'origen_referencia' => 'ext-123',
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.origen', 'api');
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertSame('ext-123', $pedido->origen_referencia);
+    }
+
+    public function test_pedido_publico_fuera_de_alcance_es_rechazado(): void
+    {
+        // Georref ON + radio 1km; dirección en Rosario (a ~280km del Obelisco).
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'georreferenciar_pedidos' => true,
+                'radio_entrega_km' => 1,
+            ]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['direccion']['latitud'] = -32.9442;
+        $payload['direccion']['longitud'] = -60.6505;
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertStatus(422);
+    }
+
+    public function test_consumidor_sin_alta_automatica_queda_sin_cliente_tenant(): void
+    {
+        $consumidor = \App\Models\Consumidor::create([
+            'nombre' => 'Con Sumidor',
+            'email' => 'consumidor-'.uniqid().'@test.com',
+            'password' => bcrypt('secret123'),
+            'telefono' => '1144440000',
+        ]);
+        $this->comercio->update(['tienda_alta_cliente_automatica' => false]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $token = $consumidor->createToken('tienda')->plainTextToken;
+        $payload = $this->payloadPedido($articulo->id);
+        unset($payload['cliente']);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertSame($consumidor->id, (int) $pedido->consumidor_id);
+        $this->assertNull($pedido->cliente_id, 'Alta automática OFF: sin cliente tenant (D11)');
+        $this->assertNotNull($pedido->nombre_cliente_temporal);
+
+        $consumidor->tokens()->delete();
+        \App\Models\ConsumidorComercio::where('consumidor_id', $consumidor->id)->delete();
+        $consumidor->delete();
+    }
+
+    public function test_consumidor_con_alta_automatica_crea_cliente_y_mapping(): void
+    {
+        $consumidor = \App\Models\Consumidor::create([
+            'nombre' => 'Alta Automatica',
+            'email' => 'consumidor-'.uniqid().'@test.com',
+            'password' => bcrypt('secret123'),
+            'telefono' => '1144440001',
+        ]);
+        $this->comercio->update(['tienda_alta_cliente_automatica' => true]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $token = $consumidor->createToken('tienda')->plainTextToken;
+        $payload = $this->payloadPedido($articulo->id);
+        unset($payload['cliente']);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertNotNull($pedido->cliente_id, 'Alta automática ON: crea cliente tenant (D11)');
+
+        $mapping = \App\Models\ConsumidorComercio::where('consumidor_id', $consumidor->id)
+            ->where('comercio_id', $this->comercio->id)
+            ->first();
+        $this->assertNotNull($mapping, 'Mapping consumidor↔comercio creado');
+        $this->assertSame((int) $pedido->cliente_id, (int) $mapping->cliente_id);
+
+        $this->comercio->update(['tienda_alta_cliente_automatica' => false]);
+        $consumidor->tokens()->delete();
+        \App\Models\ConsumidorComercio::where('consumidor_id', $consumidor->id)->delete();
+        $consumidor->delete();
+    }
+
     public function test_seguimiento_take_away_en_camino_es_para_retirar_sin_repartidor(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
