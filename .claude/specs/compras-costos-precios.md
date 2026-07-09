@@ -1304,7 +1304,57 @@ Componente reescrito (SucursalAware): carga por código de proveedor, descuentos
 por renglón, percepciones, tipo de comprobante, toggle no fiscal, NC, desglose
 compra_ivas sugerido/editable con validación de cuadre, cuenta de compra
 (RF-22), sección pago (contado/cta cte/pago inicial con caja activa).
-**Antes de esta fase: sesión de diseño UX con el usuario (D7).**
+**Sesión de diseño UX (D7) HECHA — decisiones abajo.**
+
+#### Sesión UX D7 (2026-07-09, decidida con el usuario)
+1. **Estructura**: `/compras` = listado; la carga/edición abre un MODAL A
+   PANTALLA COMPLETA (patrón del editor de ventas — pedido explícito).
+2. **Renglones = grilla tipo planilla** con navegación por teclado (Enter/Tab
+   avanza de celda; al final agrega fila). Buscador de artículo en la primera
+   celda que matchea código propio, código del proveedor seleccionado y
+   nombre. Columnas: Artículo | Cant. comprada (bultos) | Factor (precargado
+   de articulo_proveedor, editable) | Cant. stock (auto = comprada × factor) |
+   Precio unit. | Desc. | Unit. efectivo | Subtotal.
+3. **Alta rápida de artículo INLINE** desde el buscador de la grilla (patrón
+   /combobox-alta-rapida: modal mínimo nombre/categoría/IVA/código) — además
+   persiste automáticamente el código del proveedor en articulo_proveedor.
+4. **Descuentos en cascada como TEXTO "10+5+3"** en la celda (como los imprime
+   la factura del proveedor); al lado se muestra el unitario efectivo.
+5. **Sección fiscal SIEMPRE VISIBLE** junto a los totales: desglose de IVA
+   autocalculado de los renglones y EDITABLE para calzar con la factura
+   física, con advertencia de cuadre (no bloqueante); Conceptos y
+   Percepciones como sub-secciones colapsables; el pie muestra la cuenta
+   completa (neto − desc global + conceptos + IVA + percepciones = total)
+   para verificar contra la factura en vivo. Toggle NO FISCAL oculta todo el
+   bloque (D15). Advertencia comprobante×CUIT no bloqueante (textos ya en
+   CompraService::advertenciaComprobanteCuit).
+6. **Pago = MODAL AL CONFIRMAR** (patrón cobro de ventas): cta cte (sin pago o
+   pago inicial parcial) / contado (desglose FP por el total); vencimiento
+   precargado con dias_pago del proveedor.
+7. **Borrador con botón explícito** [Guardar borrador]; el listado los muestra
+   retomables/eliminables.
+8. **Post-confirmación**: resumen con aviso "N artículos bajo el margen
+   objetivo → [Revisar precios]" — NO bloquea, la revisión es retomable
+   (pantalla en Fase 8).
+9. **NC**: camino principal desde el DETALLE de la compra ([Cargar NC]
+   precarga renglones con cantidades a devolver, tope lo comprado); camino
+   secundario "Nueva NC" suelta desde el listado.
+10. **Listado = patrón lista de pedidos** (el formato de delivery/mostrador):
+    datos con botones inline (badge de pago = botón pagar), badges de estado,
+    acciones acotadas (Ver / Editar / Cargar NC / Cancelar).
+11. **Detalle con reconstrucción PERFECTA** (pedido explícito): renglones con
+    descuentos y computables, desglose fiscal, conceptos, percepciones, pagos
+    aplicados, NCs vinculadas y costos que generó — se debe poder recrear
+    exactamente los montos de la factura.
+12. **Edición "como si fuese el alta"** (pedido explícito): borrador = edición
+    directa; una COMPLETADA se reabre en el MISMO editor precargado en modo
+    corrección — por detrás se materializa como cancelar+recrear atómico
+    (preserva la inmutabilidad del ledger por contraasientos, RF-17). Los
+    CONFLICTOS (pagos aplicados, turno cerrado, stock insuficiente para
+    revertir, NCs vinculadas) se resuelven con decisiones puntuales DURANTE
+    la implementación con el usuario — anotado como pendiente de decisión.
+13. **Mobile**: listado en cards; el editor es desktop-first (la grilla
+    scrollea horizontal en móvil — la carga de facturas es tarea de escritorio).
 
 ### Fase 7: Utilidad y margen en artículos/config [PENDIENTE]
 Config comercio + categorías + artículos (override, flag, columnas margen,
