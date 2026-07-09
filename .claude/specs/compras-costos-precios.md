@@ -1,6 +1,6 @@
 # Compras → Costos → Precios - Especificación
 
-## Estado: APROBADO — EN IMPLEMENTACIÓN (Fases 1-3 completas)
+## Estado: APROBADO — EN IMPLEMENTACIÓN (Fases 1-4 completas)
 
 > Spec creado el 2026-07-01 tras sesión de diseño con el usuario (decisiones D1-D7).
 > Es el SDD propio que la Fase 6 del spec `sistema-impositivo.md` dejó como
@@ -1198,7 +1198,7 @@ Suite de tests completa (es el corazón del feature).
   de WithTenant — la suite limpia SOLO sus cuits (un DELETE global choca con
   FKs de residuos de otras suites, ej. cuentas_empresa→cuits).
 
-### Fase 4: CompraService nuevo [PENDIENTE]
+### Fase 4: CompraService nuevo [COMPLETO]
 Reescritura completa (RF-12): borrador→completada→cancelada, descuentos
 anidados, costo_unitario_computable, gate del crédito + `$ivaCredito` desde
 compra_ivas, ajuste de ImpuestoService (período = fecha_comprobante; anular
@@ -1206,6 +1206,47 @@ con patrón NC cross-período), CostoService, costo correcto en MovimientoStock,
 NC de proveedor (RF-21: efectos inversos parciales, desglose IVA propio).
 Tests de integración compra→costo→ledger→NC (incl. matriz condición IVA ×
 tipo comprobante contra el ledger y el período del crédito).
+
+#### Ajustes de implementación (Fase 4, 2026-07-09)
+- **ImpuestoService ajustado**: `registrarDesdeCompra` usa
+  `fecha_comprobante ?? fecha` para el período + parámetro `esNotaCredito`
+  (RF-21: reversa NEGATIVA con el desglose PROPIO de la NC en su período);
+  `anularDesdeCompra` REESCRITO al patrón cross-período — reversas negativas
+  fechadas HOY, originales quedan ACTIVOS y netean a cero (antes flipaba
+  estado en el período original, que puede estar declarado). Idempotente por
+  suma-cero. El test viejo `anular_desde_compra_contraasienta` se adaptó a la
+  semántica nueva + 2 tests nuevos (período por fecha_comprobante, NC negativa).
+- **Caso RG 5003 completado en la CADENA DE COSTO** (hallazgo de esta fase —
+  la regla del spec era ambigua acá): factura A/M con comprador NO-RI viene
+  NETA impresa, pero el IVA no recuperable ES costo ⇒
+  `costoComputableRenglon` ganó `alicuota_no_recuperable` (la alícuota del
+  tipo_iva del renglón cuando `discrimina AND !compradorRI`; 0 en el resto).
+  Test: neto 100 + IVA 21 ⇒ computable 121 para monotributo comprador.
+- Compra model: constantes de estado (D11) y de tipos de comprobante
+  (factura_a/b/c/m, no_fiscal, nota_credito_a/b/c/no_fiscal) + helpers
+  esNotaCredito()/esFiscal()/discriminaIva()/esBorrador() + scopes
+  borradores/completadas/canceladas/activas (el scope 'pendientes' murió).
+- CompraService API: crearBorrador / actualizarBorrador (hereda sucursal y
+  usuario al validar) / eliminarBorrador / confirmarCompra / cancelarCompra /
+  esComprobanteDuplicado / advertenciaComprobanteCuit (los textos de la
+  advertencia RG 5003 y "B a un RI" listos para la UI de Fase 6).
+- Validaciones de coherencia D15 en la confirmación: comprobante que no
+  discrimina NO lleva compra_ivas; compra no fiscal NO lleva percepciones;
+  NC con origen exige misma proveedor + completada; fecha_comprobante
+  obligatoria si fiscal.
+- Números internos: COM-{suc}-{8dig} para compras, NCP- para NC (el real del
+  proveedor viaja en numero_comprobante_proveedor).
+- **Cancelar con pagos aplicados bloqueado hasta Fase 5** (guard
+  saldo_pendiente == total): el hook D17 (cascada o saldo a favor) se
+  implementa con la cta cte de proveedores.
+- El componente viejo `Compras` no rompe en mount (usa boot() con DI y el
+  contenedor resuelve el constructor nuevo); sus acciones viejas quedan
+  muertas hasta la reescritura de Fase 6 (menú inactivo, sin exposición).
+- Verificación: pint OK, CompraServiceTest 17 verdes (integración
+  compra→costo→ledger→NC completa, matriz A-RI/B-RI/A-mono/no-fiscal,
+  prorrateos con flete y descuento global, factor bulto→stock, anti-duplicado
+  con recarga post-cancelación, cross-período), suite services 306 verdes,
+  Smoke 193 verdes.
 
 ### Fase 5: Cuenta corriente de proveedores (RF-18/19) [PENDIENTE]
 Migraciones 12-14 + modelos + `CuentaCorrienteProveedorService` +

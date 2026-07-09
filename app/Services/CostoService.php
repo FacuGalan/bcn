@@ -46,6 +46,12 @@ class CostoService
      * descuento_global_monto y conceptos_costo_monto (importes TOTALES ya
      * prorrateados al renglón — el prorrateo lo hace el caller con
      * prorratearPorImporte()).
+     *
+     * `alicuota_no_recuperable` (caso RG 5003: factura A/M con comprador
+     * NO-RI): el renglón viene NETO (así lo imprime la factura) pero el IVA no
+     * es recuperable ⇒ ES costo. El caller la setea con la alícuota del
+     * renglón cuando `discrimina AND !compradorRI`; 0 en todo otro caso (A+RI
+     * ya es neto puro; B/C/no fiscal ya vienen con el IVA adentro del precio).
      */
     public function costoComputableRenglon(array $renglon, ?Compra $compra = null): float
     {
@@ -65,6 +71,8 @@ class CostoService
         $importeRenglon = $unitario * $cantidadComprada
             - (float) ($renglon['descuento_global_monto'] ?? 0)
             + (float) ($renglon['conceptos_costo_monto'] ?? 0);
+
+        $importeRenglon *= 1 + ((float) ($renglon['alicuota_no_recuperable'] ?? 0)) / 100;
 
         // Por unidad de compra → por unidad de stock (D8).
         return round($importeRenglon / $cantidadComprada / $factor, 4);
