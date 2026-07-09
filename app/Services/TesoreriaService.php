@@ -1035,6 +1035,54 @@ class TesoreriaService
         });
     }
 
+    /**
+     * Registra un egreso externo de fondos (espejo de registrarIngresoExterno
+     * — spec compras-costos D14: pago a proveedores desde efectivo de
+     * Tesorería). Valida saldo: la Tesorería no queda negativa.
+     */
+    public static function registrarEgresoExterno(
+        Tesoreria $tesoreria,
+        float $monto,
+        int $usuarioId,
+        string $concepto,
+        ?string $referenciaTipo = null,
+        ?int $referenciaId = null,
+        ?string $observaciones = null
+    ): MovimientoTesoreria {
+        if ($monto <= 0) {
+            throw new \Exception(__('El monto debe ser mayor a cero'));
+        }
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($tesoreria, $monto, $usuarioId, $concepto, $referenciaTipo, $referenciaId, $observaciones) {
+            $tesoreria = Tesoreria::lockForUpdate()->findOrFail($tesoreria->id);
+
+            if ((float) $tesoreria->saldo_actual < $monto) {
+                throw new \Exception(__('Saldo insuficiente en Tesorería (:saldo disponibles)', [
+                    'saldo' => number_format((float) $tesoreria->saldo_actual, 2, ',', '.'),
+                ]));
+            }
+
+            $movimiento = $tesoreria->egreso(
+                $monto,
+                $concepto,
+                $usuarioId,
+                $referenciaTipo ?? MovimientoTesoreria::REFERENCIA_EGRESO_EXTERNO,
+                $referenciaId,
+                $observaciones
+            );
+
+            Log::info('Egreso externo registrado', [
+                'tesoreria_id' => $tesoreria->id,
+                'monto' => $monto,
+                'concepto' => $concepto,
+                'usuario_id' => $usuarioId,
+                'saldo_posterior' => $tesoreria->saldo_actual,
+            ]);
+
+            return $movimiento;
+        });
+    }
+
     // ==================== MÉTODOS DE CONSULTA ====================
 
     /**

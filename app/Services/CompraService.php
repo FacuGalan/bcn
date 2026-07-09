@@ -8,7 +8,9 @@ use App\Models\CompraDetalle;
 use App\Models\CompraIva;
 use App\Models\CompraPercepcion;
 use App\Models\CondicionIva;
+use App\Models\MovimientoCuentaCorrienteProveedor;
 use App\Models\MovimientoStock;
+use App\Models\PagoProveedorCompra;
 use App\Models\Proveedor;
 use App\Models\Stock;
 use App\Services\Fiscal\ImpuestoService;
@@ -42,6 +44,8 @@ class CompraService
     public function __construct(
         protected CostoService $costoService,
         protected ImpuestoService $impuestoService,
+        protected CuentaCorrienteProveedorService $ccProveedorService,
+        protected PagoProveedorService $pagoProveedorService,
     ) {}
 
     // ==================== Borradores (RF-17) ====================
@@ -76,7 +80,8 @@ class CompraService
                 'fecha_vencimiento' => $data['fecha_vencimiento'] ?? null,
                 'tipo_comprobante' => $data['tipo_comprobante'],
                 'descuento_global_porcentaje' => $data['descuento_global_porcentaje'] ?? null,
-                'forma_pago' => $data['forma_pago'] ?? 'cta_cte',
+                'forma_pago' => $data['forma_pago']
+                    ?? (Proveedor::find($data['proveedor_id'])?->tiene_cuenta_corriente ? 'cta_cte' : 'efectivo'),
                 'estado' => Compra::ESTADO_BORRADOR,
                 'observaciones' => $data['observaciones'] ?? null,
             ]);
@@ -148,30 +153,37 @@ class CompraService
 
     /**
      * Confirma la compra en UNA transacción: prorrateos → costo computable por
-     * renglón → stock → costos (CostoService) → fiscal (ImpuestoService).
+     * renglón → stock → costos (CostoService) → fiscal (ImpuestoService) →
+     * cta cte del proveedor (RF-18) → pago inicial/contado vía
+     * PagoProveedorService (RF-19: un solo camino de escritura).
      *
-     * Hooks pendientes: cta cte proveedor + pago inicial (Fase 5), repricing
-     * automático (Fase 8) — se agregan al final de esta misma transacción.
+     * $pagoInicial: ['pagos' => [{forma_pago_id, monto, origen?, caja_id?,
+     * cuenta_empresa_id?}], 'saldo_favor_usado' => ?, 'caja_id' => ?].
+     * Contado (forma_pago ≠ cta_cte): los fondos deben cubrir el TOTAL.
+     * Cta cte: opcional, 0 < fondos < total (igual al total ES contado).
+     *
+     * Hook pendiente: repricing automático (Fase 8) al final de la transacción.
      */
-    public function confirmarCompra(Compra $compra, ?int $usuarioId = null): Compra
+    public function confirmarCompra(Compra $compra, ?int $usuarioId = null, array $pagoInicial = []): Compra
     {
         if (! $compra->esBorrador()) {
             throw new Exception(__('Solo se puede confirmar un borrador'));
         }
 
-        $compra->load(['detalles', 'ivas', 'conceptos', 'percepciones', 'cuit.condicionIva', 'compraOrigen']);
+        $compra->load(['detalles', 'ivas', 'conceptos', 'percepciones', 'cuit.condicionIva', 'compraOrigen', 'proveedor']);
 
         $this->validarConfirmacion($compra);
 
         $usuarioId ??= (int) $compra->usuario_id;
 
-        DB::connection('pymes_tenant')->transaction(function () use ($compra, $usuarioId) {
+        DB::connection('pymes_tenant')->transaction(function () use ($compra, $usuarioId, $pagoInicial) {
             // 1. Prorrateos + costo computable por renglón (persisten en el detalle).
             $this->resolverProrrateosYComputables($compra);
 
-            // 2. Totales finales + saldo (la deuda la baja el pago, Fase 5).
+            // 2. Totales finales + saldo (una NC no es deuda: su efecto va
+            //    contra el saldo de la compra origen / saldo a favor).
             $this->recalcularTotales($compra);
-            $compra->update(['saldo_pendiente' => $compra->total]);
+            $compra->update(['saldo_pendiente' => $compra->esNotaCredito() ? 0 : $compra->total]);
 
             // 3. Stock (la NC devuelve: egreso).
             $this->moverStock($compra, $usuarioId, reversa: $compra->esNotaCredito());
@@ -193,6 +205,14 @@ class CompraService
             }
 
             $compra->update(['estado' => Compra::ESTADO_COMPLETADA]);
+
+            // 6. Cta cte (RF-18) + pago (RF-19).
+            if ($compra->esNotaCredito()) {
+                $this->aplicarNotaCredito($compra, $usuarioId);
+            } else {
+                $this->ccProveedorService->registrarMovimientosCompra($compra, $usuarioId);
+                $this->registrarPagoInicial($compra, $pagoInicial, $usuarioId);
+            }
         });
 
         Log::info('Compra confirmada', [
@@ -208,26 +228,47 @@ class CompraService
     // ==================== Cancelación (RF-17/D17) ====================
 
     /**
-     * Cancela una compra completada: reversas de stock, costos (RF-07) y
-     * fiscal (patrón NC cross-período), todas por contraasiento.
+     * Cancela una compra completada: reversas de stock, costos (RF-07),
+     * fiscal (patrón NC cross-período) y cta cte, todas por contraasiento.
      *
-     * D17 (pagos aplicados: cascada o saldo a favor) llega con la Fase 5 —
-     * hasta entonces una compra con pagos no se puede cancelar.
+     * D17 — compra CON pagos aplicados: el usuario ELIGE con $manejoPagos:
+     *  - 'anular_pagos': cascada — se anula cada OP ENTERA (error de carga sin
+     *    plata real; si la OP tocaba otras compras, también les restaura el
+     *    saldo). Renglón de caja con turno cerrado ⇒ la cascada se bloquea.
+     *  - 'saldo_favor': la plata salió de verdad — lo pagado queda como saldo
+     *    a favor nuestro con el proveedor (las OP quedan activas).
      */
-    public function cancelarCompra(Compra $compra, int $usuarioId, ?string $motivo = null): Compra
+    public function cancelarCompra(Compra $compra, int $usuarioId, ?string $motivo = null, ?string $manejoPagos = null): Compra
     {
         if (! $compra->estaCompletada()) {
             throw new Exception(__('Solo se puede cancelar una compra completada'));
         }
 
-        if (round((float) $compra->saldo_pendiente, 2) !== round((float) $compra->total, 2)) {
-            // Hook D17 (Fase 5): elegir cascada de anulación de pagos o saldo a favor.
-            throw new Exception(__('La compra tiene pagos aplicados: la cancelación con pagos llega con la cuenta corriente de proveedores'));
+        $pagosAplicados = PagoProveedorCompra::where('compra_id', $compra->id)
+            ->whereHas('pagoProveedor', fn ($q) => $q->where('estado', 'activo'))
+            ->with('pagoProveedor')
+            ->get();
+
+        if ($pagosAplicados->isNotEmpty() && ! in_array($manejoPagos, ['anular_pagos', 'saldo_favor'], true)) {
+            throw new Exception(__('La compra tiene pagos aplicados: elegí anular los pagos en cascada o dejarlos como saldo a favor del proveedor (D17)'));
         }
 
-        $compra->load(['detalles']);
+        $compra->load(['detalles', 'proveedor', 'compraOrigen']);
 
-        DB::connection('pymes_tenant')->transaction(function () use ($compra, $usuarioId, $motivo) {
+        DB::connection('pymes_tenant')->transaction(function () use ($compra, $usuarioId, $motivo, $manejoPagos, $pagosAplicados) {
+            $motivoFinal = $motivo ?? __('Cancelación de compra');
+
+            // D17: resolver los pagos ANTES de las reversas.
+            if ($pagosAplicados->isNotEmpty()) {
+                if ($manejoPagos === 'anular_pagos') {
+                    foreach ($pagosAplicados->pluck('pagoProveedor')->unique('id') as $pagoProveedor) {
+                        $this->pagoProveedorService->anularPago($pagoProveedor->id, $motivoFinal, $usuarioId);
+                    }
+                } else {
+                    $this->ccProveedorService->convertirPagosASaldoFavor($compra, $motivoFinal, $usuarioId);
+                }
+            }
+
             // Reversa de stock (la cancelación de una NC repone lo devuelto).
             $this->moverStock($compra, $usuarioId, reversa: ! $compra->esNotaCredito(), cancelacion: true);
 
@@ -237,6 +278,14 @@ class CompraService
 
             $this->impuestoService->anularDesdeCompra($compra, $usuarioId);
 
+            // Cta cte: contraasiento del HABER de la compra (o del movimiento
+            // de la NC). Cancelar una NC además restaura el saldo de la origen.
+            $this->ccProveedorService->anularMovimientosCompra($compra, $motivoFinal, $usuarioId);
+
+            if ($compra->esNotaCredito() && $compra->compraOrigen !== null) {
+                $this->restaurarSaldoOrigenPorNcCancelada($compra);
+            }
+
             $compra->update([
                 'estado' => Compra::ESTADO_CANCELADA,
                 'saldo_pendiente' => 0,
@@ -244,7 +293,7 @@ class CompraService
             ]);
         });
 
-        Log::info('Compra cancelada', ['compra_id' => $compra->id, 'motivo' => $motivo]);
+        Log::info('Compra cancelada', ['compra_id' => $compra->id, 'motivo' => $motivo, 'manejo_pagos' => $manejoPagos]);
 
         return $compra->fresh();
     }
@@ -504,6 +553,110 @@ class CompraService
                 );
             }
         }
+    }
+
+    /**
+     * RF-21 lado cta cte: baja el saldo_pendiente de la compra origen hasta
+     * cubrirlo (con o sin cta cte — es el caché de deuda de la compra) y
+     * registra el movimiento de ledger si el proveedor tiene CC.
+     */
+    private function aplicarNotaCredito(Compra $nc, int $usuarioId): void
+    {
+        $total = (float) $nc->total;
+        $aplicado = 0.0;
+
+        $origen = $nc->compraOrigen !== null ? Compra::lockForUpdate()->find($nc->compra_origen_id) : null;
+
+        if ($origen !== null && (float) $origen->saldo_pendiente > 0) {
+            $aplicado = min($total, (float) $origen->saldo_pendiente);
+            $origen->update(['saldo_pendiente' => round((float) $origen->saldo_pendiente - $aplicado, 2)]);
+        }
+
+        $this->ccProveedorService->registrarMovimientosNotaCredito(
+            $nc,
+            round($aplicado, 2),
+            round($total - $aplicado, 2),
+            $usuarioId,
+        );
+    }
+
+    /**
+     * Cancelar una NC: lo que había bajado del saldo de la origen vuelve
+     * (hasta el total de la origen — nunca lo sobrepasa).
+     */
+    private function restaurarSaldoOrigenPorNcCancelada(Compra $nc): void
+    {
+        $movimientoNc = MovimientoCuentaCorrienteProveedor::where('compra_id', $nc->id)
+            ->where('tipo', MovimientoCuentaCorrienteProveedor::TIPO_NOTA_CREDITO)
+            ->orderBy('id')
+            ->first();
+
+        // Con ledger: lo aplicado es el DEBE del movimiento NC. Sin ledger
+        // (proveedor sin CC): estimar por total NC contra saldo actual.
+        $aplicado = $movimientoNc !== null
+            ? (float) $movimientoNc->debe
+            : (float) $nc->total;
+
+        if ($aplicado <= 0) {
+            return;
+        }
+
+        $origen = Compra::lockForUpdate()->find($nc->compra_origen_id);
+
+        if ($origen === null) {
+            return;
+        }
+
+        $nuevoSaldo = min((float) $origen->total, round((float) $origen->saldo_pendiente + $aplicado, 2));
+        $origen->update(['saldo_pendiente' => $nuevoSaldo]);
+    }
+
+    /**
+     * Pago al confirmar (RF-19): contado = fondos por el TOTAL; cta cte =
+     * pago inicial parcial opcional (0 < fondos < total). Se materializa como
+     * PagoProveedor aplicado a esta compra — un solo camino de escritura.
+     */
+    private function registrarPagoInicial(Compra $compra, array $pagoInicial, int $usuarioId): void
+    {
+        $pagos = $pagoInicial['pagos'] ?? [];
+        $saldoFavorUsado = round((float) ($pagoInicial['saldo_favor_usado'] ?? 0), 2);
+        $fondos = round(collect($pagos)->sum('monto') + $saldoFavorUsado, 2);
+        $esCtaCte = $compra->forma_pago === 'cta_cte';
+
+        if ($esCtaCte && ! $compra->proveedor?->tiene_cuenta_corriente) {
+            throw new Exception(__('El proveedor no tiene cuenta corriente habilitada: la compra debe ser de contado'));
+        }
+
+        if (! $esCtaCte) {
+            // Contado SIN datos de pago: queda completada con saldo pendiente
+            // (D11 — lo impago se deriva del saldo; se paga luego por la
+            // pantalla de pagos). CON datos, los fondos cubren el total exacto.
+            if ($fondos <= 0) {
+                return;
+            }
+
+            if (abs($fondos - (float) $compra->total) > 0.01) {
+                throw new Exception(__('Compra de contado: los fondos (:fondos) deben cubrir el total (:total)', [
+                    'fondos' => number_format($fondos, 2, ',', '.'),
+                    'total' => number_format((float) $compra->total, 2, ',', '.'),
+                ]));
+            }
+        } elseif ($fondos <= 0) {
+            return; // cta cte sin pago inicial: queda todo como deuda.
+        } elseif ($fondos >= (float) $compra->total) {
+            throw new Exception(__('El pago inicial debe ser MENOR al total (igual al total es una compra de contado)'));
+        }
+
+        $this->pagoProveedorService->registrarPago([
+            'sucursal_id' => $compra->sucursal_id,
+            'proveedor_id' => $compra->proveedor_id,
+            'usuario_id' => $usuarioId,
+            'caja_id' => $pagoInicial['caja_id'] ?? null,
+            'saldo_favor_usado' => $saldoFavorUsado,
+            'observaciones' => __('Pago al confirmar la compra :numero', ['numero' => $compra->numero_comprobante]),
+        ], [
+            ['compra_id' => $compra->id, 'monto_aplicado' => min($fondos, (float) $compra->total)],
+        ], $pagos);
     }
 
     /**

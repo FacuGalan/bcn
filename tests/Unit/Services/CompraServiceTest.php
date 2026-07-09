@@ -13,8 +13,6 @@ use App\Models\MovimientoStock;
 use App\Models\Proveedor;
 use App\Models\Stock;
 use App\Services\CompraService;
-use App\Services\CostoService;
-use App\Services\Fiscal\ImpuestoService;
 use Exception;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -41,7 +39,7 @@ class CompraServiceTest extends TestCase
         $this->setUpTenant();
         $this->setUpSucursal();
         $this->crearTiposIva();
-        $this->servicio = new CompraService(new CostoService, new ImpuestoService);
+        $this->servicio = app(CompraService::class);
         $this->proveedor = Proveedor::create(['nombre' => 'Proveedor Test '.uniqid(), 'activo' => true]);
         Impuesto::firstOrCreate(
             ['codigo' => 'iva_credito'],

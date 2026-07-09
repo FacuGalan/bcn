@@ -362,6 +362,23 @@ class MovimientoCaja extends Model
     }
 
     /**
+     * Egreso por pago a proveedor (espejo de crearIngresoCobro — spec
+     * compras-costos RF-19/D14: no había factory de egreso).
+     */
+    public static function crearEgresoPagoProveedor(Caja $caja, PagoProveedor $pago, float $monto, int $usuarioId): self
+    {
+        return static::create([
+            'caja_id' => $caja->id,
+            'tipo' => self::TIPO_EGRESO,
+            'concepto' => __('Pago a proveedor — OP :numero', ['numero' => $pago->numero]),
+            'monto' => $monto,
+            'usuario_id' => $usuarioId,
+            'referencia_tipo' => self::REF_PAGO_PROVEEDOR,
+            'referencia_id' => $pago->id,
+        ]);
+    }
+
+    /**
      * Crea un movimiento de apertura de caja
      */
     public static function crearApertura(Caja $caja, float $fondoInicial, int $usuarioId): self
