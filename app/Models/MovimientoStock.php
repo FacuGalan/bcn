@@ -75,6 +75,10 @@ class MovimientoStock extends Model
 
     public const TIPO_ANULACION_PEDIDO_MOSTRADOR = 'anulacion_pedido_mostrador';
 
+    public const TIPO_PEDIDO_DELIVERY = 'pedido_delivery';
+
+    public const TIPO_ANULACION_PEDIDO_DELIVERY = 'anulacion_pedido_delivery';
+
     // Tipos de documento
     public const DOC_VENTA = 'venta';
 
@@ -95,6 +99,10 @@ class MovimientoStock extends Model
     public const DOC_PEDIDO_MOSTRADOR = 'pedido_mostrador';
 
     public const DOC_PEDIDO_MOSTRADOR_DETALLE = 'pedido_mostrador_detalle';
+
+    public const DOC_PEDIDO_DELIVERY = 'pedido_delivery';
+
+    public const DOC_PEDIDO_DELIVERY_DETALLE = 'pedido_delivery_detalle';
 
     protected $fillable = [
         'articulo_id',
@@ -399,6 +407,41 @@ class MovimientoStock extends Model
             'documento_id' => $pedidoDetalleId,
             'concepto' => $concepto,
             'observaciones' => "Pedido #{$pedidoId}",
+            'costo_unitario' => $costoUnitario,
+            'estado' => 'activo',
+            'usuario_id' => $usuarioId,
+        ]);
+    }
+
+    /**
+     * Crea un movimiento de salida por pedido delivery/take-away. Espejo de
+     * crearMovimientoPedidoMostrador: no popula venta_id/venta_detalle_id;
+     * PedidoDeliveryService::convertirEnVenta() los reasigna al convertir.
+     */
+    public static function crearMovimientoPedidoDelivery(
+        int $articuloId,
+        int $sucursalId,
+        float $cantidad,
+        int $pedidoId,
+        int $pedidoDetalleId,
+        string $concepto,
+        int $usuarioId,
+        ?float $costoUnitario = null
+    ): self {
+        $stockResultante = static::calcularStockResultante($articuloId, $sucursalId, 0, $cantidad);
+
+        return static::create([
+            'articulo_id' => $articuloId,
+            'sucursal_id' => $sucursalId,
+            'fecha' => now()->toDateString(),
+            'tipo' => self::TIPO_PEDIDO_DELIVERY,
+            'entrada' => 0,
+            'salida' => $cantidad,
+            'stock_resultante' => $stockResultante,
+            'documento_tipo' => self::DOC_PEDIDO_DELIVERY_DETALLE,
+            'documento_id' => $pedidoDetalleId,
+            'concepto' => $concepto,
+            'observaciones' => "Pedido delivery #{$pedidoId}",
             'costo_unitario' => $costoUnitario,
             'estado' => 'activo',
             'usuario_id' => $usuarioId,

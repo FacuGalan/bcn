@@ -1,0 +1,232 @@
+# API v1 — Pedidos Delivery
+
+API REST del módulo de pedidos delivery/take-away (spec `pedidos-delivery`, RF-11).
+Base: `https://{host}/api/v1`. Todas las respuestas son JSON; los errores tienen
+forma uniforme:
+
+```json
+{ "error": { "code": "operacion_invalida", "message": "...", "details": null } }
+```
+
+| Código HTTP | `error.code` | Cuándo |
+|---|---|---|
+| 401 | `no_autenticado` / `no_autorizado` | Token faltante/inválido |
+| 403 | `sin_permiso` | Token sin la ability requerida |
+| 404 | `no_encontrado` / `tienda_no_encontrada` | Recurso o slug inexistente |
+| 422 | `validacion` | Payload inválido (`details` trae los campos) |
+| 422 | `operacion_invalida` | Regla de negocio (mensaje legible) |
+| 429 | — | Throttle superado |
+| 500 | `error_interno` | Error del servidor (sin detalle) |
+
+## Audiencias
+
+1. **Público por tienda** (sin auth, throttle 60/min): rutas bajo
+   `/v1/tiendas/{slug}/...`. El `slug` identifica comercio+sucursal (la tienda
+   es POR SUCURSAL).
+2. **Integración** (Bearer token, throttle 120/min): token emitido por el
+   comercio en *Configuración → Tokens de API* con **abilities**. La sucursal
+   se indica con el header `X-Sucursal-Id` (default: la principal).
+3. **Consumidores** (futuro, proyecto tienda): guard `consumidores` ya
+   provisto; el endpoint público de pedidos acepta opcionalmente su Bearer.
+
+### Abilities de los tokens de integración
+
+| Ability | Da acceso a |
+|---|---|
+| `pedidos:read` | `GET /pedidos-delivery`, `GET /pedidos-delivery/{id}` |
+| `pedidos:write` | `POST /pedidos-delivery`, `PATCH /pedidos-delivery/{id}` |
+| `config:read` | `GET /delivery/config`, `GET /repartidores` |
+| `catalogo:read` | (reservada para catálogo autenticado) |
+
+## Endpoints públicos (por slug)
+
+### `GET /v1/tiendas/{slug}`
+Datos públicos de la tienda: nombre, ubicación, si está abierta ahora,
+horarios/calendario, config de entrega, **contrato de promesa** y **formas de
+pago declarables**:
+
+```json
+{
+  "entrega": {
+    "modo_promesa": "franjas|automatica|manual",
+    "acepta_lo_antes_posible": true,
+    "demora_base_min": 20,        // solo modo automatica (estimación "~X min")
+    "demora_min_por_km": 5,       // solo modo automatica
+    "usa_franjas": false          // true ⇒ consultar GET /franjas
+  },
+  "formas_pago": [
+    { "id": 1, "nombre": "Efectivo", "codigo": "efectivo", "permite_vuelto": true }
+  ]
+}
+```
+
+`formas_pago` son las declarables **contra entrega/retiro** (el pago online
+integrado es otro circuito, pendiente en el spec de integraciones);
+`permite_vuelto: true` habilita el campo `paga_con` del alta de pedido.
+
+### `GET /v1/tiendas/{slug}/franjas?tipo=delivery|take_away`
+Horarios de entrega/retiro de la JORNADA con lugar (modo `franjas`):
+```json
+{ "modo_promesa": "franjas", "acepta_lo_antes_posible": true,
+  "franjas": [ { "hora": "2026-07-08T20:30:00-03:00", "label": "20:30" } ] }
+```
+Vacío si la sucursal no trabaja por franjas. El valor `hora` es el que se
+manda en `entrega.franja` del alta (la API rechaza horarios inventados o
+vencidos). Los cupos por franja llegan en Fase 8.
+
+### `GET /v1/tiendas/{slug}/catalogo?tipo=delivery|take_away`
+Catálogo visible según RF-17 (activo + vendible + visible en tienda +
+disponible para el tipo). Los **agotados vienen marcados** `"agotado": true,
+"pedible": false` — se muestran pero la API bloquea pedirlos. Los precios son
+FINALES (motor de precios del sistema: listas + promociones vigentes); los
+grupos de opcionales vienen con min/max/obligatorio.
+
+### `POST /v1/tiendas/{slug}/envios/cotizar`
+```json
+{ "latitud": -34.6037, "longitud": -58.3816, "hora_pactada": "2026-07-10 22:30:00" }
+```
+→ `{ alcance: "ok"|"fuera_de_alcance"|"desconocido", pedible, costo_envio,
+distancia_km, zona, demora_estimada_min }`. Fuera de alcance **no es
+pedible** por la API (el forzado es solo del panel).
+
+`hora_pactada` es opcional: evalúa las franjas de costo de la zona para ese
+momento (p. ej. envío más caro de noche); sin ella se cotiza para ahora.
+Las zonas son polígonos dibujados en la config: si la sucursal tiene zonas
+activas, ellas definen el alcance (fuera de todas ⇒ `fuera_de_alcance`);
+sin zonas rige el radio general con costo por km.
+
+### `POST /v1/tiendas/{slug}/carrito/cotizar`
+Cotización server-side del carrito completo — el contrato que la tienda
+muestra en el checkout. **Nunca calcular precios localmente.**
+```json
+{
+  "tipo": "delivery",
+  "items": [
+    { "articulo_id": 12, "cantidad": 2,
+      "opcionales": [{ "opcional_id": 5, "cantidad": 1 }] }
+  ],
+  "cupon_codigo": "PROMO10"
+}
+```
+→ items con promociones atribuidas, `subtotal`, `iva`, `descuento`,
+`total_final`, `cupon`, `desglose_iva`. El costo de envío va aparte (endpoint
+anterior) y lo suma el alta del pedido.
+
+### `POST /v1/tiendas/{slug}/pedidos`
+Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
+```json
+{
+  "cliente": { "nombre": "Juan", "telefono": "11...", "email": "j@x.com" },
+  "direccion": { "direccion": "Av. Siempreviva 742", "referencia": "3B",
+                 "latitud": -34.60, "longitud": -58.38, "localidad_id": null },
+  "entrega": { "lo_antes_posible": true },
+  "pago": { "forma_pago_id": 1, "paga_con": 20000 },
+  "observaciones": "sin cebolla",
+  "datos_fiscales": { "cuit": "20-...-3" }
+}
+```
+`entrega` (opcional — "¿cuándo lo querés?"):
+- `franja` (solo modo `franjas`): un `hora` de `GET /franjas`; inventada o
+  vencida → 422. Sin franja: default "lo antes posible" si la config lo
+  ofrece; si no, 422 pidiendo elegir.
+- `lo_antes_posible: true`: solo si `acepta_lo_antes_posible`; si no → 422.
+- Modo `automatica`: la hora la calcula el sistema por distancia. Modo
+  `manual` + aceptación manual: la pacta el comercio al aceptar.
+
+`pago` (opcional — "¿cómo pagás?"): declara el pago **contra entrega/retiro**
+como planificado (no cobra nada): `forma_pago_id` de `GET /tiendas/{slug}` y,
+si `permite_vuelto`, `paga_con` (efectivo con el que paga → el repartidor sale
+con el vuelto). `paga_con` menor al total → 422.
+
+Reglas:
+- Tienda cerrada (calendario/horarios) → 422.
+- Con georreferenciación activa: coordenadas obligatorias, fuera de alcance → 422.
+- Artículo agotado / no disponible para el tipo → 422 con el nombre.
+- Según la config de la sucursal el pedido entra **"por aceptar"**
+  (`por_aceptar: true`, sin número — el comercio lo confirma o rechaza) o
+  **confirmado** directo (aceptación automática).
+- Respuesta 201 con el pedido, incluido `token_seguimiento`.
+- Consumidor logueado (Bearer del guard consumidores): el pedido guarda su
+  identidad; el alta de cliente en el comercio depende de la política del
+  comercio. El `carrito/cotizar` con ese mismo Bearer cotiza con su cliente
+  (precios especiales) — checkout y pedido muestran el MISMO total.
+
+### `GET /v1/tiendas/{slug}/pedidos/{token_seguimiento}`
+Seguimiento público (el token ULID es la credencial): estado + label, hora
+pactada / `lo_antes_posible`, `demorado` (por aceptar con el timeout del
+comercio vencido), repartidor en camino, timestamps y el canal de tiempo real.
+
+**Máquina de estados del seguimiento** (render por `estado`; el `estado_label`
+ya viene resuelto por tipo):
+
+| `estado` | delivery | take_away |
+|---|---|---|
+| `borrador` + `por_aceptar` | esperando confirmación del comercio | ídem |
+| `confirmado` | confirmado | confirmado |
+| `en_preparacion` | en preparación | en preparación |
+| `listo` | listo para enviar (**salteable** si la sucursal no usa este paso) | listo (salteable) |
+| `en_camino` | en camino 🛵 (`repartidor_en_camino`) | **"Para retirar"** — el cliente pasa a buscarlo (`repartidor_en_camino` siempre null) |
+| `entregado` | entregado | retirado/entregado |
+| `cancelado` | con `cancelado_motivo` | ídem |
+
+El estado interno `facturado` (convertido en venta) **nunca se expone**: el
+GET lo devuelve como `entregado` y el canal de tiempo real no lo emite.
+Cualquier estado puede saltearse (p. ej. aceptación automática con comanda
+directa pasa confirmado→en_preparacion al toque): renderizar por progreso
+acumulado, no por secuencia estricta.
+
+### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`
+Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
+entre en preparación). Después, solo el comercio.
+
+## Endpoints de integración (Bearer + `X-Sucursal-Id`)
+
+### `GET /v1/pedidos-delivery` *(pedidos:read)*
+Listado paginado. Filtros query: `estado`, `tipo`, `origen`, `desde`, `hasta`,
+`per_page` (max 100). Respuesta `{ data: [...], meta: {...} }`.
+
+### `GET /v1/pedidos-delivery/{id}` *(pedidos:read)*
+
+### `POST /v1/pedidos-delivery` *(pedidos:write)*
+Alta con el mismo payload del endpoint público (origen `api` +
+`origen_referencia` del integrador). Respeta la aceptación configurada.
+
+### `PATCH /v1/pedidos-delivery/{id}` *(pedidos:write)*
+Modificaciones operativas puntuales:
+```json
+{ "estado": "en_preparacion|listo|en_camino|entregado",
+  "repartidor_id": 3, "observaciones": "...", "observacion_estado": "..." }
+```
+`en_camino` con repartidor asignado crea la salida de reparto implícita
+(mismo circuito que el panel); para **take-away** significa "listo para
+retirar" (sin salida). `entregado` sobre un pedido que está EN una salida de
+reparto → 422: la entrega de un pedido en la calle se registra con la VUELTA
+del repartidor desde el panel (ahí se cargan los cobros contra entrega).
+La edición completa del carrito es del panel.
+
+### `GET /v1/delivery/config` *(config:read)*
+Config operativa de la sucursal (horarios, radio, costos, aceptación, etc.).
+
+### `GET /v1/repartidores` *(config:read)*
+
+## Tiempo real (Reverb)
+
+- **Seguimiento público** (canal público, sin auth):
+  `pedidos-delivery.seguimiento.{token_seguimiento}` — evento
+  `SeguimientoActualizado` `{ estado, estado_label, repartidor,
+  hora_pactada_at, lo_antes_posible, at }` en cada cambio de estado de un
+  pedido externo (también cuando el comercio edita la hora pactada).
+- **Panel/integraciones** (canal privado del comercio):
+  `comercios.{comercioId}.pedidos-delivery` — evento `PedidoDeliveryBroadcast`
+  `{ pedidoId, sucursalId, tipo, at }` con tipos `creado`, `estado_cambiado`,
+  `pago_cambiado`, `cancelado`, `convertido_venta`.
+
+## Alta de una tienda (registro global)
+
+La tabla `config.tiendas` mapea `slug → comercio+sucursal` y habilita las
+rutas públicas. v1 se administra por consola/soporte:
+
+```php
+Tienda::create(['comercio_id' => 1, 'sucursal_id' => 2,
+                'slug' => 'mi-hamburgueseria', 'habilitada' => true]);
+```

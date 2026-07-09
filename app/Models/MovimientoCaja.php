@@ -98,6 +98,12 @@ class MovimientoCaja extends Model
 
     public const REF_ANULACION_PEDIDO_MOSTRADOR = 'anulacion_pedido_mostrador';
 
+    public const REF_PEDIDO_DELIVERY = 'pedido_delivery';
+
+    public const REF_ANULACION_PEDIDO_DELIVERY = 'anulacion_pedido_delivery';
+
+    public const REF_FONDO_REPARTIDOR = 'fondo_repartidor';
+
     // ==================== Relaciones ====================
 
     public function caja(): BelongsTo

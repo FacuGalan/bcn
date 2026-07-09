@@ -313,6 +313,11 @@ class PedidoMostradorServiceTest extends TestCase
         $this->assertEquals($ventaPago->id, $pagoPedido->fresh()->venta_pago_id);
 
         Event::assertDispatched(PedidoConvertidoEnVenta::class);
+
+        // D20 (spec pedidos-delivery): la venta persiste su origen polimórfico
+        // también en mostrador (morphMap 'PedidoMostrador').
+        $this->assertEquals('PedidoMostrador', $venta->fresh()->origen_type);
+        $this->assertEquals($pedido->id, (int) $venta->fresh()->origen_id);
     }
 
     public function test_convertir_pedido_borrador_lanza_excepcion(): void

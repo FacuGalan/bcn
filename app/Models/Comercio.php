@@ -26,9 +26,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
  * @property-read \Illuminate\Database\Eloquent\Collection|\App\Models\User[] $users Usuarios asociados
  * @property-read int $users_count Cantidad de usuarios asociados
  */
-class Comercio extends Model
+class Comercio extends Model implements \Illuminate\Contracts\Auth\Authenticatable
 {
     use HasFactory;
+
+    // HasApiTokens + Authenticatable: tokens de integración de la API v1
+    // (pedidos-delivery RF-11) emitidos POR COMERCIO con abilities. El guard
+    // de Sanctum exige que el tokenable sea Authenticatable ($request->user()
+    // devuelve el Comercio). Viven en config.personal_access_tokens.
+    use \Illuminate\Auth\Authenticatable;
+    use \Laravel\Sanctum\HasApiTokens;
 
     /**
      * Conexión de base de datos a utilizar
@@ -56,6 +63,8 @@ class Comercio extends Model
         'prefijo',
         'max_usuarios',
         'rubro',
+        'rubro_id',
+        'tienda_alta_cliente_automatica',
     ];
 
     public const RUBRO_GASTRONOMIA = 'gastronomia';
@@ -78,6 +87,7 @@ class Comercio extends Model
     protected $casts = [
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'tienda_alta_cliente_automatica' => 'boolean',
     ];
 
     /**

@@ -883,7 +883,7 @@ trait WithPagosDesglose
         if ($fp['es_moneda_extranjera'] ?? false) {
             $totalVenta = $this->resultado['total_final'] ?? 0;
             $ajuste = $this->ajusteFormaPagoInfo['porcentaje'];
-            $montoAjuste = round($totalVenta * ($ajuste / 100), 2);
+            $montoAjuste = round($this->baseAjustePagoDesglose((float) $totalVenta) * ($ajuste / 100), 2);
             // El total a pagar incluye la percepción fiscal (Fase 5b): se inyecta en
             // el pago al procesar, pero el cliente la paga ahora → mostrarla en el modal.
             $totalConAjuste = round($totalVenta + $montoAjuste + ($this->percepcionMonto ?? 0), 2);
@@ -1301,7 +1301,8 @@ trait WithPagosDesglose
         //   el ajuste FP es $95 (10% sobre $950), no $100. El cliente percibe
         //   primero el desc gral y luego el recargo de la tarjeta sobre el neto.
         $ajuste = $fp['ajuste_porcentaje'];
-        $montoAjuste = round($montoParaBase * ($ajuste / 100), 2);
+        $baseAjuste = $this->baseAjustePagoDesglose($montoParaBase);
+        $montoAjuste = round($baseAjuste * ($ajuste / 100), 2);
         $montoConAjuste = round($montoParaBase + $montoAjuste, 2);
 
         // Calcular cuotas si aplica
@@ -1313,7 +1314,7 @@ trait WithPagosDesglose
             $cuotaConfig = collect($fp['cuotas'])->firstWhere('cantidad', $cuotas);
             if ($cuotaConfig) {
                 $recargoCuotas = $cuotaConfig['recargo'];
-                $montoRecargoCuotas = round($montoConAjuste * ($recargoCuotas / 100), 2);
+                $montoRecargoCuotas = round(($baseAjuste + $montoAjuste) * ($recargoCuotas / 100), 2);
                 $montoFinal = round($montoConAjuste + $montoRecargoCuotas, 2);
             }
         }
@@ -1368,6 +1369,17 @@ trait WithPagosDesglose
         if ($this->montoPendienteDesglose > 0.01) {
             $this->dispatch('focus-busqueda-fp');
         }
+    }
+
+    /**
+     * Base sobre la que se calcula el ajuste % (y el recargo de cuotas) de un
+     * pago del desglose. Hook overrideable por el host: delivery excluye
+     * proporcionalmente el costo de envío (valor fijo, sin recargos ni
+     * descuentos por forma de pago). Default: el monto completo.
+     */
+    protected function baseAjustePagoDesglose(float $montoBase): float
+    {
+        return $montoBase;
     }
 
     /**
@@ -1669,7 +1681,7 @@ trait WithPagosDesglose
 
         // Calcular base sin ajuste para registro correcto
         $totalBase = $this->resultado['total_final'] ?? 0;
-        $montoAjuste = round($totalBase * ($ajuste / 100), 2);
+        $montoAjuste = round($this->baseAjustePagoDesglose((float) $totalBase) * ($ajuste / 100), 2);
 
         $this->desglosePagos = [[
             'forma_pago_id' => $fp['id'],

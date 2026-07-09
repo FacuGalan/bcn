@@ -1,0 +1,1084 @@
+{{-- Modal Full-Screen con margen mínimo: Alta/Edición de Pedido Delivery --}}
+{{-- En modo "cobro rapido" no renderizamos el editor full-screen — solo se
+     monta el modal de desglose (_modal-pago-mixto) superpuesto sobre el
+     listado de pedidos. El componente sigue cargando todos sus traits para
+     reusar la logica de calculo, pero la UI visible es solo el modal.
+     Wrapper <div> raiz comun para garantizar el tag root que requiere
+     Livewire (los modales internos pueden estar cerrados y no emitir
+     ningun tag HTML). --}}
+<div data-livewire-root="nuevo-pedido-delivery">
+@if($modoCobroRapido)
+    @include("livewire.carrito._modal-pago-mixto")
+    @include("livewire.carrito._modal-moneda-extranjera")
+    @include("livewire.carrito._modal-vuelto")
+    @include("livewire.carrito._modal-esperando-pago-integracion")
+    @include("livewire.carrito._boton-pantalla-cliente")
+@else
+<div class="fixed inset-0 z-40 bg-black/40 flex items-stretch justify-center p-2 sm:p-3"
+    x-data="{
+        _stackId: null,
+        init() {
+            window._bcnModalStack = window._bcnModalStack || [];
+            this._stackId = Symbol();
+            window._bcnModalStack.push(this._stackId);
+            document.body.classList.add('overflow-hidden');
+        },
+        destroy() {
+            if (this._stackId && window._bcnModalStack) {
+                window._bcnModalStack = window._bcnModalStack.filter(id => id !== this._stackId);
+            }
+            if (!(window._bcnModalStack || []).length) {
+                document.body.classList.remove('overflow-hidden');
+            }
+        }
+    }"
+    @keydown.escape.window="$wire.cerrar()"
+    @keydown.window="
+        const modalAbierto = $wire.mostrarModalPago || $wire.mostrarModalMonedaExtranjera || $wire.mostrarModalVuelto || $wire.mostrarModalEsperandoPago || $wire.showModalDescuentos || $wire.mostrarModalConcepto || $wire.mostrarConfirmLimpiar;
+        if ($event.key === 'F2' && !modalAbierto) { $event.preventDefault(); $wire.confirmarPedido(); }
+        if ($event.key === 'F3' && !modalAbierto) { $event.preventDefault(); $wire.confirmarSinCobrar(); }
+        if ($event.key === 'F4' && !modalAbierto) { $event.preventDefault(); $wire.abrirModalDescuentos(); }
+        if ($event.ctrlKey && $event.key === '1') { $event.preventDefault(); $dispatch('focus-busqueda'); }
+        if ($event.ctrlKey && $event.key === '6') { $event.preventDefault(); $dispatch('focus-cliente'); }
+        if ($event.ctrlKey && ($event.key === 'g' || $event.key === 'G') && !modalAbierto && (!$wire.modoEdicion || $wire.estadoPedidoActual === 'borrador')) { $event.preventDefault(); $wire.guardarBorrador(); }
+    "
+>
+    <div class="w-full bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-lg shadow-2xl">
+    {{-- Header naranja --}}
+    <div class="bg-bcn-primary text-white px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-shrink-0 rounded-t-lg">
+        <h2 class="text-base sm:text-lg font-bold flex items-center gap-2 flex-wrap">
+            @if($modoEdicion)
+                {{ __('Editar Pedido Delivery') }} #{{ $pedidoId }}
+                @if($estadoPedidoActual)
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">
+                        {{ __(ucfirst($estadoPedidoActual)) }}
+                    </span>
+                @endif
+            @else
+                {{ __('Nuevo Pedido Delivery') }}
+            @endif
+            <span class="px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">
+                {{ __(\App\Models\PedidoDelivery::TIPOS[$tipo] ?? $tipo) }}
+            </span>
+        </h2>
+        <button type="button" wire:click="cerrar" class="text-white/80 hover:text-white flex-shrink-0"
+            title="{{ __('Cerrar') }} (Esc)">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+        </button>
+    </div>
+
+    {{-- Cuerpo: layout 2 columnas --}}
+    <div class="flex-1 overflow-hidden flex flex-col lg:flex-row gap-3 p-3 sm:p-4 min-h-0">
+        {{-- Columna izquierda: búsqueda (siempre) + toggle Detalle/Táctil --}}
+        <div class="flex-1 flex flex-col gap-2 min-h-0 lg:min-w-0"
+            x-data="{
+                tactil: @entangle('panelTactilAbierto').live,
+                catalogo: @js($catalogoTactil),
+                categoriaSel: null,
+                init() {
+                    // Preseleccionar la primera categoría disponible
+                    if (this.catalogo.length > 0) {
+                        this.categoriaSel = this.catalogo[0].id;
+                    }
+                },
+                categoriaActual() {
+                    if (!this.categoriaSel) return null;
+                    return this.catalogo.find(c => c.id === this.categoriaSel) || null;
+                },
+                articulosCategoria() {
+                    const cat = this.categoriaActual();
+                    return cat ? cat.articulos : [];
+                },
+                seleccionar(id) {
+                    $wire.seleccionarArticulo(id);
+                    $nextTick(() => $dispatch('focus-busqueda'));
+                }
+            }"
+            @keydown.window.ctrl.b.prevent="tactil = !tactil"
+        >
+            {{-- Búsqueda / scan (siempre visible) --}}
+            @include('livewire.carrito._busqueda-articulos', ['atajoBusqueda' => 'Ctrl+1'])
+
+            {{-- Toggle Panel táctil / Detalle (panel táctil primero) --}}
+            <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-1 flex gap-1">
+                <button type="button" @click="tactil = true"
+                    :class="tactil ? 'bg-bcn-primary text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    class="flex-1 inline-flex justify-center items-center px-3 py-1.5 rounded text-xs font-medium transition-colors">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                    </svg>
+                    {{ __('Panel táctil') }}
+                    <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-black/20 rounded">Ctrl+B</kbd>
+                </button>
+                <button type="button" @click="tactil = false"
+                    :class="!tactil ? 'bg-bcn-primary text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'"
+                    class="flex-1 inline-flex justify-center items-center px-3 py-1.5 rounded text-xs font-medium transition-colors">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/>
+                    </svg>
+                    {{ __('Detalle') }}
+                </button>
+            </div>
+
+            {{-- Vista DETALLE (con promociones aplicadas debajo) --}}
+            <div x-show="!tactil" x-transition.opacity class="flex-1 flex flex-col gap-2 min-h-0">
+                @include('livewire.carrito._detalle-items')
+                @include('livewire.carrito._promociones-aplicadas')
+            </div>
+
+            {{-- Vista PANEL TÁCTIL: categorías a la izquierda + grilla artículos a la derecha --}}
+            <div x-show="tactil" x-transition.opacity
+                class="flex-1 flex flex-row min-h-0 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+
+                {{-- Columna lateral: categorías con scroll vertical e indicadores estilo header --}}
+                <div
+                    x-data="{
+                        canScrollUp: false,
+                        canScrollDown: false,
+                        autoScrollFrame: null,
+                        autoScrollDelta: 0,
+                        init() {
+                            this.$nextTick(() => this.updateScrollState());
+                            this.$refs.catScroller.addEventListener('scroll', () => this.updateScrollState(), { passive: true });
+                            new ResizeObserver(() => this.updateScrollState()).observe(this.$refs.catScroller);
+                        },
+                        updateScrollState() {
+                            const el = this.$refs.catScroller;
+                            if (!el) return;
+                            this.canScrollUp = el.scrollTop > 0;
+                            this.canScrollDown = el.scrollTop < (el.scrollHeight - el.clientHeight - 1);
+                        },
+                        handleMouseMove(e) {
+                            const el = this.$refs.catScroller;
+                            const rect = el.getBoundingClientRect();
+                            const y = e.clientY - rect.top;
+                            const edge = 50;
+                            const max = 8;
+                            if (y < edge && this.canScrollUp) {
+                                this.autoScrollDelta = -max * (1 - y / edge);
+                                this.startAutoScroll();
+                            } else if (y > rect.height - edge && this.canScrollDown) {
+                                this.autoScrollDelta = max * (1 - (rect.height - y) / edge);
+                                this.startAutoScroll();
+                            } else {
+                                this.stopAutoScroll();
+                            }
+                        },
+                        startAutoScroll() {
+                            if (this.autoScrollFrame !== null) return;
+                            const tick = () => {
+                                if (this.autoScrollDelta === 0) {
+                                    this.autoScrollFrame = null;
+                                    return;
+                                }
+                                this.$refs.catScroller.scrollTop += this.autoScrollDelta;
+                                this.autoScrollFrame = requestAnimationFrame(tick);
+                            };
+                            this.autoScrollFrame = requestAnimationFrame(tick);
+                        },
+                        stopAutoScroll() {
+                            this.autoScrollDelta = 0;
+                            if (this.autoScrollFrame !== null) {
+                                cancelAnimationFrame(this.autoScrollFrame);
+                                this.autoScrollFrame = null;
+                            }
+                        }
+                    }"
+                    @mousemove="handleMouseMove($event)"
+                    @mouseleave="stopAutoScroll()"
+                    class="relative w-[100px] flex-shrink-0 bg-gray-50 dark:bg-gray-700 border-r border-gray-200 dark:border-gray-600"
+                >
+                    {{-- Indicador superior de scroll --}}
+                    <div
+                        x-show="canScrollUp"
+                        x-cloak
+                        x-transition.opacity
+                        class="absolute top-0 inset-x-0 flex justify-center items-start pt-1 pointer-events-none h-6 bg-gradient-to-b from-gray-50 dark:from-gray-700 to-transparent z-10"
+                    >
+                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" />
+                        </svg>
+                    </div>
+
+                    {{-- Indicador inferior de scroll --}}
+                    <div
+                        x-show="canScrollDown"
+                        x-cloak
+                        x-transition.opacity
+                        class="absolute bottom-0 inset-x-0 flex justify-center items-end pb-1 pointer-events-none h-6 bg-gradient-to-t from-gray-50 dark:from-gray-700 to-transparent z-10"
+                    >
+                        <svg class="w-4 h-4 text-gray-500 dark:text-gray-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+
+                    <div x-ref="catScroller"
+                        class="h-full overflow-y-auto p-1.5 space-y-1.5 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar]:h-1 [scrollbar-width:thin]">
+                        <template x-for="cat in catalogo" :key="cat.id">
+                            <button type="button"
+                                @click="categoriaSel = cat.id"
+                                :class="categoriaSel === cat.id ? 'ring-2 ring-offset-1 ring-bcn-primary shadow-md' : 'opacity-90 hover:opacity-100 hover:shadow'"
+                                :style="categoriaSel === cat.id
+                                    ? `background-color: ${cat.color}; color: white;`
+                                    : `background-color: ${cat.color}1F; color: ${cat.color};`"
+                                class="relative w-full aspect-square rounded-md p-1.5 flex flex-col items-center justify-center gap-1 transition-all">
+                                {{-- Contador de artículos --}}
+                                <span class="absolute top-1 right-1 text-[9px] font-bold leading-none px-1.5 py-0.5 rounded-full bg-white/80 dark:bg-gray-900/70"
+                                    :style="`color: ${cat.color};`"
+                                    x-text="cat.articulos.length"></span>
+                                {{-- Ícono Heroicon pre-renderizado (con fallback si no tiene) --}}
+                                <div class="flex items-center justify-center"
+                                    x-html="cat.icono_svg || `<svg class='w-6 h-6' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M4 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM4 14a2 2 0 012-2h12a2 2 0 012 2v4a2 2 0 01-2 2H6a2 2 0 01-2-2v-4z'/></svg>`">
+                                </div>
+                                <div class="text-[10px] font-semibold text-center leading-tight line-clamp-2"
+                                    x-text="cat.nombre"></div>
+                            </button>
+                        </template>
+                        <template x-if="catalogo.length === 0">
+                            <div class="px-1 py-4 text-[10px] italic text-gray-500 text-center">
+                                {{ __('Sin categorías con artículos') }}
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                {{-- Grilla de artículos: foto/ícono compacto arriba + info abajo --}}
+                {{-- Wrapper Alpine para indicadores de scroll + auto-scroll por hover (mismo patrón que la columna de categorías). --}}
+                <div
+                    x-data="{
+                        canScrollUp: false,
+                        canScrollDown: false,
+                        autoScrollFrame: null,
+                        autoScrollDelta: 0,
+                        init() {
+                            this.$nextTick(() => this.updateScrollState());
+                            this.$refs.artScroller.addEventListener('scroll', () => this.updateScrollState(), { passive: true });
+                            new ResizeObserver(() => this.updateScrollState()).observe(this.$refs.artScroller);
+                            // Recalcular cuando cambia la categoría seleccionada (otra cantidad de artículos).
+                            this.$watch('categoriaSel', () => this.$nextTick(() => {
+                                this.$refs.artScroller.scrollTop = 0;
+                                this.updateScrollState();
+                            }));
+                        },
+                        updateScrollState() {
+                            const el = this.$refs.artScroller;
+                            if (!el) return;
+                            this.canScrollUp = el.scrollTop > 0;
+                            this.canScrollDown = el.scrollTop < (el.scrollHeight - el.clientHeight - 1);
+                        },
+                        handleMouseMove(e) {
+                            const el = this.$refs.artScroller;
+                            const rect = el.getBoundingClientRect();
+                            const y = e.clientY - rect.top;
+                            const edge = 60;
+                            const max = 10;
+                            if (y < edge && this.canScrollUp) {
+                                this.autoScrollDelta = -max * (1 - y / edge);
+                                this.startAutoScroll();
+                            } else if (y > rect.height - edge && this.canScrollDown) {
+                                this.autoScrollDelta = max * (1 - (rect.height - y) / edge);
+                                this.startAutoScroll();
+                            } else {
+                                this.stopAutoScroll();
+                            }
+                        },
+                        startAutoScroll() {
+                            if (this.autoScrollFrame !== null) return;
+                            const tick = () => {
+                                if (this.autoScrollDelta === 0) {
+                                    this.autoScrollFrame = null;
+                                    return;
+                                }
+                                this.$refs.artScroller.scrollTop += this.autoScrollDelta;
+                                this.autoScrollFrame = requestAnimationFrame(tick);
+                            };
+                            this.autoScrollFrame = requestAnimationFrame(tick);
+                        },
+                        stopAutoScroll() {
+                            this.autoScrollDelta = 0;
+                            if (this.autoScrollFrame !== null) {
+                                cancelAnimationFrame(this.autoScrollFrame);
+                                this.autoScrollFrame = null;
+                            }
+                        }
+                    }"
+                    @mousemove="handleMouseMove($event)"
+                    @mouseleave="stopAutoScroll()"
+                    class="relative flex-1 min-w-0"
+                >
+                    {{-- Indicador superior de scroll --}}
+                    <div
+                        x-show="canScrollUp"
+                        x-cloak
+                        x-transition.opacity
+                        class="absolute top-0 inset-x-0 flex justify-center items-start pt-1 pointer-events-none h-8 bg-gradient-to-b from-white dark:from-gray-900 to-transparent z-10"
+                    >
+                        <svg class="w-5 h-5 text-gray-500 dark:text-gray-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 15l7-7 7 7" />
+                        </svg>
+                    </div>
+
+                    {{-- Indicador inferior de scroll --}}
+                    <div
+                        x-show="canScrollDown"
+                        x-cloak
+                        x-transition.opacity
+                        class="absolute bottom-0 inset-x-0 flex justify-center items-end pb-1 pointer-events-none h-8 bg-gradient-to-t from-white dark:from-gray-900 to-transparent z-10"
+                    >
+                        <svg class="w-5 h-5 text-gray-500 dark:text-gray-300 drop-shadow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+
+                    <div x-ref="artScroller"
+                        class="h-full overflow-y-auto p-2 [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar]:h-1 [scrollbar-width:thin]">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                        <template x-for="art in articulosCategoria()" :key="art.id">
+                            <button type="button" @click="seleccionar(art.id)"
+                                class="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-600 rounded-md overflow-hidden text-left hover:border-bcn-primary hover:shadow active:scale-95 transition-all flex flex-col">
+                                {{-- Foto del artículo (cuando exista) o ícono de la categoría como fallback. Aspect 4:3 para que la card no quede muy alta. --}}
+                                <div class="relative aspect-[4/3] w-full flex items-center justify-center"
+                                    :style="`background-color: ${categoriaActual()?.color || '#9CA3AF'}14;`">
+                                    <template x-if="art.imagen_url">
+                                        <img :src="art.imagen_url" :alt="art.nombre"
+                                            :style="`object-position: ${art.imagen_focal || '50% 50%'};`"
+                                            class="w-full h-full object-cover" />
+                                    </template>
+                                    <template x-if="!art.imagen_url">
+                                        <div class="opacity-60"
+                                            :style="`color: ${categoriaActual()?.color || '#6B7280'};`"
+                                            x-html="categoriaActual()?.icono_svg || `<svg class='w-8 h-8' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4'/></svg>`">
+                                        </div>
+                                    </template>
+                                    {{-- Código como overlay en esquina inferior izquierda. Fondo oscuro semi-transparente para que se lea sobre cualquier imagen. --}}
+                                    <template x-if="art.codigo">
+                                        <span class="absolute bottom-1 left-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-semibold text-white bg-black/60 backdrop-blur-sm leading-none tracking-wide"
+                                            x-text="art.codigo"></span>
+                                    </template>
+                                </div>
+                                {{-- Info compacta abajo --}}
+                                <div class="px-1.5 py-1 flex-shrink-0">
+                                    <div class="text-xs font-semibold text-gray-900 dark:text-white truncate leading-tight" x-text="art.nombre"></div>
+                                    <div class="flex items-center justify-between gap-1 mt-0.5">
+                                        {{-- Badges: pesable y/o tiene opcionales. Reemplazan al código (ahora en overlay). --}}
+                                        <div class="flex items-center gap-1 min-h-[14px]">
+                                            <template x-if="art.es_pesable">
+                                                <span class="inline-flex items-center text-[9px] text-amber-700 dark:text-amber-400 font-semibold leading-none"
+                                                    title="{{ __('Pesable') }}">⚖️</span>
+                                            </template>
+                                            <template x-if="art.tiene_opcionales">
+                                                <span class="inline-flex items-center text-blue-700 dark:text-blue-400 leading-none"
+                                                    title="{{ __('Con opcionales') }}">
+                                                    <x-heroicon-o-adjustments-horizontal class="w-3 h-3" />
+                                                </span>
+                                            </template>
+                                        </div>
+                                        <span class="text-xs font-bold text-bcn-primary whitespace-nowrap" x-text="'$' + Number(art.precio).toLocaleString('es-AR', { minimumFractionDigits: 2 })"></span>
+                                    </div>
+                                </div>
+                            </button>
+                        </template>
+                        <template x-if="articulosCategoria().length === 0">
+                            <div class="col-span-full py-8 text-center text-sm text-gray-500 dark:text-gray-400 italic">
+                                {{ __('Seleccioná una categoría para ver los artículos') }}
+                            </div>
+                        </template>
+                    </div>
+                    </div>{{-- /artScroller --}}
+                </div>{{-- /wrapper Alpine de artículos --}}
+            </div>{{-- /panel táctil flex-row --}}
+        </div>{{-- /columna izquierda del modal --}}
+
+        {{-- Columna derecha: contenido scrolleable + footer fijo --}}
+        <div class="w-full lg:w-96 lg:flex-shrink-0 flex flex-col min-h-0 gap-2">
+            {{-- Contenido scrolleable. Inputs compactos al estilo NuevaVenta. --}}
+            <div class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
+                {{-- Tipo de pedido (RF-02): segmented control --}}
+                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-1 flex gap-1">
+                    <button type="button" wire:click="$set('tipo', 'delivery')"
+                        class="flex-1 inline-flex justify-center items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors {{ $tipo === 'delivery' ? 'bg-cyan-600 text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
+                        </svg>
+                        {{ __('Delivery') }}
+                    </button>
+                    @if($takeawayHabilitado)
+                        <button type="button" wire:click="$set('tipo', 'take_away')"
+                            class="flex-1 inline-flex justify-center items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors {{ $tipo === 'take_away' ? 'bg-violet-600 text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/>
+                            </svg>
+                            {{ __('Para llevar') }}
+                        </button>
+                    @endif
+                </div>
+
+                {{-- Cliente (reutilizado) --}}
+                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2">
+                    @include('livewire.carrito._busqueda-cliente', ['atajoCliente' => 'Ctrl+6'])
+
+                    @unless($clienteSeleccionado)
+                        {{-- Cliente temporal (RF-17): nombre+teléfono en una sola fila --}}
+                        <div class="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1.5">
+                            <div class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                {{ __('O datos temporales') }}
+                            </div>
+                            <div class="grid grid-cols-2 gap-1.5">
+                                <input type="text" wire:model.live.debounce.300ms="nombreClienteTemporal"
+                                    placeholder="{{ __('Nombre') }}"
+                                    class="block w-full pl-2 pr-2 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
+                                <input type="text" wire:model.live.debounce.300ms="telefonoClienteTemporal"
+                                    placeholder="{{ __('Teléfono (opcional)') }}"
+                                    class="block w-full pl-2 pr-2 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
+                            </div>
+                            <div class="text-[10px] text-gray-400 dark:text-gray-500">
+                                {{ __('Si lo dejás vacío se registra como "Consumidor final".') }}
+                            </div>
+                        </div>
+                    @endunless
+                </div>
+
+                {{-- Dirección de entrega + envío (RF-04/RF-06, solo delivery) --}}
+                @if($tipo === 'delivery')
+                    <div class="bg-white dark:bg-gray-800 rounded-md border {{ $direccionEntrega ? 'border-gray-200 dark:border-gray-700' : 'border-orange-300 dark:border-orange-700' }} p-2 space-y-1.5">
+                        <div class="flex items-center justify-between gap-2">
+                            <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                {{ __('Dirección de entrega') }} <span class="text-red-500">*</span>
+                            </label>
+                            <button type="button" wire:click="abrirModalDireccion"
+                                class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded border border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-50 dark:hover:bg-cyan-900/30">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                                </svg>
+                                {{ $direccionEntrega ? __('Cambiar') : __('Cargar') }}
+                            </button>
+                        </div>
+
+                        @if($direccionEntrega)
+                            <div class="text-xs text-gray-800 dark:text-gray-200">
+                                {{ $direccionEntrega }}
+                                @if($direccionReferencia)
+                                    <span class="text-gray-500 dark:text-gray-400">— {{ $direccionReferencia }}</span>
+                                @endif
+                            </div>
+                            <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px]">
+                                @if($alcanceEnvio === 'fuera_de_alcance')
+                                    <span class="font-semibold text-red-600 dark:text-red-400">{{ __('Fuera de alcance') }}</span>
+                                @elseif($alcanceEnvio === 'ok')
+                                    <span class="text-emerald-600 dark:text-emerald-400">{{ __('Dentro del alcance') }}</span>
+                                @else
+                                    <span class="text-gray-400 dark:text-gray-500">{{ __('Sin coordenadas (costo manual)') }}</span>
+                                @endif
+                                @if($zonaEnvioNombre)
+                                    <span class="text-teal-700 dark:text-teal-300">{{ __('Zona') }}: {{ $zonaEnvioNombre }}</span>
+                                @endif
+                                @if($distanciaKm !== null)
+                                    <span class="text-gray-500 dark:text-gray-400">{{ number_format($distanciaKm, 1, ',', '.') }} km</span>
+                                @endif
+                            </div>
+                        @else
+                            <p class="text-[11px] text-orange-600 dark:text-orange-400">{{ __('Sin dirección: se pide al confirmar') }}</p>
+                        @endif
+
+                        {{-- Costo de envío editable (D7) --}}
+                        <div class="flex items-center gap-2 pt-1 border-t border-gray-100 dark:border-gray-700">
+                            <label class="text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ __('Envío') }} $</label>
+                            <input type="number" step="0.01" min="0" wire:model.live.debounce.500ms="costoEnvio"
+                                class="block w-24 pl-2 pr-1 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
+                            @if($costoEnvioManual)
+                                <span class="text-[10px] text-amber-600 dark:text-amber-400">{{ __('manual') }}</span>
+                                <button type="button" wire:click="recotizarEnvio"
+                                    class="text-[11px] text-bcn-primary hover:underline">{{ __('Recotizar') }}</button>
+                            @endif
+                        </div>
+
+                        {{-- Entregar en otra dirección (D6: no actualiza al cliente) --}}
+                        @if($clienteSeleccionado)
+                            <label class="inline-flex items-center gap-1.5 cursor-pointer">
+                                <input type="checkbox" wire:model="entregarEnOtraDireccion"
+                                    class="rounded border-gray-300 dark:border-gray-600 text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5" />
+                                <span class="text-[11px] text-gray-600 dark:text-gray-300">{{ __('Entregar en otra dirección (no guardar en el cliente)') }}</span>
+                            </label>
+                        @endif
+                    </div>
+                @endif
+
+                {{-- Promesa de entrega (RF-15 core: automática por km / manual con botones) --}}
+                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-1.5">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                            {{ $tipo === 'take_away' ? __('Listo para retirar') : __('Entrega estimada') }}
+                        </label>
+                        @if($this->horaPactadaEstimada)
+                            <span class="inline-flex items-center gap-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300"
+                                @unless($this->horaPactadaEstimada->isToday()) title="{{ __('Madrugada del día siguiente') }}" @endunless>
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                {{ ($modoPromesa === 'franjas' ? '' : '~').$this->horaPactadaEstimada->format($this->horaPactadaEstimada->isToday() ? 'H:i' : 'd/m H:i') }}
+                            </span>
+                        @elseif($franjaSeleccionada === 'asap' || $demoraSeleccionadaMin === 0)
+                            <span class="text-xs font-semibold text-cyan-700 dark:text-cyan-300">{{ __('Lo antes posible') }}</span>
+                        @endif
+                    </div>
+
+                    @if($modoPromesa === 'franjas')
+                        @if(!empty($franjasDisponibles) || $aceptaLoAntesPosible)
+                            <div class="grid grid-cols-4 gap-1 max-h-32 overflow-y-auto">
+                                @if($aceptaLoAntesPosible)
+                                    <button type="button" wire:click="seleccionarFranja('asap')"
+                                        class="col-span-2 px-1 py-1 border rounded-md text-[11px] font-semibold transition-colors {{ $franjaSeleccionada === 'asap'
+                                            ? 'bg-cyan-600 border-cyan-600 text-white shadow'
+                                            : 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white' }}">
+                                        {{ __('Lo antes posible') }}
+                                    </button>
+                                @endif
+                                @foreach($franjasDisponibles as $franja)
+                                    <button type="button" wire:click="seleccionarFranja('{{ $franja['iso'] }}')"
+                                        @if(!empty($franja['manana'])) title="{{ __('Madrugada del día siguiente') }}" @endif
+                                        class="px-1 py-1 border rounded-md text-[11px] font-semibold transition-colors {{ $franjaSeleccionada === $franja['iso']
+                                            ? 'bg-cyan-600 border-cyan-600 text-white shadow'
+                                            : 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white' }}">
+                                        {{ $franja['label'] }}@if(!empty($franja['manana']))<sup class="font-bold">+1</sup>@endif
+                                    </button>
+                                @endforeach
+                            </div>
+                            <p class="text-[11px] text-gray-400 dark:text-gray-500">
+                                {{ __('Elegí el horario de entrega pactado con el cliente.') }}
+                            </p>
+                        @else
+                            <p class="text-[11px] text-orange-600 dark:text-orange-400">
+                                {{ __('Hoy no hay horarios disponibles (cerrado o feriado).') }}
+                            </p>
+                        @endif
+                    @elseif($modoPromesa === 'automatica')
+                        @if($this->horaPactadaEstimada)
+                            <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                                {{ $tipo === 'take_away'
+                                    ? __('Calculada con la demora base de la sucursal.')
+                                    : __('Calculada automáticamente por distancia.') }}
+                            </p>
+                        @else
+                            <p class="text-[11px] text-gray-400 dark:text-gray-500">
+                                {{ __('Se calcula por distancia al cargar la dirección.') }}
+                            </p>
+                        @endif
+                    @elseif(!empty($botonesDemora))
+                        <div class="grid grid-cols-6 gap-1">
+                            @foreach($botonesDemora as $demora)
+                                <button type="button" wire:click="seleccionarDemora({{ (int) $demora }})"
+                                    class="px-1 py-1 border rounded-md text-[11px] font-semibold transition-colors {{ $demoraSeleccionadaMin === (int) $demora
+                                        ? 'bg-cyan-600 border-cyan-600 text-white shadow'
+                                        : 'border-cyan-300 dark:border-cyan-600 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-600 hover:text-white' }}">
+                                    @if((int) $demora === 0) {{ __('Ya') }} @else +{{ (int) $demora }}′ @endif
+                                </button>
+                            @endforeach
+                        </div>
+                        <p class="text-[11px] text-gray-400 dark:text-gray-500">
+                            @if($demoraSeleccionadaMin === 0)
+                                {{ __('"Ya" = lo antes posible: sin hora comprometida, la demora se mide desde la confirmación.') }}
+                            @elseif($demoraSeleccionadaMin !== null)
+                                {{ __('El botón fija la hora pactada y se informa al consumidor.') }}
+                            @else
+                                {{ __('Opcional: elegí en cuántos minutos estará.') }}
+                            @endif
+                        </p>
+                    @endif
+                </div>
+
+                {{-- Beeper (solo take-away y si la sucursal lo usa) --}}
+                @if($sucursalUsaBeepers && $tipo === 'take_away')
+                    <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2">
+                        <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">
+                            {{ __('Beeper') }} <span class="text-red-500">*</span>
+                        </label>
+                        <input type="text" wire:model="numeroBeeper" maxlength="20"
+                            placeholder="{{ __('N° de beeper') }}"
+                            class="block w-full pl-2 pr-2 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md" />
+                    </div>
+                @endif
+
+                {{-- Lista de Precios + Forma de Pago en el mismo renglón --}}
+                <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-2 space-y-1.5">
+                    <div class="grid grid-cols-2 gap-2">
+                        <div>
+                            <label for="listaPrecioId" class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">{{ __('Lista de Precios') }}</label>
+                            @if(count($listasPreciosDisponibles) > 1)
+                                <select id="listaPrecioId" wire:model.live="listaPrecioId"
+                                    class="block w-full pl-2 pr-6 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md">
+                                    @foreach($listasPreciosDisponibles as $lista)
+                                        <option value="{{ $lista['id'] }}">{{ $lista['nombre'] }}</option>
+                                    @endforeach
+                                </select>
+                            @else
+                                <div class="text-xs text-gray-700 dark:text-gray-200 py-1 truncate">
+                                    {{ $listasPreciosDisponibles[0]['nombre'] ?? __('—') }}
+                                </div>
+                            @endif
+                        </div>
+                        <div>
+                            <label for="formaPagoId" class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">{{ __('Forma de Pago') }}</label>
+                            <select wire:model.live="formaPagoId" id="formaPagoId"
+                                class="block w-full pl-2 pr-6 py-1 text-xs border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white focus:outline-none focus:ring-bcn-primary focus:border-bcn-primary rounded-md">
+                                <option value="">{{ __('Seleccionar...') }}</option>
+                                @foreach($this->formasPago as $fp)
+                                    <option value="{{ $fp['id'] }}">{{ $fp['nombre'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                    </div>
+
+                    {{-- Selector de Cuotas (estilo NuevaVenta, con detalle de valor + recargo + total) --}}
+                    @if($formaPagoPermiteCuotas && count($cuotasFormaPagoDisponibles) > 0)
+                        <div class="relative">
+                            <label class="block text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-0.5">{{ __('Cuotas') }}</label>
+
+                            <div wire:click="toggleCuotasSelector"
+                                class="border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 cursor-pointer hover:border-gray-400 dark:hover:border-gray-500 transition-colors">
+                                @if(!$cuotaSeleccionadaId)
+                                    <div class="flex items-center px-2 py-1.5">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</div>
+                                            <div class="text-[10px] text-gray-500 dark:text-gray-400">{{ __('sin financiación') }}</div>
+                                        </div>
+                                        <div class="text-center px-2"><span class="text-[10px] text-gray-400">—</span></div>
+                                        <div class="text-right min-w-[70px]">
+                                            <span class="text-xs font-semibold text-gray-900 dark:text-white">${{ number_format(($resultado['total_final'] ?? 0) + ($ajusteFormaPagoInfo['monto'] ?? 0), 2, ',', '.') }}</span>
+                                        </div>
+                                        <svg class="w-4 h-4 text-gray-400 ml-1 transition-transform {{ $cuotasSelectorAbierto ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </div>
+                                @else
+                                    @php
+                                        $cuotaSel = collect($cuotasFormaPagoDisponibles)->firstWhere('id', (int) $cuotaSeleccionadaId);
+                                    @endphp
+                                    @if($cuotaSel)
+                                        <div class="flex items-center px-2 py-1.5">
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-xs font-medium text-gray-900 dark:text-white">{{ $cuotaSel['cantidad_cuotas'] }} {{ __('cuotas') }}</div>
+                                                <div class="text-[10px] text-gray-500 dark:text-gray-400">{{ __('de') }} ${{ number_format($cuotaSel['valor_cuota'], 2, ',', '.') }}</div>
+                                            </div>
+                                            <div class="text-center px-2">
+                                                @if($cuotaSel['recargo_porcentaje'] > 0)
+                                                    <span class="text-[10px] font-medium text-red-600">+{{ $cuotaSel['recargo_porcentaje'] }}%</span>
+                                                @else
+                                                    <span class="text-[10px] font-medium text-green-600">0%</span>
+                                                @endif
+                                            </div>
+                                            <div class="text-right min-w-[70px]">
+                                                <span class="text-xs font-semibold {{ $cuotaSel['recargo_porcentaje'] > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white' }}">${{ number_format($cuotaSel['total_con_recargo'], 2, ',', '.') }}</span>
+                                            </div>
+                                            <svg class="w-4 h-4 text-gray-400 ml-1 transition-transform {{ $cuotasSelectorAbierto ? 'rotate-180' : '' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                                            </svg>
+                                        </div>
+                                    @endif
+                                @endif
+                            </div>
+
+                            @if($cuotasSelectorAbierto)
+                                <div class="absolute z-20 w-full mt-1 border border-gray-200 dark:border-gray-600 rounded-md divide-y divide-gray-100 dark:divide-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-60 overflow-y-auto">
+                                    <label class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ !$cuotaSeleccionadaId ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}">
+                                        <input type="radio" wire:model.live="cuotaSeleccionadaId" value="" class="sr-only">
+                                        <div class="flex-1 min-w-0">
+                                            <div class="text-xs font-medium text-gray-900 dark:text-white">{{ __('1 pago') }}</div>
+                                            <div class="text-[10px] text-gray-500 dark:text-gray-400">{{ __('sin financiación') }}</div>
+                                        </div>
+                                        <div class="text-center px-2"><span class="text-[10px] text-gray-400">—</span></div>
+                                        <div class="text-right min-w-[70px]">
+                                            <span class="text-xs font-semibold text-gray-900 dark:text-white">${{ number_format(($resultado['total_final'] ?? 0) + ($ajusteFormaPagoInfo['monto'] ?? 0), 2, ',', '.') }}</span>
+                                        </div>
+                                    </label>
+                                    @foreach($cuotasFormaPagoDisponibles as $cuota)
+                                        <label class="flex items-center px-2 py-1.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors {{ $cuotaSeleccionadaId == $cuota['id'] ? 'bg-blue-50 dark:bg-blue-900/30' : '' }}">
+                                            <input type="radio" wire:model.live="cuotaSeleccionadaId" value="{{ $cuota['id'] }}" class="sr-only">
+                                            <div class="flex-1 min-w-0">
+                                                <div class="text-xs font-medium text-gray-900 dark:text-white">{{ $cuota['cantidad_cuotas'] }} {{ __('cuotas') }}</div>
+                                                <div class="text-[10px] text-gray-500 dark:text-gray-400">{{ __('de') }} ${{ number_format($cuota['valor_cuota'], 2, ',', '.') }}</div>
+                                            </div>
+                                            <div class="text-center px-2">
+                                                @if($cuota['recargo_porcentaje'] > 0)
+                                                    <span class="text-[10px] font-medium text-red-600">+{{ $cuota['recargo_porcentaje'] }}%</span>
+                                                @else
+                                                    <span class="text-[10px] font-medium text-green-600">0%</span>
+                                                @endif
+                                            </div>
+                                            <div class="text-right min-w-[70px]">
+                                                <span class="text-xs font-semibold {{ $cuota['recargo_porcentaje'] > 0 ? 'text-red-600' : 'text-gray-900 dark:text-white' }}">${{ number_format($cuota['total_con_recargo'], 2, ',', '.') }}</span>
+                                            </div>
+                                        </label>
+                                    @endforeach
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+
+                    @if($formaPagoId && ($ajusteFormaPagoInfo['porcentaje'] ?? 0) != 0)
+                        <div class="text-[10px] text-gray-600 dark:text-gray-400">
+                            @if($ajusteFormaPagoInfo['porcentaje'] > 0)
+                                {{ __('Recargo') }} {{ $ajusteFormaPagoInfo['porcentaje'] }}%: +${{ number_format($ajusteFormaPagoInfo['monto'] ?? 0, 2, ',', '.') }}
+                            @else
+                                {{ __('Descuento') }} {{ abs($ajusteFormaPagoInfo['porcentaje']) }}%: -${{ number_format(abs($ajusteFormaPagoInfo['monto'] ?? 0), 2, ',', '.') }}
+                            @endif
+                        </div>
+                    @endif
+                </div>
+
+                {{-- Fila de acciones rápidas del pedido: Descuentos + Invitar
+                    (botones 50/50 estilo NuevaVenta). El botón "Invitar" solo
+                    aparece si el usuario tiene el permiso; si no lo tiene, el
+                    de Descuentos toma el ancho completo. --}}
+                @if(!empty($items))
+                    <div class="flex gap-1.5">
+                        <button
+                            wire:click="abrirModalDescuentos"
+                            type="button"
+                            class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium
+                                {{ ($descuentoGeneralActivo || $cuponAplicado || $canjePuntosActivo)
+                                    ? 'border-purple-400 dark:border-purple-500 text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50'
+                                    : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600' }}">
+                            <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"/>
+                            </svg>
+                            {{ __('Descuentos') }}
+                            <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 rounded">F4</kbd>
+                            @if($descuentoGeneralActivo)
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-purple-200 dark:bg-purple-700 text-purple-800 dark:text-purple-200 rounded">
+                                    {{ $descuentoGeneralTipo === 'porcentaje' ? $descuentoGeneralValor . '%' : '$' . number_format($descuentoGeneralValor, 2, ',', '.') }}
+                                </span>
+                            @endif
+                            @if($cuponAplicado && $cuponInfo)
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-amber-200 dark:bg-amber-700 text-amber-800 dark:text-amber-200 rounded">
+                                    {{ $cuponInfo['codigo'] }}
+                                </span>
+                            @endif
+                            @if($canjePuntosActivo)
+                                <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-200 dark:bg-yellow-700 text-yellow-800 dark:text-yellow-200 rounded">
+                                    {{ $canjePuntosUnidades }}pts
+                                </span>
+                            @endif
+                        </button>
+
+                        @if($this->puedeInvitarPedido)
+                            @if($this->esInvitacionTotal)
+                                {{-- Pedido completo en cortesía: el botón abre el modal de
+                                    confirmación para quitar la invitación de todos los items. --}}
+                                <button
+                                    wire:click="abrirModalDesinvitarTodo"
+                                    type="button"
+                                    class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium border-emerald-400 dark:border-emerald-500 text-emerald-700 dark:text-emerald-200 bg-emerald-50 dark:bg-emerald-900/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/60">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                    </svg>
+                                    {{ __('Cortesía') }}
+                                    <span class="ml-1 px-1.5 py-0.5 text-[10px] font-semibold bg-emerald-200 dark:bg-emerald-700 text-emerald-800 dark:text-emerald-100 rounded">
+                                        {{ __('Activa') }}
+                                    </span>
+                                </button>
+                            @else
+                                {{-- Pedido sin invitación: el botón abre el modal global de
+                                    invitar pedido completo (textarea de motivo + confirmar). --}}
+                                <button
+                                    wire:click="abrirModalInvitarTodo"
+                                    type="button"
+                                    class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border rounded-md shadow-sm text-xs font-medium border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:border-emerald-300 dark:hover:border-emerald-600 hover:text-emerald-700 dark:hover:text-emerald-300">
+                                    <svg class="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.8">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M20 12v8H4v-8M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/>
+                                    </svg>
+                                    {{ __('Invitar') }}
+                                </button>
+                            @endif
+                        @endif
+                    </div>
+                @endif
+
+                {{-- Resumen de Totales (reusado 1:1 de NuevaVenta: subtotal, descuentos, ajuste FP, recargo cuotas, total, desglose IVA colapsable) --}}
+                @if($resultado)
+                    @include('livewire.carrito._resumen-totales')
+                @endif
+            </div>
+
+            {{-- Footer fijo de la columna (acciones) --}}
+            @php
+                // Total a cobrar para el botón verde (mismo cálculo que NuevaVenta).
+                $totalACobrar = 0;
+                if (! empty($resultado)) {
+                    if (isset($resultado['desglose_iva'])) {
+                        $dgIva = $resultado['desglose_iva'];
+                        if (isset($dgIva['total_mixto'])) {
+                            $totalACobrar = $dgIva['total_mixto'];
+                        } elseif (isset($dgIva['total_con_ajuste_fp']) && $dgIva['total_con_ajuste_fp'] != ($dgIva['total'] ?? 0)) {
+                            $totalACobrar = $dgIva['total_con_ajuste_fp'];
+                        } else {
+                            $totalACobrar = $resultado['total_final'] ?? 0;
+                        }
+                    } else {
+                        $totalACobrar = $resultado['total_final'] ?? 0;
+                    }
+                }
+            @endphp
+            <div class="flex-shrink-0 pt-2 border-t border-gray-200 dark:border-gray-700 space-y-1.5">
+                {{-- Fila 1: Borrador + Sin cobrar (50/50) --}}
+                <div class="flex gap-1.5">
+                    @if(!$modoEdicion || $estadoPedidoActual === 'borrador')
+                        <button type="button" wire:click="guardarBorrador" wire:loading.attr="disabled"
+                            class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-xs font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                            {{ __('Guardar borrador') }}
+                            <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-gray-200 dark:bg-gray-600 text-gray-500 dark:text-gray-300 rounded">Ctrl+G</kbd>
+                        </button>
+                    @endif
+                    <button type="button" wire:click="confirmarSinCobrar" wire:loading.attr="disabled"
+                        class="flex-1 inline-flex justify-center items-center px-2 py-1.5 border border-gray-400 dark:border-gray-500 rounded-md text-xs font-medium text-gray-800 dark:text-gray-100 bg-gray-100 dark:bg-gray-600 hover:bg-gray-200 dark:hover:bg-gray-500">
+                        {{ __('Confirmar sin cobrar') }}
+                        <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-black/10 dark:bg-white/20 text-gray-600 dark:text-gray-200 rounded">F3</kbd>
+                    </button>
+                </div>
+
+                {{-- Fila 2: Confirmar pedido $XXXX en verde --}}
+                <button type="button" wire:click="confirmarPedido" wire:loading.attr="disabled"
+                    @if(empty($items)) disabled @endif
+                    class="w-full inline-flex justify-center items-center px-4 py-2.5 border border-transparent rounded-md text-sm font-bold text-white bg-green-600 hover:bg-green-700 shadow disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                    </svg>
+                    {{ __('Confirmar') }}
+                    @if($totalACobrar > 0)
+                        <span class="ml-1.5">${{ number_format($totalACobrar, 2, ',', '.') }}</span>
+                    @endif
+                    <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-black/20 rounded">F2</kbd>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    {{-- Modales reutilizados de NuevaVenta --}}
+    @include('livewire.carrito._modal-cliente-rapido')
+    @include('livewire.carrito._modal-articulo-rapido')
+    @include('livewire.carrito._modal-busqueda-articulos')
+    @include('livewire.carrito._modal-pesable')
+    @include('livewire.carrito._modal-invitar-item')
+    @include('livewire.carrito._modal-desinvitar-item')
+    @include('livewire.carrito._modal-invitar-todo')
+    @include('livewire.carrito._modal-desinvitar-todo')
+    @include('livewire.ventas._wizard-opcionales')
+    @include('livewire.ventas._modal-descuentos')
+
+    {{-- Modal: Concepto libre --}}
+    @if($mostrarModalConcepto)
+        <x-bcn-modal :title="__('Agregar concepto')" color="bg-emerald-600" maxWidth="md" onClose="cerrarModalConcepto" submit="agregarConcepto">
+            <x-slot:body>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Descripción') }}</label>
+                        <input type="text" wire:model="conceptoDescripcion" placeholder="{{ __('Ej: Adicional de empaque') }}"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50 text-sm" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría') }}</label>
+                        <select wire:model="conceptoCategoriaId"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50 text-sm">
+                            <option value="">{{ __('Sin categoría') }}</option>
+                            @foreach($categoriasDisponibles as $cat)
+                                <option value="{{ $cat['id'] }}">{{ $cat['nombre'] }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Importe') }} *</label>
+                        <input type="number" step="0.01" min="0" wire:model="conceptoImporte" required
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50 text-sm" />
+                    </div>
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" @click="close()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="submit" class="inline-flex items-center px-3 py-2 border border-transparent rounded-md text-sm text-white bg-emerald-600 hover:bg-emerald-700">
+                    {{ __('Agregar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- Modal: Confirmar limpiar carrito --}}
+    @if($mostrarConfirmLimpiar)
+        <x-bcn-modal :title="__('¿Limpiar el carrito?')" color="bg-red-600" maxWidth="sm" onClose="cancelarLimpiarCarrito">
+            <x-slot:body>
+                <p class="text-sm text-gray-700 dark:text-gray-300">{{ __('Se eliminarán todos los artículos del carrito.') }}</p>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" @click="close()" class="inline-flex items-center px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button" wire:click="ejecutarLimpiarCarrito" class="inline-flex items-center px-3 py-2 border border-transparent rounded-md text-sm text-white bg-red-600 hover:bg-red-700">
+                    {{ __('Limpiar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- (La edición de nombre del item se hace inline en _detalle-items.blade.php
+        con un input que aparece debajo del nombre cuando $editarNombreIndex
+        coincide. No usamos modal — es mucho más rápido y touch-friendly.) --}}
+
+    {{-- Modal: Dirección de entrega (RF-04) — ManejaDomicilio + partial --}}
+    @if($mostrarModalDireccion)
+        <x-bcn-modal :title="__('Dirección de entrega')" color="bg-cyan-600" maxWidth="2xl" onClose="cerrarModalDireccion">
+            <x-slot:body>
+                <div class="space-y-3">
+                    @if($georreferenciarPedidos)
+                        {{-- Georreferenciado ON: mapa primero; la dirección se autocompleta
+                             desde el punto elegido y queda editable al final. Provincia y
+                             localidad NO se muestran: las fija la sucursal (acotan el mapa). --}}
+                        @include('livewire.partials.domicilio-form', [
+                            'conTipo' => false,
+                            'conReferencia' => true,
+                            'conGeo' => true,
+                            'conUbicacion' => false,
+                            'direccionAlFinal' => true,
+                            'autocompletarDireccion' => true,
+                            'mapaAutoAbrir' => true,
+                            'provinciaRequerida' => false,
+                            'idPrefix' => 'entrega',
+                            'direccionLabel' => __('Dirección de entrega'),
+                        ])
+                        <p class="text-[11px] text-gray-500 dark:text-gray-400">
+                            {{ __('Con coordenadas se cotiza el envío y se valida el alcance; sin ellas el costo es manual.') }}
+                        </p>
+                    @else
+                        {{-- Georreferenciado OFF: solo texto (costo de envío siempre manual) --}}
+                        @include('livewire.partials.domicilio-form', [
+                            'conTipo' => false,
+                            'conReferencia' => true,
+                            'conGeo' => false,
+                            'conUbicacion' => false,
+                            'provinciaRequerida' => false,
+                            'idPrefix' => 'entrega',
+                            'direccionLabel' => __('Dirección de entrega'),
+                        ])
+                    @endif
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" wire:click="cerrarModalDireccion"
+                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    {{ __('Cancelar') }}
+                </button>
+                <button type="button" wire:click="confirmarDireccion"
+                    class="px-4 py-2 bg-cyan-600 rounded-md text-sm font-semibold text-white hover:bg-cyan-700">
+                    {{ __('Usar esta dirección') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- Modal de Pago / Desglose Mixto (reusado de NuevaVenta) --}}
+    @include("livewire.carrito._modal-pago-mixto")
+    @include("livewire.carrito._modal-moneda-extranjera")
+    @include("livewire.carrito._modal-vuelto")
+    @include("livewire.carrito._modal-esperando-pago-integracion")
+    @include("livewire.carrito._boton-pantalla-cliente")
+
+    {{-- Modal "¿Con cuánto paga?" al confirmar SIN COBRAR con efectivo:
+         deja el vuelto calculado en el pago planificado (contra entrega).
+         Espejo visual de _modal-vuelto pero con opción de OMITIR. --}}
+    @if($showVueltoPlanificadoModal)
+        <div class="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true"
+            x-data="{
+                recibido: {{ (float) $vueltoPlanificadoTotal }},
+                totalAPagar: {{ (float) $vueltoPlanificadoTotal }},
+                get vuelto() {
+                    return Math.max(0, Math.round((this.recibido - this.totalAPagar) * 100) / 100);
+                },
+                get esInsuficiente() {
+                    return this.recibido > 0 && this.recibido < this.totalAPagar - 0.01;
+                },
+                init() {
+                    // Como el modal de cobro directo: arranca con el total cargado
+                    // (pago justo, vuelto $0) y el foco lo selecciona para pisarlo.
+                    this.$nextTick(() => {
+                        const input = this.$refs.inputRecibidoPlan;
+                        if (input) { input.value = this.recibido; input.focus(); input.select(); }
+                    });
+                },
+                confirmar() {
+                    if (this.recibido <= 0) { $wire.omitirVueltoPlanificado(); return; }
+                    if (!this.esInsuficiente) {
+                        $wire.set('vueltoPlanificadoRecibido', String(this.recibido)).then(() => {
+                            $wire.confirmarVueltoPlanificado();
+                        });
+                    }
+                }
+            }"
+            @keydown.escape.window="$wire.cerrarVueltoPlanificado()"
+            @keydown.enter.window.prevent="confirmar()">
+            <div class="flex items-end justify-center min-h-screen pt-4 px-2 pb-20 text-center sm:block sm:p-0">
+                <div class="fixed inset-0 bg-gray-500 dark:bg-gray-900 bg-opacity-75 dark:bg-opacity-75 transition-opacity" wire:click="cerrarVueltoPlanificado"></div>
+                <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+                <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full w-full">
+                    <div class="bg-emerald-600 px-4 py-3 sm:px-6">
+                        <h3 class="text-lg leading-6 font-medium text-white flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
+                            </svg>
+                            {{ __('¿Con cuánto paga el cliente?') }}
+                        </h3>
+                    </div>
+
+                    <div class="px-4 py-5 sm:p-6 space-y-4">
+                        <p class="text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('El pedido queda sin cobrar (se cobra contra entrega). Si sabés con cuánto va a pagar, el vuelto queda calculado y el repartidor sale con el cambio justo. Podés omitirlo.') }}
+                        </p>
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 text-center">
+                            <p class="text-xs text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">{{ __('Total a pagar') }}</p>
+                            <p class="text-3xl font-extrabold text-gray-900 dark:text-white">${{ number_format($vueltoPlanificadoTotal, 2, ',', '.') }}</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Monto recibido') }}</label>
+                            <div class="relative">
+                                <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-emerald-600 dark:text-emerald-400 font-bold text-lg">$</span>
+                                <input type="number" step="0.01" min="0" x-ref="inputRecibidoPlan"
+                                    @input="recibido = parseFloat($event.target.value) || 0"
+                                    class="w-full pl-8 pr-3 py-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-emerald-500 focus:ring focus:ring-emerald-500 focus:ring-opacity-50 text-2xl font-bold text-right">
+                            </div>
+                        </div>
+                        <div class="rounded-xl p-4 text-center border-2 transition-colors"
+                            :class="esInsuficiente
+                                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                : 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800'">
+                            <p class="text-xs uppercase tracking-wide mb-1"
+                                :class="esInsuficiente ? 'text-red-500 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                x-text="esInsuficiente ? '{{ __('Falta') }}' : '{{ __('Vuelto') }}'"></p>
+                            <p class="text-4xl font-extrabold"
+                                :class="esInsuficiente ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'"
+                                x-text="'$' + (esInsuficiente ? (totalAPagar - recibido) : vuelto).toFixed(2).replace('.', ',')"></p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 flex flex-row-reverse gap-2">
+                        <button type="button" @click="confirmar()" :disabled="esInsuficiente"
+                            class="inline-flex justify-center items-center rounded-md border border-transparent shadow-sm px-5 py-2.5 text-base font-medium text-white sm:text-sm transition focus:outline-none"
+                            :class="!esInsuficiente ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-gray-400 cursor-not-allowed'">
+                            {{ __('Confirmar pedido') }}
+                        </button>
+                        <button type="button" wire:click="omitirVueltoPlanificado"
+                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2.5 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 sm:text-sm">
+                            {{ __('Omitir vuelto') }}
+                        </button>
+                        <button type="button" wire:click="cerrarVueltoPlanificado"
+                            class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2.5 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 sm:text-sm mr-auto">
+                            {{ __('Volver') }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    @endif
+    </div>{{-- /modal contenedor con margen --}}
+</div>
+@endif
+</div>{{-- /wrapper raiz --}}

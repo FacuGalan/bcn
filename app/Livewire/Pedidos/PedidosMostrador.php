@@ -644,6 +644,8 @@ class PedidosMostrador extends Component
                 PedidoMostradorPago::ESTADO_ACTIVO,
                 PedidoMostradorPago::ESTADO_PLANIFICADO,
             ]),
+            // Para el desplegable de pagos planificados en la lista (FP + monto)
+            'pagos.formaPago:id,nombre',
         ])
             ->where('sucursal_id', $this->sucursalActual());
 
@@ -1650,10 +1652,16 @@ class PedidosMostrador extends Component
             ])->find($this->pedidoDetalleId)
             : null;
 
+        // Umbrales de alerta de demora de la sucursal (0 = deshabilitada,
+        // columnas compartidas con delivery).
+        $sucursalPanel = $this->sucursalActual() ? \App\Models\Sucursal::find($this->sucursalActual()) : null;
+
         return view('livewire.pedidos.pedidos-mostrador', [
             'pedidos' => $pedidos,
             'borradores' => $borradores,
             'pedidosKanban' => $pedidosKanban,
+            'alertaAmarillaMin' => (int) ($sucursalPanel->pedido_alerta_amarilla_min ?? 0),
+            'alertaRojaMin' => (int) ($sucursalPanel->pedido_alerta_roja_min ?? 0),
             'transicionesKanban' => $transicionesKanban,
             'estadosKanban' => self::ESTADOS_KANBAN,
             'pedidoDetalle' => $pedidoDetalle,

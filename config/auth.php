@@ -40,6 +40,13 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // Consumidores globales de la tienda online (RF-13, pedidos-delivery).
+        // La tienda usará Sanctum sobre este guard; acá queda listo.
+        'consumidores' => [
+            'driver' => 'session',
+            'provider' => 'consumidores',
+        ],
     ],
 
     /*
@@ -63,6 +70,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => env('AUTH_MODEL', App\Models\User::class),
+        ],
+
+        'consumidores' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Consumidor::class,
         ],
 
         // 'users' => [

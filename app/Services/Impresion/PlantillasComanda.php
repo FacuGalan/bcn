@@ -2,6 +2,7 @@
 
 namespace App\Services\Impresion;
 
+use App\Models\PedidoDelivery;
 use App\Models\PedidoMostrador;
 use App\Models\Sucursal;
 
@@ -42,7 +43,7 @@ class PlantillasComanda
 
     // ==================== COMANDA ====================
 
-    public function generarComandaESCPOS(PedidoMostrador $pedido, ?array $detalleIds = null, bool $esParcial = false): string
+    public function generarComandaESCPOS(PedidoMostrador|PedidoDelivery $pedido, ?array $detalleIds = null, bool $esParcial = false): string
     {
         $pedido->loadMissing(['detalles.articulo', 'detalles.opcionales', 'sucursal']);
         $sucursal = $pedido->sucursal ?? Sucursal::find($pedido->sucursal_id);
@@ -112,7 +113,7 @@ class PlantillasComanda
         return $out;
     }
 
-    public function generarComandaHTML(PedidoMostrador $pedido, ?array $detalleIds = null, bool $esParcial = false): string
+    public function generarComandaHTML(PedidoMostrador|PedidoDelivery $pedido, ?array $detalleIds = null, bool $esParcial = false): string
     {
         $pedido->loadMissing(['detalles.articulo', 'detalles.opcionales', 'sucursal']);
         $sucursal = $pedido->sucursal ?? Sucursal::find($pedido->sucursal_id);
@@ -180,7 +181,7 @@ HTML;
 
     // ==================== PRECUENTA ====================
 
-    public function generarPrecuentaESCPOS(PedidoMostrador $pedido): string
+    public function generarPrecuentaESCPOS(PedidoMostrador|PedidoDelivery $pedido): string
     {
         $pedido->loadMissing(['detalles.articulo', 'sucursal']);
         $sucursal = $pedido->sucursal ?? Sucursal::find($pedido->sucursal_id);
@@ -224,7 +225,7 @@ HTML;
         return $out;
     }
 
-    public function generarPrecuentaHTML(PedidoMostrador $pedido): string
+    public function generarPrecuentaHTML(PedidoMostrador|PedidoDelivery $pedido): string
     {
         $pedido->loadMissing(['detalles.articulo', 'sucursal']);
         $sucursal = $pedido->sucursal ?? Sucursal::find($pedido->sucursal_id);

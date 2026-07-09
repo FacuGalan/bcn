@@ -1,0 +1,175 @@
+{{-- Datos de entrega de un pedido (RF-01), compartido por card móvil, tabla y
+     kanban. Estructura en 3 niveles para lectura rápida:
+       1. Chips de clasificación: tipo, origen, promesa de entrega.
+       2. Dirección de entrega (renglón propio, referencia inline).
+       3. Zona · repartidor · envío (renglón operativo).
+     Requiere $pedido con repartidor/zona eager-loaded.
+     Flags opcionales (kanban compacto): $sinTipo oculta el chip de tipo (la
+     card lo muestra junto al número), $sinEnvio oculta el costo de envío,
+     $sinPromesa oculta el chip de promesa (la tabla tiene columna Horarios),
+     $conDespacho convierte el renglón del repartidor en botón inline de
+     despacho ("Sin repartidor" clickeable cuando falta), $conPromesaEditable
+     convierte el chip de promesa en botón inline (reloj en hover → modal de
+     hora de entrega según modo de promesa — paridad con la tabla, rev16). --}}
+@php($sinTipo = $sinTipo ?? false)
+@php($sinEnvio = $sinEnvio ?? false)
+@php($sinPromesa = $sinPromesa ?? false)
+@php($conDespacho = $conDespacho ?? false)
+@php($conPromesaEditable = ($conPromesaEditable ?? false) && ! in_array($pedido->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
+<div class="space-y-1 {{ $class ?? '' }}">
+    {{-- 1. Chips: tipo + origen + promesa --}}
+    <div class="flex flex-wrap items-center gap-1">
+        @unless($sinTipo)
+            @if($pedido->tipo === \App\Models\PedidoDelivery::TIPO_TAKE_AWAY)
+                @php($retirable = $conDespacho && in_array($pedido->estado_pedido, ['confirmado', 'en_preparacion', 'listo'], true))
+                @if($retirable)
+                    {{-- Botón inline: chip visible + check en hover — pasa el
+                         pedido a "Para retirar" (el cliente puede pasar a buscarlo) --}}
+                    <button type="button"
+                            wire:click="despachar({{ $pedido->id }})"
+                            class="inline-flex items-center gap-1 group cursor-pointer"
+                            title="{{ __('Marcar listo para retirar') }}">
+                        <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                            {{ __('Para llevar') }}
+                        </span>
+                        <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-opacity flex-shrink-0"
+                              aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                        </span>
+                    </button>
+                @else
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-violet-100 text-violet-800 dark:bg-violet-900/50 dark:text-violet-200">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+                        {{ __('Para llevar') }}
+                    </span>
+                @endif
+            @else
+                <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-100 text-cyan-800 dark:bg-cyan-900/50 dark:text-cyan-200">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
+                    {{ __('Delivery') }}
+                </span>
+            @endif
+        @endunless
+
+        {{-- Zona: al lado del chip de tipo (dato de clasificación, no operativo) --}}
+        @if($pedido->zona)
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200">
+                {{ $pedido->zona->nombre }}
+            </span>
+        @endif
+
+        @if($pedido->origen !== \App\Models\PedidoDelivery::ORIGEN_PANEL)
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $pedido->origen === 'tienda' ? 'bg-pink-100 text-pink-800 dark:bg-pink-900/50 dark:text-pink-200' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200' }}">
+                {{ __(\App\Models\PedidoDelivery::ORIGENES[$pedido->origen] ?? $pedido->origen) }}
+            </span>
+        @endif
+
+        {{-- Promesa de entrega (RF-15): vencida en rojo mientras el pedido siga
+             activo. Con $conPromesaEditable el chip es botón (reloj en hover →
+             modal de hora según modo de promesa, paridad con la tabla). --}}
+        @unless($sinPromesa)
+            @php($chipPromesa = null)
+            @if($pedido->hora_pactada_at)
+                @php($promesaVencida = $pedido->hora_pactada_at->isPast() && ! in_array($pedido->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
+                @php($chipPromesa = 'hora')
+            @elseif($pedido->lo_antes_posible)
+                @php($chipPromesa = 'asap')
+            @elseif($conPromesaEditable)
+                @php($chipPromesa = 'sin_hora')
+            @endif
+
+            @if($chipPromesa)
+                @if($conPromesaEditable)
+                    <button type="button" wire:click="abrirEditarHoraEntrega({{ $pedido->id }})"
+                            class="inline-flex items-center gap-1 group cursor-pointer"
+                            title="{{ __('Editar hora de entrega') }}">
+                @endif
+                @if($chipPromesa === 'hora')
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold {{ $promesaVencida ? 'bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-200' }} {{ $conPromesaEditable ? 'select-none' : '' }}"
+                        title="{{ $pedido->tipo === \App\Models\PedidoDelivery::TIPO_TAKE_AWAY ? __('Listo para retirar') : __('Entrega estimada') }}: {{ $pedido->hora_pactada_at->format('d/m H:i') }}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {{ $pedido->hora_pactada_at->isToday() ? $pedido->hora_pactada_at->format('H:i') : $pedido->hora_pactada_at->format('d/m H:i') }}
+                    </span>
+                @elseif($chipPromesa === 'asap')
+                    {{-- Promesa ASAP: sin hora fija, sale cuando se puede --}}
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-sky-100 text-sky-800 dark:bg-sky-900/50 dark:text-sky-200 {{ $conPromesaEditable ? 'select-none' : '' }}"
+                        title="{{ __('El cliente pidió que se entregue lo antes posible') }}">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        {{ __('Lo antes posible') }}
+                    </span>
+                @else
+                    <span class="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400 select-none">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        {{ __('Sin hora pactada') }}
+                    </span>
+                @endif
+                @if($conPromesaEditable)
+                        <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-opacity flex-shrink-0"
+                              aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                            </svg>
+                        </span>
+                    </button>
+                @endif
+            @endif
+        @endunless
+    </div>
+
+    @if($pedido->tipo === \App\Models\PedidoDelivery::TIPO_DELIVERY)
+        {{-- 2. Dirección (renglón propio, referencia inline) — RESALTADA: es el
+             dato operativo clave del reparto --}}
+        @if($pedido->direccion_entrega)
+            <div class="flex items-start gap-1 text-xs text-gray-900 dark:text-white min-w-0"
+                title="{{ $pedido->direccion_entrega }}{{ $pedido->direccion_referencia ? ' — '.$pedido->direccion_referencia : '' }}">
+                <svg class="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-bcn-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                <span class="truncate font-bold">{{ $pedido->direccion_entrega }}</span>
+                @if($pedido->direccion_referencia)
+                    <span class="truncate font-normal text-gray-500 dark:text-gray-400">· {{ $pedido->direccion_referencia }}</span>
+                @endif
+            </div>
+        @else
+            <div class="text-[11px] italic text-orange-600 dark:text-orange-400">{{ __('Sin dirección de entrega') }}</div>
+        @endif
+
+        {{-- 3. Repartidor · envío --}}
+        @php($repartidorDespachable = $conDespacho && in_array($pedido->estado_pedido, ['confirmado', 'en_preparacion', 'listo'], true))
+        @if($pedido->repartidor || $repartidorDespachable || (! $sinEnvio && (float) $pedido->costo_envio > 0))
+            <div class="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-gray-500 dark:text-gray-400">
+                @if($repartidorDespachable)
+                    {{-- Botón inline de despacho: repartidor (o "Sin repartidor")
+                         visible + camión en hover. Sin repartidor abre el modal
+                         de despacho; con repartidor despacha (suma al viaje). --}}
+                    <button type="button"
+                            wire:click="despachar({{ $pedido->id }})"
+                            class="inline-flex items-center gap-1 group cursor-pointer"
+                            title="{{ $pedido->repartidor ? __('Despachar') : __('Elegir repartidor y despachar') }}">
+                        <span class="inline-flex items-center gap-0.5 {{ $pedido->repartidor ? '' : 'font-semibold text-orange-600 dark:text-orange-400' }}">
+                            <svg class="w-3 h-3 flex-shrink-0 {{ $pedido->repartidor ? 'text-gray-400' : 'text-orange-500' }}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                            {{ $pedido->repartidor?->nombre ?? __('Sin repartidor') }}
+                        </span>
+                        <span class="opacity-0 group-hover:opacity-100 text-gray-400 group-hover:text-cyan-600 dark:group-hover:text-cyan-400 transition-opacity flex-shrink-0"
+                              aria-hidden="true">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
+                            </svg>
+                        </span>
+                    </button>
+                @elseif($pedido->repartidor)
+                    <span class="inline-flex items-center gap-0.5" title="{{ __('Repartidor') }}">
+                        <svg class="w-3 h-3 flex-shrink-0 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        {{ $pedido->repartidor->nombre }}
+                    </span>
+                @endif
+                @if(! $sinEnvio && (float) $pedido->costo_envio > 0)
+                    <span title="{{ __('Costo de envío') }}{{ $pedido->costo_envio_manual ? ' ('.__('manual').')' : '' }}">
+                        {{ __('Envío') }}: <span class="font-medium text-gray-600 dark:text-gray-300">${{ number_format($pedido->costo_envio, 2, ',', '.') }}</span>{{ $pedido->costo_envio_manual ? '*' : '' }}
+                    </span>
+                @endif
+            </div>
+        @endif
+    @endif
+</div>

@@ -45,6 +45,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class PedidoMostrador extends Model
 {
+    use \App\Models\Concerns\CalculaAlertaDemora;
     use SoftDeletes;
 
     protected $connection = 'pymes_tenant';

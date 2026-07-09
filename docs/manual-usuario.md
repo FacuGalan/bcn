@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-01 (revision sistema impositivo: percepcion minima por regimen en configuracion de impuestos del CUIT, desglose de ingresos gravado/no gravado/exento en posicion IIBB por jurisdiccion)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-08 (nuevo modulo Pedidos Delivery / Take-Away: panel kanban/lista, repartidores y fondos, configuracion de zonas y promesa de entrega, tokens de API; y mejoras al listado de Pedidos por Mostrador con botones inline)
 
 ---
 
@@ -84,6 +84,14 @@
   - [14.5 Hacer inventario fisico](#145-hacer-inventario-fisico)
   - [14.6 Cambiar precios masivamente](#146-cambiar-precios-masivamente)
   - [14.7 Crear una promocion](#147-crear-una-promocion)
+- [15. Pedidos Delivery / Take-Away](#15-pedidos-delivery--take-away)
+  - [15.1 Panel de Pedidos Delivery](#151-panel-de-pedidos-delivery)
+  - [15.2 Vista Lista](#152-vista-lista)
+  - [15.3 Vista Kanban](#153-vista-kanban)
+  - [15.4 Alta y edicion de pedido](#154-alta-y-edicion-de-pedido)
+  - [15.5 Repartidores y Fondos](#155-repartidores-y-fondos)
+  - [15.6 Configuracion de Delivery](#156-configuracion-de-delivery)
+  - [15.7 Tokens de API](#157-tokens-de-api)
 - [Glosario](#glosario)
 
 ---
@@ -859,6 +867,19 @@ Los badges de **estado del pedido** son de color solido y vibrante para facilita
 
 > Cuando la sucursal tiene activa la **numeracion de display** (turno), el numero visible del pedido en la fila es el numero de turno (corto y reseteable), no el correlativo permanente. El correlativo permanente sigue disponible como referencia interna pero no se muestra en la fila de la lista.
 
+#### Botones inline sobre el dato (patron aplicado a toda la fila)
+
+La lista (y las cards moviles) reemplazan varios botones sueltos por **botones inline sobre el propio dato**: se ve el valor normalmente y, al pasar el cursor, aparece un icono pequeno a la derecha que indica la accion disponible. Todo el conjunto es clickeable.
+
+- **Numero de pedido (N°)**: si el pedido es editable (estado activo no terminal con pago pendiente), el numero se muestra con un lapiz en hover — click abre el editor full-screen. Reemplaza al boton "Editar" suelto que existia antes en la columna de acciones.
+- **Badge de estado del pedido**: siempre que el pedido no este cancelado ni facturado, el badge de estado es clickeable (icono de flecha en hover) y abre el modal "Cambiar estado" con el siguiente paso logico preseleccionado (incluye pasar a Entregado). Reemplaza al boton "Cambiar estado" suelto.
+- **Badge de estado de pago**: igual que antes, funciona como cobro rapido cuando hay saldo pendiente (ver mas abajo). Si el pedido tiene pagos planificados, debajo aparece un **desplegable "Plan.: $X"** que al hacer click muestra el detalle de cada pago planificado (forma de pago, monto y vuelto si corresponde).
+- Si el pedido tuvo vuelto en algun pago, se muestra debajo del total la linea **"Vuelto: $X"**.
+
+#### Columna Acciones (acotada)
+
+Con Editar y Cambiar estado movidos al dato correspondiente, la columna **Acciones** de la fila queda acotada a: **Ver detalle**, **Convertir en venta** (si corresponde el permiso y el estado), **Comandar** (icono azul, tooltip segun estado de comanda) y **Cancelar** (si hay permiso). "Reimprimir precuenta" se hace desde el modal "Ver detalle".
+
 #### Ordenamiento de la tabla
 
 Las columnas de la tabla son clickeables para ordenar el listado:
@@ -882,15 +903,14 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 
 | Accion | Condicion | Permiso requerido |
 |--------|-----------|-------------------|
-| Ver detalle | Siempre disponible | Ninguno adicional |
-| Editar (rapido) | Estado activo no terminal con estado de pago pendiente (sin cobros materializados) | Ninguno adicional |
-| Entregar (rapido) | Pedido en estado confirmado, en preparacion o listo | Ninguno adicional |
-| Cambiar estado | Pedido no cancelado ni facturado | Ninguno adicional |
+| Ver detalle | Siempre disponible (columna Acciones) | Ninguno adicional |
+| Editar (rapido) | Estado activo no terminal con estado de pago pendiente (sin cobros materializados) — boton inline sobre el N° del pedido (lapiz en hover), no en la columna Acciones | Ninguno adicional |
+| Cambiar estado (incluye Entregar) | Pedido no cancelado ni facturado — click en el badge de estado del pedido, abre el modal con el siguiente paso preseleccionado | Ninguno adicional |
 | Cobrar (badge de estado de pago clickeable) | Pedido activo con saldo pendiente o pagos planificados | `func.pedidos_mostrador.cobrar` |
-| Convertir en venta | Pedido confirmado, en preparacion, listo o entregado | `func.pedidos_mostrador.convertir_venta` |
-| Comandar | Siempre disponible en pedidos no cancelados ni facturados | Ninguno adicional |
-| Reimprimir precuenta | Siempre disponible | Ninguno adicional |
-| Cancelar | Pedido no cancelado ni facturado | `func.pedidos_mostrador.cancelar` |
+| Convertir en venta | Pedido confirmado, en preparacion, listo o entregado (columna Acciones) | `func.pedidos_mostrador.convertir_venta` |
+| Comandar | Siempre disponible en pedidos no cancelados ni facturados (columna Acciones) | Ninguno adicional |
+| Reimprimir precuenta | Desde el modal "Ver detalle" | Ninguno adicional |
+| Cancelar | Pedido no cancelado ni facturado (columna Acciones) | `func.pedidos_mostrador.cancelar` |
 | Invitar item | Pedido editable (desde el editor) | `func.pedidos_mostrador.invitar_renglon` |
 | Invitar pedido completo | Pedido editable (desde el editor o modal cobro) | `func.pedidos_mostrador.invitar_pedido` |
 
@@ -898,21 +918,19 @@ Las acciones disponibles dependen del estado del pedido y los permisos del usuar
 
 #### Accion rapida: Editar
 
-El boton **"Editar"** (icono lapiz, color ambar) aparece en la fila cuando el pedido es editable: cualquier estado activo no terminal (borrador, confirmado, en preparacion, listo, entregado) con estado de pago `pendiente` (sin cobros materializados). Una vez que el pedido tiene pagos activos, la edicion ya no esta disponible.
+El pedido es editable en cualquier estado activo no terminal (borrador, confirmado, en preparacion, listo, entregado) con estado de pago `pendiente` (sin cobros materializados). Una vez que el pedido tiene pagos activos, la edicion ya no esta disponible.
 
-Al hacer click abre el editor full-screen con todos los datos del pedido precargados para modificar items, cliente, descuentos y demas campos.
+El boton de edicion (icono lapiz, color ambar) ya **no es un boton suelto en la columna Acciones**: es un boton inline sobre el **numero de pedido (N°)**, tanto en la Vista Lista como en las cards moviles y en el Kanban. Al pasar el cursor sobre el N° aparece el lapiz; al hacer click abre el editor full-screen con todos los datos del pedido precargados para modificar items, cliente, descuentos y demas campos.
 
-En moviles el boton aparece a la izquierda del boton "Ver detalle"; en escritorio figura en primer lugar del grupo de acciones secundarias (izquierda de "Ver detalle").
+#### Entregar (via badge de estado)
 
-#### Accion rapida: Entregar
+Ya no existe un boton "Entregar" suelto en la fila ni en las cards. Para pasar un pedido confirmado, en preparacion o listo a `entregado`, se hace click en el **badge de estado del pedido** (columna Estado en la lista, o el badge superior en las cards): se abre el modal "Cambiar estado" con "Entregado" preseleccionado si es el siguiente paso logico, o se puede elegir otra transicion valida.
 
-El boton **"Entregar"** (icono check verde, color emerald) aparece en cada fila cuando el estado actual del pedido admite la transicion a `entregado` (es decir: confirmado, en preparacion o listo). Al hacer click, aparece una confirmacion rapida. Si se acepta, el pedido pasa directamente a estado entregado sin necesidad de abrir el modal de cambio de estado.
+En la **Vista Kanban**, ademas del badge y el drag&drop, el dropdown **"Acciones"** de cada card incluye una opcion directa **"Entregar"** con confirmacion rapida (sin abrir el modal completo) cuando la transicion es valida.
 
 No se requiere que el pedido este cobrado para entregarlo. El cobro y la entrega son independientes: el operario puede entregar el pedido aunque tenga saldo pendiente. El gate de cobro solo aplica al convertir el pedido en venta.
 
 Si la sucursal tiene activada la opcion de conversion automatica al entregar (`pedido_conversion_automatica_al_entregar = true`), el sistema convierte el pedido en venta automaticamente como efecto secundario del cambio de estado (la conversion si requiere cobertura completa).
-
-En moviles el boton muestra solo el icono; en escritorio muestra icono y texto.
 
 #### Badge de estado de pago clickeable (cobro rapido)
 
@@ -972,7 +990,7 @@ El boton **"Comandar"** (color azul) aparece en cada fila de la lista, en las ca
 
 #### Modal: Cambiar estado
 
-Permite avanzar el pedido en su ciclo de vida. Las transiciones posibles desde cada estado son:
+Se abre haciendo click en el **badge de estado del pedido** (lista, cards o Kanban) o desde la opcion "Entregar" del dropdown "Acciones" del Kanban. Permite avanzar el pedido en su ciclo de vida, con el siguiente paso logico preseleccionado (se puede elegir otro). Las transiciones posibles desde cada estado son:
 
 | Estado actual | Transiciones disponibles |
 |---------------|--------------------------|
@@ -1075,18 +1093,22 @@ Al igual que la Vista Lista, el Kanban filtra automaticamente por caja activa cu
 #### Cards del Kanban
 
 Cada card muestra:
-- Numero del pedido (si la sucursal usa numeracion de display, muestra el numero de turno; caso contrario, el correlativo permanente)
+- Numero del pedido (si la sucursal usa numeracion de display, muestra el numero de turno; caso contrario, el correlativo permanente) — con boton inline de edicion (lapiz en hover) si el pedido es editable.
 - Numero de beeper (si el pedido tiene uno asignado)
 - Nombre del cliente (o indicador de cliente temporal)
 - Total del pedido
-- Estado de pago con color: **Pagado** (verde), **Parcial** (ambar), **Pendiente** (rojo)
-- Badge verde "Cortesia" si el pedido es una invitacion total
+- Estado de pago con color: **Pagado** (verde), **Parcial** (ambar), **Pendiente** (rojo) — informativo, no clickeable en la card del Kanban.
 
-Botones disponibles directamente en la card:
-- **Ver**: abre el modal de detalle.
-- **Editar** (icono lapiz, ambar): aparece solo si el pedido es editable (estado activo no terminal con pago pendiente). Abre el editor full-screen.
-- **Badge de estado de pago (clickeable)**: cuando el pedido tiene saldo pendiente, el badge funciona como boton de cobro rapido (igual que en la Vista Lista). Al pasar el cursor aparece el icono $.
-- **Cancelar**: abre el modal de cancelacion con motivo obligatorio.
+Todas las acciones de la card estan agrupadas en un **unico boton "Acciones"** (icono de tres puntos) en el pie de la card, junto al total. Al hacer click despliega un menu (con `position:fixed` para que no lo recorte el scroll de la columna) con, segun corresponda:
+- **Entregar**: solo si la transicion a `entregado` es valida desde el estado actual; con confirmacion rapida.
+- **Cobrar / Confirmar pagos planificados**: si hay saldo pendiente o planificados y el usuario tiene `func.pedidos_mostrador.cobrar`.
+- **Editar pedido**: si el pedido es editable (tambien disponible en el lapiz del numero).
+- **Ver detalle**.
+- **Comandar / Reimprimir comanda** (tooltip segun estado de comanda).
+- **Convertir en venta**: si corresponde el estado y el permiso `func.pedidos_mostrador.convertir_venta`.
+- **Cancelar pedido**: separado por una linea divisoria, si el usuario tiene `func.pedidos_mostrador.cancelar`.
+
+El menu se cierra al hacer scroll, al tocar/hacer click afuera o con `Escape`.
 
 #### Drag and drop entre columnas
 
@@ -1094,7 +1116,7 @@ Las cards se pueden arrastrar de una columna a otra para cambiar el estado del p
 
 Al soltar una card en una columna valida, el estado del pedido se actualiza de inmediato. Si el servidor rechaza el cambio (por ejemplo, una condicion de carrera), la card vuelve a su columna original automaticamente.
 
-> El drag and drop **no puede cancelar** pedidos. La cancelacion requiere siempre ingresar un motivo y se hace exclusivamente desde el boton "Cancelar" en la card.
+> El drag and drop **no puede cancelar** pedidos. La cancelacion requiere siempre ingresar un motivo y se hace exclusivamente desde la opcion "Cancelar pedido" del boton "Acciones" de la card.
 
 #### Reordenamiento dentro de una columna
 
@@ -2423,6 +2445,8 @@ El boton **"Reporte de Antiguedad"** genera un informe de todas las deudas clasi
 
 La configuracion de la empresa se organiza en pestanas. La pestana activa se persiste en la URL (`?tab=cuits`, `?tab=sucursales`, etc.), por lo que al recargar la pagina o compartir el enlace se vuelve a la misma pestana.
 
+Junto al titulo aparece el boton **"Tokens de API"** (visible solo con el permiso `func.api.tokens`), que lleva a la gestion de tokens de integracion para aplicaciones externas (ver seccion 15.7).
+
 #### Pestana "Empresa"
 
 Datos generales del comercio:
@@ -3567,6 +3591,175 @@ Al pie del resumen se informa ademas cuantas filas totales tenia el padron, cuan
 
 ---
 
+## 15. Pedidos Delivery / Take-Away
+
+El modulo de Pedidos Delivery / Take-Away permite gestionar pedidos con entrega a domicilio o retiro en el local, con la logistica que eso agrega: direccion georreferenciada, costo de envio, repartidores con fondo de cambio, salidas y vueltas, y promesa de horario de entrega. Es un modulo hermano de Pedidos por Mostrador: usa el mismo carrito (articulos, opcionales, promociones, cupones, puntos, invitaciones, pagos) pero con sus propias tablas, numeracion y panel.
+
+Un pedido delivery tiene, ademas del **estado del pedido** y el **estado del pago** (igual que mostrador), datos logisticos: tipo (delivery o take-away), direccion de entrega, zona, repartidor asignado, costo de envio y hora prometida de entrega.
+
+### 15.1 Panel de Pedidos Delivery
+
+**Ruta**: Menu > Pedidos Delivery (o Menu > Pedidos > Delivery)
+
+Igual que Pedidos por Mostrador, la pagina es fullscreen con vistas **Lista** y **Kanban** intercambiables (la preferencia se guarda en el dispositivo). El header incluye contador de pedidos, badge de nuevos, chips de filtros activos, buscador, boton Filtros, boton Refrescar, toggle Lista/Kanban, boton Nuevo Pedido y el **engranaje de Configuracion** (abre la Configuracion de Delivery, seccion 15.6, con el permiso `func.pedidos_delivery.config`).
+
+#### Strip "Pedidos por aceptar"
+
+Cuando la sucursal acepta pedidos externos (tienda/API) de forma **manual**, aparece una franja destacada con los pedidos que llegaron sin confirmar todavia, con sonido/badge en tiempo real. Cada pedido por aceptar muestra:
+- Boton **Aceptar**: si el modo de promesa es manual, abre un modal para elegir la demora (botones +0, +10, +15... configurables) y fija la hora pactada informada al consumidor; si es automatico, confirma directo.
+- Boton **Rechazar**: pide un motivo. Si el pedido tenia un pago online ya acreditado, queda marcado **"A DEVOLVER"** y se avisa al consumidor por su canal de seguimiento.
+- Si pasa el tiempo configurado (`timeout_aceptacion_min`) sin aceptarse, el pedido se resalta como **"Demorado"** (no se cancela solo).
+
+#### Franja "En la calle"
+
+Muestra las **salidas de reparto en curso** (repartidores que ya partieron con uno o mas pedidos), con la cantidad de pedidos de cada salida y acceso directo a registrar la **vuelta** (seccion 15.5).
+
+#### Filtros disponibles
+
+Ademas de los filtros de Pedidos por Mostrador (busqueda, estado del pedido, estado de pago, fechas), Pedidos Delivery agrega:
+
+| Filtro | Opciones |
+|--------|----------|
+| Tipo de pedido | Delivery / Take-away / Todos |
+| Repartidor | Lista de repartidores de la sucursal |
+| Origen | Panel / Tienda / API |
+| Zona | Zonas de entrega configuradas |
+
+### 15.2 Vista Lista
+
+La lista aplica el mismo patron de **botones inline sobre el dato** (ver seccion 4.2) mas los propios de la logistica:
+
+- **N° de pedido**: boton inline con lapiz en hover (igual que mostrador) si el pedido es editable.
+- **Chip de tipo**: "Delivery" (celeste) o "Para llevar" (violeta). En take-away, mientras el pedido este en confirmado/en preparacion/listo, el chip **es un boton**: al hacer click (check en hover) pasa el pedido directamente a **"Para retirar"** (el cliente ya puede pasar a buscarlo), sin necesidad de asignar repartidor ni salida.
+- **Direccion de entrega**: renglon propio resaltado en negrita (con la referencia — piso/depto — a continuacion). Si falta, se muestra en naranja "Sin direccion de entrega".
+- **Repartidor / envio**: en pedidos delivery, si el pedido esta en confirmado/en preparacion/listo, el nombre del repartidor (o "Sin repartidor" en naranja) es un **boton de despacho** (camion en hover): sin repartidor asignado abre el modal para elegirlo y despachar; con repartidor asignado, despacha directo — **sumando el pedido al viaje en curso de ese repartidor** si ya esta en la calle (un repartidor tiene un unico viaje activo). El costo de envio se muestra al lado (con `*` si fue cargado a mano).
+- **Horarios / promesa de entrega**: chip de hora pactada (naranja si esta vencida y el pedido sigue activo), "Lo antes posible" (si el cliente pidio que salga ya) o "Sin hora pactada". Mientras el pedido no este entregado/facturado/cancelado, el chip es un **boton editable** (reloj en hover): abre un modal para fijar la hora segun el modo de promesa configurado (franjas, demora automatica o botones de demora manual) o marcarlo "Ya" (lo antes posible).
+- **Badge de estado de pago**: igual que mostrador (cobro rapido / desplegable de planificados con forma de pago, monto y vuelto).
+- **Badge de estado del pedido**: igual que mostrador, boton que abre "Cambiar estado" con el siguiente paso preseleccionado (incluye `en_camino`/"Para retirar" y `entregado`).
+- **Columna Acciones**: Ver detalle, Convertir en venta, Comandar, Cancelar (con permisos, mismo criterio que mostrador).
+
+> Los pedidos **Facturados** no aparecen en el Kanban ni en el flujo operativo del dia a dia: se consultan solo desde la Vista Lista con el filtro de estado correspondiente.
+
+### 15.3 Vista Kanban
+
+Cinco columnas: **Confirmado**, **En preparacion**, **Listo**, **En camino / Retiro**, **Entregado**. Si la sucursal tiene desactivada la key `usa_estado_listo` (seccion 15.6), la columna **Listo** se oculta y el tablero queda de 4 columnas (la preparacion despacha directo a "En camino / Retiro"). Los pedidos ordenan primero los que pidieron "Lo antes posible" y luego por hora pactada, para priorizar visualmente los mas urgentes.
+
+Cada card incluye los mismos datos que la fila de la lista (chip de tipo/zona/origen, direccion, repartidor/envio, promesa) mas un **boton unico "Acciones"** (igual que el Kanban de mostrador) con, segun corresponda: Ver detalle, Convertir en venta, Comandar, Cancelar. El despacho, el chip "Para llevar"/"Para retirar" y la hora pactada siguen siendo botones inline directamente en la card (no van dentro del dropdown).
+
+Drag & drop entre columnas y reordenamiento dentro de una columna funcionan igual que en Pedidos por Mostrador (solo transiciones validas, orden persistido por columna).
+
+### 15.4 Alta y edicion de pedido
+
+El boton **"Nuevo Pedido"** abre el mismo tipo de modal full-screen que Pedidos por Mostrador, con el carrito identico (busqueda de articulos, opcionales, promociones, descuentos, cupon, puntos, invitaciones/cortesia, concepto libre) mas los campos propios de la logistica:
+
+#### Tipo de pedido
+
+Selector **Delivery / Take-away** al inicio del formulario. El tipo puede cambiarse mientras el pedido este en borrador o confirmado:
+- **Take-away**: sin direccion, sin repartidor, sin costo de envio. Puede usar numero de beeper si la sucursal lo tiene activado.
+- **Delivery**: exige direccion de entrega antes de confirmar.
+
+#### Direccion de entrega
+
+Boton **"Direccion de entrega"** abre un modal con el mismo picker de Google Maps usado en el resto del sistema (autocomplete, click/arrastre del marcador, "usar mi ubicacion"), mas un campo de **referencia** (piso/depto/indicaciones). Si el cliente elegido ya tiene una direccion de entrega guardada, se precarga con mapa y coordenadas. La opcion **"Entregar en otra direccion"** permite usar una direccion distinta sin pisar la guardada del cliente.
+
+Si la sucursal tiene la georreferenciacion apagada, el modal solo pide los campos de texto (sin mapa) y el costo de envio se carga siempre a mano.
+
+#### Cotizacion de envio
+
+Con coordenadas cargadas, el sistema cotiza el envio automaticamente (zona configurada o calculo por distancia) y muestra el costo, la zona (si matcheo alguna) y el alcance. Si la direccion cae **fuera del area de entrega**, el sistema advierte; solo un usuario con permiso `func.pedidos_delivery.forzar_alcance` puede confirmar igual. El costo de envio siempre se puede **editar a mano** (queda marcado como manual).
+
+#### Promesa de entrega
+
+Segun el modo configurado en la sucursal (seccion 15.6):
+- **Franjas**: elegir una franja horaria de las definidas por el comercio para ese dia/tipo de pedido.
+- **Automatica**: el sistema calcula la hora estimada segun la distancia (base + minutos por km).
+- **Manual**: se fija al aceptar el pedido (ver strip "por aceptar") con botones de demora.
+
+Si la sucursal acepta **"Lo antes posible"**, hay un boton "Ya" que marca el pedido sin hora fija (excluyente con una hora pactada).
+
+#### Vuelto planificado
+
+Al confirmar un pedido **sin cobrarlo** con la intencion de pagar en efectivo contra entrega, el sistema pregunta **"¿Con cuanto paga?"**: el monto que el cliente va a entregar. Con esa respuesta el pago queda planificado con su vuelto, y el repartidor sale con el cambio exacto preparado.
+
+### 15.5 Repartidores y Fondos
+
+**Ruta**: Menu > Repartidores (dentro de Pedidos Delivery)
+
+#### ABM de Repartidores
+
+Alta, edicion y baja de repartidores: nombre, telefono, tipo (**Propio** o **Tercero**), sucursales donde puede repartir y el flag **"El envio es del repartidor"** (si esta activo, el costo de envio cobrado no es ingreso del comercio: se liquida al repartidor cuando rinde). Requiere permiso `func.pedidos_delivery.repartidores`.
+
+#### Fondo de cambio
+
+Cada repartidor puede tener **un fondo abierto por sucursal**: el efectivo de cambio que lleva a la calle.
+
+- **Abrir fondo**: entrega un monto inicial desde una caja (genera un egreso de esa caja).
+- **Reforzar**: agrega mas efectivo a un fondo ya abierto (tambien desde una caja).
+- El fondo **no se rinde obligatoriamente** al volver de un reparto: puede quedar abierto para la proxima salida.
+- **Rendir**: declara el efectivo contado; el sistema compara contra el saldo teorico (segun los movimientos) y registra la diferencia (sobrante o faltante). El neto ingresa a la caja elegida. Si el repartidor es tercero con envio propio, la rendicion descuenta lo que le corresponde por los envios.
+
+#### Salida y despacho
+
+Un repartidor tiene **un unico viaje activo a la vez**: despachar un nuevo pedido con un repartidor que ya esta en la calle lo suma a esa misma salida (no se crean salidas paralelas). El despacho puede hacerse pedido por pedido (boton inline de la lista/card) o armando una salida con varios pedidos listos de una vez.
+
+#### Vuelta (regreso del repartidor)
+
+Al registrar la vuelta se marca, por cada pedido de la salida, si se **entrego** o **no se entrego** (con motivo — vuelve a "Listo" para re-despachar). Ademas se define que pasa con el efectivo cobrado en la calle (**mini-rendicion**), con estas opciones:
+
+| Opcion | Que hace |
+|--------|----------|
+| Se queda todo (sigue repartiendo) | El fondo no se toca, el repartidor sigue con su cambio para la proxima salida |
+| Devuelve solo los pedidos (se queda la caja chica) | Entrega a la caja lo cobrado en esta vuelta (neto de envios de terceros si aplica), sin tocar el resto del fondo |
+| Devuelve una parte a caja | Entrega un monto elegido a la caja |
+| Devuelve todo y cierra la caja chica | Rendicion completa: declara lo contado, se registra sobrante/faltante y se cierra el fondo |
+| Se lleva mas cambio (refuerzo desde caja) | Ademas de la vuelta, se agrega un refuerzo de efectivo al fondo |
+
+Un **repartidor tercero** no tiene esta eleccion: siempre entrega a la caja lo cobrado (neto de sus envios), porque no maneja caja chica propia.
+
+> El efectivo cobrado contra entrega **no genera un movimiento de caja al momento del cobro**: queda "viviendo" en el fondo del repartidor. La caja recibe un unico ingreso neto cuando se rinde o se devuelve. Los pagos con QR u otra forma de pago integrada en la puerta van por el circuito normal (no pasan por el fondo) y no pueden confirmarse desde la vuelta.
+
+### 15.6 Configuracion de Delivery
+
+**Ruta**: engranaje del panel de Pedidos Delivery > `/pedidos/delivery/configuracion` (permiso `func.pedidos_delivery.config`)
+
+#### General
+- **Usar Delivery** (activa el modulo para la sucursal).
+- Georreferenciar pedidos (activa el mapa y el calculo automatico de envio).
+- Radio de entrega (km) y costo por km extra, km incluidos en el costo base.
+- Categoria del renglon "Costo de envio" (para que aparezca correctamente en comprobantes y reportes).
+- Exigir repartidor para despachar.
+- Habilitar take-away.
+- **Usar estado "Listo"**: si se apaga, la columna Listo se oculta del Kanban y la preparacion pasa directo a "En camino / Retiro".
+- Conversion automatica a venta al entregar (propia de delivery, independiente de la de mostrador; emite los comprobantes fiscales de los pagos con forma de pago fiscal).
+- Numeracion de pedidos (turno) propia de delivery: modo diario (con horas de reset) o manual.
+
+#### Costo de envio y zonas de entrega
+ABM de **zonas de entrega dibujadas en el mapa** (poligono): nombre, costo de envio propio, **franjas horarias de costo** (por ejemplo, mas caro despues de cierta hora), orden de prioridad y activo/inactivo. Si hay zonas activas, una direccion fuera de todas ellas queda **fuera de alcance** (no hay fallback al calculo por radio/km); sin zonas dibujadas, rige el radio general configurado en "General".
+
+#### Pedidos externos (tienda / API)
+- Aceptacion de pedidos externos: **Manual** (entra "por aceptar") o **Automatica** (entra confirmado directo).
+- Imprimir la comanda automaticamente al aceptar (solo con aceptacion automatica).
+- Tiempo limite de aceptacion (minutos) antes de marcar el pedido "Demorado".
+
+#### Promesa de entrega
+- Modo: **Franjas** (horarios definidos a mano, con dias y si aplica a delivery/take-away/ambos), **Automatica** (demora base + minutos por km) o **Manual** (botones de demora configurables, por ejemplo +0, +10, +15... +90).
+- Aceptar "Lo antes posible" (agrega el boton "Ya").
+
+#### Calendario de atencion
+Dias laborales, horarios de atencion (por dia/rango) y feriados. Fuera de horario, la API/tienda publica rechaza el pedido; el panel solo advierte.
+
+### 15.7 Tokens de API
+
+**Ruta**: `/configuracion/api-tokens` (tambien accesible con un boton **"Tokens de API"** en el header de Configuracion > Datos de la Empresa, visible solo con el permiso `func.api.tokens`)
+
+Permite emitir y revocar **tokens de integracion** para que aplicaciones externas (o la futura tienda online) operen sobre los pedidos delivery del comercio via la API REST v1:
+
+- **Crear token**: se elige un nombre descriptivo y las **abilities** (permisos del token): leer pedidos, crear/modificar pedidos, leer configuracion, leer catalogo. El token se muestra **una unica vez** en pantalla para copiarlo; despues no se puede volver a ver.
+- **Listar tokens**: nombre, abilities, fecha de ultimo uso.
+- **Revocar**: invalida el token de inmediato (con confirmacion).
+
+---
+
 ## Glosario
 
 | Termino | Definicion |
@@ -3584,6 +3777,7 @@ Al pie del resumen se informa ademas cuantas filas totales tenia el padron, cuan
 | **CUIT** | Clave Unica de Identificacion Tributaria; numero fiscal asignado a personas y empresas en Argentina. |
 | **Desglose de pagos** | Division de un pago en multiples formas de pago (pago mixto). |
 | **Etiqueta** | Clasificador libre que se asigna a articulos para filtrar y organizar. |
+| **Fondo de repartidor** | Efectivo de cambio entregado a un repartidor para operar en la calle; se rinde contra una caja cuando se decide cerrarlo. |
 | **Forma de pago** | Medio por el cual el cliente paga (ej: Efectivo, Visa Debito, Mercado Pago). |
 | **Forma de pago mixta** | Forma de pago que permite combinar multiples medios en una sola operacion. |
 | **Forma de venta** | Modalidad de la venta (Local, Delivery, Take Away, etc.). |
@@ -3602,13 +3796,18 @@ Al pie del resumen se informa ademas cuantas filas totales tenia el padron, cuan
 | **Posicion fiscal** | Estado tributario de un CUIT en un periodo: cuanto debe de IVA e IIBB, descontando creditos y retenciones sufridas. |
 | **Punto de venta** | Numero habilitado ante ARCA para emitir comprobantes fiscales. |
 | **Receta** | Composicion de un articulo en terminos de ingredientes y cantidades. |
-| **Rendicion** | Proceso por el cual una caja entrega el efectivo del turno cerrado a tesoreria. |
+| **Rendicion** | Proceso por el cual una caja (o un repartidor) entrega el efectivo del turno o fondo a tesoreria. |
+| **Repartidor** | Persona (propia o tercerizada) que realiza las entregas de pedidos delivery, con su propio fondo de cambio. |
 | **Saldo a favor** | Monto que el comercio le debe al cliente (por ejemplo, si pago de mas). |
+| **Salida de reparto** | Viaje de un repartidor con uno o mas pedidos "en camino"; se cierra al registrar la vuelta. |
 | **Sucursal** | Cada ubicacion fisica del comercio. |
+| **Take-away** | Pedido para retirar en el local, sin direccion de entrega ni repartidor. |
 | **Tesoreria** | Caja fuerte central de la sucursal donde se resguarda el efectivo no asignado a cajas operativas. |
 | **Retencion** | Descuento que retiene un agente de retencion del pago a un proveedor, a cuenta de un impuesto. |
 | **Percepcion** | Importe adicional que cobra un agente de percepcion sobre una operacion, a cuenta de un impuesto. |
 | **Ticket** | Comprobante no fiscal de una venta. |
 | **Tipo de cambio** | Cotizacion de una moneda respecto a otra (tasa de compra y tasa de venta). |
+| **Token de API** | Credencial emitida por el comercio para que una aplicacion externa opere sobre pedidos delivery via la API REST. |
 | **Turno** | Periodo operativo de una caja, desde su apertura hasta su cierre con arqueo. |
 | **Wizard** | Asistente paso a paso que guia al usuario en un proceso complejo. |
+| **Zona de entrega** | Area dibujada en el mapa con costo de envio propio, usada para cotizar el envio de un pedido delivery. |

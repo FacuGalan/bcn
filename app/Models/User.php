@@ -297,15 +297,23 @@ class User extends Authenticatable
      */
     protected function loadAllPermissions(): array
     {
-        $cacheKey = 'user_permissions_'.$this->id.'_'.session('comercio_activo_id');
+        // Contexto del comercio: sesión web o, SIN sesión (API v1/CLI), el
+        // comercio explícito configurado en TenantService por api.tenant /
+        // usarComercioParaProceso (RF-11 pedidos-delivery). Antes, sin sesión
+        // esto devolvía siempre vacío y los hasPermissionTo() de los services
+        // denegaban todo bajo Sanctum.
+        $comercioId = session('comercio_activo_id')
+            ?? app(\App\Services\TenantService::class)->getComercio()?->id;
 
-        return cache()->remember($cacheKey, 300, function () {
+        $cacheKey = 'user_permissions_'.$this->id.'_'.$comercioId;
+
+        return cache()->remember($cacheKey, 300, function () use ($comercioId) {
             // System Admin tiene TODOS los permisos
             if ($this->isSystemAdmin()) {
                 return Permission::pluck('name')->toArray();
             }
 
-            if (! session()->has('comercio_activo_id')) {
+            if (! $comercioId) {
                 return [];
             }
 

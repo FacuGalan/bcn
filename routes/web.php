@@ -187,6 +187,15 @@ Route::prefix('app')->group(function () {
         Route::get('pedidos/mostrador', PedidosMostrador::class)->name('pedidos.mostrador');
 
         /**
+         * Pedidos Delivery / Take-away
+         * Panel kanban de delivery + ABM de repartidores y fondos (RF-01/RF-07/RF-09).
+         */
+        Route::get('pedidos/delivery', \App\Livewire\Pedidos\PedidosDelivery::class)->name('pedidos.delivery');
+        Route::get('pedidos/delivery/configuracion', \App\Livewire\Pedidos\ConfiguracionDelivery::class)->name('pedidos.delivery.configuracion');
+        Route::get('configuracion/api-tokens', \App\Livewire\Configuracion\ApiTokens::class)->name('configuracion.api-tokens');
+        Route::get('pedidos/repartidores', \App\Livewire\Pedidos\Repartidores::class)->name('pedidos.repartidores');
+
+        /**
          * Compras
          * Gestión de compras, proveedores, pagos
          */

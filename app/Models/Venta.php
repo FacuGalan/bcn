@@ -115,6 +115,10 @@ class Venta extends Model
         'cliente_condicion_iva_snapshot',
         'cupon_codigo_snapshot',
         'cupon_descripcion_snapshot',
+        // Origen polimórfico (D20): morph al pedido que generó la venta
+        // ('PedidoMostrador'/'PedidoDelivery' vía morphMap; NULL = venta directa POS)
+        'origen_type',
+        'origen_id',
     ];
 
     protected $casts = [
@@ -146,6 +150,17 @@ class Venta extends Model
     ];
 
     // Relaciones
+
+    /**
+     * Pedido que originó esta venta (D20): PedidoMostrador o PedidoDelivery
+     * vía morphMap. NULL = venta directa de POS. Lo setean las conversiones
+     * (convertirEnVenta de ambos services).
+     */
+    public function origen(): \Illuminate\Database\Eloquent\Relations\MorphTo
+    {
+        return $this->morphTo('origen');
+    }
+
     public function sucursal(): BelongsTo
     {
         return $this->belongsTo(Sucursal::class, 'sucursal_id');

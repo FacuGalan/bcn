@@ -20,9 +20,10 @@
 const CENTRO_AR = { lat: -38.4161, lng: -63.6167 };
 
 // Loader del bootstrap oficial de Google Maps — carga una sola vez por página.
+// Exportado: lo reutiliza zonas-mapa.js (mapa de zonas de entrega).
 let mapsPromise = null;
 
-function cargarGoogleMaps(key) {
+export function cargarGoogleMaps(key) {
     if (mapsPromise) {
         return mapsPromise;
     }
@@ -95,11 +96,38 @@ function aLatLng(pos) {
     return Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null;
 }
 
+/**
+ * Calle y número desde address components — SIN localidad/provincia/país
+ * (nada de ", Provincia de Buenos Aires, Argentina"). Soporta las dos formas
+ * de la API: Place.addressComponents ({longText}) y Geocoder ({long_name}).
+ */
+function direccionDesdeComponents(components) {
+    if (!Array.isArray(components)) {
+        return '';
+    }
+    const texto = (c) => c?.longText ?? c?.long_name ?? '';
+    const buscar = (tipo) => components.find((c) => (c.types || []).includes(tipo));
+    const calle = texto(buscar('route'));
+    const numero = texto(buscar('street_number'));
+
+    return calle ? (numero ? `${calle} ${numero}` : calle) : '';
+}
+
+// Geocoder compartido (reverse geocoding del pin) — fuera del componente para
+// que Alpine no lo envuelva en un Proxy reactivo.
+let geocoder = null;
+
 document.addEventListener('alpine:init', () => {
     window.Alpine.data('domicilioMapa', (config = {}) => ({
         key: config.key || '',
         mapId: config.mapId || 'DEMO_MAP_ID',
         txtGeoError: config.txtGeoError || '',
+        // Opt-in: escribir la dirección (calle y número) en domDireccion al
+        // elegir/mover el punto. Solo lo activa el modal de entrega de delivery.
+        autocompletarDireccion: config.autocompletarDireccion || false,
+        // Opt-in: abrir el mapa apenas se monta el componente (modal de entrega:
+        // el operador abrió el modal PARA cargar la dirección, sin paso extra).
+        autoAbrir: config.autoAbrir || false,
 
         map: null,
         marker: null,
@@ -114,10 +142,13 @@ document.addEventListener('alpine:init', () => {
         coords: null,
 
         init() {
-            // Carga PEREZOSA: no cargamos el SDK ni construimos el mapa al montar.
-            // Recién al tocar "Abrir mapa" (abrir()) se llama a la API de Google.
-            // Así, si el usuario solo edita otros datos de la sucursal, no se hace
-            // ninguna llamada (ni costo) de mapas.
+            // Carga PEREZOSA por defecto: no cargamos el SDK ni construimos el
+            // mapa al montar — recién al tocar "Abrir mapa" (abrir()). Así, si
+            // el usuario solo edita otros datos, no hay llamada (ni costo) de
+            // mapas. Con autoAbrir (modal de entrega) se abre de una.
+            if (this.autoAbrir) {
+                this.abrir();
+            }
         },
 
         /** Carga el SDK y construye el mapa la primera vez; reabre si ya existe. */
@@ -200,13 +231,42 @@ document.addEventListener('alpine:init', () => {
             this.autocomplete.classList.add('w-full');
             this.$refs.autocompleteSlot.appendChild(this.autocomplete);
             this.autocomplete.addEventListener('gmp-select', async ({ placePrediction }) => {
-                const place = placePrediction.toPlace();
-                await place.fetchFields({ fields: ['location'] });
-                const loc = aLatLng(place.location);
-                if (loc) {
-                    this.colocar(loc.lat, loc.lng, 17);
+                // Si había un Enter pendiente (ver keydown), el widget ya
+                // resolvió la selección: no dupliquemos con la primera sugerencia.
+                clearTimeout(this._enterPendiente);
+                await this.seleccionarPrediccion(placePrediction);
+            });
+
+            // El texto tipeado vive en el shadow DOM del widget; lo espejamos
+            // desde los eventos de input (composed) para poder resolver Enter.
+            this._textoBusqueda = '';
+            this.autocomplete.addEventListener('input', (e) => {
+                const v = e.composedPath?.()[0]?.value;
+                if (typeof v === 'string') {
+                    this._textoBusqueda = v;
                 }
             });
+
+            // Enter = elegir la PRIMERA sugerencia. El widget solo selecciona
+            // con Enter si hay una sugerencia resaltada; si la hubo, dispara
+            // gmp-select enseguida y cancela este fallback.
+            this.autocomplete.addEventListener('keydown', (e) => {
+                if (e.key !== 'Enter') {
+                    return;
+                }
+                e.preventDefault();
+                const texto = (this._textoBusqueda || '').trim();
+                if (!texto) {
+                    return;
+                }
+                clearTimeout(this._enterPendiente);
+                this._enterPendiente = setTimeout(() => this.elegirPrimeraSugerencia(texto), 250);
+            });
+
+            if (this.autoAbrir) {
+                // Buscador listo para escribir (el web component delega el foco).
+                setTimeout(() => this.autocomplete?.focus?.(), 150);
+            }
 
             this.aplicarLocalidad(this.centroLocalidad());
             this.$wire.$watch('domLocalidadCentro', (c) => this.aplicarLocalidad(c));
@@ -322,13 +382,14 @@ document.addEventListener('alpine:init', () => {
                 if (p) {
                     this.coords = p;
                     this.push(p.lat, p.lng);
+                    this.reverseYPush(p.lat, p.lng);
                 }
             });
 
             this.coords = { lat: Number(pos.lat), lng: Number(pos.lng) };
         },
 
-        colocar(lat, lng, zoom) {
+        colocar(lat, lng, zoom, direccion = null) {
             this.mostrarMarker({ lat, lng });
             if (this.map) {
                 this.map.setCenter({ lat, lng });
@@ -337,10 +398,71 @@ document.addEventListener('alpine:init', () => {
                 }
             }
             this.push(lat, lng);
+            if (direccion) {
+                this.pushDireccion(direccion);
+            } else {
+                this.reverseYPush(lat, lng);
+            }
         },
 
         push(lat, lng) {
             this.$wire.setCoordenadasDesdeMapa(lat, lng);
+        },
+
+        pushDireccion(texto) {
+            if (this.autocompletarDireccion && texto) {
+                this.$wire.setDireccionDesdeMapa(texto);
+            }
+        },
+
+        /** Resuelve una predicción del autocomplete: coords + dirección al form. */
+        async seleccionarPrediccion(placePrediction) {
+            const place = placePrediction.toPlace();
+            await place.fetchFields({
+                fields: this.autocompletarDireccion ? ['location', 'addressComponents'] : ['location'],
+            });
+            const loc = aLatLng(place.location);
+            if (loc) {
+                // La predicción ya trae los componentes: evita el reverse
+                // geocoding que colocar() haría sin dirección explícita.
+                this.colocar(loc.lat, loc.lng, 17, direccionDesdeComponents(place.addressComponents));
+            }
+        },
+
+        /** Enter en el buscador: consulta las sugerencias del texto y toma la primera. */
+        async elegirPrimeraSugerencia(texto) {
+            try {
+                const { AutocompleteSuggestion } = await google.maps.importLibrary('places');
+                const req = { input: texto, includedRegionCodes: ['ar'] };
+                if (this.autocomplete?.locationRestriction) {
+                    req.locationRestriction = this.autocomplete.locationRestriction;
+                }
+                const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions(req);
+                const prediccion = suggestions?.[0]?.placePrediction;
+                if (prediccion) {
+                    await this.seleccionarPrediccion(prediccion);
+                }
+            } catch (e) {
+                console.warn('[domicilio-mapa] no se pudo resolver la primera sugerencia', e);
+            }
+        },
+
+        /** Reverse geocoding del punto → calle y número al input de dirección. */
+        async reverseYPush(lat, lng) {
+            if (!this.autocompletarDireccion) {
+                return;
+            }
+            try {
+                if (!geocoder) {
+                    const { Geocoder } = await google.maps.importLibrary('geocoding');
+                    geocoder = new Geocoder();
+                }
+                const { results } = await geocoder.geocode({ location: { lat, lng } });
+                this.pushDireccion(direccionDesdeComponents(results?.[0]?.address_components));
+            } catch (e) {
+                // Sin dirección legible para el punto: el input queda como está.
+                console.warn('[domicilio-mapa] reverse geocoding falló', e);
+            }
         },
 
         usarMiUbicacion() {

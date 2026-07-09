@@ -402,6 +402,28 @@
                         @error('color') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                     </div>
 
+                    <!-- Tienda (RF-17): orden + imagen de presentación -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="cat-orden" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Orden en tienda') }}</label>
+                            <input id="cat-orden" type="number" min="0" wire:model="tienda_orden"
+                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm" />
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Imagen para la tienda (opcional)') }}</label>
+                            @if($imagenPathActual && ! $quitarImagen && ! $imagenUpload)
+                                <div class="flex items-center gap-2 mb-1">
+                                    <img src="{{ \Illuminate\Support\Facades\Storage::disk('public')->url($imagenPathActual) }}" alt=""
+                                        class="h-10 w-10 rounded object-cover border border-gray-200 dark:border-gray-600" />
+                                    <button type="button" wire:click="$set('quitarImagen', true)" class="text-xs text-red-600 hover:text-red-800">{{ __('Quitar') }}</button>
+                                </div>
+                            @endif
+                            <input type="file" wire:model="imagenUpload" accept="image/*"
+                                class="block w-full text-xs text-gray-600 dark:text-gray-300 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-bcn-primary/10 file:text-bcn-primary hover:file:bg-bcn-primary/20" />
+                            @error('imagenUpload') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                        </div>
+                    </div>
+
                     <!-- Icono -->
                     <div x-data="{ openCategory: null }">
                         <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

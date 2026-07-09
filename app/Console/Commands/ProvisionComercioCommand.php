@@ -134,6 +134,10 @@ class ProvisionComercioCommand extends Command
             $this->info('[10/13] Creando conceptos y formas de pago...');
             $this->seedConceptosYFormasPago();
 
+            // ── Paso 11b: Seed — Formas y Canales de Venta ──
+            $this->info('[10b/13] Creando formas y canales de venta...');
+            $this->seedFormasYCanalesVenta();
+
             // ── Paso 12: Seed — Monedas ──
             $this->info('[11/13] Creando monedas...');
             $this->seedMonedas();
@@ -519,6 +523,51 @@ class ProvisionComercioCommand extends Command
     /**
      * Crea roles, permisos y asigna rol Super Administrador al usuario admin
      */
+    /**
+     * Formas de venta + canales de venta base. El motor de precios y las
+     * promociones condicionan por forma de venta: LOCAL para mostrador/POS,
+     * DELIVERY/TAKEAWAY para pedidos delivery (forma automática por tipo).
+     * Canales: POS (default de los editores) + TIENDA (pedidos externos).
+     * Idempotente por código (espejo de la migración
+     * 2026_07_03_120000_add_pedidos_delivery_menu_permisos_y_seeds).
+     */
+    protected function seedFormasYCanalesVenta(): void
+    {
+        $now = now();
+        $db = DB::connection('pymes_tenant');
+
+        $formas = [
+            ['nombre' => 'Local', 'codigo' => 'LOCAL', 'descripcion' => 'Consumo en el local (mesas, salón)'],
+            ['nombre' => 'Delivery', 'codigo' => 'DELIVERY', 'descripcion' => 'Entrega a domicilio'],
+            ['nombre' => 'Take Away', 'codigo' => 'TAKEAWAY', 'descripcion' => 'Para llevar (retiro en el local)'],
+        ];
+
+        foreach ($formas as $forma) {
+            if (! $db->table('formas_venta')->where('codigo', $forma['codigo'])->exists()) {
+                $db->table('formas_venta')->insert(array_merge($forma, [
+                    'activo' => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]));
+            }
+        }
+
+        $canales = [
+            ['nombre' => 'POS', 'codigo' => 'POS', 'descripcion' => 'Venta presencial en el punto de venta'],
+            ['nombre' => 'Tienda Online', 'codigo' => 'TIENDA', 'descripcion' => 'Pedidos entrados desde la tienda online / API'],
+        ];
+
+        foreach ($canales as $canal) {
+            if (! $db->table('canales_venta')->where('codigo', $canal['codigo'])->exists()) {
+                $db->table('canales_venta')->insert(array_merge($canal, [
+                    'activo' => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]));
+            }
+        }
+    }
+
     protected function seedRolesYPermisos(User $user): void
     {
         $now = now();

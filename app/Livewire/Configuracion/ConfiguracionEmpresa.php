@@ -144,6 +144,11 @@ class ConfiguracionEmpresa extends Component
     // Pedidos por Mostrador (flags de la sucursal)
     public bool $configPedidoConversionAutomaticaAlEntregar = false;
 
+    /** Alertas de pedidos demorados en minutos (0 = off, compartidas con delivery). */
+    public string $configPedidoAlertaAmarillaMin = '15';
+
+    public string $configPedidoAlertaRojaMin = '30';
+
     public bool $configUsaBeepers = false;
 
     public bool $configImprimeComandaAutomatico = false;
@@ -749,6 +754,8 @@ class ConfiguracionEmpresa extends Component
         $this->configEnviaWhatsappListo = $sucursal->envia_whatsapp_listo ?? false;
         $this->configMensajeWhatsappListo = $sucursal->mensaje_whatsapp_listo ?? '';
         $this->configPedidoConversionAutomaticaAlEntregar = (bool) ($sucursal->pedido_conversion_automatica_al_entregar ?? false);
+        $this->configPedidoAlertaAmarillaMin = (string) ($sucursal->pedido_alerta_amarilla_min ?? 15);
+        $this->configPedidoAlertaRojaMin = (string) ($sucursal->pedido_alerta_roja_min ?? 30);
         $this->configUsaBeepers = (bool) ($sucursal->usa_beepers ?? false);
         $this->configImprimeComandaAutomatico = (bool) ($sucursal->imprime_comanda_automatico ?? false);
         $this->configUsaNumeracionDisplay = (bool) ($sucursal->usa_numeracion_display ?? false);
@@ -855,6 +862,8 @@ class ConfiguracionEmpresa extends Component
                 'envia_whatsapp_listo' => $this->configEnviaWhatsappListo,
                 'mensaje_whatsapp_listo' => $this->configEnviaWhatsappListo ? $this->configMensajeWhatsappListo : null,
                 'pedido_conversion_automatica_al_entregar' => $this->configPedidoConversionAutomaticaAlEntregar,
+                'pedido_alerta_amarilla_min' => max(0, (int) $this->configPedidoAlertaAmarillaMin),
+                'pedido_alerta_roja_min' => max(0, (int) $this->configPedidoAlertaRojaMin),
                 'usa_beepers' => $this->configUsaBeepers,
                 'imprime_comanda_automatico' => $this->configImprimeComandaAutomatico,
                 'usa_numeracion_display' => $this->configUsaNumeracionDisplay,
@@ -890,6 +899,8 @@ class ConfiguracionEmpresa extends Component
         $this->configEnviaWhatsappListo = false;
         $this->configMensajeWhatsappListo = '';
         $this->configPedidoConversionAutomaticaAlEntregar = false;
+        $this->configPedidoAlertaAmarillaMin = '15';
+        $this->configPedidoAlertaRojaMin = '30';
         $this->configUsaBeepers = false;
         $this->configImprimeComandaAutomatico = false;
         $this->configUsaNumeracionDisplay = false;

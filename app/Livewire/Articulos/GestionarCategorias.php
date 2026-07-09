@@ -69,6 +69,16 @@ class GestionarCategorias extends Component
 
     public bool $activo = true;
 
+    // ── Tienda (RF-17 pedidos-delivery) ──
+
+    public string $tienda_orden = '0';
+
+    public $imagenUpload = null;
+
+    public ?string $imagenPathActual = null;
+
+    public bool $quitarImagen = false;
+
     /**
      * Actualiza la búsqueda y resetea la paginación
      */
@@ -120,7 +130,7 @@ class GestionarCategorias extends Component
      */
     public function create(): void
     {
-        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
         $this->editMode = false;
         $this->activo = true;
         $this->color = '#3B82F6';
@@ -140,6 +150,10 @@ class GestionarCategorias extends Component
         $this->color = $categoria->color;
         $this->icono = $categoria->icono ?? '';
         $this->activo = $categoria->activo;
+        $this->tienda_orden = (string) ($categoria->orden ?? 0);
+        $this->imagenPathActual = $categoria->imagen_path;
+        $this->imagenUpload = null;
+        $this->quitarImagen = false;
 
         $this->editMode = true;
         $this->showModal = true;
@@ -156,41 +170,60 @@ class GestionarCategorias extends Component
             'color' => 'required|string|max:7',
             'icono' => 'nullable|string|max:50',
             'activo' => 'boolean',
+            'imagenUpload' => 'nullable|image|mimes:jpg,jpeg,png,webp|max:2048',
         ];
 
         $this->validate($rules);
 
         $prefijoLimpio = $this->prefijo ? strtoupper(trim($this->prefijo)) : null;
 
+        $datos = [
+            'nombre' => $this->nombre,
+            'prefijo' => $prefijoLimpio,
+            'color' => $this->color,
+            'icono' => $this->icono ?: null,
+            'activo' => $this->activo,
+            'orden' => max(0, (int) $this->tienda_orden),
+        ];
+
         if ($this->editMode) {
             // Actualizar categoría existente
             $categoria = Categoria::findOrFail($this->categoriaId);
-            $categoria->nombre = $this->nombre;
-            $categoria->prefijo = $prefijoLimpio;
-            $categoria->color = $this->color;
-            $categoria->icono = $this->icono ?: null;
-            $categoria->activo = $this->activo;
-            $categoria->save();
+            $categoria->fill($datos)->save();
 
             $message = __('Categoría actualizada correctamente');
         } else {
             // Crear nueva categoría
-            Categoria::create([
-                'nombre' => $this->nombre,
-                'prefijo' => $prefijoLimpio,
-                'color' => $this->color,
-                'icono' => $this->icono ?: null,
-                'activo' => $this->activo,
-            ]);
+            $categoria = Categoria::create($datos);
 
             $message = __('Categoría creada correctamente');
         }
+
+        $this->procesarImagenCategoria($categoria);
 
         CatalogoCache::clear();
 
         $this->dispatch('notify', message: $message, type: 'success');
         $this->showModal = false;
-        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
+    }
+
+    /**
+     * Imagen de presentación en tienda (RF-17): subir nueva (reemplaza la
+     * anterior), quitar la actual, o no tocar. Disco público, carpeta propia.
+     */
+    protected function procesarImagenCategoria(Categoria $categoria): void
+    {
+        if ($this->imagenUpload) {
+            if ($categoria->imagen_path) {
+                \Illuminate\Support\Facades\Storage::disk('public')->delete($categoria->imagen_path);
+            }
+            $path = $this->imagenUpload->store('categorias', 'public');
+            $categoria->update(['imagen_path' => $path]);
+        } elseif ($this->quitarImagen && $categoria->imagen_path) {
+            \Illuminate\Support\Facades\Storage::disk('public')->delete($categoria->imagen_path);
+            $categoria->update(['imagen_path' => null]);
+        }
     }
 
     /**
@@ -199,7 +232,7 @@ class GestionarCategorias extends Component
     public function cancel(): void
     {
         $this->showModal = false;
-        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
     }
 
     /**

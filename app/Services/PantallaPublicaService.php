@@ -161,24 +161,30 @@ class PantallaPublicaService
      */
     public function pedidosParaLlamador(Sucursal $sucursal): array
     {
-        $mapear = static fn (PedidoMostrador $p): array => [
+        $mapear = static fn ($p): array => [
             'numero' => (int) $p->numero_visible,
             'nombre' => $p->nombreLlamador(),
         ];
 
+        // SOLO pedidos de MOSTRADOR (rev9 delivery): los take-away de delivery
+        // ya NO se anuncian acá — tienen su propio circuito ("listo para
+        // retirar" en el panel) y su numeración display es independiente, así
+        // que sus números colisionarían con los de mostrador.
         $enPreparacion = PedidoMostrador::query()
             ->where('sucursal_id', $sucursal->id)
             ->where('estado_pedido', PedidoMostrador::ESTADO_EN_PREPARACION)
             ->with('cliente:id,nombre')
-            ->orderBy('numero')
-            ->get();
+            ->get()
+            ->sortBy(fn ($p) => (int) $p->numero_visible)
+            ->values();
 
         $listo = PedidoMostrador::query()
             ->where('sucursal_id', $sucursal->id)
             ->where('estado_pedido', PedidoMostrador::ESTADO_LISTO)
             ->with('cliente:id,nombre')
-            ->orderByDesc('numero')
-            ->get();
+            ->get()
+            ->sortByDesc(fn ($p) => (int) $p->numero_visible)
+            ->values();
 
         return [
             'en_preparacion' => $enPreparacion->map($mapear)->all(),

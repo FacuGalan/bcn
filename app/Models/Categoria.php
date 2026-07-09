@@ -44,12 +44,16 @@ class Categoria extends Model
         'descripcion',
         'color',
         'icono',
+        // Presentación en tienda (RF-17)
+        'imagen_path',
+        'orden',
         'activo',
         'tipo_iva_id',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'orden' => 'integer',
     ];
 
     // ==================== Relaciones ====================
