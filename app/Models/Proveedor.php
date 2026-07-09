@@ -57,6 +57,8 @@ class Proveedor extends Model
         'es_sucursal_interna',
         'sucursal_id',
         'cliente_id',
+        // Cuenta de compra default para reportes (spec compras-costos RF-22)
+        'cuenta_compra_id',
         'activo',
     ];
 
@@ -74,6 +76,22 @@ class Proveedor extends Model
     public function condicionIva(): BelongsTo
     {
         return $this->belongsTo(CondicionIva::class, 'condicion_iva_id');
+    }
+
+    /**
+     * Cuenta de compra default (RF-22): precarga compras.cuenta_compra_id.
+     */
+    public function cuentaCompra(): BelongsTo
+    {
+        return $this->belongsTo(CuentaCompra::class, 'cuenta_compra_id');
+    }
+
+    /**
+     * Artículos que este proveedor provee (códigos + costos, RF-04).
+     */
+    public function articulos(): HasMany
+    {
+        return $this->hasMany(ArticuloProveedor::class, 'proveedor_id');
     }
 
     /**

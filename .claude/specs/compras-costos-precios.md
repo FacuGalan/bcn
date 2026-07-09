@@ -1,6 +1,6 @@
 # Compras → Costos → Precios - Especificación
 
-## Estado: APROBADO — EN IMPLEMENTACIÓN (Fase 1 completa)
+## Estado: APROBADO — EN IMPLEMENTACIÓN (Fases 1-2 completas)
 
 > Spec creado el 2026-07-01 tras sesión de diseño con el usuario (decisiones D1-D7).
 > Es el SDD propio que la Fase 6 del spec `sistema-impositivo.md` dejó como
@@ -1128,11 +1128,38 @@ funcionales visibles.
 - Verificación: pint OK, suite Smoke completa 193 verdes, tenant_tables.sql
   regenerado (bloques compras + compras_detalle al schema final).
 
-### Fase 2: BD de costos [PENDIENTE]
+### Fase 2: BD de costos [COMPLETO]
 Migraciones 2-11 (incl. detalle de compras, utilidad en artículos/categorías,
 cuentas_compra RF-22) + modelos (`ArticuloCosto`, `HistorialCosto`,
 `ArticuloProveedor`, `ConfiguracionCostos`, `CuentaCompra`) + relaciones en
 `Articulo`/`Proveedor`/`Categoria` + ProvisionComercioCommand.
+
+#### Ajustes de implementación (Fase 2, 2026-07-09)
+- Migraciones 2-11 en UN bundle (`2026_07_09_130000_create_bd_costos_fase2`,
+  patrón validado en integraciones de pago), idempotente columna a columna.
+  Ejecutada en dev y test, efecto verificado contra BD real (7 tablas nuevas,
+  las columnas de compras/compras_detalle/articulos/categorias/proveedores y
+  los seeds de configuracion_costos + las 4 cuentas de compra).
+- Modelos nuevos (7): ArticuloCosto, HistorialCosto (UPDATED_AT null, patrón
+  HistorialPrecio), ArticuloProveedor, ConfiguracionCostos (singleton
+  `obtener()` con firstOrCreate — cubre tenants de test creados del SQL pelado
+  sin seeds), CuentaCompra, CompraIva, CompraConcepto. Actualizados (5):
+  Compra (encabezado completo + relaciones ivas/conceptos/cuentaCompra/
+  compraOrigen/notasCredito), CompraDetalle, Articulo (utilidad + costos()/
+  historialCostos()/proveedores()), Categoria, Proveedor (cuentaCompra()/
+  articulos()).
+- `ProvisionComercioCommand::seedCostos()` nuevo (config + cuentas de compra
+  para comercios nuevos; menú y permisos ya los toma genérico de Fase 1).
+- **Gotcha MySQL documentado en el schema**: el UNIQUE (articulo_id,
+  sucursal_id) NO impide duplicar la fila consolidada (NULL admite N filas) —
+  la unicidad del consolidado la garantiza CostoService como única puerta de
+  escritura (firstOrCreate + lockForUpdate en transacción, Fase 3).
+- tenant_tables.sql regenerado por DUMP REAL del comercio 1 (12 bloques:
+  5 reemplazados + 7 nuevos, prefijo → {{PREFIX}}, sin AUTO_INCREMENT) y
+  VALIDADO end-to-end con TEST_FORCE_RECREATE=1 (recreación completa desde el
+  SQL + smoke verde).
+- WithTenant::$testTables ganó las 7 tablas nuevas.
+- Verificación: pint OK, suite Smoke completa 193 verdes.
 
 ### Fase 3: CostoService núcleo [PENDIENTE]
 Costo computable + registrarDesdeCompra (último/PPP/proveedor/historial/consolidado)

@@ -17,6 +17,29 @@ CREATE TABLE `{{PREFIX}}arqueos_tesoreria` (
   KEY `arqueos_tesoreria_tesoreria_id_index` (`tesoreria_id`),
   KEY `arqueos_tesoreria_fecha_index` (`fecha`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}articulo_costos`;
+CREATE TABLE `{{PREFIX}}articulo_costos` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `articulo_id` bigint unsigned NOT NULL,
+  `sucursal_id` bigint unsigned DEFAULT NULL COMMENT 'NULL = consolidado del comercio',
+  `costo_ultimo` decimal(12,4) DEFAULT NULL,
+  `costo_promedio` decimal(12,4) DEFAULT NULL,
+  `costo_reposicion` decimal(12,4) DEFAULT NULL,
+  `proveedor_ultimo_id` bigint unsigned DEFAULT NULL,
+  `compra_ultima_id` bigint unsigned DEFAULT NULL,
+  `fecha_costo_ultimo` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `{{PREFIX}}uq_acostos_articulo_sucursal` (`articulo_id`,`sucursal_id`),
+  KEY `{{PREFIX}}idx_acostos_sucursal` (`sucursal_id`),
+  KEY `{{PREFIX}}fk_acostos_proveedor` (`proveedor_ultimo_id`),
+  KEY `{{PREFIX}}fk_acostos_compra` (`compra_ultima_id`),
+  CONSTRAINT `{{PREFIX}}fk_acostos_articulo` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_acostos_compra` FOREIGN KEY (`compra_ultima_id`) REFERENCES `{{PREFIX}}compras` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_acostos_proveedor` FOREIGN KEY (`proveedor_ultimo_id`) REFERENCES `{{PREFIX}}proveedores` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_acostos_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}articulo_etiqueta`;
 CREATE TABLE `{{PREFIX}}articulo_etiqueta` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -66,6 +89,25 @@ CREATE TABLE `{{PREFIX}}articulo_grupo_opcional_opcion` (
   CONSTRAINT `fk_agoo_ago` FOREIGN KEY (`articulo_grupo_opcional_id`) REFERENCES `{{PREFIX}}articulo_grupo_opcional` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_agoo_opcional` FOREIGN KEY (`opcional_id`) REFERENCES `{{PREFIX}}opcionales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=124 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}articulo_proveedor`;
+CREATE TABLE `{{PREFIX}}articulo_proveedor` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `articulo_id` bigint unsigned NOT NULL,
+  `proveedor_id` bigint unsigned NOT NULL,
+  `codigo_proveedor` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `factor_conversion` decimal(10,4) NOT NULL DEFAULT '1.0000' COMMENT 'Unidades de stock por unidad de compra (D8)',
+  `descuentos_habituales` json DEFAULT NULL,
+  `costo_ultimo` decimal(12,4) DEFAULT NULL COMMENT 'Ultimo costo computable de ESTE proveedor',
+  `fecha_ultima_compra` timestamp NULL DEFAULT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `{{PREFIX}}uq_aprov_articulo_proveedor` (`articulo_id`,`proveedor_id`),
+  KEY `{{PREFIX}}idx_aprov_codigo` (`proveedor_id`,`codigo_proveedor`),
+  CONSTRAINT `{{PREFIX}}fk_aprov_articulo` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_aprov_proveedor` FOREIGN KEY (`proveedor_id`) REFERENCES `{{PREFIX}}proveedores` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}articulo_sucursal_canal`;
 CREATE TABLE `{{PREFIX}}articulo_sucursal_canal` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -100,6 +142,8 @@ CREATE TABLE `{{PREFIX}}articulos` (
   `codigo_barra` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Código de barras',
   `tipo_iva_id` bigint unsigned DEFAULT NULL COMMENT 'FK a tipos_iva',
   `precio_iva_incluido` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si los precios incluyen IVA',
+  `utilidad_porcentaje` decimal(6,2) DEFAULT NULL,
+  `precio_administrado_por_utilidad` tinyint(1) NOT NULL DEFAULT '0',
   `precio_base` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT 'Precio base sin IVA',
   `puntos_canje` int unsigned DEFAULT NULL COMMENT 'Puntos necesarios para canjear (NULL = no canjeable)',
   `disponible_delivery` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Disponible para pedidos delivery (RF-16)',
@@ -119,7 +163,7 @@ CREATE TABLE `{{PREFIX}}articulos` (
   KEY `{{PREFIX}}articulos_tipo_iva_id_foreign` (`tipo_iva_id`),
   KEY `{{PREFIX}}articulos_codigo_barras_index` (`codigo_barras`),
   CONSTRAINT `{{PREFIX}}articulos_tipo_iva_id_foreign` FOREIGN KEY (`tipo_iva_id`) REFERENCES `{{PREFIX}}tipos_iva` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}articulos_sucursales`;
 CREATE TABLE `{{PREFIX}}articulos_sucursales` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -228,13 +272,14 @@ CREATE TABLE `{{PREFIX}}categorias` (
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   `deleted_at` timestamp NULL DEFAULT NULL,
+  `utilidad_porcentaje` decimal(6,2) DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_nombre` (`nombre`),
   KEY `idx_codigo` (`codigo`),
   KEY `idx_activo` (`activo`),
   KEY `{{PREFIX}}categorias_tipo_iva_id_foreign` (`tipo_iva_id`),
   CONSTRAINT `{{PREFIX}}categorias_tipo_iva_id_foreign` FOREIGN KEY (`tipo_iva_id`) REFERENCES `{{PREFIX}}tipos_iva` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}cierre_turno_cajas`;
 CREATE TABLE `{{PREFIX}}cierre_turno_cajas` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -475,6 +520,36 @@ CREATE TABLE `{{PREFIX}}cobros` (
   CONSTRAINT `fk_cobros_cliente` FOREIGN KEY (`cliente_id`) REFERENCES `{{PREFIX}}clientes` (`id`),
   CONSTRAINT `fk_cobros_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}compra_conceptos`;
+CREATE TABLE `{{PREFIX}}compra_conceptos` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `compra_id` bigint unsigned NOT NULL,
+  `tipo` enum('flete','impuestos_internos','envases','otro') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'otro',
+  `descripcion` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `monto` decimal(12,2) NOT NULL,
+  `tipo_iva_id` bigint unsigned DEFAULT NULL,
+  `computa_costo` tinyint(1) NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_cconc_compra` (`compra_id`),
+  KEY `{{PREFIX}}fk_cconc_tipo_iva` (`tipo_iva_id`),
+  CONSTRAINT `{{PREFIX}}fk_cconc_compra` FOREIGN KEY (`compra_id`) REFERENCES `{{PREFIX}}compras` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `{{PREFIX}}fk_cconc_tipo_iva` FOREIGN KEY (`tipo_iva_id`) REFERENCES `{{PREFIX}}tipos_iva` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}compra_ivas`;
+CREATE TABLE `{{PREFIX}}compra_ivas` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `compra_id` bigint unsigned NOT NULL,
+  `alicuota` decimal(5,2) NOT NULL,
+  `base_imponible` decimal(12,2) NOT NULL,
+  `importe` decimal(12,2) NOT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_civas_compra` (`compra_id`),
+  CONSTRAINT `{{PREFIX}}fk_civas_compra` FOREIGN KEY (`compra_id`) REFERENCES `{{PREFIX}}compras` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}compra_percepciones`;
 CREATE TABLE `{{PREFIX}}compra_percepciones` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -495,21 +570,31 @@ CREATE TABLE `{{PREFIX}}compra_percepciones` (
 DROP TABLE IF EXISTS `{{PREFIX}}compras`;
 CREATE TABLE `{{PREFIX}}compras` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `numero_comprobante` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
+  `numero_comprobante` varchar(191) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `numero_comprobante_proveedor` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `sucursal_id` bigint unsigned NOT NULL,
   `proveedor_id` bigint unsigned NOT NULL,
-  `cuit_id` bigint unsigned DEFAULT NULL COMMENT 'CUIT del comercio que realizo la compra (atribucion fiscal)',
+  `compra_origen_id` bigint unsigned DEFAULT NULL,
+  `cuit_id` bigint unsigned DEFAULT NULL COMMENT 'CUIT del comercio que realizó la compra (atribución fiscal)',
+  `cuenta_compra_id` bigint unsigned DEFAULT NULL,
   `caja_id` bigint unsigned DEFAULT NULL,
   `usuario_id` bigint unsigned NOT NULL,
   `fecha` date NOT NULL,
-  `tipo_comprobante` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `fecha_comprobante` date DEFAULT NULL,
+  `fecha_vencimiento` date DEFAULT NULL,
+  `tipo_comprobante` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `subtotal` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `neto_gravado` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `neto_no_gravado` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `neto_exento` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `descuento_global_porcentaje` decimal(6,2) DEFAULT NULL,
+  `descuento_global_monto` decimal(12,2) NOT NULL DEFAULT '0.00',
   `total_iva` decimal(12,2) NOT NULL DEFAULT '0.00',
   `total` decimal(12,2) NOT NULL DEFAULT '0.00',
   `saldo_pendiente` decimal(12,2) NOT NULL DEFAULT '0.00',
-  `forma_pago` enum('efectivo','debito','credito','tarjeta','transferencia','cheque','cta_cte') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL,
-  `estado` enum('borrador','completada','cancelada') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'borrador',
-  `observaciones` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci,
+  `forma_pago` enum('efectivo','debito','credito','tarjeta','transferencia','cheque','cta_cte') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `estado` enum('borrador','completada','cancelada') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'borrador',
+  `observaciones` text COLLATE utf8mb4_unicode_ci,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -518,10 +603,15 @@ CREATE TABLE `{{PREFIX}}compras` (
   KEY `{{PREFIX}}compras_proveedor_id_foreign` (`proveedor_id`),
   KEY `{{PREFIX}}compras_caja_id_foreign` (`caja_id`),
   KEY `{{PREFIX}}fk_compras_cuit` (`cuit_id`),
+  KEY `{{PREFIX}}idx_compras_comprobante_prov` (`proveedor_id`,`tipo_comprobante`,`numero_comprobante_proveedor`),
+  KEY `{{PREFIX}}fk_compras_origen` (`compra_origen_id`),
+  KEY `{{PREFIX}}fk_compras_cuenta_compra` (`cuenta_compra_id`),
   CONSTRAINT `{{PREFIX}}compras_caja_id_foreign` FOREIGN KEY (`caja_id`) REFERENCES `{{PREFIX}}cajas` (`id`),
   CONSTRAINT `{{PREFIX}}compras_proveedor_id_foreign` FOREIGN KEY (`proveedor_id`) REFERENCES `{{PREFIX}}proveedores` (`id`),
   CONSTRAINT `{{PREFIX}}compras_sucursal_id_foreign` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`),
-  CONSTRAINT `{{PREFIX}}fk_compras_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE SET NULL
+  CONSTRAINT `{{PREFIX}}fk_compras_cuenta_compra` FOREIGN KEY (`cuenta_compra_id`) REFERENCES `{{PREFIX}}cuentas_compra` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_compras_cuit` FOREIGN KEY (`cuit_id`) REFERENCES `{{PREFIX}}cuits` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `{{PREFIX}}fk_compras_origen` FOREIGN KEY (`compra_origen_id`) REFERENCES `{{PREFIX}}compras` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}compras_detalle`;
 CREATE TABLE `{{PREFIX}}compras_detalle` (
@@ -530,8 +620,16 @@ CREATE TABLE `{{PREFIX}}compras_detalle` (
   `articulo_id` bigint unsigned NOT NULL,
   `tipo_iva_id` bigint unsigned DEFAULT NULL,
   `cantidad` decimal(12,3) NOT NULL,
+  `cantidad_comprada` decimal(12,3) DEFAULT NULL,
+  `factor_conversion` decimal(10,4) NOT NULL DEFAULT '1.0000',
+  `codigo_proveedor_usado` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `precio_unitario` decimal(12,2) NOT NULL,
   `precio_sin_iva` decimal(12,2) DEFAULT NULL,
+  `descuentos` json DEFAULT NULL,
+  `descuento_monto` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `descuento_global_monto` decimal(12,4) NOT NULL DEFAULT '0.0000',
+  `conceptos_costo_monto` decimal(12,4) NOT NULL DEFAULT '0.0000',
+  `costo_unitario_computable` decimal(12,4) DEFAULT NULL,
   `subtotal` decimal(12,2) NOT NULL,
   `iva_porcentaje` decimal(5,2) DEFAULT '0.00',
   `iva_monto` decimal(12,2) DEFAULT '0.00',
@@ -763,6 +861,15 @@ CREATE TABLE `{{PREFIX}}conciliaciones_cuenta` (
   KEY `idx_concc_estado` (`estado`),
   CONSTRAINT `{{PREFIX}}fk_concc_cuenta` FOREIGN KEY (`cuenta_empresa_id`) REFERENCES `{{PREFIX}}cuentas_empresa` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}configuracion_costos`;
+CREATE TABLE `{{PREFIX}}configuracion_costos` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `utilidad_default` decimal(6,2) NOT NULL DEFAULT '30.00',
+  `costo_rector` enum('ultimo','promedio','reposicion') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ultimo',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}configuracion_impresion`;
 CREATE TABLE `{{PREFIX}}configuracion_impresion` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -834,6 +941,16 @@ CREATE TABLE `{{PREFIX}}cuentas_bancarias` (
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `cuentas_bancarias_sucursal_id_index` (`sucursal_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}cuentas_compra`;
+CREATE TABLE `{{PREFIX}}cuentas_compra` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `orden` int NOT NULL DEFAULT '0',
+  `activo` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}cuentas_empresa`;
 CREATE TABLE `{{PREFIX}}cuentas_empresa` (
@@ -1291,6 +1408,26 @@ CREATE TABLE `{{PREFIX}}grupos_opcionales` (
   KEY `{{PREFIX}}grupos_opcionales_activo_index` (`activo`),
   KEY `{{PREFIX}}grupos_opcionales_orden_index` (`orden`)
 ) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}historial_costos`;
+CREATE TABLE `{{PREFIX}}historial_costos` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `articulo_id` bigint unsigned NOT NULL,
+  `sucursal_id` bigint unsigned DEFAULT NULL COMMENT 'NULL = consolidado del comercio',
+  `tipo_costo` enum('ultimo','reposicion') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `costo_anterior` decimal(12,4) DEFAULT NULL,
+  `costo_nuevo` decimal(12,4) NOT NULL,
+  `porcentaje_cambio` decimal(8,2) DEFAULT NULL,
+  `origen` enum('compra','manual','importacion','cancelacion') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `compra_id` bigint unsigned DEFAULT NULL,
+  `proveedor_id` bigint unsigned DEFAULT NULL,
+  `usuario_id` bigint unsigned DEFAULT NULL,
+  `detalle` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_hcostos_articulo` (`articulo_id`,`created_at`),
+  KEY `{{PREFIX}}idx_hcostos_compra` (`compra_id`),
+  CONSTRAINT `{{PREFIX}}fk_hcostos_articulo` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}historial_precios`;
 CREATE TABLE `{{PREFIX}}historial_precios` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -2605,10 +2742,13 @@ CREATE TABLE `{{PREFIX}}proveedores` (
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
+  `cuenta_compra_id` bigint unsigned DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `idx_proveedor_codigo` (`codigo`),
   KEY `idx_proveedor_cliente` (`cliente_id`),
-  KEY `idx_proveedor_sucursal` (`sucursal_id`)
+  KEY `idx_proveedor_sucursal` (`sucursal_id`),
+  KEY `{{PREFIX}}fk_prov_cuenta_compra` (`cuenta_compra_id`),
+  CONSTRAINT `{{PREFIX}}fk_prov_cuenta_compra` FOREIGN KEY (`cuenta_compra_id`) REFERENCES `{{PREFIX}}cuentas_compra` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}provision_fondos`;
 CREATE TABLE `{{PREFIX}}provision_fondos` (

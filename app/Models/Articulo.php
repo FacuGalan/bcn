@@ -76,6 +76,9 @@ class Articulo extends Model
         'activo',
         'tipo_iva_id',
         'precio_iva_incluido',
+        // Utilidad objetivo y repricing (spec compras-costos-precios RF-08/RF-11)
+        'utilidad_porcentaje',
+        'precio_administrado_por_utilidad',
         // Disponibilidad por canal (RF-16) + presentación en tienda (RF-17)
         'disponible_delivery',
         'disponible_take_away',
@@ -94,6 +97,8 @@ class Articulo extends Model
         'imagen_focal_y' => 'decimal:2',
         'activo' => 'boolean',
         'precio_iva_incluido' => 'boolean',
+        'utilidad_porcentaje' => 'decimal:2',
+        'precio_administrado_por_utilidad' => 'boolean',
         'disponible_delivery' => 'boolean',
         'disponible_take_away' => 'boolean',
         'permite_programado' => 'boolean',
@@ -106,6 +111,29 @@ class Articulo extends Model
     public function tipoIva(): BelongsTo
     {
         return $this->belongsTo(TipoIva::class, 'tipo_iva_id');
+    }
+
+    /**
+     * Costos vigentes por sucursal + consolidado (spec compras-costos RF-02).
+     * Lectura con fallback sucursal→consolidado: CostoService.
+     */
+    public function costos(): HasMany
+    {
+        return $this->hasMany(ArticuloCosto::class, 'articulo_id');
+    }
+
+    public function historialCostos(): HasMany
+    {
+        return $this->hasMany(HistorialCosto::class, 'articulo_id');
+    }
+
+    /**
+     * Proveedores del artículo: códigos, factor de conversión y descuentos
+     * habituales (spec compras-costos RF-04).
+     */
+    public function proveedores(): HasMany
+    {
+        return $this->hasMany(ArticuloProveedor::class, 'articulo_id');
     }
 
     /**

@@ -100,8 +100,15 @@ trait WithTenant
         'integraciones_pago_sucursales',
         'integraciones_pago',
         'compra_percepciones',
+        'compra_ivas',
+        'compra_conceptos',
         'compras_detalle',
         'compras',
+        'articulo_costos',
+        'historial_costos',
+        'articulo_proveedor',
+        'cuentas_compra',
+        'configuracion_costos',
         // Comprobantes fiscales: deben limpiarse entre tests para no dejar filas
         // huérfanas que bloqueen los forceDelete de cuits/puntos_venta en otros
         // tests (FK comprobantes_fiscales → cuits/puntos_venta; en CI las FK están

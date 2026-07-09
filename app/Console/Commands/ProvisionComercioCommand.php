@@ -148,6 +148,8 @@ class ProvisionComercioCommand extends Command
 
             $this->seedImpuestos();
 
+            $this->seedCostos();
+
             // ── Paso 14: Seed — Catálogo de Integraciones de Pago ──
             $this->info('[13/14] Sembrando catálogo de integraciones de pago...');
             $this->seedIntegracionesPago();
@@ -564,6 +566,38 @@ class ProvisionComercioCommand extends Command
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]));
+            }
+        }
+    }
+
+    /**
+     * Configuración de costos (fila única) + cuentas de compra iniciales
+     * (spec compras-costos-precios, RF-02/RF-22). Idempotente.
+     */
+    protected function seedCostos(): void
+    {
+        $now = now();
+        $db = DB::connection('pymes_tenant');
+
+        if (! $db->table('configuracion_costos')->exists()) {
+            $db->table('configuracion_costos')->insert([
+                'utilidad_default' => 30.00,
+                'costo_rector' => 'ultimo',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        if (! $db->table('cuentas_compra')->exists()) {
+            $orden = 0;
+            foreach (['Mercadería', 'Insumos', 'Servicios', 'Gastos generales'] as $nombre) {
+                $db->table('cuentas_compra')->insert([
+                    'nombre' => $nombre,
+                    'orden' => ++$orden,
+                    'activo' => true,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ]);
             }
         }
     }

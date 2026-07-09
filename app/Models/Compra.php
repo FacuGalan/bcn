@@ -46,13 +46,23 @@ class Compra extends Model
     protected $fillable = [
         'sucursal_id',
         'proveedor_id',
+        'compra_origen_id',
         'cuit_id',
+        'cuenta_compra_id',
         'caja_id',
         'usuario_id',
         'numero_comprobante',
+        'numero_comprobante_proveedor',
         'fecha',
+        'fecha_comprobante',
+        'fecha_vencimiento',
         'tipo_comprobante',
         'subtotal',
+        'neto_gravado',
+        'neto_no_gravado',
+        'neto_exento',
+        'descuento_global_porcentaje',
+        'descuento_global_monto',
         'total',
         'total_iva',
         'forma_pago',
@@ -63,7 +73,14 @@ class Compra extends Model
 
     protected $casts = [
         'fecha' => 'date',
+        'fecha_comprobante' => 'date',
+        'fecha_vencimiento' => 'date',
         'subtotal' => 'decimal:2',
+        'neto_gravado' => 'decimal:2',
+        'neto_no_gravado' => 'decimal:2',
+        'neto_exento' => 'decimal:2',
+        'descuento_global_porcentaje' => 'decimal:2',
+        'descuento_global_monto' => 'decimal:2',
         'total' => 'decimal:2',
         'total_iva' => 'decimal:2',
         'saldo_pendiente' => 'decimal:2',
@@ -114,6 +131,45 @@ class Compra extends Model
     public function movimientoCaja(): HasOne
     {
         return $this->hasOne(MovimientoCaja::class, 'compra_id');
+    }
+
+    /**
+     * Desglose de IVA por alícuota del comprobante (RF-14) — fuente canónica
+     * del crédito fiscal y del Libro IVA Compras.
+     */
+    public function ivas(): HasMany
+    {
+        return $this->hasMany(CompraIva::class, 'compra_id');
+    }
+
+    /**
+     * Conceptos de pie de factura (RF-15): flete, impuestos internos, etc.
+     */
+    public function conceptos(): HasMany
+    {
+        return $this->hasMany(CompraConcepto::class, 'compra_id');
+    }
+
+    /**
+     * Cuenta de compra para reportes de gastos (RF-22).
+     */
+    public function cuentaCompra(): BelongsTo
+    {
+        return $this->belongsTo(CuentaCompra::class, 'cuenta_compra_id');
+    }
+
+    /**
+     * Compra original de una nota de crédito (RF-21); NULL en compras
+     * normales y NC sueltas.
+     */
+    public function compraOrigen(): BelongsTo
+    {
+        return $this->belongsTo(Compra::class, 'compra_origen_id');
+    }
+
+    public function notasCredito(): HasMany
+    {
+        return $this->hasMany(Compra::class, 'compra_origen_id');
     }
 
     // Scopes
