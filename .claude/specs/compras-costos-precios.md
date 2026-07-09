@@ -1,6 +1,6 @@
 # Compras → Costos → Precios - Especificación
 
-## Estado: APROBADO — EN IMPLEMENTACIÓN (Fases 1-4 completas)
+## Estado: APROBADO — EN IMPLEMENTACIÓN (Fases 1-5 completas)
 
 > Spec creado el 2026-07-01 tras sesión de diseño con el usuario (decisiones D1-D7).
 > Es el SDD propio que la Fase 6 del spec `sistema-impositivo.md` dejó como
@@ -1248,7 +1248,7 @@ tipo comprobante contra el ledger y el período del crédito).
   con recarga post-cancelación, cross-período), suite services 306 verdes,
   Smoke 193 verdes.
 
-### Fase 5: Cuenta corriente de proveedores (RF-18/19) [PENDIENTE]
+### Fase 5: Cuenta corriente de proveedores (RF-18/19) [COMPLETO]
 Migraciones 12-14 + modelos + `CuentaCorrienteProveedorService` +
 `PagoProveedorService` (incl. `MovimientoCaja::crearEgresoPagoProveedor` y
 `TesoreriaService::registrarEgresoExterno` nuevos) + cableado en
@@ -1257,6 +1257,47 @@ Lazy + skeleton) + estado de cuenta + **componente `GestionarProveedores`
 NUEVO** (ABM completo: CC/días de pago/cuenta de compra default — hoy no
 existe ABM de proveedores) + ABM `cuentas_compra`.
 Suite de tests completa (es dinero: ledger + contraasientos + caja/tesorería).
+
+#### Ajustes de implementación (Fase 5, 2026-07-09 — commits 5a núcleo + 5b UI)
+- Migración bundle `2026_07_09_150000` (12-14): orden CREATE pagos ANTES que
+  el ledger (su FK apunta a pagos_proveedores); activa el menú padre Compras
+  + Proveedores + Pagos a Proveedores (listado-compras sigue inactivo hasta
+  Fase 6).
+- **Desvío semántico documentado vs el espejo de clientes**: el movimiento
+  `uso_saldo_favor` SOLO consume el saldo (saldo_favor_debe, sin debe) — la
+  reducción de deuda viaja en el DEBE de las aplicaciones por compra, que
+  incluyen los fondos del saldo a favor (con debe además, la deuda bajaba dos
+  veces; posible bug latente del lado CLIENTES a revisar aparte).
+- El saldo de caja lo actualiza el CALLER (convención del proyecto:
+  aumentarSaldo/disminuirSaldo); el contraasiento de MovimientoCaja lo
+  restaura solo. PagoProveedorService egresa con disminuirSaldo en efectivo.
+- Origen 'caja': movimiento de caja SOLO para FP efectivo (espejo del
+  criterio afecta_caja de cobros); FP con cuenta_empresa_id vinculada egresa
+  además en la cuenta (espejo exacto del ingreso automático de cobros).
+- El permiso `func.compras.pagar_avanzado` se autoriza en el COMPONENTE
+  (service API-first sin sesión); el service valida los SALDOS de cada origen.
+- Contado SIN datos de pago ⇒ completada con saldo pendiente (D11: lo impago
+  se deriva del saldo; se paga después por la pantalla). Con datos, los
+  fondos cubren el total exacto. Default de forma_pago del borrador: cta_cte
+  si el proveedor tiene CC, efectivo si no.
+- D17 'saldo_favor': contraasiento del DEBE de cada pago aplicado + movimiento
+  `devolucion_saldo` con saldo_favor_haber (la OP queda ACTIVA — la plata
+  salió de verdad); 'anular_pagos' anula cada OP ENTERA (si tocaba otras
+  compras, también les restaura el saldo — documentado).
+- Cancelar una NC restaura el saldo de la compra origen (tope: su total).
+- UI: `GestionarProveedores` (SucursalAware; ABM + cuentas de compra + estado
+  de cuenta) y `GestionarPagosProveedores` (CajaAware + session sucursal,
+  patrón GestionarCobranzas; pago FIFO/manual, saldo a favor, desglose por
+  origen gated por pagar_avanzado, anticipo, extracto + OPs con anulación).
+  Rutas compras/proveedores y compras/pagos-proveedores.
+- MovimientoTesoreria ganó REFERENCIA_EGRESO_EXTERNO y REFERENCIA_PAGO_PROVEEDOR
+  (columna varchar, sin migración).
+- Verificación: CuentaCorrienteProveedorTest 17 verdes (ledger pasivo, contado
+  par haber/debe, pago inicial, FIFO 2 compras, anticipo+consumo, tesorería
+  con validación de saldo, caja insuficiente, anulación OP + D16, D17 ambas
+  ramas, NC contra saldo + excedente, extracto), services 323 verdes, smoke
+  Compras 4 nuevos (197 smokes totales), 112 traducciones ×3 (4122 parejas),
+  pint OK.
 
 ### Fase 6: UI de compras [PENDIENTE]
 Componente reescrito (SucursalAware): carga por código de proveedor, descuentos

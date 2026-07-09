@@ -207,8 +207,10 @@ return new class extends Migration
 
     private function activarMenu(): void
     {
+        // El PADRE también: sin él, los hijos activos no se ven. El hijo
+        // listado-compras sigue inactivo hasta la reescritura de Fase 6.
         DB::connection('pymes')->table('menu_items')
-            ->whereIn('slug', ['proveedores', 'pagos-proveedores'])
+            ->whereIn('slug', ['compras', 'proveedores', 'pagos-proveedores'])
             ->update(['activo' => true]);
     }
 
@@ -233,7 +235,7 @@ return new class extends Migration
     public function down(): void
     {
         DB::connection('pymes')->table('menu_items')
-            ->whereIn('slug', ['proveedores', 'pagos-proveedores'])
+            ->whereIn('slug', ['compras', 'proveedores', 'pagos-proveedores'])
             ->update(['activo' => false]);
 
         $comercios = DB::connection('config')->table('comercios')->get();

@@ -200,6 +200,8 @@ Route::prefix('app')->group(function () {
          * Gestión de compras, proveedores, pagos
          */
         Route::get('compras', Compras::class)->name('compras.index');
+        Route::get('compras/proveedores', \App\Livewire\Compras\GestionarProveedores::class)->name('compras.proveedores');
+        Route::get('compras/pagos-proveedores', \App\Livewire\Compras\GestionarPagosProveedores::class)->name('compras.pagos-proveedores');
 
         /**
          * Stock / Inventario
