@@ -77,7 +77,9 @@ class CompraService
                 'total' => 0,
                 'total_iva' => 0,
                 'forma_pago' => $data['forma_pago'],
-                'estado' => ($data['forma_pago'] === 'cta_cte') ? 'pendiente' : 'completada',
+                // D11 (spec compras-costos-precios): el estado es ciclo de vida;
+                // lo impago se deriva de saldo_pendiente, nunca de un estado.
+                'estado' => 'completada',
                 'saldo_pendiente' => 0,
                 'observaciones' => $data['observaciones'] ?? null,
             ]);
