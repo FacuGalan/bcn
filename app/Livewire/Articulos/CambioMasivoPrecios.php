@@ -286,16 +286,12 @@ class CambioMasivoPrecios extends Component
     }
 
     /**
-     * Aplica el redondeo según la configuración
+     * Aplica el redondeo según la configuración (lógica en PrecioService,
+     * compartida con CostoService::precioSugerido).
      */
     protected function aplicarRedondeo(float $precio): float
     {
-        return match ($this->tipoRedondeo) {
-            'entero' => round($precio),
-            'decena' => round($precio / 10) * 10,
-            'centena' => round($precio / 100) * 100,
-            default => round($precio, 2),
-        };
+        return app(\App\Services\PrecioService::class)->aplicarRedondeo($precio, $this->tipoRedondeo);
     }
 
     /**

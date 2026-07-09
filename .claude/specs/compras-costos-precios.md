@@ -1,6 +1,6 @@
 # Compras → Costos → Precios - Especificación
 
-## Estado: APROBADO — EN IMPLEMENTACIÓN (Fases 1-2 completas)
+## Estado: APROBADO — EN IMPLEMENTACIÓN (Fases 1-3 completas)
 
 > Spec creado el 2026-07-01 tras sesión de diseño con el usuario (decisiones D1-D7).
 > Es el SDD propio que la Fase 6 del spec `sistema-impositivo.md` dejó como
@@ -1161,10 +1161,42 @@ cuentas_compra RF-22) + modelos (`ArticuloCosto`, `HistorialCosto`,
 - WithTenant::$testTables ganó las 7 tablas nuevas.
 - Verificación: pint OK, suite Smoke completa 193 verdes.
 
-### Fase 3: CostoService núcleo [PENDIENTE]
+### Fase 3: CostoService núcleo [COMPLETO]
 Costo computable + registrarDesdeCompra (último/PPP/proveedor/historial/consolidado)
 + actualizarManual + reversión + cascada utilidad + margen/precio sugerido.
 Suite de tests completa (es el corazón del feature).
+
+#### Ajustes de implementación (Fase 3, 2026-07-09)
+- `CostoService` (app/Services/CostoService.php) con TODOS los métodos del
+  spec + `prorratearPorImporte()` público (el prorrateo de descuento global y
+  conceptos es del pipeline de confirmación — Fase 4 — pero la herramienta con
+  residuo-al-último vive acá) y `costoRector()` como lector formal con la
+  config (ultimo/promedio/reposición con fallback).
+- **Contrato de `registrarDesdeCompra` fijado**: asume que el stock YA incluye
+  la compra (orden del pipeline: stock → costos) y resta la cantidad propia
+  para ponderar el PPP contra el stock previo. Agrupa renglones por artículo
+  (el mismo artículo en N renglones pondera dentro del comprobante).
+- Desvío documentado de RF-03: el historial se registra por CADA compra aunque
+  el costo no cambie — es el marcador de idempotencia y la trazabilidad de
+  "qué costo trajo cada compra" (evita re-aplicar el PPP en un retry).
+- RF-07: restaurar a "sin costo" (cancelar la primera compra) registra
+  `costo_nuevo = 0` con detalle explícito (la columna es NOT NULL); el origen
+  (proveedor/compra previos) se reapunta desde el historial previo.
+- `alicuotaEfectiva` (D21): CUIT resuelto por sucursal vía pivot
+  `cuit_sucursal.es_principal` (fallback: primer CUIT de la sucursal;
+  consolidado: primer CUIT activo del comercio; sin CUIT ⇒ NO computa IVA).
+- Gotcha: la relación artículo→categoría se llama `categoriaModel` (no
+  `categoria`) — la cascada de utilidad la usa.
+- `PrecioService::aplicarRedondeo(float, string)` público extraído de
+  CambioMasivoPrecios (que ahora delega) — tipos: ninguno/entero/decena/centena.
+- Tests: `CostoServiceTest` 28 verdes cubriendo TODOS los criterios de
+  aceptación de la fase (cascada 829,35 / PPP 110 / arranque PPP NULL /
+  sugerido 169,40 / monotributo 140 sin IVA / margen inverso 40% / cascada
+  utilidad 50-40-30 / consolidado multi-sucursal / reversión con restauración
+  / idempotencia / redondeos). Suite completa de services: 287 verdes.
+- Nota de entorno de test: cuits/cuit_sucursal no están en el DELETE selectivo
+  de WithTenant — la suite limpia SOLO sus cuits (un DELETE global choca con
+  FKs de residuos de otras suites, ej. cuentas_empresa→cuits).
 
 ### Fase 4: CompraService nuevo [PENDIENTE]
 Reescritura completa (RF-12): borrador→completada→cancelada, descuentos
