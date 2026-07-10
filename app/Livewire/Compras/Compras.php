@@ -2,433 +2,474 @@
 
 namespace App\Livewire\Compras;
 
-use App\Models\Articulo;
 use App\Models\Caja;
 use App\Models\Compra;
+use App\Models\CuentaEmpresa;
+use App\Models\FormaPago;
+use App\Models\HistorialCosto;
+use App\Models\MovimientoCuentaCorrienteProveedor;
+use App\Models\PagoProveedorCompra;
 use App\Models\Proveedor;
-use App\Models\Sucursal;
 use App\Services\CompraService;
+use App\Services\PagoProveedorService;
+use App\Traits\SucursalAware;
 use Exception;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 /**
- * Componente Livewire: Compras
+ * Listado de compras (Fase 6, sesión UX D7 — reescritura RF-12).
  *
- * RESPONSABILIDADES:
- * =================
- * 1. Listar compras existentes con filtros y búsqueda
- * 2. Abrir modal para crear nueva compra
- * 3. Buscar y agregar artículos al carrito de compra
- * 4. Calcular totales automáticamente (subtotal, IVA - crédito fiscal, total)
- * 5. Seleccionar proveedor (obligatorio)
- * 6. Seleccionar forma de pago y caja
- * 7. Procesar la compra usando CompraService
- * 8. Ver detalles de compras existentes
- * 9. Cancelar compras (si tiene permisos)
- * 10. Registrar pagos para compras a cuenta corriente
+ * Patrón lista de pedidos: badges de estado, badge de pago = botón pagar,
+ * acciones acotadas (Ver / Editar / Cargar NC / Cancelar). La carga/edición
+ * abre el sub-componente EditorCompra en modal a pantalla completa (montaje
+ * condicional con key incremental, patrón PedidosDelivery).
  *
- * PROPIEDADES PRINCIPALES:
- * =======================
- *
- * @property Collection $compras - Lista paginada de compras
- * @property array $carrito - Items en el carrito de compra actual
- * @property float $subtotal - Subtotal calculado del carrito (sin IVA)
- * @property float $totalIva - IVA total calculado (crédito fiscal)
- * @property float $total - Total final de la compra
- * @property int|null $proveedorSeleccionado - ID del proveedor seleccionado
- * @property string $formaPago - Forma de pago (efectivo, debito, credito, cta_cte)
- * @property int|null $cajaSeleccionada - ID de la caja para registrar el pago
- *
- * MODALES:
- * ========
- * @property bool $showCompraModal - Modal para crear compra
- * @property bool $showDetalleModal - Modal para ver detalles de compra
- * @property bool $showPagoModal - Modal para registrar pago
- *
- * FILTROS:
- * ========
- * @property string $search - Búsqueda por número de comprobante, proveedor
- * @property string $filterEstado - Filtro por estado (all, completada, pendiente, cancelada)
- * @property string $filterFormaPago - Filtro por forma de pago
- * @property string $filterFechaDesde - Fecha desde
- * @property string $filterFechaHasta - Fecha hasta
- *
- * FLUJO DE CREACIÓN DE COMPRA:
- * ===========================
- * 1. Usuario hace clic en "Nueva Compra"
- * 2. Se abre modal de compra ($showCompraModal = true)
- * 3. Usuario selecciona proveedor (obligatorio)
- * 4. Usuario busca y agrega artículos al carrito
- * 5. Por cada artículo agregado:
- *    - Se especifica cantidad y precio unitario sin IVA
- *    - Se calcula IVA según tipo de artículo
- *    - Se agrega al array $carrito
- *    - Se recalculan los totales
- * 6. Usuario selecciona forma de pago
- * 7. Si forma de pago != cta_cte, usuario selecciona caja
- * 8. Usuario hace clic en "Procesar Compra"
- * 9. Se llama a procesarCompra() que:
- *    - Valida todos los datos
- *    - Llama a CompraService->crearCompra()
- *    - Muestra mensaje de éxito/error
- *    - Cierra modal y limpia carrito
- *    - Refresca lista de compras
- *
- * CÁLCULOS AUTOMÁTICOS:
- * ====================
- * - calcularTotales(): Recalcula subtotal, IVA y total del carrito
- *   En compras, el IVA es CRÉDITO FISCAL (se suma al total pero se recupera)
- *   Se ejecuta automáticamente al:
- *   - Agregar artículo
- *   - Eliminar artículo
- *   - Cambiar cantidad
- *   - Cambiar precio
- *
- * VALIDACIONES:
- * =============
- * - Proveedor obligatorio
- * - Caja obligatoria si forma_pago != cta_cte
- * - Saldo suficiente en caja si forma_pago = efectivo
- * - Carrito no vacío
- * - Cantidades > 0
- * - Precios > 0
- *
- * DIFERENCIAS CON VENTAS:
- * ======================
- * - Compras AUMENTAN stock (ventas lo disminuyen)
- * - Compras generan EGRESOS de caja (ventas generan ingresos)
- * - Compras tienen CRÉDITO FISCAL de IVA (ventas tienen débito fiscal)
- * - Compras requieren PROVEEDOR (ventas tienen cliente opcional)
- * - Compras no validan stock disponible (las ventas sí)
- *
- * DEPENDENCIAS:
- * =============
- * - CompraService: Para crear y cancelar compras, registrar pagos
- * - Models: Compra, Proveedor, Articulo, Caja, Sucursal
- *
- * PERMISOS REQUERIDOS:
- * ===================
- * - compras.ver: Ver lista de compras
- * - compras.crear: Crear nuevas compras
- * - compras.cancelar: Cancelar compras existentes
- * - compras.pagar: Registrar pagos a compras en cta_cte
- *
- * FASE 4 - Sistema Multi-Sucursal (Componentes Livewire)
- *
- * @author BCN Pymes
- *
- * @version 1.0.0
+ * SucursalAware (D14: NO CajaAware — la caja pertenece al pago; el modal de
+ * pago rápido lee la caja activa igual que GestionarPagosProveedores).
  */
+#[Layout('layouts.app')]
 #[Lazy]
 class Compras extends Component
 {
-    use WithPagination;
+    use SucursalAware, WithPagination;
 
-    // =========================================
-    // PROPIEDADES DE LISTADO Y FILTROS
-    // =========================================
+    // ==================== Filtros ====================
 
-    /**
-     * Búsqueda por número de comprobante o nombre de proveedor
-     *
-     * @var string
-     */
-    public $search = '';
+    public string $search = '';
 
-    /**
-     * Filtro por estado de compra
-     * Valores: 'all', 'completada', 'pendiente', 'cancelada'
-     *
-     * @var string
-     */
-    public $filterEstado = 'all';
+    public string $filterEstado = 'all';
 
-    /**
-     * Filtro por forma de pago
-     * Valores: 'all', 'efectivo', 'debito', 'credito', 'cta_cte'
-     *
-     * @var string
-     */
-    public $filterFormaPago = 'all';
+    public string $filterProveedor = '';
 
-    /**
-     * Filtro por fecha desde
-     *
-     * @var string|null
-     */
-    public $filterFechaDesde = null;
+    public string $filterFechaDesde = '';
 
-    /**
-     * Filtro por fecha hasta
-     *
-     * @var string|null
-     */
-    public $filterFechaHasta = null;
+    public string $filterFechaHasta = '';
 
-    /**
-     * Controla visibilidad de filtros en móvil
-     *
-     * @var bool
-     */
-    public $showFilters = false;
+    public bool $showFilters = false;
 
-    // =========================================
-    // PROPIEDADES DEL FORMULARIO / CARRITO
-    // =========================================
+    // ==================== Editor (modal fullscreen) ====================
 
-    /**
-     * Items en el carrito de compra
-     * Estructura de cada item:
-     * [
-     *   'articulo_id' => int,
-     *   'articulo' => Articulo (modelo completo),
-     *   'cantidad' => float,
-     *   'precio_sin_iva' => float,
-     *   'iva_monto' => float,
-     *   'subtotal' => float (precio_sin_iva * cantidad + iva_monto)
-     * ]
-     *
-     * @var array
-     */
-    public $carrito = [];
+    public bool $editorAbierto = false;
 
-    /**
-     * ID del proveedor seleccionado
-     *
-     * @var int|null
-     */
-    public $proveedorSeleccionado = null;
+    public ?int $compraIdEnEdicion = null;
 
-    /**
-     * Búsqueda de artículos
-     *
-     * @var string
-     */
-    public $buscarArticulo = '';
+    public ?int $editorNcOrigenId = null;
 
-    /**
-     * Forma de pago seleccionada
-     * Valores: 'efectivo', 'debito', 'credito', 'cta_cte'
-     *
-     * @var string
-     */
-    public $formaPago = 'efectivo';
+    public bool $editorEsNC = false;
 
-    /**
-     * ID de la caja seleccionada
-     *
-     * @var int|null
-     */
-    public $cajaSeleccionada = null;
+    public int $editorKey = 0;
 
-    /**
-     * Tipo de comprobante
-     *
-     * @var string
-     */
-    public $tipoComprobante = 'factura_a';
+    // ==================== Modal detalle ====================
 
-    /**
-     * Número de comprobante (ingreso manual)
-     *
-     * @var string|null
-     */
-    public $numeroComprobante = null;
+    public bool $showDetalleModal = false;
 
-    /**
-     * Fecha de la compra
-     *
-     * @var string
-     */
-    public $fechaCompra = null;
+    public ?int $compraDetalleId = null;
 
-    /**
-     * Observaciones de la compra
-     *
-     * @var string|null
-     */
-    public $observaciones = null;
+    // ==================== Modal cancelar (D17) ====================
 
-    // =========================================
-    // PROPIEDADES DE TOTALES (CALCULADAS)
-    // =========================================
+    public bool $showCancelarModal = false;
 
-    /**
-     * Subtotal del carrito (sin IVA)
-     *
-     * @var float
-     */
-    public $subtotal = 0;
+    public ?int $compraCancelarId = null;
 
-    /**
-     * Total de IVA (crédito fiscal)
-     *
-     * @var float
-     */
-    public $totalIva = 0;
+    public string $motivoCancelacion = '';
 
-    /**
-     * Total final de la compra
-     *
-     * @var float
-     */
-    public $total = 0;
+    public string $manejoPagos = '';
 
-    // =========================================
-    // PROPIEDADES DE MODALES
-    // =========================================
+    public bool $cancelarTienePagos = false;
 
-    /**
-     * Controla visibilidad del modal de compra
-     *
-     * @var bool
-     */
-    public $showCompraModal = false;
+    // ==================== Modal eliminar borrador ====================
 
-    /**
-     * Controla visibilidad del modal de detalles
-     *
-     * @var bool
-     */
-    public $showDetalleModal = false;
+    public bool $showEliminarModal = false;
 
-    /**
-     * ID de la compra para ver detalles
-     *
-     * @var int|null
-     */
-    public $compraDetalleId = null;
+    public ?int $compraEliminarId = null;
 
-    /**
-     * Controla visibilidad del modal de pago
-     *
-     * @var bool
-     */
-    public $showPagoModal = false;
+    // ==================== Modal pago rápido (badge de pago = botón) ====================
 
-    /**
-     * ID de la compra para registrar pago
-     *
-     * @var int|null
-     */
-    public $compraPagoId = null;
+    public bool $showPagoModal = false;
 
-    /**
-     * Monto del pago a registrar
-     *
-     * @var float
-     */
-    public $montoPago = 0;
+    public ?int $compraPagoId = null;
 
-    /**
-     * Caja para registrar el pago
-     *
-     * @var int|null
-     */
-    public $cajaPago = null;
+    public string $montoAPagar = '';
 
-    // =========================================
-    // INYECCIÓN DE DEPENDENCIAS
-    // =========================================
+    public string $saldoFavorUsado = '';
 
-    /**
-     * Servicio de compras
-     *
-     * @var CompraService
-     */
-    protected $compraService;
+    public float $saldoFavorDisponible = 0;
 
-    /**
-     * Constructor - Inyecta dependencias
-     */
-    public function boot(CompraService $compraService)
+    /** @var array renglones {forma_pago_id, monto, origen, caja_id, cuenta_empresa_id} */
+    public array $pagos = [];
+
+    // ==================== Ciclo de vida ====================
+
+    public function mount(): void
     {
-        $this->compraService = $compraService;
+        $this->filterFechaDesde = now()->subDays(30)->toDateString();
+        $this->filterFechaHasta = now()->toDateString();
     }
-
-    // =========================================
-    // MÉTODOS DE CICLO DE VIDA
-    // =========================================
 
     public function placeholder()
     {
         return <<<'HTML'
-        <x-skeleton.page-table :statCards="0" :filterCount="3" :columns="6" :rows="8" />
+        <x-skeleton.page-table :statCards="0" :filterCount="4" :columns="8" :rows="8" />
         HTML;
     }
 
-    /**
-     * Inicializa el componente
-     */
-    public function mount()
+    protected function onSucursalChanged($sucursalId, $sucursalNombre): void
     {
-        // Establecer fechas por defecto (último mes)
-        $this->filterFechaDesde = now()->subMonth()->format('Y-m-d');
-        $this->filterFechaHasta = now()->format('Y-m-d');
-        $this->fechaCompra = now()->format('Y-m-d');
+        $this->cerrarModales();
+        $this->resetPage();
     }
 
-    /**
-     * Renderiza el componente
-     */
-    public function render()
+    private function cerrarModales(): void
     {
-        $compras = $this->obtenerCompras();
-        $proveedores = Proveedor::activos()
-            ->orderBy('nombre')
-            ->get();
-        $cajas = Caja::porSucursal($this->obtenerSucursalActual())
-            ->activas()
-            ->get();
-
-        return view('livewire.compras.compras', [
-            'compras' => $compras,
-            'proveedores' => $proveedores,
-            'cajas' => $cajas,
-            'compraDetalle' => $this->compraDetalleId ? Compra::with(['detalles.articulo', 'proveedor', 'caja'])->find($this->compraDetalleId) : null,
-            'compraPago' => $this->compraPagoId ? Compra::find($this->compraPagoId) : null,
-        ]);
+        $this->editorAbierto = false;
+        $this->showDetalleModal = false;
+        $this->showCancelarModal = false;
+        $this->showEliminarModal = false;
+        $this->showPagoModal = false;
     }
 
-    // =========================================
-    // MÉTODOS DE LISTADO Y FILTROS
-    // =========================================
+    // ==================== Filtros ====================
 
-    /**
-     * Obtiene las compras filtradas y paginadas
-     *
-     * @return \Illuminate\Pagination\LengthAwarePaginator
-     */
-    protected function obtenerCompras()
+    public function toggleFilters(): void
     {
-        $query = Compra::with(['proveedor', 'caja', 'usuario'])
-            ->where('sucursal_id', $this->obtenerSucursalActual());
+        $this->showFilters = ! $this->showFilters;
+    }
 
-        // Filtro de búsqueda
-        if ($this->search) {
-            $query->where(function ($q) {
-                $q->where('numero_comprobante', 'like', "%{$this->search}%")
-                    ->orWhereHas('proveedor', function ($q2) {
-                        $q2->where('nombre', 'like', "%{$this->search}%");
-                    });
-            });
+    public function updatingSearch(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterEstado(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterProveedor(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterFechaDesde(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatingFilterFechaHasta(): void
+    {
+        $this->resetPage();
+    }
+
+    public function resetFilters(): void
+    {
+        $this->reset(['search', 'filterEstado', 'filterProveedor']);
+        $this->filterFechaDesde = now()->subDays(30)->toDateString();
+        $this->filterFechaHasta = now()->toDateString();
+        $this->resetPage();
+    }
+
+    // ==================== Editor (patrón PedidosDelivery) ====================
+
+    public function abrirNuevaCompra(): void
+    {
+        $this->compraIdEnEdicion = null;
+        $this->editorNcOrigenId = null;
+        $this->editorEsNC = false;
+        $this->editorKey++;
+        $this->editorAbierto = true;
+    }
+
+    /** Camino secundario D7 #9: NC suelta desde el listado. */
+    public function abrirNuevaNC(): void
+    {
+        $this->compraIdEnEdicion = null;
+        $this->editorNcOrigenId = null;
+        $this->editorEsNC = true;
+        $this->editorKey++;
+        $this->editorAbierto = true;
+    }
+
+    public function abrirEditarCompra(int $compraId): void
+    {
+        $compra = Compra::find($compraId);
+
+        if ($compra === null || ! $this->validarAccesoSucursal($compra)) {
+            return;
         }
 
-        // Filtro de estado
-        if ($this->filterEstado !== 'all') {
+        // Fase 6: edición directa SOLO de borradores. La corrección de una
+        // completada (cancelar+recrear atómico, D7 #12) llega con sus
+        // decisiones de conflictos.
+        if (! $compra->esBorrador()) {
+            $this->dispatch('notify', type: 'error', message: __('Una compra completada es inmutable: cancelala y volvé a cargarla'));
+
+            return;
+        }
+
+        $this->compraIdEnEdicion = $compraId;
+        $this->editorNcOrigenId = null;
+        $this->editorEsNC = $compra->esNotaCredito();
+        $this->editorKey++;
+        $this->editorAbierto = true;
+    }
+
+    /** Camino principal D7 #9: NC desde el detalle de la compra. */
+    public function abrirNCDesdeCompra(int $compraId): void
+    {
+        $compra = Compra::find($compraId);
+
+        if ($compra === null || ! $this->validarAccesoSucursal($compra)) {
+            return;
+        }
+
+        if (! $compra->estaCompletada() || $compra->esNotaCredito()) {
+            $this->dispatch('notify', type: 'error', message: __('Solo se puede cargar una NC sobre una compra completada'));
+
+            return;
+        }
+
+        $this->showDetalleModal = false;
+        $this->compraIdEnEdicion = null;
+        $this->editorNcOrigenId = $compraId;
+        $this->editorEsNC = true;
+        $this->editorKey++;
+        $this->editorAbierto = true;
+    }
+
+    #[On('cerrar-editor-compra')]
+    public function cerrarEditor(): void
+    {
+        $this->editorAbierto = false;
+        $this->compraIdEnEdicion = null;
+        $this->editorNcOrigenId = null;
+    }
+
+    #[On('compra-guardada')]
+    public function trasGuardarCompra(): void
+    {
+        $this->cerrarEditor();
+        $this->resetPage();
+    }
+
+    // ==================== Detalle (D7 #11) ====================
+
+    public function verDetalle(int $compraId): void
+    {
+        $this->compraDetalleId = $compraId;
+        $this->showDetalleModal = true;
+    }
+
+    public function cerrarDetalle(): void
+    {
+        $this->showDetalleModal = false;
+        $this->compraDetalleId = null;
+    }
+
+    // ==================== Cancelar (D17) ====================
+
+    public function abrirCancelar(int $compraId): void
+    {
+        $compra = Compra::find($compraId);
+
+        if ($compra === null || ! $this->validarAccesoSucursal($compra)) {
+            return;
+        }
+
+        $this->compraCancelarId = $compraId;
+        $this->motivoCancelacion = '';
+
+        // D17: si tiene pagos aplicados el usuario ELIGE cascada o saldo a favor.
+        $this->cancelarTienePagos = PagoProveedorCompra::where('compra_id', $compraId)
+            ->whereHas('pagoProveedor', fn ($q) => $q->where('estado', 'activo'))
+            ->exists();
+        $this->manejoPagos = $this->cancelarTienePagos ? 'saldo_favor' : '';
+
+        $this->showCancelarModal = true;
+    }
+
+    public function confirmarCancelar(): void
+    {
+        $this->validate(['motivoCancelacion' => 'required|string|max:255'], [
+            'motivoCancelacion.required' => __('Indicá el motivo de la cancelación'),
+        ]);
+
+        try {
+            $compra = Compra::findOrFail($this->compraCancelarId);
+
+            app(CompraService::class)->cancelarCompra(
+                $compra,
+                (int) auth()->id(),
+                $this->motivoCancelacion,
+                $this->cancelarTienePagos ? $this->manejoPagos : null,
+            );
+
+            $this->showCancelarModal = false;
+            $this->cerrarDetalle();
+            $this->dispatch('notify', type: 'success', message: __('Compra cancelada'));
+        } catch (Exception $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+        }
+    }
+
+    // ==================== Eliminar borrador ====================
+
+    public function abrirEliminarBorrador(int $compraId): void
+    {
+        $this->compraEliminarId = $compraId;
+        $this->showEliminarModal = true;
+    }
+
+    public function confirmarEliminarBorrador(): void
+    {
+        try {
+            $compra = Compra::findOrFail($this->compraEliminarId);
+
+            app(CompraService::class)->eliminarBorrador($compra);
+
+            $this->showEliminarModal = false;
+            $this->dispatch('notify', type: 'success', message: __('Borrador eliminado'));
+        } catch (Exception $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+        }
+    }
+
+    // ==================== Pago rápido (badge de pago = botón, D7 #10) ====================
+
+    public function abrirPago(int $compraId): void
+    {
+        $compra = Compra::find($compraId);
+
+        if ($compra === null || ! $this->validarAccesoSucursal($compra) || ! $compra->tieneSaldoPendiente()) {
+            return;
+        }
+
+        if (! auth()->user()?->hasPermissionTo('func.compras.pagar')) {
+            $this->dispatch('notify', type: 'error', message: __('No tenés permiso para registrar pagos'));
+
+            return;
+        }
+
+        $this->compraPagoId = $compraId;
+        $this->montoAPagar = (string) $compra->saldo_pendiente;
+        $this->saldoFavorUsado = '';
+        $this->saldoFavorDisponible = MovimientoCuentaCorrienteProveedor::calcularSaldoFavor($compra->proveedor_id);
+        $this->pagos = [$this->renglonPagoVacio()];
+        $this->pagos[0]['monto'] = (string) $compra->saldo_pendiente;
+
+        $this->showPagoModal = true;
+    }
+
+    public function agregarRenglonPago(): void
+    {
+        $this->pagos[] = $this->renglonPagoVacio();
+    }
+
+    public function quitarRenglonPago(int $index): void
+    {
+        unset($this->pagos[$index]);
+        $this->pagos = array_values($this->pagos) ?: [$this->renglonPagoVacio()];
+    }
+
+    public function confirmarPago(): void
+    {
+        try {
+            $compra = Compra::findOrFail($this->compraPagoId);
+
+            $monto = (float) str_replace(',', '.', $this->montoAPagar ?: '0');
+
+            if ($monto <= 0) {
+                throw new Exception(__('Indicá el monto a pagar'));
+            }
+
+            $pagos = collect($this->pagos)
+                ->map(function ($p) {
+                    $origen = $p['origen'] ?? 'caja';
+
+                    if (! $this->puedePagarAvanzado()) {
+                        $origen = 'caja';
+                        $p['caja_id'] = caja_activa();
+                    }
+
+                    return [
+                        'forma_pago_id' => (int) ($p['forma_pago_id'] ?? 0),
+                        'monto' => (float) str_replace(',', '.', (string) ($p['monto'] ?? 0)),
+                        'origen' => $origen,
+                        'caja_id' => $p['caja_id'] ?: caja_activa(),
+                        'cuenta_empresa_id' => $p['cuenta_empresa_id'] ?: null,
+                    ];
+                })
+                ->filter(fn ($p) => $p['monto'] > 0 && $p['forma_pago_id'] > 0)
+                ->values()
+                ->all();
+
+            app(PagoProveedorService::class)->registrarPago([
+                'sucursal_id' => (int) session('sucursal_id'),
+                'proveedor_id' => $compra->proveedor_id,
+                'usuario_id' => auth()->id(),
+                'caja_id' => caja_activa(),
+                'saldo_favor_usado' => (float) str_replace(',', '.', $this->saldoFavorUsado ?: '0'),
+                'observaciones' => __('Pago desde el listado de compras'),
+            ], [
+                ['compra_id' => $compra->id, 'monto_aplicado' => $monto],
+            ], $pagos);
+
+            $this->showPagoModal = false;
+            $this->dispatch('notify', type: 'success', message: __('Pago registrado correctamente'));
+        } catch (Exception $e) {
+            $this->dispatch('notify', type: 'error', message: $e->getMessage());
+        }
+    }
+
+    public function puedePagarAvanzado(): bool
+    {
+        return (bool) auth()->user()?->hasPermissionTo('func.compras.pagar_avanzado');
+    }
+
+    private function renglonPagoVacio(): array
+    {
+        return [
+            'forma_pago_id' => null,
+            'monto' => '',
+            'origen' => 'caja',
+            'caja_id' => caja_activa(),
+            'cuenta_empresa_id' => null,
+        ];
+    }
+
+    // ==================== Helpers ====================
+
+    private function validarAccesoSucursal(Compra $compra): bool
+    {
+        if ((int) $compra->sucursal_id !== (int) $this->sucursalActual()) {
+            $this->dispatch('notify', type: 'error', message: __('La compra pertenece a otra sucursal'));
+
+            return false;
+        }
+
+        return true;
+    }
+
+    // ==================== Render ====================
+
+    public function render()
+    {
+        $query = Compra::with(['proveedor:id,nombre', 'cuentaCompra:id,nombre'])
+            ->where('sucursal_id', $this->sucursalActual());
+
+        if ($this->filterEstado === 'con_saldo') {
+            $query->completadas()->where('saldo_pendiente', '>', 0);
+        } elseif ($this->filterEstado !== 'all') {
             $query->where('estado', $this->filterEstado);
         }
 
-        // Filtro de forma de pago
-        if ($this->filterFormaPago !== 'all') {
-            $query->where('forma_pago', $this->filterFormaPago);
+        if ($this->filterProveedor !== '') {
+            $query->where('proveedor_id', (int) $this->filterProveedor);
         }
 
-        // Filtro de fechas
         if ($this->filterFechaDesde) {
             $query->whereDate('fecha', '>=', $this->filterFechaDesde);
         }
@@ -437,451 +478,56 @@ class Compras extends Component
             $query->whereDate('fecha', '<=', $this->filterFechaHasta);
         }
 
-        return $query->orderBy('created_at', 'desc')
-            ->paginate(10);
-    }
-
-    /**
-     * Obtiene la sucursal actual del usuario
-     *
-     * @return int
-     */
-    protected function obtenerSucursalActual()
-    {
-        // TODO: Obtener de la sesión cuando implementemos selector de sucursal
-        // Por ahora retornamos la primera sucursal activa
-        return Sucursal::activas()->first()->id ?? 1;
-    }
-
-    /**
-     * Alterna visibilidad de filtros (móvil)
-     */
-    public function toggleFilters()
-    {
-        $this->showFilters = ! $this->showFilters;
-    }
-
-    /**
-     * Resetea los filtros a sus valores por defecto
-     */
-    public function resetFilters()
-    {
-        $this->search = '';
-        $this->filterEstado = 'all';
-        $this->filterFormaPago = 'all';
-        $this->filterFechaDesde = now()->subMonth()->format('Y-m-d');
-        $this->filterFechaHasta = now()->format('Y-m-d');
-    }
-
-    // =========================================
-    // MÉTODOS DEL FORMULARIO / CARRITO
-    // =========================================
-
-    /**
-     * Abre el modal para nueva compra
-     */
-    public function abrirCompraModal()
-    {
-        $this->resetCompraForm();
-        $this->showCompraModal = true;
-    }
-
-    /**
-     * Resetea todas las propiedades del formulario
-     */
-    protected function resetCompraForm()
-    {
-        $this->carrito = [];
-        $this->proveedorSeleccionado = null;
-        $this->buscarArticulo = '';
-        $this->formaPago = 'efectivo';
-        $this->cajaSeleccionada = null;
-        $this->tipoComprobante = 'factura_a';
-        $this->numeroComprobante = null;
-        $this->fechaCompra = now()->format('Y-m-d');
-        $this->observaciones = null;
-        $this->subtotal = 0;
-        $this->totalIva = 0;
-        $this->total = 0;
-    }
-
-    /**
-     * Agrega un artículo al carrito
-     *
-     * @param  int  $articuloId
-     */
-    public function agregarAlCarrito($articuloId)
-    {
-        try {
-            $articulo = Articulo::with('tipoIva')->findOrFail($articuloId);
-
-            // Verificar si ya está en el carrito
-            $key = $this->buscarEnCarrito($articuloId);
-
-            if ($key !== null) {
-                // Ya está en el carrito, aumentar cantidad
-                $this->carrito[$key]['cantidad']++;
-            } else {
-                // Obtener precio del artículo (precio de compra)
-                $precio = $articulo->obtenerPrecio($this->obtenerSucursalActual(), 'costo');
-                $precioSinIva = $precio ? $precio->precio : 0;
-
-                // Agregar al carrito
-                $this->carrito[] = [
-                    'articulo_id' => $articulo->id,
-                    'articulo' => $articulo,
-                    'cantidad' => 1,
-                    'precio_sin_iva' => $precioSinIva,
-                    'iva_monto' => 0,
-                    'subtotal' => $precioSinIva,
-                ];
-            }
-
-            $this->calcularTotales();
-            $this->buscarArticulo = ''; // Limpiar búsqueda
-            $this->dispatch('toast-success', message: __('Artículo agregado al carrito'));
-
-        } catch (Exception $e) {
-            Log::error('Error al agregar artículo al carrito', [
-                'articulo_id' => $articuloId,
-                'error' => $e->getMessage(),
-            ]);
-            $this->dispatch('toast-error', message: __('Error al agregar artículo: :message', ['message' => $e->getMessage()]));
+        if ($this->search !== '') {
+            $query->where(function ($q) {
+                $q->where('numero_comprobante', 'like', '%'.$this->search.'%')
+                    ->orWhere('numero_comprobante_proveedor', 'like', '%'.$this->search.'%')
+                    ->orWhereHas('proveedor', fn ($p) => $p->where('nombre', 'like', '%'.$this->search.'%'));
+            });
         }
-    }
 
-    /**
-     * Busca un artículo en el carrito por su ID
-     *
-     * @param  int  $articuloId
-     * @return int|null Índice del artículo en el carrito, o null si no está
-     */
-    protected function buscarEnCarrito($articuloId)
-    {
-        foreach ($this->carrito as $key => $item) {
-            if ($item['articulo_id'] == $articuloId) {
-                return $key;
+        $compras = $query->orderByDesc('id')->paginate(15);
+
+        // Detalle (D7 #11): reconstrucción perfecta de la factura.
+        $compraDetalle = null;
+        $pagosDetalle = collect();
+        $costosDetalle = collect();
+
+        if ($this->showDetalleModal && $this->compraDetalleId) {
+            $compraDetalle = Compra::with([
+                'proveedor', 'cuit', 'cuentaCompra', 'usuario:id,name', 'sucursal:id,nombre',
+                'detalles.articulo:id,nombre,codigo', 'detalles.tipoIva:id,porcentaje',
+                'ivas', 'conceptos.tipoIva:id,porcentaje', 'percepciones.impuesto:id,nombre',
+                'compraOrigen:id,numero_comprobante',
+                'notasCredito' => fn ($q) => $q->where('estado', '!=', Compra::ESTADO_CANCELADA),
+            ])->find($this->compraDetalleId);
+
+            if ($compraDetalle !== null) {
+                $pagosDetalle = PagoProveedorCompra::with('pagoProveedor:id,numero,fecha,estado,monto_total')
+                    ->where('compra_id', $compraDetalle->id)
+                    ->get();
+
+                $costosDetalle = HistorialCosto::with('articulo:id,nombre')
+                    ->where('compra_id', $compraDetalle->id)
+                    ->get();
             }
         }
 
-        return null;
-    }
-
-    /**
-     * Elimina un artículo del carrito
-     *
-     * @param  int  $index  Índice del item en el array carrito
-     */
-    public function eliminarDelCarrito($index)
-    {
-        if (isset($this->carrito[$index])) {
-            unset($this->carrito[$index]);
-            $this->carrito = array_values($this->carrito); // Reindexar array
-            $this->calcularTotales();
-            $this->dispatch('toast-success', message: __('Artículo eliminado del carrito'));
-        }
-    }
-
-    /**
-     * Actualiza la cantidad de un artículo en el carrito
-     *
-     * @param  int  $index
-     * @param  float  $cantidad
-     */
-    public function actualizarCantidad($index, $cantidad)
-    {
-        if (isset($this->carrito[$index])) {
-            $cantidad = max(0, (float) $cantidad);
-
-            if ($cantidad <= 0) {
-                $this->eliminarDelCarrito($index);
-
-                return;
-            }
-
-            $this->carrito[$index]['cantidad'] = $cantidad;
-            $this->calcularTotales();
-        }
-    }
-
-    /**
-     * Actualiza el precio sin IVA de un artículo
-     *
-     * @param  int  $index
-     * @param  float  $precio
-     */
-    public function actualizarPrecio($index, $precio)
-    {
-        if (isset($this->carrito[$index])) {
-            $this->carrito[$index]['precio_sin_iva'] = max(0, (float) $precio);
-            $this->calcularTotales();
-        }
-    }
-
-    /**
-     * Calcula los totales del carrito
-     * En compras, el IVA es CRÉDITO FISCAL
-     */
-    public function calcularTotales()
-    {
-        $this->subtotal = 0;
-        $this->totalIva = 0;
-
-        foreach ($this->carrito as &$item) {
-            $articulo = $item['articulo'];
-            $tipoIva = $articulo->tipoIva;
-
-            // Calcular subtotal sin IVA
-            $subtotalSinIva = $item['precio_sin_iva'] * $item['cantidad'];
-
-            // Calcular IVA (crédito fiscal)
-            $ivaMonto = $subtotalSinIva * ($tipoIva->porcentaje / 100);
-
-            // Subtotal del item (sin IVA + IVA)
-            $item['iva_monto'] = $ivaMonto;
-            $item['subtotal'] = $subtotalSinIva + $ivaMonto;
-
-            $this->subtotal += $subtotalSinIva;
-            $this->totalIva += $ivaMonto;
-        }
-
-        // Total = Subtotal + IVA
-        $this->total = $this->subtotal + $this->totalIva;
-    }
-
-    // =========================================
-    // MÉTODOS DE PROCESAMIENTO DE COMPRA
-    // =========================================
-
-    /**
-     * Procesa la compra y la crea en la base de datos
-     */
-    public function procesarCompra()
-    {
-        try {
-            // Validar carrito no vacío
-            if (empty($this->carrito)) {
-                $this->dispatch('toast-error', message: __('El carrito está vacío'));
-
-                return;
-            }
-
-            // Validar proveedor
-            if (! $this->proveedorSeleccionado) {
-                $this->dispatch('toast-error', message: __('Debe seleccionar un proveedor'));
-
-                return;
-            }
-
-            // Validar caja si no es cuenta corriente
-            if ($this->formaPago !== 'cta_cte' && ! $this->cajaSeleccionada) {
-                $this->dispatch('toast-error', message: 'Debe seleccionar una caja');
-
-                return;
-            }
-
-            // Preparar datos de la compra
-            $datosCompra = [
-                'sucursal_id' => $this->obtenerSucursalActual(),
-                'proveedor_id' => $this->proveedorSeleccionado,
-                'caja_id' => $this->cajaSeleccionada,
-                'usuario_id' => Auth::id(),
-                'numero_comprobante' => $this->numeroComprobante,
-                'fecha' => $this->fechaCompra,
-                'tipo_comprobante' => $this->tipoComprobante,
-                'forma_pago' => $this->formaPago,
-                'observaciones' => $this->observaciones,
-                'total' => $this->total,
-            ];
-
-            // Preparar detalles
-            $detalles = [];
-            foreach ($this->carrito as $item) {
-                $detalles[] = [
-                    'articulo_id' => $item['articulo_id'],
-                    'cantidad' => $item['cantidad'],
-                    'precio_unitario' => $item['precio_sin_iva'] + ($item['iva_monto'] / $item['cantidad']),
-                    'precio_sin_iva' => $item['precio_sin_iva'],
-                ];
-            }
-
-            // Crear la compra usando el servicio
-            $compra = $this->compraService->crearCompra($datosCompra, $detalles);
-
-            // Éxito
-            $this->dispatch('toast-success', message: "Compra #{$compra->numero_comprobante} creada exitosamente");
-            $this->showCompraModal = false;
-            $this->resetCompraForm();
-
-        } catch (Exception $e) {
-            Log::error('Error al procesar compra', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString(),
-            ]);
-            $this->dispatch('toast-error', message: 'Error al procesar compra: '.$e->getMessage());
-        }
-    }
-
-    /**
-     * Cancela el formulario y cierra el modal
-     */
-    public function cancelarCompraModal()
-    {
-        $this->showCompraModal = false;
-        $this->resetCompraForm();
-    }
-
-    // =========================================
-    // MÉTODOS DE DETALLES Y ACCIONES
-    // =========================================
-
-    /**
-     * Abre el modal de detalles de una compra
-     *
-     * @param  int  $compraId
-     */
-    public function verDetalle($compraId)
-    {
-        $this->compraDetalleId = $compraId;
-        $this->showDetalleModal = true;
-    }
-
-    /**
-     * Cierra el modal de detalles
-     */
-    public function cerrarDetalle()
-    {
-        $this->showDetalleModal = false;
-        $this->compraDetalleId = null;
-    }
-
-    /**
-     * Cancela una compra
-     *
-     * @param  int  $compraId
-     */
-    public function cancelarCompra($compraId)
-    {
-        try {
-            $this->compraService->cancelarCompra($compraId);
-            $this->dispatch('toast-success', message: 'Compra cancelada exitosamente');
-
-            if ($this->showDetalleModal) {
-                $this->cerrarDetalle();
-            }
-
-        } catch (Exception $e) {
-            Log::error('Error al cancelar compra', [
-                'compra_id' => $compraId,
-                'error' => $e->getMessage(),
-            ]);
-            $this->dispatch('toast-error', message: 'Error al cancelar compra: '.$e->getMessage());
-        }
-    }
-
-    /**
-     * Abre el modal para registrar pago
-     *
-     * @param  int  $compraId
-     */
-    public function abrirModalPago($compraId)
-    {
-        $compra = Compra::findOrFail($compraId);
-        $this->compraPagoId = $compraId;
-        $this->montoPago = $compra->saldo_pendiente;
-        $this->cajaPago = null;
-        $this->showPagoModal = true;
-    }
-
-    /**
-     * Registra un pago a una compra en cuenta corriente
-     */
-    public function registrarPago()
-    {
-        try {
-            // Validaciones
-            if ($this->montoPago <= 0) {
-                $this->dispatch('toast-error', message: 'El monto debe ser mayor a cero');
-
-                return;
-            }
-
-            if (! $this->cajaPago) {
-                $this->dispatch('toast-error', message: 'Debe seleccionar una caja');
-
-                return;
-            }
-
-            // Registrar el pago
-            $this->compraService->registrarPago(
-                $this->compraPagoId,
-                $this->montoPago,
-                $this->cajaPago,
-                Auth::id()
-            );
-
-            $this->dispatch('toast-success', message: 'Pago registrado exitosamente');
-            $this->showPagoModal = false;
-            $this->compraPagoId = null;
-            $this->montoPago = 0;
-            $this->cajaPago = null;
-
-        } catch (Exception $e) {
-            Log::error('Error al registrar pago', [
-                'compra_id' => $this->compraPagoId,
-                'error' => $e->getMessage(),
-            ]);
-            $this->dispatch('toast-error', message: 'Error al registrar pago: '.$e->getMessage());
-        }
-    }
-
-    /**
-     * Cancela el modal de pago
-     */
-    public function cancelarModalPago()
-    {
-        $this->showPagoModal = false;
-        $this->compraPagoId = null;
-        $this->montoPago = 0;
-        $this->cajaPago = null;
-    }
-
-    // =========================================
-    // EVENTOS LIVEWIRE
-    // =========================================
-
-    /**
-     * Se ejecuta cuando cambia la búsqueda
-     */
-    public function updatedSearch()
-    {
-        $this->resetPage();
-    }
-
-    /**
-     * Se ejecuta cuando cambia el filtro de estado
-     */
-    public function updatedFilterEstado()
-    {
-        $this->resetPage();
-    }
-
-    /**
-     * Se ejecuta cuando cambia el filtro de forma de pago
-     */
-    public function updatedFilterFormaPago()
-    {
-        $this->resetPage();
-    }
-
-    /**
-     * Se ejecuta cuando cambia la forma de pago en el formulario
-     * Si cambia a cta_cte, deselecciona la caja
-     */
-    public function updatedFormaPago()
-    {
-        if ($this->formaPago === 'cta_cte') {
-            $this->cajaSeleccionada = null;
-        }
+        return view('livewire.compras.compras', [
+            'compras' => $compras,
+            'proveedores' => Proveedor::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
+            'compraDetalle' => $compraDetalle,
+            'pagosDetalle' => $pagosDetalle,
+            'costosDetalle' => $costosDetalle,
+            'compraPago' => $this->compraPagoId ? Compra::with('proveedor:id,nombre')->find($this->compraPagoId) : null,
+            'formasPago' => FormaPago::where('activo', true)
+                ->where('es_mixta', false)
+                ->where('solo_sistema', false)
+                ->whereNot('codigo', 'cta_cte')
+                ->orderBy('nombre')
+                ->get(['id', 'nombre']),
+            'cajasDisponibles' => Caja::porSucursal((int) $this->sucursalActual())->abiertas()->get(['id', 'nombre']),
+            'cuentasEmpresa' => CuentaEmpresa::where('activo', true)->get(['id', 'nombre']),
+        ]);
     }
 }

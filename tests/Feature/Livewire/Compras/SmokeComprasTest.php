@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Livewire\Compras;
 
+use App\Livewire\Compras\Compras;
+use App\Livewire\Compras\EditorCompra;
 use App\Livewire\Compras\GestionarPagosProveedores;
 use App\Livewire\Compras\GestionarProveedores;
 use App\Models\Proveedor;
@@ -69,6 +71,51 @@ class SmokeComprasTest extends TestCase
             ->assertSet('showPagoModal', true)
             ->call('verExtracto', $proveedor->id)
             ->assertSet('showExtractoModal', true)
+            ->assertOk();
+    }
+
+    // ==================== Fase 6: listado + editor ====================
+
+    public function test_compras_monta(): void
+    {
+        Livewire::test(Compras::class)->assertOk();
+    }
+
+    public function test_compras_abre_editor_nueva_compra(): void
+    {
+        Livewire::test(Compras::class)
+            ->call('abrirNuevaCompra')
+            ->assertSet('editorAbierto', true)
+            ->assertSet('compraIdEnEdicion', null)
+            ->assertOk();
+    }
+
+    public function test_compras_abre_editor_nc_suelta(): void
+    {
+        Livewire::test(Compras::class)
+            ->call('abrirNuevaNC')
+            ->assertSet('editorAbierto', true)
+            ->assertSet('editorEsNC', true)
+            ->assertOk();
+    }
+
+    public function test_editor_compra_monta_en_alta(): void
+    {
+        Livewire::test(EditorCompra::class)->assertOk();
+    }
+
+    public function test_editor_compra_monta_como_nc(): void
+    {
+        Livewire::test(EditorCompra::class, ['esNC' => true])->assertOk();
+    }
+
+    public function test_editor_compra_agrega_y_quita_renglones(): void
+    {
+        Livewire::test(EditorCompra::class)
+            ->call('agregarRenglon')
+            ->call('quitarRenglon', 1)
+            ->call('agregarConcepto')
+            ->call('agregarPercepcion')
             ->assertOk();
     }
 }

@@ -1299,7 +1299,7 @@ Suite de tests completa (es dinero: ledger + contraasientos + caja/tesorería).
   Compras 4 nuevos (197 smokes totales), 112 traducciones ×3 (4122 parejas),
   pint OK.
 
-### Fase 6: UI de compras [PENDIENTE]
+### Fase 6: UI de compras [EN PROGRESO]
 Componente reescrito (SucursalAware): carga por código de proveedor, descuentos
 por renglón, percepciones, tipo de comprobante, toggle no fiscal, NC, desglose
 compra_ivas sugerido/editable con validación de cuadre, cuenta de compra
@@ -1308,7 +1308,10 @@ compra_ivas sugerido/editable con validación de cuadre, cuenta de compra
 
 #### Sesión UX D7 (2026-07-09, decidida con el usuario)
 1. **Estructura**: `/compras` = listado; la carga/edición abre un MODAL A
-   PANTALLA COMPLETA (patrón del editor de ventas — pedido explícito).
+   PANTALLA COMPLETA. **Patrón de referencia (enmienda 2026-07-10): el modal
+   de alta/edición de PEDIDOS DELIVERY** — todo el comprobante se simula
+   dentro del modal y se puede modificar ahí mismo (no hace falta calcar el
+   editor de ventas).
 2. **Renglones = grilla tipo planilla** con navegación por teclado (Enter/Tab
    avanza de celda; al final agrega fila). Buscador de artículo en la primera
    celda que matchea código propio, código del proveedor seleccionado y
@@ -1348,13 +1351,47 @@ compra_ivas sugerido/editable con validación de cuadre, cuenta de compra
     exactamente los montos de la factura.
 12. **Edición "como si fuese el alta"** (pedido explícito): borrador = edición
     directa; una COMPLETADA se reabre en el MISMO editor precargado en modo
-    corrección — por detrás se materializa como cancelar+recrear atómico
+    corrección (patrón modal editar pedido delivery: se simula el comprobante
+    completo en el modal y se modifica ahí) — por detrás se materializa como
+    cancelar+recrear atómico
     (preserva la inmutabilidad del ledger por contraasientos, RF-17). Los
     CONFLICTOS (pagos aplicados, turno cerrado, stock insuficiente para
     revertir, NCs vinculadas) se resuelven con decisiones puntuales DURANTE
     la implementación con el usuario — anotado como pendiente de decisión.
 13. **Mobile**: listado en cards; el editor es desktop-first (la grilla
     scrollea horizontal en móvil — la carga de facturas es tarea de escritorio).
+
+#### Ajustes de implementación (Fase 6, 2026-07-10)
+
+- **Arquitectura**: `Compras` (listado full-page, SucursalAware+Lazy) monta
+  condicionalmente el sub-componente `EditorCompra` (SIN ruta propia) con
+  `@if($editorAbierto) <livewire:compras.editor-compra :key="editorKey++">`
+  — patrón exacto de PedidosDelivery/NuevoPedidoDelivery (enmienda 2026-07-10:
+  la referencia es el modal de alta/edición de pedidos delivery, no el editor
+  de ventas, que resultó ser full-page y no modal).
+- **Pago rápido en el listado** (D7 #10): el badge de pago abre un modal que
+  aplica a ESA compra vía `PagoProveedorService::registrarPago` (mismo
+  desglose FP + origen D14 de GestionarPagosProveedores).
+- **Netos RF-14**: `CompraService::crearBorrador/actualizarBorrador` aceptan
+  `neto_no_gravado`/`neto_exento` en `$data` (editables en la UI junto al
+  desglose) y `recalcularTotales` puebla `neto_gravado` = Σ bases de
+  `compra_ivas` (antes los tres quedaban en 0).
+- **Sugerencia fiscal**: el desglose de IVA + netos se auto-sugiere de los
+  renglones (cascada + prorrateo desc. global + conceptos gravados) hasta que
+  el usuario lo edita a mano (`fiscalManual`); botón "Recalcular" vuelve a la
+  sugerencia. Cuadre ±$1 por alícuota como advertencia amarilla no bloqueante.
+- **Gate costos.ver**: columna "Costo unit." del detalle, sección "Costos que
+  generó" y el aviso de margen post-confirmación solo se muestran/calculan
+  con `func.costos.ver`.
+- **Alta rápida** (D7 #3): crea el artículo con `precio_base` opcional (0 si
+  no se indica — quedará bajo margen y lo agarra la revisión de Fase 8) y
+  persiste `articulo_proveedor.codigo_proveedor` si se cargó.
+- **PENDIENTE de esta fase**: edición de una COMPLETADA en modo corrección
+  (cancelar+recrear atómico, D7 #12) — requiere las decisiones de conflictos
+  con el usuario (pagos aplicados, turno cerrado, stock insuficiente, NCs
+  vinculadas). Hoy la UI ofrece el camino manual: cancelar + volver a cargar.
+- Menú `listado-compras` ACTIVADO (migración 2026_07_10_120000).
+- 146 traducciones ×3; smokes: 6 tests nuevos en SmokeComprasTest.
 
 ### Fase 7: Utilidad y margen en artículos/config [PENDIENTE]
 Config comercio + categorías + artículos (override, flag, columnas margen,

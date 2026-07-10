@@ -80,6 +80,8 @@ class CompraService
                 'fecha_vencimiento' => $data['fecha_vencimiento'] ?? null,
                 'tipo_comprobante' => $data['tipo_comprobante'],
                 'descuento_global_porcentaje' => $data['descuento_global_porcentaje'] ?? null,
+                'neto_no_gravado' => $data['neto_no_gravado'] ?? 0,
+                'neto_exento' => $data['neto_exento'] ?? 0,
                 'forma_pago' => $data['forma_pago']
                     ?? (Proveedor::find($data['proveedor_id'])?->tiene_cuenta_corriente ? 'cta_cte' : 'efectivo'),
                 'estado' => Compra::ESTADO_BORRADOR,
@@ -121,6 +123,8 @@ class CompraService
                 'fecha_vencimiento' => $data['fecha_vencimiento'] ?? null,
                 'tipo_comprobante' => $data['tipo_comprobante'],
                 'descuento_global_porcentaje' => $data['descuento_global_porcentaje'] ?? null,
+                'neto_no_gravado' => $data['neto_no_gravado'] ?? 0,
+                'neto_exento' => $data['neto_exento'] ?? 0,
                 'forma_pago' => $data['forma_pago'] ?? $compra->forma_pago,
                 'observaciones' => $data['observaciones'] ?? null,
             ]);
@@ -478,6 +482,9 @@ class CompraService
         $compra->update([
             'subtotal' => round($subtotal, 2),
             'descuento_global_monto' => round($descuentoGlobal, 2),
+            // RF-14: neto gravado = Σ bases del desglose cargado (Libro IVA);
+            // no_gravado/exento vienen del encabezado ($data) y no se pisan.
+            'neto_gravado' => round((float) $compra->ivas->sum('base_imponible'), 2),
             'total_iva' => round($totalIva, 2),
             'total' => round($subtotal - $descuentoGlobal + $conceptos + $totalIva + $percepciones, 2),
         ]);
