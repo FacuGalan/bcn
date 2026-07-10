@@ -835,6 +835,25 @@
                     </div>
                 </div>
 
+                @if($articulosRepriceados !== [])
+                    <div class="rounded-md bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 px-4 py-3">
+                        <p class="text-sm font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                            {{ trans_choice(':n artículo se repriceó automáticamente|:n artículos se repricearon automáticamente', count($articulosRepriceados), ['n' => count($articulosRepriceados)]) }}
+                        </p>
+                        <ul class="space-y-1">
+                            @foreach($articulosRepriceados as $item)
+                                <li class="text-xs text-blue-800 dark:text-blue-200 flex justify-between gap-2">
+                                    <span>{{ $item['nombre'] }}</span>
+                                    <span class="whitespace-nowrap">
+                                        $@precio($item['precio_anterior']) → <strong>$@precio($item['precio_nuevo'])</strong>
+                                        <span class="text-blue-500">({{ $item['alcance'] === 'sucursal' ? __('sucursal') : __('global') }})</span>
+                                    </span>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
+
                 @if($articulosBajoMargen !== [])
                     <div class="rounded-md bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 px-4 py-3">
                         <p class="text-sm font-semibold text-yellow-800 dark:text-yellow-200 mb-2">
@@ -856,8 +875,14 @@
             </div>
         </x-slot:body>
         <x-slot:footer>
+            @if($articulosBajoMargen !== [] && ($resumen['compra_id'] ?? null))
+                <button type="button" wire:click="abrirRevisionPrecios"
+                    class="mt-3 w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-teal-600 text-base font-medium text-white hover:bg-teal-700 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
+                    {{ __('Revisar precios') }}
+                </button>
+            @endif
             <button type="button" wire:click="cerrarResumen"
-                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none sm:w-auto sm:text-sm">
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
                 {{ __('Aceptar') }}
             </button>
         </x-slot:footer>

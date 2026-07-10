@@ -69,6 +69,14 @@ class Compras extends Component
 
     public ?int $compraDetalleId = null;
 
+    // ==================== Revisión de precios (RF-10) ====================
+
+    public bool $revisionAbierta = false;
+
+    public ?int $revisionCompraId = null;
+
+    public int $revisionKey = 0;
+
     // ==================== Modal cancelar (D17) ====================
 
     public bool $showCancelarModal = false;
@@ -130,6 +138,7 @@ class Compras extends Component
         $this->showCancelarModal = false;
         $this->showEliminarModal = false;
         $this->showPagoModal = false;
+        $this->revisionAbierta = false;
     }
 
     // ==================== Filtros ====================
@@ -274,6 +283,41 @@ class Compras extends Component
     {
         $this->cerrarEditor();
         $this->resetPage();
+    }
+
+    // ==================== Revisión de precios (RF-10) ====================
+
+    /**
+     * Abre la revisión post-compra: retomable desde el detalle o desde el
+     * aviso del editor. Muestra costos/márgenes ⇒ gate func.costos.ver.
+     */
+    #[On('abrir-revision-precios')]
+    public function abrirRevisionPrecios(int $compraId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.costos.ver')) {
+            $this->dispatch('notify', type: 'error', message: __('La revisión de precios requiere el permiso de ver costos'));
+
+            return;
+        }
+
+        $compra = Compra::find($compraId);
+
+        if ($compra === null || ! $compra->estaCompletada() || $compra->esNotaCredito()) {
+            return;
+        }
+
+        $this->editorAbierto = false;
+        $this->showDetalleModal = false;
+        $this->revisionCompraId = $compraId;
+        $this->revisionKey++;
+        $this->revisionAbierta = true;
+    }
+
+    #[On('cerrar-revision-precios')]
+    public function cerrarRevisionPrecios(): void
+    {
+        $this->revisionAbierta = false;
+        $this->revisionCompraId = null;
     }
 
     // ==================== Detalle (D7 #11) ====================

@@ -6,6 +6,8 @@ use App\Livewire\Compras\Compras;
 use App\Livewire\Compras\EditorCompra;
 use App\Livewire\Compras\GestionarPagosProveedores;
 use App\Livewire\Compras\GestionarProveedores;
+use App\Livewire\Compras\ReportesCompras;
+use App\Livewire\Compras\RevisionPreciosCompra;
 use App\Models\Compra;
 use App\Models\Proveedor;
 use App\Services\CompraService;
@@ -149,6 +151,37 @@ class SmokeComprasTest extends TestCase
             ->assertSet('modoCorreccion', true)
             ->assertSet('correccionDeId', $completada->id)
             ->assertSet('compraId', null)
+            ->assertOk();
+    }
+
+    // ==================== Fase 8: revisión de precios + reportes ====================
+
+    public function test_reportes_compras_monta_y_genera(): void
+    {
+        Livewire::test(ReportesCompras::class)
+            ->call('generarReporte')
+            ->assertOk();
+    }
+
+    public function test_revision_precios_monta_sobre_compra_completada(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Revision Smoke '.uniqid(), 'activo' => true]);
+
+        $borrador = app(CompraService::class)->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NO_FISCAL,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 2, 'factor_conversion' => 1, 'precio_unitario' => 100],
+        ]);
+        $completada = app(CompraService::class)->confirmarCompra($borrador, 1);
+
+        Livewire::test(RevisionPreciosCompra::class, ['compraId' => $completada->id])
+            ->assertSet('cargada', true)
+            ->call('recalcular')
             ->assertOk();
     }
 }

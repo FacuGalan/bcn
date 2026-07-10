@@ -1432,9 +1432,39 @@ historial de costos, proveedores del artículo). Permisos `costos.ver/editar`.
 - 42 traducciones ×3 (incluye claves viejas sin traducir de esos archivos);
   smoke nuevo: edit con costos + historial de costos.
 
-### Fase 8: Revisión de precios + repricing + reportes [PENDIENTE]
+### Fase 8: Revisión de precios + repricing + reportes [COMPLETO]
 `RevisionPreciosCompra` + flag automático en confirmación + `ReportesCompras`
 (compras por cuenta, RF-22).
+
+#### Ajustes de implementación (Fase 8, 2026-07-10)
+
+- **Repricing automático (RF-11)**: paso 7 de `confirmarCompra` —
+  `repricearAutomaticos()`: artículos con flag → `precioSugerido` (redondeo
+  'ninguno' en v1 — un redondeo configurable para el automático queda como
+  mejora futura, no estaba definido en el spec), alcance = regla RF-10
+  (override sucursal si existe, si no global), `HistorialPrecio` origen
+  'utilidad_automatica'. Resultado en `CompraService::$ultimoRepricing`
+  (propiedad pública de la instancia) que el editor lee para informarlo en
+  el resumen (bloque azul, sin gate de costos: son precios de venta).
+- **RevisionPreciosCompra (RF-10)**: sub-componente SIN ruta montado por el
+  listado `Compras` (evento `abrir-revision-precios` desde el detalle y desde
+  el resumen del editor; `cerrar-revision-precios` para cerrar). RETOMABLE:
+  `recalcular()` siempre contra vigentes; tras aplicar re-lista (los que
+  superan el objetivo desaparecen). Redondeo select con las opciones reales
+  de `PrecioService::aplicarRedondeo` (sin_redondeo/entero/decena/centena).
+  Precio nuevo editable por fila + checkbox. Gates: abrir = `func.costos.ver`;
+  aplicar = `func.compras.revisar_precios`. Origen historial:
+  'revision_compra' (con sucursal_id si el alcance es override).
+- **ReportesCompras (RF-22)**: patrón ReportesTesoreria (generar bajo demanda,
+  stat-tiles + tabla por corte) con cortes cuenta/proveedor/mes, NC restando,
+  "Sin clasificar" como fila propia y drill-down expandible a las compras del
+  grupo. Agrupa por `fecha` (de carga — el período fiscal usa
+  fecha_comprobante y vive en el Libro IVA, no acá). Ruta `compras.reportes`
+  + ítem de menú `reportes-compras` ACTIVADO (migración 2026_07_10_150000) —
+  el grupo Compras queda completo.
+- 33 traducciones ×3; smokes: ReportesCompras genera + RevisionPreciosCompra
+  monta sobre completada; test RF-11 en CompraServiceTest (flag repricea,
+  sin flag intacto, historial 'utilidad_automatica').
 
 ### Fase 9: Verificación + docs [PENDIENTE]
 /sdd-verify + @docs-sync + manual de usuario.

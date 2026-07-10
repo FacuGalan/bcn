@@ -134,6 +134,9 @@ class EditorCompra extends Component
     /** @var array<int, array{nombre: string, costo: float, margen_real: ?float, objetivo: float}> */
     public array $articulosBajoMargen = [];
 
+    /** @var array<int, array> repriceados automáticos (RF-11) informados en el resumen */
+    public array $articulosRepriceados = [];
+
     // ==================== Alta rápida de artículo (inline) ====================
 
     public bool $mostrarModalArticuloRapido = false;
@@ -1218,13 +1221,15 @@ class EditorCompra extends Component
         }
 
         try {
+            $servicio = app(CompraService::class);
+
             if ($this->modoCorreccion) {
                 $original = Compra::findOrFail($this->correccionDeId);
                 $totales = $this->totales();
 
                 [$data, $renglones, $extras] = $this->construirPayload();
 
-                $confirmada = app(CompraService::class)->corregirCompra(
+                $confirmada = $servicio->corregirCompra(
                     $original,
                     array_merge($data, ['forma_pago' => $this->formaPagoElegida()]),
                     $renglones,
@@ -1236,12 +1241,16 @@ class EditorCompra extends Component
                 $compra = $this->persistirBorrador();
                 $this->compraId = $compra->id;
 
-                $confirmada = app(CompraService::class)->confirmarCompra(
+                $confirmada = $servicio->confirmarCompra(
                     $compra,
                     (int) auth()->id(),
                     $this->construirPagoInicial((float) $compra->total),
                 );
             }
+
+            // RF-11: repriceados automáticos, informados en el resumen (son
+            // PRECIOS de venta — no llevan el gate de costos).
+            $this->articulosRepriceados = $servicio->ultimoRepricing;
 
             $this->mostrarModalPago = false;
             $this->prepararResumen($confirmada);
@@ -1354,6 +1363,7 @@ class EditorCompra extends Component
     protected function prepararResumen(Compra $confirmada): void
     {
         $this->resumen = [
+            'compra_id' => $confirmada->id,
             'numero' => $confirmada->numero_comprobante,
             'total' => (float) $confirmada->total,
             'saldo_pendiente' => (float) $confirmada->saldo_pendiente,
@@ -1389,6 +1399,22 @@ class EditorCompra extends Component
     {
         $this->mostrarModalResumen = false;
         $this->dispatch('compra-guardada');
+    }
+
+    /**
+     * D7 #8: del aviso post-confirmación a la revisión de precios (RF-10) —
+     * el listado padre cierra el editor y monta RevisionPreciosCompra.
+     */
+    public function abrirRevisionPrecios(): void
+    {
+        $compraId = $this->resumen['compra_id'] ?? null;
+
+        if ($compraId === null) {
+            return;
+        }
+
+        $this->mostrarModalResumen = false;
+        $this->dispatch('abrir-revision-precios', compraId: $compraId);
     }
 
     // ==================== Cierre ====================

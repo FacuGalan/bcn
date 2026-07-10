@@ -497,4 +497,11 @@
             :esNC="$editorEsNC"
             :key="'editor-compra-'.$editorKey" />
     @endif
+
+    {{-- ============ REVISIÓN DE PRECIOS POST-COMPRA (RF-10, retomable) ============ --}}
+    @if($revisionAbierta && $revisionCompraId)
+        <livewire:compras.revision-precios-compra
+            :compraId="$revisionCompraId"
+            :key="'revision-precios-'.$revisionKey" />
+    @endif
 </div>

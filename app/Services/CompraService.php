@@ -8,6 +8,7 @@ use App\Models\CompraDetalle;
 use App\Models\CompraIva;
 use App\Models\CompraPercepcion;
 use App\Models\CondicionIva;
+use App\Models\HistorialPrecio;
 use App\Models\MovimientoCuentaCorrienteProveedor;
 use App\Models\MovimientoStock;
 use App\Models\PagoProveedorCompra;
@@ -35,12 +36,15 @@ use Illuminate\Support\Facades\Log;
  * - La NC de proveedor (RF-21) registra la reversa con SU desglose, en
  *   negativo y en el período de la NC; costos NO se recalculan.
  *
- * Pendiente de fases posteriores (hooks documentados en confirmar/cancelar):
- * cta cte de proveedores + pago inicial (Fase 5, RF-18/19), D17 (cancelar con
- * pagos aplicados) y repricing automático (Fase 8, RF-11).
+ * Repricing automático (Fase 8, RF-11): los artículos con
+ * `precio_administrado_por_utilidad` se repricean al confirmar; el resultado
+ * queda en `$ultimoRepricing` para que la UI lo informe en el resumen.
  */
 class CompraService
 {
+    /** @var array<int, array> resultado del último repricing automático (RF-11) */
+    public array $ultimoRepricing = [];
+
     public function __construct(
         protected CostoService $costoService,
         protected ImpuestoService $impuestoService,
@@ -217,6 +221,12 @@ class CompraService
                 $this->ccProveedorService->registrarMovimientosCompra($compra, $usuarioId);
                 $this->registrarPagoInicial($compra, $pagoInicial, $usuarioId);
             }
+
+            // 7. Repricing automático (RF-11): los artículos opt-in se
+            //    repricean con la fórmula del sugerido sobre el costo nuevo.
+            $this->ultimoRepricing = $compra->esNotaCredito()
+                ? []
+                : $this->repricearAutomaticos($compra, $usuarioId);
         });
 
         Log::info('Compra confirmada', [
@@ -712,6 +722,74 @@ class CompraService
         ], [
             ['compra_id' => $compra->id, 'monto_aplicado' => min($fondos, (float) $compra->total)],
         ], $pagos);
+    }
+
+    /**
+     * Repricing automático (RF-11): artículos con
+     * `precio_administrado_por_utilidad` se repricean con la fórmula del
+     * precio sugerido (costo rector × utilidad × IVA — D21 vía CostoService).
+     * Alcance = regla RF-10: si el artículo tiene override de precio en la
+     * sucursal de la compra se actualiza ESE override; si no, el global
+     * (aceptado que una compra en A repricea el global que también rige en B).
+     * Registra HistorialPrecio origen 'utilidad_automatica'.
+     */
+    private function repricearAutomaticos(Compra $compra, int $usuarioId): array
+    {
+        $repriceados = [];
+
+        $articulos = $compra->detalles->pluck('articulo')
+            ->filter()
+            ->unique('id')
+            ->filter(fn ($articulo) => (bool) $articulo->precio_administrado_por_utilidad);
+
+        foreach ($articulos as $articulo) {
+            $sugerido = $this->costoService->precioSugerido($articulo, $compra->sucursal_id);
+
+            if ($sugerido === null || $sugerido <= 0) {
+                continue;
+            }
+
+            $sugerido = round($sugerido, 2);
+
+            $override = DB::connection('pymes_tenant')->table('articulos_sucursales')
+                ->where('articulo_id', $articulo->id)
+                ->where('sucursal_id', $compra->sucursal_id)
+                ->value('precio_base');
+
+            $anterior = $override !== null ? (float) $override : (float) $articulo->precio_base;
+
+            if (round($anterior, 2) === $sugerido) {
+                continue;
+            }
+
+            if ($override !== null) {
+                DB::connection('pymes_tenant')->table('articulos_sucursales')
+                    ->where('articulo_id', $articulo->id)
+                    ->where('sucursal_id', $compra->sucursal_id)
+                    ->update(['precio_base' => $sugerido]);
+            } else {
+                $articulo->update(['precio_base' => $sugerido]);
+            }
+
+            HistorialPrecio::registrar([
+                'articulo_id' => $articulo->id,
+                'sucursal_id' => $override !== null ? $compra->sucursal_id : null,
+                'precio_anterior' => $anterior,
+                'precio_nuevo' => $sugerido,
+                'origen' => 'utilidad_automatica',
+                'usuario_id' => $usuarioId,
+            ]);
+
+            $repriceados[] = [
+                'articulo_id' => $articulo->id,
+                'nombre' => $articulo->nombre,
+                'precio_anterior' => round($anterior, 2),
+                'precio_nuevo' => $sugerido,
+                'alcance' => $override !== null ? 'sucursal' : 'global',
+            ];
+        }
+
+        return $repriceados;
     }
 
     /**

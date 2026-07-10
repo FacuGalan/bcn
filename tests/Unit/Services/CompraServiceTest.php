@@ -462,6 +462,57 @@ class CompraServiceTest extends TestCase
         $this->assertNull($this->servicio->advertenciaComprobanteCuit($condicionMono, Compra::TIPO_FACTURA_C));
     }
 
+    // ==================== Repricing automático (RF-11, Fase 8) ====================
+
+    public function test_articulo_con_flag_se_repricea_al_confirmar(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $articulo->update([
+            'precio_base' => 100,
+            'utilidad_porcentaje' => 50,
+            'precio_administrado_por_utilidad' => true,
+        ]);
+
+        $sinFlag = $this->crearArticuloConStock($this->sucursalId, 0);
+        $sinFlag->update(['precio_base' => 100]);
+
+        $cuit = $this->crearCuit(CondicionIva::RESPONSABLE_INSCRIPTO);
+        $borrador = $this->servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'cuit_id' => $cuit->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_FACTURA_A,
+            'fecha_comprobante' => '2026-07-01',
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 10, 'factor_conversion' => 1, 'precio_unitario' => 200, 'tipo_iva_id' => $this->tiposIva[5]->id],
+            ['articulo_id' => $sinFlag->id, 'cantidad_comprada' => 5, 'factor_conversion' => 1, 'precio_unitario' => 100, 'tipo_iva_id' => $this->tiposIva[5]->id],
+        ], [
+            'ivas' => [['alicuota' => 21, 'base_imponible' => 2500, 'importe' => 525]],
+        ]);
+
+        $this->servicio->confirmarCompra($borrador, 1);
+
+        // Fórmula canónica sobre el costo NUEVO (200), con la alícuota
+        // efectiva D21 del entorno (0 si el comercio no computa IVA).
+        $alicuota = app(\App\Services\CostoService::class)->alicuotaEfectiva($articulo->fresh(), $this->sucursalId);
+        $esperado = round(200 * 1.5 * (1 + $alicuota / 100), 2);
+
+        $this->assertEquals($esperado, (float) $articulo->fresh()->precio_base);
+        $this->assertEquals(100.0, (float) $sinFlag->fresh()->precio_base); // sin flag: intacto
+
+        $this->assertCount(1, $this->servicio->ultimoRepricing);
+        $this->assertEquals($articulo->id, $this->servicio->ultimoRepricing[0]['articulo_id']);
+        $this->assertEquals('global', $this->servicio->ultimoRepricing[0]['alcance']);
+
+        $historial = \App\Models\HistorialPrecio::where('articulo_id', $articulo->id)
+            ->where('origen', 'utilidad_automatica')
+            ->latest('id')
+            ->first();
+        $this->assertNotNull($historial);
+        $this->assertEquals($esperado, (float) $historial->precio_nuevo);
+    }
+
     // ==================== Corrección (D7 #12, Fase 6) ====================
 
     public function test_corregir_compra_cancela_y_recrea_atomico(): void
