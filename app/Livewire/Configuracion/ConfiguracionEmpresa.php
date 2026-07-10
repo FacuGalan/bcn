@@ -4,6 +4,7 @@ namespace App\Livewire\Configuracion;
 
 use App\Models\Caja;
 use App\Models\CondicionIva;
+use App\Models\ConfiguracionCostos;
 use App\Models\Cuit;
 use App\Models\EmpresaConfig;
 use App\Models\GrupoCierre;
@@ -39,6 +40,9 @@ class ConfiguracionEmpresa extends Component
 
     // ==================== TAB EMPRESA ====================
     public $empresaNombre = '';
+
+    /** Utilidad objetivo por defecto del comercio (RF-08, base de la cascada). */
+    public string $utilidadDefault = '';
 
     public $empresaDireccion = '';
 
@@ -374,6 +378,13 @@ class ConfiguracionEmpresa extends Component
         $this->empresaTelefono = $config->telefono ?? '';
         $this->empresaEmail = $config->email ?? '';
         $this->empresaLogoActual = $config->logo_path;
+
+        // Utilidad por defecto (RF-08): dato sensible, solo con func.costos.ver.
+        if (auth()->user()?->hasPermissionTo('func.costos.ver')) {
+            $this->utilidadDefault = rtrim(rtrim(number_format(
+                (float) ConfiguracionCostos::obtener()->utilidad_default, 2, '.', ''
+            ), '0'), '.');
+        }
     }
 
     public function guardarEmpresa()
@@ -404,6 +415,16 @@ class ConfiguracionEmpresa extends Component
         }
 
         $config->save();
+
+        // Utilidad por defecto del comercio (RF-08, base de la cascada):
+        // solo se escribe con func.costos.editar.
+        if (auth()->user()?->hasPermissionTo('func.costos.editar')) {
+            $utilidad = str_replace(',', '.', trim($this->utilidadDefault));
+
+            if (is_numeric($utilidad) && (float) $utilidad >= 0) {
+                ConfiguracionCostos::obtener()->update(['utilidad_default' => (float) $utilidad]);
+            }
+        }
 
         $this->dispatch('notify', message: __('Datos de empresa guardados correctamente'), type: 'success');
     }

@@ -3,16 +3,23 @@
 namespace App\Livewire\Articulos;
 
 use App\Models\Articulo;
+use App\Models\ArticuloCosto;
 use App\Models\ArticuloGrupoOpcional;
+use App\Models\ArticuloProveedor;
 use App\Models\Categoria;
+use App\Models\Compra;
+use App\Models\ConfiguracionCostos;
 use App\Models\GrupoEtiqueta;
 use App\Models\GrupoOpcional;
+use App\Models\HistorialCosto;
 use App\Models\HistorialPrecio;
+use App\Models\Proveedor;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Services\ArticuloImportExportService;
 use App\Services\CatalogoCache;
+use App\Services\CostoService;
 use App\Services\OpcionalService;
 use App\Traits\SucursalAware;
 use Illuminate\Support\Facades\Auth;
@@ -196,6 +203,28 @@ class GestionarArticulos extends Component
     public ?float $precio_sucursal = null;
 
     public bool $vendible = true;
+
+    // ── Costos y utilidad (Fase 7 spec compras-costos, RF-08/09) ──
+
+    /** Override de utilidad objetivo del artículo ('' = hereda categoría/comercio). */
+    public string $utilidad_porcentaje = '';
+
+    /** RF-11: repricea solo al confirmar compras (opt-in). */
+    public bool $precio_administrado_por_utilidad = false;
+
+    /** Edición manual del costo último de la sucursal activa (func.costos.editar). */
+    public string $costo_ultimo_manual = '';
+
+    /** Costo de reposición de la sucursal activa ('' = sin valor, cae a último). */
+    public string $costo_reposicion = '';
+
+    /** Datos read-only del panel de costos del modal (cargados en edit()). */
+    public array $costosInfo = [];
+
+    // Historial de costos (RF-03, espejo del historial de precios)
+    public bool $showHistorialCostosModal = false;
+
+    public ?int $historialCostosArticuloId = null;
 
     // Sucursales
     public array $sucursales_seleccionadas = [];
@@ -529,6 +558,7 @@ class GestionarArticulos extends Component
         $this->showRecetaModal = false;
         $this->showDeleteModal = false;
         $this->showHistorialModal = false;
+        $this->showHistorialCostosModal = false;
     }
 
     /**
@@ -705,8 +735,185 @@ class GestionarArticulos extends Component
         $this->etiquetas_seleccionadas = $articulo->etiquetas()->pluck('etiquetas.id')->toArray();
         $this->busquedaEtiqueta = '';
 
+        // Costos y utilidad (Fase 7) — dato sensible, solo con func.costos.ver
+        $this->utilidad_porcentaje = $articulo->utilidad_porcentaje !== null
+            ? rtrim(rtrim(number_format((float) $articulo->utilidad_porcentaje, 2, '.', ''), '0'), '.')
+            : '';
+        $this->precio_administrado_por_utilidad = (bool) $articulo->precio_administrado_por_utilidad;
+
+        if ($this->puedeVerCostos()) {
+            $this->cargarCostosInfo($articulo);
+        }
+
         $this->editMode = true;
         $this->showModal = true;
+    }
+
+    // ==================== Costos y utilidad (Fase 7, RF-02/03/08/09) ====================
+
+    public function puedeVerCostos(): bool
+    {
+        return (bool) auth()->user()?->hasPermissionTo('func.costos.ver');
+    }
+
+    public function puedeEditarCostos(): bool
+    {
+        return (bool) auth()->user()?->hasPermissionTo('func.costos.editar');
+    }
+
+    /**
+     * Panel de costos del modal: los 3 costos (sucursal activa + consolidado),
+     * el ORIGEN del costo vigente (proveedor + tipo de comprobante — el salto
+     * de base A↔B tiene que ser visible, nota 2026-07-09) y los proveedores
+     * del artículo (RF-04).
+     */
+    protected function cargarCostosInfo(Articulo $articulo): void
+    {
+        $sucursalId = sucursal_activa();
+
+        $filaSucursal = ArticuloCosto::where('articulo_id', $articulo->id)->porSucursal((int) $sucursalId)->first();
+        $filaConsolidada = ArticuloCosto::where('articulo_id', $articulo->id)->consolidados()->first();
+        $filaEfectiva = $filaSucursal ?? $filaConsolidada;
+
+        // Inputs de edición manual: la fila de la SUCURSAL ACTIVA.
+        $this->costo_ultimo_manual = $filaSucursal?->costo_ultimo !== null
+            ? rtrim(rtrim(number_format((float) $filaSucursal->costo_ultimo, 4, '.', ''), '0'), '.')
+            : '';
+        $this->costo_reposicion = $filaSucursal?->costo_reposicion !== null
+            ? rtrim(rtrim(number_format((float) $filaSucursal->costo_reposicion, 4, '.', ''), '0'), '.')
+            : '';
+
+        $costoService = app(CostoService::class);
+
+        $origen = null;
+        if ($filaEfectiva?->proveedor_ultimo_id) {
+            $proveedorOrigen = Proveedor::find($filaEfectiva->proveedor_ultimo_id);
+            $compraOrigen = $filaEfectiva->compra_ultima_id ? Compra::find($filaEfectiva->compra_ultima_id) : null;
+            $origen = trim(($proveedorOrigen?->nombre ?? '').($compraOrigen ? ' · '.__('compra_tipo_'.$compraOrigen->tipo_comprobante) : ''));
+        }
+
+        // Origen de la utilidad objetivo (para el placeholder del override).
+        $categoria = $articulo->categoriaModel;
+        $origenUtilidad = $categoria?->utilidad_porcentaje !== null ? __('categoría') : __('comercio');
+
+        $this->costosInfo = [
+            'sucursal' => $filaSucursal ? [
+                'ultimo' => $filaSucursal->costo_ultimo !== null ? (float) $filaSucursal->costo_ultimo : null,
+                'promedio' => $filaSucursal->costo_promedio !== null ? (float) $filaSucursal->costo_promedio : null,
+                'reposicion' => $filaSucursal->costo_reposicion !== null ? (float) $filaSucursal->costo_reposicion : null,
+                'fecha' => $filaSucursal->fecha_costo_ultimo?->format('d/m/Y'),
+            ] : null,
+            'consolidado' => $filaConsolidada ? [
+                'ultimo' => $filaConsolidada->costo_ultimo !== null ? (float) $filaConsolidada->costo_ultimo : null,
+                'promedio' => $filaConsolidada->costo_promedio !== null ? (float) $filaConsolidada->costo_promedio : null,
+                'reposicion' => $filaConsolidada->costo_reposicion !== null ? (float) $filaConsolidada->costo_reposicion : null,
+                'fecha' => $filaConsolidada->fecha_costo_ultimo?->format('d/m/Y'),
+            ] : null,
+            'usa_consolidado' => $filaSucursal === null && $filaConsolidada !== null,
+            'origen' => $origen,
+            'margen' => $costoService->margenReal($articulo, (int) $sucursalId),
+            'utilidad_objetivo' => $costoService->utilidadObjetivo($articulo),
+            'utilidad_heredada' => $categoria?->utilidad_porcentaje !== null
+                ? (float) $categoria->utilidad_porcentaje
+                : (float) ConfiguracionCostos::obtener()->utilidad_default,
+            'origen_utilidad' => $origenUtilidad,
+            'alicuota' => $costoService->alicuotaEfectiva($articulo, (int) $sucursalId),
+            'proveedores' => ArticuloProveedor::with('proveedor:id,nombre')
+                ->where('articulo_id', $articulo->id)
+                ->activos()
+                ->get()
+                ->map(fn ($ap) => [
+                    'proveedor' => $ap->proveedor?->nombre ?? '—',
+                    'codigo' => $ap->codigo_proveedor,
+                    'factor' => (float) $ap->factor_conversion,
+                    'costo' => $ap->costo_ultimo !== null ? (float) $ap->costo_ultimo : null,
+                    'fecha' => $ap->fecha_ultima_compra?->format('d/m/Y'),
+                ])
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * La CUENTA del precio sugerido, desglosada y reactiva al override que el
+     * usuario está tipeando (claridad conceptual obligatoria, Pantallas §3c).
+     */
+    public function cuentaSugerida(): ?array
+    {
+        $margen = $this->costosInfo['margen'] ?? null;
+
+        if ($margen === null) {
+            return null;
+        }
+
+        $utilidad = $this->utilidad_porcentaje !== ''
+            ? (float) str_replace(',', '.', $this->utilidad_porcentaje)
+            : (float) ($this->costosInfo['utilidad_heredada'] ?? 0);
+
+        $costo = (float) $margen['costo_rector'];
+        $alicuota = (float) ($this->costosInfo['alicuota'] ?? 0);
+
+        return [
+            'costo' => $costo,
+            'utilidad' => $utilidad,
+            'alicuota' => $alicuota,
+            'sugerido' => round($costo * (1 + $utilidad / 100) * (1 + $alicuota / 100), 2),
+        ];
+    }
+
+    /** Margen real para la columna del listado (semáforo vs objetivo, RF-09). */
+    public function margenDe(Articulo $articulo): ?array
+    {
+        return app(CostoService::class)->margenReal($articulo, (int) sucursal_activa());
+    }
+
+    // Historial de costos (RF-03, espejo del trío del historial de precios)
+
+    public function verHistorialCostos(int $articuloId): void
+    {
+        if (! $this->puedeVerCostos()) {
+            return;
+        }
+
+        $this->historialCostosArticuloId = $articuloId;
+        $this->showHistorialCostosModal = true;
+    }
+
+    public function cerrarHistorialCostos(): void
+    {
+        $this->showHistorialCostosModal = false;
+        $this->historialCostosArticuloId = null;
+    }
+
+    public function getHistorialCostos(): array
+    {
+        if (! $this->historialCostosArticuloId) {
+            return [];
+        }
+
+        $historial = HistorialCosto::with(['sucursal:id,nombre', 'proveedor:id,nombre'])
+            ->where('articulo_id', $this->historialCostosArticuloId)
+            ->latest()
+            ->take(50)
+            ->get();
+
+        // Nombres de usuario viven en config.users (cross-connection).
+        $usuarios = DB::connection('config')->table('users')
+            ->whereIn('id', $historial->pluck('usuario_id')->filter()->unique())
+            ->pluck('name', 'id');
+
+        return $historial->map(fn ($h) => [
+            'fecha' => $h->created_at?->format('d/m/Y H:i'),
+            'usuario' => $usuarios[$h->usuario_id] ?? '—',
+            'tipo' => $h->tipo_costo,
+            'anterior' => $h->costo_anterior !== null ? (float) $h->costo_anterior : null,
+            'nuevo' => (float) $h->costo_nuevo,
+            'porcentaje' => $h->porcentaje_cambio !== null ? (float) $h->porcentaje_cambio : null,
+            'origen' => $h->origen,
+            'sucursal' => $h->sucursal?->nombre ?? __('Consolidado'),
+            'proveedor' => $h->proveedor?->nombre,
+            'detalle' => $h->detalle,
+        ])->all();
     }
 
     /**
@@ -758,6 +965,14 @@ class GestionarArticulos extends Component
             'destacado' => $this->destacado,
             'permite_venta_sin_stock' => $this->permite_venta_sin_stock,
         ];
+
+        // Utilidad y flag de repricing (RF-08/RF-11): dato sensible, solo se
+        // escribe con func.costos.editar (sin permiso ni siquiera viaja).
+        if ($this->puedeEditarCostos()) {
+            $utilidad = str_replace(',', '.', trim($this->utilidad_porcentaje));
+            $datos['utilidad_porcentaje'] = is_numeric($utilidad) && (float) $utilidad >= 0 ? (float) $utilidad : null;
+            $datos['precio_administrado_por_utilidad'] = $this->precio_administrado_por_utilidad;
+        }
 
         if ($this->editMode) {
             // Actualizar artículo existente
@@ -890,9 +1105,52 @@ class GestionarArticulos extends Component
         // Sincronizar etiquetas
         $articulo->etiquetas()->sync($this->etiquetas_seleccionadas);
 
+        // Costos manuales de la sucursal activa (RF-02/03, func.costos.editar).
+        if ($this->editMode && $this->puedeEditarCostos()) {
+            try {
+                $this->guardarCostosManuales($articulo);
+            } catch (\Exception $e) {
+                $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+
+                return;
+            }
+        }
+
         $this->js("window.notify('".addslashes($message)."', 'success')");
         $this->showModal = false;
         $this->resetFormularioArticulo();
+    }
+
+    /**
+     * Persiste los cambios manuales de costo último/reposición vía
+     * CostoService (única puerta de escritura — registra historial RF-03).
+     */
+    protected function guardarCostosManuales(Articulo $articulo): void
+    {
+        $sucursalId = (int) sucursal_activa();
+        $fila = ArticuloCosto::where('articulo_id', $articulo->id)->porSucursal($sucursalId)->first();
+
+        $ultimo = str_replace(',', '.', trim($this->costo_ultimo_manual));
+        $ultimo = is_numeric($ultimo) ? round((float) $ultimo, 4) : null;
+
+        $reposicion = str_replace(',', '.', trim($this->costo_reposicion));
+        $reposicion = is_numeric($reposicion) ? round((float) $reposicion, 4) : null;
+
+        $servicio = app(CostoService::class);
+
+        $ultimoActual = $fila?->costo_ultimo !== null ? round((float) $fila->costo_ultimo, 4) : null;
+
+        // El último no se puede borrar (RF-02): input vacío = sin cambio.
+        if ($ultimo !== null && $ultimo !== $ultimoActual) {
+            $servicio->actualizarManual($articulo, $sucursalId, 'ultimo', $ultimo, (int) auth()->id());
+        }
+
+        $reposicionActual = $fila?->costo_reposicion !== null ? round((float) $fila->costo_reposicion, 4) : null;
+
+        // NULL borra la reposición (vuelve el fallback a último).
+        if ($reposicion !== $reposicionActual) {
+            $servicio->actualizarManual($articulo, $sucursalId, 'reposicion', $reposicion, (int) auth()->id());
+        }
     }
 
     /**
@@ -947,6 +1205,8 @@ class GestionarArticulos extends Component
             'showAltaRapidaCategoria', 'nuevaCategoriaNombre', 'nuevaCategoriaPrefijo',
             'imagenUpload', 'imagenPathActual', 'quitarImagen',
             'imagenFocalX', 'imagenFocalY',
+            'utilidad_porcentaje', 'precio_administrado_por_utilidad',
+            'costo_ultimo_manual', 'costo_reposicion', 'costosInfo',
         ]);
     }
 

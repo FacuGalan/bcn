@@ -73,6 +73,9 @@ class GestionarCategorias extends Component
 
     public string $tienda_orden = '0';
 
+    /** Override de utilidad objetivo de la categoría ('' = hereda del comercio, RF-08). */
+    public string $utilidad_porcentaje = '';
+
     public $imagenUpload = null;
 
     public ?string $imagenPathActual = null;
@@ -130,7 +133,7 @@ class GestionarCategorias extends Component
      */
     public function create(): void
     {
-        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'utilidad_porcentaje', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
         $this->editMode = false;
         $this->activo = true;
         $this->color = '#3B82F6';
@@ -151,6 +154,9 @@ class GestionarCategorias extends Component
         $this->icono = $categoria->icono ?? '';
         $this->activo = $categoria->activo;
         $this->tienda_orden = (string) ($categoria->orden ?? 0);
+        $this->utilidad_porcentaje = $categoria->utilidad_porcentaje !== null
+            ? rtrim(rtrim(number_format((float) $categoria->utilidad_porcentaje, 2, '.', ''), '0'), '.')
+            : '';
         $this->imagenPathActual = $categoria->imagen_path;
         $this->imagenUpload = null;
         $this->quitarImagen = false;
@@ -186,6 +192,13 @@ class GestionarCategorias extends Component
             'orden' => max(0, (int) $this->tienda_orden),
         ];
 
+        // Utilidad objetivo de la categoría (RF-08): dato sensible, solo se
+        // escribe con func.costos.editar.
+        if (auth()->user()?->hasPermissionTo('func.costos.editar')) {
+            $utilidad = str_replace(',', '.', trim($this->utilidad_porcentaje));
+            $datos['utilidad_porcentaje'] = is_numeric($utilidad) && (float) $utilidad >= 0 ? (float) $utilidad : null;
+        }
+
         if ($this->editMode) {
             // Actualizar categoría existente
             $categoria = Categoria::findOrFail($this->categoriaId);
@@ -205,7 +218,7 @@ class GestionarCategorias extends Component
 
         $this->dispatch('notify', message: $message, type: 'success');
         $this->showModal = false;
-        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'utilidad_porcentaje', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
     }
 
     /**
@@ -232,7 +245,7 @@ class GestionarCategorias extends Component
     public function cancel(): void
     {
         $this->showModal = false;
-        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
+        $this->reset(['nombre', 'prefijo', 'color', 'icono', 'activo', 'categoriaId', 'tienda_orden', 'utilidad_porcentaje', 'imagenUpload', 'imagenPathActual', 'quitarImagen']);
     }
 
     /**

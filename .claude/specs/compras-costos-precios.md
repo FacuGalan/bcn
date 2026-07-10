@@ -1402,9 +1402,35 @@ compra_ivas sugerido/editable con validación de cuadre, cuenta de compra
 - Menú `listado-compras` ACTIVADO (migración 2026_07_10_120000).
 - 146 traducciones ×3; smokes: 6 tests nuevos en SmokeComprasTest.
 
-### Fase 7: Utilidad y margen en artículos/config [PENDIENTE]
+### Fase 7: Utilidad y margen en artículos/config [COMPLETO]
 Config comercio + categorías + artículos (override, flag, columnas margen,
 historial de costos, proveedores del artículo). Permisos `costos.ver/editar`.
+
+#### Ajustes de implementación (Fase 7, 2026-07-10)
+
+- **GestionarArticulos**: columna "Margen" (badge semáforo verde ≥ objetivo /
+  amarillo ≥ 80% / rojo, tooltip con objetivo y costo; también en cards móvil)
+  vía `margenDe()` → `CostoService::margenReal` por fila (página de 10, sin
+  cache — aceptable). Modal: sección "Costos y utilidad" con los 3 costos
+  etiquetados por su pregunta (§3b), ORIGEN del costo vigente (proveedor +
+  tipo de comprobante, §3 nota A↔B), edición manual de último/reposición
+  (`CostoService::actualizarManual`, fila de la SUCURSAL ACTIVA; reposición
+  vacía = borra), override de utilidad + flag repricing, la CUENTA del
+  sugerido desglosada y REACTIVA al override tipeado (`cuentaSugerida()`,
+  §3c), proveedores del artículo (RF-04) y modal "Historial de costos"
+  (espejo del de precios, con tipo/origen/proveedor/% cambio).
+- **Gates**: `func.costos.ver` oculta columna, sección y historial;
+  `func.costos.editar` habilita inputs de costo/utilidad/flag (server-side:
+  sin permiso los campos NI SE ESCRIBEN en save()).
+- **GestionarCategorias**: campo "Utilidad objetivo (%)" (vacío = hereda del
+  comercio), mismos gates.
+- **ConfiguracionEmpresa (tab Empresa)**: "Utilidad objetivo por defecto (%)"
+  lee/escribe `ConfiguracionCostos::obtener()` (costo rector fijo 'ultimo' en
+  v1, informado en el hint del campo).
+- Los inputs numéricos son strings con '' = null (parseo manual con coma
+  tolerada, NO reglas `numeric` que revientan con string vacío).
+- 42 traducciones ×3 (incluye claves viejas sin traducir de esos archivos);
+  smoke nuevo: edit con costos + historial de costos.
 
 ### Fase 8: Revisión de precios + repricing + reportes [PENDIENTE]
 `RevisionPreciosCompra` + flag automático en confirmación + `ReportesCompras`

@@ -402,6 +402,18 @@
                         @error('color') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                     </div>
 
+                    <!-- Utilidad objetivo (RF-08, cascada comercio → categoría → artículo) -->
+                    @if(auth()->user()?->hasPermissionTo('func.costos.ver'))
+                        <div>
+                            <label for="cat-utilidad" class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Utilidad objetivo (%)') }}</label>
+                            <input id="cat-utilidad" type="text" wire:model="utilidad_porcentaje"
+                                @if(! auth()->user()?->hasPermissionTo('func.costos.editar')) disabled @endif
+                                placeholder="{{ __('Vacío = hereda la utilidad por defecto del comercio') }}"
+                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm text-right disabled:opacity-60" />
+                            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Los artículos de esta categoría usan este % salvo que tengan su propio override') }}</p>
+                        </div>
+                    @endif
+
                     <!-- Tienda (RF-17): orden + imagen de presentación -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>

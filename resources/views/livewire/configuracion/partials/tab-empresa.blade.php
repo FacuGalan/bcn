@@ -72,6 +72,26 @@
                         @enderror
                     </div>
                 </div>
+
+                {{-- Utilidad por defecto (RF-08, spec compras-costos) --}}
+                @if(auth()->user()?->hasPermissionTo('func.costos.ver'))
+                    <div>
+                        <label for="utilidad_default" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {{ __('Utilidad objetivo por defecto (%)') }}
+                        </label>
+                        <input
+                            type="text"
+                            id="utilidad_default"
+                            wire:model="utilidadDefault"
+                            @if(! auth()->user()?->hasPermissionTo('func.costos.editar')) disabled @endif
+                            class="mt-1 block w-full sm:w-48 rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm text-right dark:bg-gray-700 dark:border-gray-600 dark:text-white disabled:opacity-60"
+                            placeholder="30"
+                        >
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                            {{ __('Markup % sobre el costo. Se usa cuando ni la categoría ni el artículo definen la suya. El costo rector es el ÚLTIMO de compra.') }}
+                        </p>
+                    </div>
+                @endif
             </div>
 
             {{-- Columna Derecha: Logo --}}
