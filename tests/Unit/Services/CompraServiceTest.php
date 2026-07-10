@@ -462,6 +462,77 @@ class CompraServiceTest extends TestCase
         $this->assertNull($this->servicio->advertenciaComprobanteCuit($condicionMono, Compra::TIPO_FACTURA_C));
     }
 
+    // ==================== Corrección (D7 #12, Fase 6) ====================
+
+    public function test_corregir_compra_cancela_y_recrea_atomico(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $cuit = $this->crearCuit(CondicionIva::RESPONSABLE_INSCRIPTO);
+        $compra = $this->servicio->confirmarCompra($this->borradorFacturaA($articulo, 10, 100, $cuit->id), 1);
+
+        $this->assertEquals(10.0, $this->stockDe($articulo->id));
+
+        $neto = 8 * 120;
+        $nueva = $this->servicio->corregirCompra($compra, [
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'cuit_id' => $cuit->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_FACTURA_A,
+            'fecha_comprobante' => '2026-07-01',
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 8, 'factor_conversion' => 1, 'precio_unitario' => 120, 'tipo_iva_id' => $this->tiposIva[5]->id],
+        ], [
+            'ivas' => [['alicuota' => 21, 'base_imponible' => $neto, 'importe' => round($neto * 0.21, 2)]],
+        ]);
+
+        // Original cancelada con rastro cruzado; la nueva completada.
+        $original = $compra->fresh();
+        $this->assertEquals(Compra::ESTADO_CANCELADA, $original->estado);
+        $this->assertStringContainsString($nueva->numero_comprobante, $original->observaciones);
+        $this->assertEquals(Compra::ESTADO_COMPLETADA, $nueva->estado);
+
+        // El stock y el costo vigente quedan los de la corrección.
+        $this->assertEquals(8.0, $this->stockDe($articulo->id));
+        $this->assertEquals(round($neto * 1.21, 2), (float) $nueva->total);
+        $costo = ArticuloCosto::where('articulo_id', $articulo->id)->where('sucursal_id', $this->sucursalId)->first();
+        $this->assertEquals(120.0, (float) $costo->costo_ultimo);
+    }
+
+    public function test_corregir_compra_con_nc_vinculada_esta_bloqueada(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $cuit = $this->crearCuit(CondicionIva::RESPONSABLE_INSCRIPTO);
+        $compra = $this->servicio->confirmarCompra($this->borradorFacturaA($articulo, 10, 100, $cuit->id), 1);
+
+        $nc = $this->servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'compra_origen_id' => $compra->id,
+            'cuit_id' => $cuit->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NC_A,
+            'fecha_comprobante' => '2026-07-02',
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 2, 'factor_conversion' => 1, 'precio_unitario' => 100, 'tipo_iva_id' => $this->tiposIva[5]->id],
+        ], [
+            'ivas' => [['alicuota' => 21, 'base_imponible' => 200, 'importe' => 42]],
+        ]);
+        $this->servicio->confirmarCompra($nc, 1);
+
+        $this->expectExceptionMessage('notas de crédito vinculadas');
+        $this->servicio->corregirCompra($compra, ['usuario_id' => 1], [], []);
+    }
+
+    public function test_corregir_solo_aplica_a_completadas(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $borrador = $this->borradorFacturaA($articulo, 10, 100);
+
+        $this->expectExceptionMessage('completada');
+        $this->servicio->corregirCompra($borrador, ['usuario_id' => 1], [], []);
+    }
+
     // ==================== Helpers ====================
 
     private function borradorFacturaA($articulo, float $cantidad, float $precio, ?int $cuitId = null, ?string $fechaComprobante = '2026-07-01'): Compra

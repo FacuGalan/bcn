@@ -302,6 +302,54 @@ class CompraService
         return $compra->fresh();
     }
 
+    // ==================== Corrección (D7 #12) ====================
+
+    /**
+     * Corrige una compra COMPLETADA "como si fuese el alta": por detrás se
+     * materializa como cancelar + recrear ATÓMICO en una transacción (la
+     * inmutabilidad del ledger se preserva por contraasientos, RF-17).
+     *
+     * Conflictos (decisión 2026-07-10 con el usuario):
+     *  - Pagos aplicados ⇒ $manejoPagos obligatorio (D17: 'saldo_favor' — que
+     *    la compra corregida puede consumir como pago inicial — o
+     *    'anular_pagos'). Turno de caja cerrado bloquea la cascada (D16) ⇒
+     *    solo queda saldo a favor.
+     *  - Stock insuficiente para revertir ⇒ la reversa de stock lanza y todo
+     *    se deshace (corregir requiere el stock de la compra original).
+     *  - NCs vinculadas activas ⇒ BLOQUEADO (la NC referencia renglones y
+     *    saldo de la original): cancelar/resolver la NC primero.
+     */
+    public function corregirCompra(Compra $compra, array $data, array $renglones = [], array $extras = [], ?string $manejoPagos = null, array $pagoInicial = []): Compra
+    {
+        if (! $compra->estaCompletada()) {
+            throw new Exception(__('Solo se puede corregir una compra completada'));
+        }
+
+        $tieneNcsActivas = Compra::where('compra_origen_id', $compra->id)
+            ->where('estado', '!=', Compra::ESTADO_CANCELADA)
+            ->exists();
+
+        if ($tieneNcsActivas) {
+            throw new Exception(__('La compra tiene notas de crédito vinculadas: resolvelas antes de corregirla'));
+        }
+
+        $usuarioId = (int) ($data['usuario_id'] ?? $compra->usuario_id);
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($compra, $data, $renglones, $extras, $manejoPagos, $pagoInicial, $usuarioId) {
+            $this->cancelarCompra($compra, $usuarioId, __('Corrección de la compra'), $manejoPagos);
+
+            $nueva = $this->crearBorrador($data, $renglones, $extras);
+            $nueva = $this->confirmarCompra($nueva, $usuarioId, $pagoInicial);
+
+            // Rastro cruzado para la trazabilidad del detalle.
+            $compra->update([
+                'observaciones' => trim(($compra->fresh()->observaciones ?? '')."\n".__('Corregida: recreada como :numero', ['numero' => $nueva->numero_comprobante])),
+            ]);
+
+            return $nueva;
+        });
+    }
+
     // ==================== Validaciones expuestas (UI Fase 6) ====================
 
     /**

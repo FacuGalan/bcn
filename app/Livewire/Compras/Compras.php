@@ -201,14 +201,35 @@ class Compras extends Component
             return;
         }
 
-        // Fase 6: edición directa SOLO de borradores. La corrección de una
-        // completada (cancelar+recrear atómico, D7 #12) llega con sus
-        // decisiones de conflictos.
-        if (! $compra->esBorrador()) {
-            $this->dispatch('notify', type: 'error', message: __('Una compra completada es inmutable: cancelala y volvé a cargarla'));
+        if ($compra->estaCancelada()) {
+            $this->dispatch('notify', type: 'error', message: __('Una compra cancelada no se edita: cargala de nuevo'));
 
             return;
         }
+
+        // Completada ⇒ modo CORRECCIÓN (D7 #12): el editor la reabre precargada
+        // y al guardar se cancela+recrea atómico. Requiere confirmar+cancelar.
+        if ($compra->estaCompletada()) {
+            $usuario = auth()->user();
+
+            if (! $usuario?->hasPermissionTo('func.compras.confirmar') || ! $usuario?->hasPermissionTo('func.compras.cancelar')) {
+                $this->dispatch('notify', type: 'error', message: __('Corregir una compra requiere permisos de confirmación y cancelación'));
+
+                return;
+            }
+
+            $tieneNcsActivas = Compra::where('compra_origen_id', $compra->id)
+                ->where('estado', '!=', Compra::ESTADO_CANCELADA)
+                ->exists();
+
+            if ($tieneNcsActivas) {
+                $this->dispatch('notify', type: 'error', message: __('La compra tiene notas de crédito vinculadas: resolvelas antes de corregirla'));
+
+                return;
+            }
+        }
+
+        $this->showDetalleModal = false;
 
         $this->compraIdEnEdicion = $compraId;
         $this->editorNcOrigenId = null;

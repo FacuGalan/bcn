@@ -55,10 +55,13 @@
                             {{ __('Origen') }}: {{ $compraOrigen->numero_comprobante }}
                         </span>
                     @endif
+                @elseif($modoCorreccion)
+                    {{ __('Corregir Compra') }}
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">{{ __('Corrección') }}</span>
                 @else
                     {{ $compraId ? __('Editar Compra') : __('Nueva Compra') }}
                 @endif
-                @if($compraId)
+                @if($compraId && ! $modoCorreccion)
                     <span class="px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">{{ __('Borrador') }}</span>
                 @endif
             </h2>
@@ -615,7 +618,7 @@
                 class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600">
                 {{ __('Cancelar') }}
             </button>
-            @if(auth()->user()?->hasPermissionTo('func.compras.crear'))
+            @if(! $modoCorreccion && auth()->user()?->hasPermissionTo('func.compras.crear'))
                 <button type="button" wire:click="guardarBorrador" wire:loading.attr="disabled"
                     class="inline-flex items-center justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600">
                     {{ __('Guardar borrador') }}
@@ -625,7 +628,7 @@
             @if(auth()->user()?->hasPermissionTo('func.compras.confirmar'))
                 <button type="button" wire:click="abrirModalPago" wire:loading.attr="disabled"
                     class="inline-flex items-center justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-sm font-medium text-white hover:bg-green-700">
-                    {{ $esNC ? __('Confirmar nota de crédito') : __('Confirmar compra') }}
+                    {{ $modoCorreccion ? __('Guardar corrección') : ($esNC ? __('Confirmar nota de crédito') : __('Confirmar compra')) }}
                     <kbd class="hidden sm:inline ml-1.5 px-1 py-0 text-[9px] bg-black/20 rounded">F2</kbd>
                 </button>
             @endif
@@ -635,13 +638,34 @@
 
 {{-- ============ MODAL DE PAGO AL CONFIRMAR (D7 #6) ============ --}}
 @if($mostrarModalPago)
-    <x-bcn-modal :title="__('Confirmar compra — Pago')" color="bg-green-600" maxWidth="2xl" onClose="cerrarModalPago">
+    <x-bcn-modal :title="$modoCorreccion ? __('Guardar corrección — Pago') : __('Confirmar compra — Pago')" color="bg-green-600" maxWidth="2xl" onClose="cerrarModalPago">
         <x-slot:body>
             <div class="space-y-4">
                 <div class="flex items-center justify-between rounded-md bg-gray-50 dark:bg-gray-700 px-4 py-3">
                     <span class="text-sm text-gray-600 dark:text-gray-300">{{ __('Total de la compra') }}</span>
                     <span class="text-lg font-bold text-gray-900 dark:text-white">$@precio($totales['total'])</span>
                 </div>
+
+                @if($modoCorreccion)
+                    <div class="rounded-md bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800 px-4 py-3 space-y-2">
+                        <p class="text-xs text-amber-800 dark:text-amber-200">
+                            {{ __('Por detrás se cancela la compra original y se recrea con estos datos (todo en una sola operación, con contraasientos)') }}
+                        </p>
+                        @if($correccionTienePagos)
+                            <p class="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                                {{ __('La compra original tiene pagos por') }} $@precio($pagadoActivo) — {{ __('elegí qué hacer con ellos (D17)') }}
+                            </p>
+                            <label class="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200 cursor-pointer">
+                                <input type="radio" wire:model.live="manejoPagosCorreccion" value="saldo_favor" class="mt-0.5 border-amber-400 text-amber-600 focus:ring-amber-500">
+                                <span><strong>{{ __('Dejar como saldo a favor') }}</strong> — {{ __('podés consumirlo como pago de la compra corregida acá abajo') }}</span>
+                            </label>
+                            <label class="flex items-start gap-2 text-sm text-amber-800 dark:text-amber-200 cursor-pointer">
+                                <input type="radio" wire:model.live="manejoPagosCorreccion" value="anular_pagos" class="mt-0.5 border-amber-400 text-amber-600 focus:ring-amber-500">
+                                <span><strong>{{ __('Anular los pagos en cascada') }}</strong> — {{ __('error de carga: se anula cada orden de pago completa (bloqueado si el turno de caja está cerrado)') }}</span>
+                            </label>
+                        @endif
+                    </div>
+                @endif
 
                 {{-- Modalidad: cta cte / contado --}}
                 @if($proveedorSeleccionado?->tiene_cuenta_corriente)
@@ -690,9 +714,15 @@
                 @endif
 
                 @if($registrarPagoAhora)
-                    @if($saldoFavorDisponible > 0)
+                    @php $saldoFavorMostrar = $this->saldoFavorProyectado(); @endphp
+                    @if($saldoFavorMostrar > 0)
                         <div class="flex items-center gap-3 rounded-md bg-green-50 dark:bg-green-900/30 px-4 py-3">
-                            <p class="text-sm text-green-700 dark:text-green-300 flex-1">{{ __('Saldo a favor disponible') }}: <strong>$@precio($saldoFavorDisponible)</strong></p>
+                            <p class="text-sm text-green-700 dark:text-green-300 flex-1">
+                                {{ __('Saldo a favor disponible') }}: <strong>$@precio($saldoFavorMostrar)</strong>
+                                @if($modoCorreccion && $correccionTienePagos && $manejoPagosCorreccion === 'saldo_favor' && $pagadoActivo > 0)
+                                    <span class="text-xs">({{ __('incluye lo pagado de la original') }})</span>
+                                @endif
+                            </p>
                             <label class="text-sm text-green-700 dark:text-green-300">{{ __('Usar') }}</label>
                             <input type="text" wire:model.live.debounce.500ms="saldoFavorUsado"
                                 class="w-28 rounded-md border-green-300 dark:border-green-700 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-green-500 focus:ring-green-500">
@@ -787,7 +817,7 @@
 
 {{-- ============ MODAL RESUMEN POST-CONFIRMACIÓN (D7 #8) ============ --}}
 @if($mostrarModalResumen)
-    <x-bcn-modal :title="$resumen['es_nc'] ? __('Nota de crédito confirmada') : __('Compra confirmada')" color="bg-green-600" maxWidth="lg" onClose="cerrarResumen">
+    <x-bcn-modal :title="$resumen['es_nc'] ? __('Nota de crédito confirmada') : ($modoCorreccion ? __('Compra corregida') : __('Compra confirmada'))" color="bg-green-600" maxWidth="lg" onClose="cerrarResumen">
         <x-slot:body>
             <div class="space-y-4">
                 <div class="flex items-center gap-3 rounded-md bg-green-50 dark:bg-green-900/30 px-4 py-3">

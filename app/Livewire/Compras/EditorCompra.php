@@ -50,6 +50,18 @@ class EditorCompra extends Component
 
     public bool $esNC = false;
 
+    /** Corrección de una COMPLETADA (D7 #12): cancelar+recrear atómico por detrás. */
+    public bool $modoCorreccion = false;
+
+    public ?int $correccionDeId = null;
+
+    public bool $correccionTienePagos = false;
+
+    /** D17 aplicado a la corrección: 'saldo_favor' | 'anular_pagos' */
+    public string $manejoPagosCorreccion = 'saldo_favor';
+
+    public float $pagadoActivo = 0;
+
     public int $sucursalId;
 
     // ==================== Encabezado ====================
@@ -158,6 +170,13 @@ class EditorCompra extends Component
 
         if ($compraId !== null) {
             $this->cargarCompra($compraId);
+
+            // Una completada se reabre en modo CORRECCIÓN (D7 #12): se edita
+            // como el alta y al guardar se cancela+recrea atómico.
+            if ($this->modoCorreccion) {
+                $this->correccionDeId = $compraId;
+                $this->compraId = null;
+            }
         }
     }
 
@@ -179,6 +198,7 @@ class EditorCompra extends Component
         $compra = Compra::with(['detalles.articulo', 'detalles.tipoIva', 'ivas', 'conceptos', 'percepciones'])
             ->findOrFail($compraId);
 
+        $this->modoCorreccion = $compra->estaCompletada();
         $this->compraId = $compra->id;
         $this->esNC = $compra->esNotaCredito();
         $this->ncOrigenId = $compra->compra_origen_id;
@@ -957,7 +977,7 @@ class EditorCompra extends Component
             $this->proveedorId,
             $this->tipoComprobante,
             trim($this->numeroComprobanteProveedor),
-            $this->compraId,
+            $this->correccionDeId ?? $this->compraId,
         );
     }
 
@@ -965,6 +985,12 @@ class EditorCompra extends Component
 
     public function guardarBorrador(): void
     {
+        if ($this->modoCorreccion) {
+            $this->dispatch('notify', type: 'error', message: __('La corrección no guarda borrador: se confirma completa o se descarta'));
+
+            return;
+        }
+
         try {
             $compra = $this->persistirBorrador();
 
@@ -1126,6 +1152,18 @@ class EditorCompra extends Component
             $this->saldoFavorUsado = '';
             $this->pagosIniciales = [$this->renglonPagoVacio()];
 
+            // Corrección (D7 #12): lo pagado en la original define el D17.
+            $this->correccionTienePagos = false;
+            $this->pagadoActivo = 0;
+
+            if ($this->modoCorreccion && $this->correccionDeId) {
+                $this->pagadoActivo = (float) \App\Models\PagoProveedorCompra::where('compra_id', $this->correccionDeId)
+                    ->whereHas('pagoProveedor', fn ($q) => $q->where('estado', 'activo'))
+                    ->sum('monto_aplicado');
+                $this->correccionTienePagos = $this->pagadoActivo > 0;
+                $this->manejoPagosCorreccion = 'saldo_favor';
+            }
+
             $this->mostrarModalPago = true;
         } catch (Exception $e) {
             $this->dispatch('notify', type: 'error', message: $e->getMessage());
@@ -1172,15 +1210,38 @@ class EditorCompra extends Component
             return;
         }
 
-        try {
-            $compra = $this->persistirBorrador();
-            $this->compraId = $compra->id;
+        // Corregir cancela la original: requiere también el permiso de cancelar.
+        if ($this->modoCorreccion && ! auth()->user()?->hasPermissionTo('func.compras.cancelar')) {
+            $this->dispatch('notify', type: 'error', message: __('Corregir una compra requiere el permiso de cancelación'));
 
-            $confirmada = app(CompraService::class)->confirmarCompra(
-                $compra,
-                (int) auth()->id(),
-                $this->construirPagoInicial((float) $compra->total),
-            );
+            return;
+        }
+
+        try {
+            if ($this->modoCorreccion) {
+                $original = Compra::findOrFail($this->correccionDeId);
+                $totales = $this->totales();
+
+                [$data, $renglones, $extras] = $this->construirPayload();
+
+                $confirmada = app(CompraService::class)->corregirCompra(
+                    $original,
+                    array_merge($data, ['forma_pago' => $this->formaPagoElegida()]),
+                    $renglones,
+                    $extras,
+                    $this->correccionTienePagos ? $this->manejoPagosCorreccion : null,
+                    $this->construirPagoInicial($totales['total']),
+                );
+            } else {
+                $compra = $this->persistirBorrador();
+                $this->compraId = $compra->id;
+
+                $confirmada = app(CompraService::class)->confirmarCompra(
+                    $compra,
+                    (int) auth()->id(),
+                    $this->construirPagoInicial((float) $compra->total),
+                );
+            }
 
             $this->mostrarModalPago = false;
             $this->prepararResumen($confirmada);
@@ -1195,14 +1256,14 @@ class EditorCompra extends Component
             return [];
         }
 
-        // forma_pago del encabezado según la modalidad elegida en el modal.
-        $formaPago = $this->modalidadPago === 'cta_cte' ? 'cta_cte' : 'efectivo';
-
         $pagos = [];
         $saldoFavor = 0.0;
 
         if ($this->registrarPagoAhora) {
-            $saldoFavor = min($this->num($this->saldoFavorUsado), $this->saldoFavorDisponible);
+            // En corrección con D17='saldo_favor', lo pagado de la original se
+            // convierte en saldo a favor DENTRO de la misma transacción y puede
+            // consumirse acá — el tope proyectado lo valida el service.
+            $saldoFavor = min($this->num($this->saldoFavorUsado), $this->saldoFavorProyectado());
 
             $pagos = collect($this->pagosIniciales)
                 ->map(function ($p) {
@@ -1225,19 +1286,12 @@ class EditorCompra extends Component
                 ->filter(fn ($p) => $p['monto'] > 0 && $p['forma_pago_id'] > 0)
                 ->values()
                 ->all();
-
-            // Contado: intentar mapear la forma_pago del encabezado a la FP elegida.
-            if ($this->modalidadPago === 'contado' && $pagos !== []) {
-                $codigo = FormaPago::find($pagos[0]['forma_pago_id'])?->codigo;
-                $formaPago = in_array($codigo, ['efectivo', 'debito', 'credito', 'tarjeta', 'transferencia', 'cheque'], true)
-                    ? $codigo
-                    : 'efectivo';
-            }
         }
 
-        // Persistir la forma de pago elegida en el encabezado del borrador.
+        // Persistir la forma de pago elegida en el encabezado del borrador
+        // (en corrección viaja dentro de $data de corregirCompra).
         if ($this->compraId) {
-            Compra::whereKey($this->compraId)->update(['forma_pago' => $formaPago]);
+            Compra::whereKey($this->compraId)->update(['forma_pago' => $this->formaPagoElegida()]);
         }
 
         if (! $this->registrarPagoAhora || ($pagos === [] && $saldoFavor <= 0)) {
@@ -1251,12 +1305,48 @@ class EditorCompra extends Component
         ];
     }
 
+    /** forma_pago del encabezado según la modalidad y el desglose elegidos. */
+    protected function formaPagoElegida(): string
+    {
+        if ($this->modalidadPago === 'cta_cte') {
+            return 'cta_cte';
+        }
+
+        if ($this->registrarPagoAhora) {
+            $primero = collect($this->pagosIniciales)
+                ->first(fn ($p) => (int) ($p['forma_pago_id'] ?? 0) > 0 && $this->num($p['monto'] ?? 0) > 0);
+
+            $codigo = $primero ? FormaPago::find($primero['forma_pago_id'])?->codigo : null;
+
+            if (in_array($codigo, ['efectivo', 'debito', 'credito', 'tarjeta', 'transferencia', 'cheque'], true)) {
+                return $codigo;
+            }
+        }
+
+        return 'efectivo';
+    }
+
+    /**
+     * Saldo a favor consumible en el pago: el actual + lo pagado de la
+     * original cuando la corrección lo convierte en saldo a favor (D17).
+     */
+    public function saldoFavorProyectado(): float
+    {
+        $proyectado = $this->saldoFavorDisponible;
+
+        if ($this->modoCorreccion && $this->correccionTienePagos && $this->manejoPagosCorreccion === 'saldo_favor') {
+            $proyectado += $this->pagadoActivo;
+        }
+
+        return round($proyectado, 2);
+    }
+
     /** Suma del desglose de pago (para mostrar el restante en el modal). */
     public function fondosCargados(): float
     {
         $pagos = collect($this->pagosIniciales)->sum(fn ($p) => $this->num($p['monto'] ?? 0));
 
-        return round($pagos + min($this->num($this->saldoFavorUsado), $this->saldoFavorDisponible), 2);
+        return round($pagos + min($this->num($this->saldoFavorUsado), $this->saldoFavorProyectado()), 2);
     }
 
     // ==================== Resumen post-confirmación (D7 #8) ====================

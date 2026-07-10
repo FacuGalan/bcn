@@ -342,6 +342,12 @@
                 {{ __('Editar borrador') }}
             </button>
         @endif
+        @if($compra->estaCompletada() && ! $compra->esNotaCredito() && ($puedeCorregir ?? false))
+            <button type="button" wire:click="abrirEditarCompra({{ $compra->id }})"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-amber-500 text-base font-medium text-white hover:bg-amber-600 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                {{ __('Corregir') }}
+            </button>
+        @endif
         @if($compra->estaCompletada() && ! $compra->esNotaCredito() && $puedeCrear)
             <button type="button" wire:click="abrirNCDesdeCompra({{ $compra->id }})"
                 class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-purple-600 text-base font-medium text-white hover:bg-purple-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">

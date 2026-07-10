@@ -6,12 +6,15 @@ use App\Livewire\Compras\Compras;
 use App\Livewire\Compras\EditorCompra;
 use App\Livewire\Compras\GestionarPagosProveedores;
 use App\Livewire\Compras\GestionarProveedores;
+use App\Models\Compra;
 use App\Models\Proveedor;
+use App\Services\CompraService;
 use Livewire\Livewire;
 use Tests\TestCase;
 use Tests\Traits\WithCaja;
 use Tests\Traits\WithSucursal;
 use Tests\Traits\WithTenant;
+use Tests\Traits\WithVentaHelpers;
 
 /**
  * Smoke tests del módulo Compras (spec compras-costos, Fase 5): detectan
@@ -19,7 +22,7 @@ use Tests\Traits\WithTenant;
  */
 class SmokeComprasTest extends TestCase
 {
-    use WithCaja, WithSucursal, WithTenant;
+    use WithCaja, WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
@@ -116,6 +119,36 @@ class SmokeComprasTest extends TestCase
             ->call('quitarRenglon', 1)
             ->call('agregarConcepto')
             ->call('agregarPercepcion')
+            ->assertOk();
+    }
+
+    public function test_editor_compra_carga_borrador_y_completada_en_correccion(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Editor Smoke '.uniqid(), 'activo' => true]);
+
+        $borrador = app(CompraService::class)->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NO_FISCAL,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 2, 'factor_conversion' => 1, 'precio_unitario' => 100],
+        ]);
+
+        // Borrador: edición directa.
+        Livewire::test(EditorCompra::class, ['compraId' => $borrador->id])
+            ->assertSet('modoCorreccion', false)
+            ->assertOk();
+
+        // Completada: se reabre en modo corrección (D7 #12).
+        $completada = app(CompraService::class)->confirmarCompra($borrador, 1);
+
+        Livewire::test(EditorCompra::class, ['compraId' => $completada->id])
+            ->assertSet('modoCorreccion', true)
+            ->assertSet('correccionDeId', $completada->id)
+            ->assertSet('compraId', null)
             ->assertOk();
     }
 }

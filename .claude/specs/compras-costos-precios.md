@@ -1299,7 +1299,7 @@ Suite de tests completa (es dinero: ledger + contraasientos + caja/tesorería).
   Compras 4 nuevos (197 smokes totales), 112 traducciones ×3 (4122 parejas),
   pint OK.
 
-### Fase 6: UI de compras [EN PROGRESO]
+### Fase 6: UI de compras [COMPLETO]
 Componente reescrito (SucursalAware): carga por código de proveedor, descuentos
 por renglón, percepciones, tipo de comprobante, toggle no fiscal, NC, desglose
 compra_ivas sugerido/editable con validación de cuadre, cuenta de compra
@@ -1386,10 +1386,19 @@ compra_ivas sugerido/editable con validación de cuadre, cuenta de compra
 - **Alta rápida** (D7 #3): crea el artículo con `precio_base` opcional (0 si
   no se indica — quedará bajo margen y lo agarra la revisión de Fase 8) y
   persiste `articulo_proveedor.codigo_proveedor` si se cargó.
-- **PENDIENTE de esta fase**: edición de una COMPLETADA en modo corrección
-  (cancelar+recrear atómico, D7 #12) — requiere las decisiones de conflictos
-  con el usuario (pagos aplicados, turno cerrado, stock insuficiente, NCs
-  vinculadas). Hoy la UI ofrece el camino manual: cancelar + volver a cargar.
+- **Corrección de completadas (D7 #12) — decisión 2026-07-10 con el usuario
+  ("completa con D17")**: `CompraService::corregirCompra()` = cancelar +
+  crearBorrador + confirmarCompra en UNA transacción, con rastro cruzado en
+  observaciones. Conflictos: pagos aplicados ⇒ el modal de pago pregunta D17
+  (saldo a favor — consumible como pago de la corregida en la misma
+  transacción, `saldoFavorProyectado()` — o cascada; turno cerrado bloquea la
+  cascada vía PagoProveedorService); NCs vinculadas activas ⇒ BLOQUEADO
+  (resolver la NC primero, validado en service y UI); stock insuficiente para
+  revertir ⇒ la reversa lanza y se deshace todo. UI: lápiz/botón "Corregir" en
+  listado y detalle (gate confirmar+cancelar); el editor detecta completada en
+  `cargarCompra` (modoCorreccion, sin guardar borrador). El anti-duplicado
+  exceptúa la original (`correccionDeId`). Tests: 3 en CompraServiceTest +
+  smoke de carga borrador/corrección.
 - Menú `listado-compras` ACTIVADO (migración 2026_07_10_120000).
 - 146 traducciones ×3; smokes: 6 tests nuevos en SmokeComprasTest.
 
