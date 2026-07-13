@@ -505,7 +505,8 @@ class CostoServiceTest extends TestCase
 
     private function crearCuitParaSucursal(int $codigoCondicion): Cuit
     {
-        $condicion = CondicionIva::where('codigo', $codigoCondicion)->first();
+        // firstOrCreate: el catálogo de config_test puede no traer el código (CI).
+        $condicion = CondicionIva::firstOrCreate(['codigo' => $codigoCondicion], ['nombre' => 'Condición '.$codigoCondicion]);
 
         $cuit = Cuit::create([
             'numero_cuit' => '20'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT).'3',

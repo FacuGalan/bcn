@@ -453,8 +453,9 @@ class CompraServiceTest extends TestCase
 
     public function test_advertencia_factura_a_comprador_no_ri(): void
     {
-        $condicionMono = CondicionIva::where('codigo', CondicionIva::RESPONSABLE_MONOTRIBUTO)->first();
-        $condicionRi = CondicionIva::where('codigo', CondicionIva::RESPONSABLE_INSCRIPTO)->first();
+        // El catálogo de config_test puede no traer todos los códigos (CI).
+        $condicionMono = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_MONOTRIBUTO], ['nombre' => 'Monotributo']);
+        $condicionRi = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'Responsable Inscripto']);
 
         $this->assertNotNull($this->servicio->advertenciaComprobanteCuit($condicionMono, Compra::TIPO_FACTURA_A));
         $this->assertNotNull($this->servicio->advertenciaComprobanteCuit($condicionRi, Compra::TIPO_FACTURA_B));
@@ -662,7 +663,8 @@ class CompraServiceTest extends TestCase
 
     private function crearCuit(int $codigoCondicion): Cuit
     {
-        $condicion = CondicionIva::where('codigo', $codigoCondicion)->first();
+        // firstOrCreate: el catálogo de config_test puede no traer el código (CI).
+        $condicion = CondicionIva::firstOrCreate(['codigo' => $codigoCondicion], ['nombre' => 'Condición '.$codigoCondicion]);
 
         $cuit = Cuit::create([
             'numero_cuit' => '20'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT).'7',
