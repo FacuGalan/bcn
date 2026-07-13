@@ -198,6 +198,43 @@
                         </div>
                         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('Con cuenta corriente, las compras pueden quedar como deuda y pagarse después; los días de pago precargan el vencimiento') }}</p>
                     </div>
+
+                    {{-- D23: proveedor de servicios --}}
+                    <div class="sm:col-span-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" wire:model="es_servicio" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary">
+                            {{ __('Proveedor de servicios (luz, gas, alquiler...)') }}
+                        </label>
+                        <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('Sus compras se sugieren como "factura de servicio": sin artículos ni stock, con la cuenta de compra como eje del gasto') }}</p>
+                    </div>
+
+                    {{-- D24: percepciones habituales --}}
+                    <div class="sm:col-span-2 border-t border-gray-200 dark:border-gray-700 pt-4">
+                        <div class="flex items-center justify-between">
+                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Percepciones habituales') }}</label>
+                            <button type="button" wire:click="agregarPercepcionHabitual" class="text-xs text-bcn-primary hover:underline">{{ __('+ Agregar percepción') }}</button>
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se precargan como renglones de percepción al elegir el proveedor en una compra (el monto exacto sale de la factura física)') }}</p>
+                        <div class="mt-2 space-y-2">
+                            @foreach($percepciones_habituales as $index => $percepcion)
+                                <div class="flex items-center gap-2" wire:key="percepcion-habitual-{{ $index }}">
+                                    <select wire:model="percepciones_habituales.{{ $index }}.impuesto_id"
+                                        class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm">
+                                        <option value="">{{ __('Impuesto...') }}</option>
+                                        @foreach($impuestosPercepcion as $impuesto)
+                                            <option value="{{ $impuesto->id }}">{{ $impuesto->nombre }}</option>
+                                        @endforeach
+                                    </select>
+                                    <input type="text" wire:model="percepciones_habituales.{{ $index }}.alicuota" placeholder="{{ __('Alíc. %') }}"
+                                        class="w-20 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm">
+                                    <button type="button" wire:click="quitarPercepcionHabitual({{ $index }})" tabindex="-1"
+                                        class="text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="{{ __('Quitar') }}">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                                    </button>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
             </x-slot:body>
             <x-slot:footer>

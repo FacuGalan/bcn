@@ -59,6 +59,10 @@ class Proveedor extends Model
         'cliente_id',
         // Cuenta de compra default para reportes (spec compras-costos RF-22)
         'cuenta_compra_id',
+        // D23/D24: proveedor de servicios (default de la modalidad es_servicio
+        // de la compra) + percepciones típicas [{impuesto_id, alicuota}]
+        'es_servicio',
+        'percepciones_habituales',
         // Cuenta corriente (RF-18): habilita el circuito de deuda/pagos
         'tiene_cuenta_corriente',
         'dias_pago',
@@ -71,6 +75,8 @@ class Proveedor extends Model
         'es_sucursal_interna' => 'boolean',
         'activo' => 'boolean',
         'tiene_cuenta_corriente' => 'boolean',
+        'es_servicio' => 'boolean',
+        'percepciones_habituales' => 'array',
         'saldo_cache' => 'decimal:2',
         'ultimo_movimiento_ccp_at' => 'datetime',
     ];

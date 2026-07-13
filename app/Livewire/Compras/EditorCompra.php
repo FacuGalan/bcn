@@ -76,6 +76,10 @@ class EditorCompra extends Component
 
     public bool $noFiscal = false;
 
+    /** D23: factura de servicio — sin grilla de artículos ni efectos de
+     * stock/costos; el detalle son los conceptos y la cuenta es obligatoria. */
+    public bool $esServicio = false;
+
     public ?int $cuitId = null;
 
     /** N° de comprobante del proveedor en 2 partes: punto de venta + número (RF-13). */
@@ -271,6 +275,7 @@ class EditorCompra extends Component
         $this->proveedorId = $compra->proveedor_id;
         $this->tipoComprobante = $compra->tipo_comprobante;
         $this->noFiscal = ! $compra->esFiscal();
+        $this->esServicio = $compra->esServicio();
         $this->cuitId = $compra->cuit_id ?? $this->cuitId;
         $this->descomponerNumeroComprobante((string) ($compra->numero_comprobante_proveedor ?? ''));
         $this->fechaComprobante = $compra->fecha_comprobante?->toDateString();
@@ -334,12 +339,13 @@ class EditorCompra extends Component
      */
     protected function precargarNcDesdeOrigen(int $origenId): void
     {
-        $origen = Compra::with(['detalles.articulo', 'detalles.tipoIva'])->findOrFail($origenId);
+        $origen = Compra::with(['detalles.articulo', 'detalles.tipoIva', 'conceptos'])->findOrFail($origenId);
 
         $this->proveedorId = $origen->proveedor_id;
         $this->cuitId = $origen->cuit_id ?? $this->cuitId;
         $this->cuentaCompraId = $origen->cuenta_compra_id;
         $this->noFiscal = ! $origen->esFiscal();
+        $this->esServicio = $origen->esServicio();
         $this->tipoComprobante = match ($origen->tipo_comprobante) {
             Compra::TIPO_FACTURA_A, Compra::TIPO_FACTURA_M => Compra::TIPO_NC_A,
             Compra::TIPO_FACTURA_B => Compra::TIPO_NC_B,
@@ -364,6 +370,18 @@ class EditorCompra extends Component
             )),
             'tipo_iva_id' => $d->tipo_iva_id,
         ])->values()->all() ?: [$this->renglonVacio()];
+
+        // NC de una factura de servicio (D23): el "detalle" a acreditar son
+        // los conceptos de la origen — precarga editable, igual que renglones.
+        if ($this->esServicio) {
+            $this->conceptos = $origen->conceptos->map(fn ($c) => [
+                'tipo' => $c->tipo,
+                'descripcion' => (string) ($c->descripcion ?? ''),
+                'monto' => $this->numAString($c->monto),
+                'tipo_iva_id' => $c->tipo_iva_id,
+                'computa_costo' => false,
+            ])->values()->all();
+        }
 
         $this->sugerirDesgloseFiscal();
     }
@@ -415,7 +433,7 @@ class EditorCompra extends Component
             return;
         }
 
-        $recalculan = preg_match('/^(renglones\.\d+\.(cantidad_comprada|factor_conversion|precio_unitario|descuentos_texto|tipo_iva_id)|conceptos\..+|descuentoGlobal|tipoComprobante|noFiscal)$/', $name);
+        $recalculan = preg_match('/^(renglones\.\d+\.(cantidad_comprada|factor_conversion|precio_unitario|descuentos_texto|tipo_iva_id)|conceptos\..+|descuentoGlobal|tipoComprobante|noFiscal|esServicio)$/', $name);
 
         if ($recalculan) {
             if ($name === 'noFiscal') {
@@ -819,8 +837,43 @@ class EditorCompra extends Component
             $this->fechaVencimiento = now()->addDays((int) $proveedor->dias_pago)->toDateString();
         }
 
+        // D23: un proveedor de servicios (EDESUR) sugiere la modalidad; PISA
+        // como la letra del comprobante — el usuario puede cambiarla después.
+        $this->esServicio = (bool) $proveedor->es_servicio;
+
         $this->sugerirTipoComprobante();
+        $this->precargarPercepcionesHabituales($proveedor);
         $this->sugerirDesgloseFiscal();
+    }
+
+    /**
+     * D24: las percepciones típicas del proveedor precargan renglones de
+     * percepción (impuesto + alícuota) como CONVENIENCIA de carga — el monto
+     * exacto sale de la factura física. No pisa percepciones ya cargadas.
+     */
+    protected function precargarPercepcionesHabituales(Proveedor $proveedor): void
+    {
+        $habituales = collect((array) $proveedor->percepciones_habituales)
+            ->filter(fn ($p) => ! empty($p['impuesto_id']));
+
+        if ($habituales->isEmpty() || ! $this->esFiscalActual()) {
+            return;
+        }
+
+        $cargadas = collect($this->percepciones)
+            ->filter(fn ($p) => ! empty($p['impuesto_id']) || $this->num($p['monto'] ?? 0) > 0);
+
+        if ($cargadas->isNotEmpty()) {
+            return;
+        }
+
+        $this->percepciones = $habituales->map(fn ($p) => [
+            'impuesto_id' => (int) $p['impuesto_id'],
+            'base_imponible' => '',
+            'alicuota' => $this->num($p['alicuota'] ?? 0) > 0 ? $this->numAString($p['alicuota']) : '',
+            'monto' => '',
+            'certificado_numero' => '',
+        ])->values()->all();
     }
 
     /**
@@ -893,9 +946,13 @@ class EditorCompra extends Component
     {
         $subtotal = 0.0;
 
-        foreach ($this->renglones as $renglon) {
-            if (! empty($renglon['articulo_id'])) {
-                $subtotal += $this->calcularRenglon($renglon)['subtotal'];
+        // D23: en una factura de servicio la grilla no participa (aunque
+        // conserve datos ocultos tras un toggle) — el detalle son los conceptos.
+        if (! $this->esServicio) {
+            foreach ($this->renglones as $renglon) {
+                if (! empty($renglon['articulo_id'])) {
+                    $subtotal += $this->calcularRenglon($renglon)['subtotal'];
+                }
             }
         }
 
@@ -985,7 +1042,7 @@ class EditorCompra extends Component
         $bases = [];
         $exento = 0.0;
 
-        foreach ($this->renglones as $renglon) {
+        foreach ($this->esServicio ? [] : $this->renglones as $renglon) {
             if (empty($renglon['articulo_id'])) {
                 continue;
             }
@@ -1085,7 +1142,7 @@ class EditorCompra extends Component
     public function agregarConcepto(): void
     {
         $this->conceptos[] = [
-            'tipo' => 'flete',
+            'tipo' => $this->esServicio ? 'otro' : 'flete',
             'descripcion' => '',
             'monto' => '',
             'tipo_iva_id' => null,
@@ -1228,6 +1285,21 @@ class EditorCompra extends Component
             throw new Exception(__('Seleccioná un proveedor'));
         }
 
+        // D23: el servicio valida conceptos + cuenta, no renglones.
+        if ($this->esServicio) {
+            $conMonto = collect($this->conceptos)->filter(fn ($c) => $this->num($c['monto'] ?? 0) > 0);
+
+            if ($conMonto->isEmpty()) {
+                throw new Exception(__('La factura de servicio necesita al menos un renglón de detalle (concepto)'));
+            }
+
+            if (! $this->cuentaCompraId) {
+                throw new Exception(__('La cuenta de compra es obligatoria en una factura de servicio'));
+            }
+
+            return;
+        }
+
         $conArticulo = collect($this->renglones)->filter(fn ($r) => ! empty($r['articulo_id']));
 
         if ($conArticulo->isEmpty()) {
@@ -1255,6 +1327,7 @@ class EditorCompra extends Component
             'proveedor_id' => $this->proveedorId,
             'usuario_id' => (int) auth()->id(),
             'tipo_comprobante' => $this->tipoComprobante,
+            'es_servicio' => $this->esServicio,
             'compra_origen_id' => $this->ncOrigenId,
             'cuit_id' => $this->esFiscalActual() ? $this->cuitId : null,
             'cuenta_compra_id' => $this->cuentaCompraId,
@@ -1267,7 +1340,7 @@ class EditorCompra extends Component
             'neto_exento' => $discrimina ? $this->num($this->netoExento) : 0,
         ];
 
-        $renglones = collect($this->renglones)
+        $renglones = collect($this->esServicio ? [] : $this->renglones)
             ->filter(fn ($r) => ! empty($r['articulo_id']))
             ->map(fn ($r) => [
                 'articulo_id' => (int) $r['articulo_id'],
@@ -1300,7 +1373,8 @@ class EditorCompra extends Component
                     'descripcion' => trim($c['descripcion']) ?: null,
                     'monto' => $this->num($c['monto']),
                     'tipo_iva_id' => $c['tipo_iva_id'] ?: null,
-                    'computa_costo' => (bool) $c['computa_costo'],
+                    // Sin renglones no hay prorrateo de costo posible (D23).
+                    'computa_costo' => ! $this->esServicio && (bool) $c['computa_costo'],
                 ])
                 ->values()
                 ->all(),

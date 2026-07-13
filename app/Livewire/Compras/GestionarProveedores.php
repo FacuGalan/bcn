@@ -4,6 +4,7 @@ namespace App\Livewire\Compras;
 
 use App\Models\CondicionIva;
 use App\Models\CuentaCompra;
+use App\Models\Impuesto;
 use App\Models\Proveedor;
 use App\Services\CuentaCorrienteProveedorService;
 use App\Traits\SucursalAware;
@@ -60,6 +61,12 @@ class GestionarProveedores extends Component
 
     public ?int $dias_pago = null;
 
+    /** D23: proveedor de servicios — sugiere la modalidad "factura de servicio" en el editor. */
+    public bool $es_servicio = false;
+
+    /** D24: percepciones típicas [{impuesto_id, alicuota}] que el editor precarga al elegirlo. */
+    public array $percepciones_habituales = [];
+
     public bool $activo = true;
 
     // Modal cuentas de compra (RF-22)
@@ -99,6 +106,7 @@ class GestionarProveedores extends Component
         $this->reset([
             'proveedorId', 'codigo', 'nombre', 'razon_social', 'cuit', 'email', 'telefono',
             'direccion', 'condicion_iva_id', 'cuenta_compra_id', 'tiene_cuenta_corriente', 'dias_pago',
+            'es_servicio', 'percepciones_habituales',
         ]);
         $this->activo = true;
         $this->editMode = false;
@@ -121,6 +129,14 @@ class GestionarProveedores extends Component
         $this->cuenta_compra_id = $proveedor->cuenta_compra_id;
         $this->tiene_cuenta_corriente = (bool) $proveedor->tiene_cuenta_corriente;
         $this->dias_pago = $proveedor->dias_pago;
+        $this->es_servicio = (bool) $proveedor->es_servicio;
+        $this->percepciones_habituales = collect((array) $proveedor->percepciones_habituales)
+            ->map(fn ($p) => [
+                'impuesto_id' => $p['impuesto_id'] ?? null,
+                'alicuota' => isset($p['alicuota']) && (float) $p['alicuota'] > 0 ? (string) $p['alicuota'] : '',
+            ])
+            ->values()
+            ->all();
         $this->activo = (bool) $proveedor->activo;
 
         $this->editMode = true;
@@ -140,6 +156,8 @@ class GestionarProveedores extends Component
             'condicion_iva_id' => 'nullable|integer',
             'cuenta_compra_id' => 'nullable|integer',
             'dias_pago' => 'nullable|integer|min:0|max:365',
+            'percepciones_habituales.*.impuesto_id' => 'nullable|integer',
+            'percepciones_habituales.*.alicuota' => 'nullable|numeric|min:0|max:100',
         ]);
 
         $datos = [
@@ -154,6 +172,15 @@ class GestionarProveedores extends Component
             'cuenta_compra_id' => $this->cuenta_compra_id,
             'tiene_cuenta_corriente' => $this->tiene_cuenta_corriente,
             'dias_pago' => $this->dias_pago,
+            'es_servicio' => $this->es_servicio,
+            'percepciones_habituales' => collect($this->percepciones_habituales)
+                ->filter(fn ($p) => ! empty($p['impuesto_id']))
+                ->map(fn ($p) => [
+                    'impuesto_id' => (int) $p['impuesto_id'],
+                    'alicuota' => (float) str_replace(',', '.', (string) ($p['alicuota'] ?? 0)) ?: null,
+                ])
+                ->values()
+                ->all() ?: null,
             'activo' => $this->activo,
         ];
 
@@ -178,6 +205,19 @@ class GestionarProveedores extends Component
     public function cancel(): void
     {
         $this->showModal = false;
+    }
+
+    // D24: percepciones habituales (repetidor del modal)
+
+    public function agregarPercepcionHabitual(): void
+    {
+        $this->percepciones_habituales[] = ['impuesto_id' => null, 'alicuota' => ''];
+    }
+
+    public function quitarPercepcionHabitual(int $index): void
+    {
+        unset($this->percepciones_habituales[$index]);
+        $this->percepciones_habituales = array_values($this->percepciones_habituales);
     }
 
     // ==================== Cuentas de compra (RF-22) ====================
@@ -260,6 +300,10 @@ class GestionarProveedores extends Component
             'proveedores' => $query->orderBy('nombre')->paginate(15),
             'cuentasCompra' => CuentaCompra::orderBy('orden')->get(),
             'condicionesIva' => CondicionIva::orderBy('nombre')->get(['id', 'nombre']),
+            'impuestosPercepcion' => Impuesto::activos()
+                ->where('naturaleza_default', 'percepcion')
+                ->orderBy('nombre')
+                ->get(['id', 'nombre']),
             'proveedorExtracto' => $this->proveedorExtractoId ? Proveedor::find($this->proveedorExtractoId) : null,
         ]);
     }

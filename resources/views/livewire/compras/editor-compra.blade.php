@@ -95,6 +95,9 @@
                 @if($compraId && ! $modoCorreccion)
                     <span class="px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">{{ __('Borrador') }}</span>
                 @endif
+                @if($esServicio)
+                    <span class="px-2 py-0.5 rounded text-xs font-medium bg-white/20 text-white">{{ __('Servicio') }}</span>
+                @endif
             </h2>
             <button type="button" wire:click="cerrar" class="text-white/80 hover:text-white flex-shrink-0" title="{{ __('Cerrar') }} (Esc)">
                 <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -198,6 +201,13 @@
                                 class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
                             {{ __('Compra no fiscal') }}
                         </label>
+                        {{-- D23: modalidad servicio — sin artículos, el detalle son los conceptos --}}
+                        <label class="mt-1 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer"
+                            title="{{ __('Factura de servicio (luz, gas, alquiler...): sin artículos ni stock — el detalle son renglones libres y la cuenta de compra es obligatoria') }}">
+                            <input type="checkbox" wire:model.live="esServicio"
+                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
+                            {{ __('Factura de servicio') }}
+                        </label>
                     </div>
 
                     {{-- 4. Número del comprobante del proveedor (RF-13): PV + número, con relleno de ceros --}}
@@ -236,9 +246,9 @@
                         </div>
                     @endif
 
-                    {{-- 6. Cuenta de compra (RF-22) --}}
+                    {{-- 6. Cuenta de compra (RF-22; obligatoria en servicios, D23) --}}
                     <div class="lg:col-span-2">
-                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Cuenta de compra') }}</label>
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Cuenta de compra') }}@if($esServicio) *@endif</label>
                         <select wire:model="cuentaCompraId"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             <option value="">{{ __('Sin clasificar') }}</option>
@@ -248,12 +258,14 @@
                         </select>
                     </div>
 
-                    {{-- 7. Descuento global (RF-05) --}}
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Desc. global (%)') }}</label>
-                        <input type="text" wire:model.live.debounce.500ms="descuentoGlobal" placeholder="0"
-                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                    </div>
+                    {{-- 7. Descuento global (RF-05) — aplica a renglones, no a servicios --}}
+                    @if(! $esServicio)
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Desc. global (%)') }}</label>
+                            <input type="text" wire:model.live.debounce.500ms="descuentoGlobal" placeholder="0"
+                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                        </div>
+                    @endif
 
                     {{-- 8. Observaciones --}}
                     <div class="col-span-2 lg:col-span-3">
@@ -279,6 +291,8 @@
             @endif
 
             {{-- ============ GRILLA DE RENGLONES (planilla, D7 #2) ============ --}}
+            {{-- D23: una factura de servicio no lleva artículos — su detalle son los conceptos --}}
+            @if(! $esServicio)
             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-sm">
@@ -481,12 +495,13 @@
                     </button>
                 </div>
             </div>
+            @endif
 
             {{-- ============ SECCIÓN FISCAL + TOTALES (D7 #5) ============ --}}
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
                 <div class="space-y-2">
+                    {{-- Desglose de IVA (RF-14) — solo comprobantes que discriminan --}}
                     @if($this->esFiscalActual())
-                        {{-- Desglose de IVA (RF-14) — solo comprobantes que discriminan --}}
                         @if($this->discriminaActual())
                             <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2 sm:p-3">
                                 <div class="flex items-center justify-between mb-2">
@@ -496,7 +511,7 @@
                                     </h4>
                                     <div class="flex items-center gap-2">
                                         @if($fiscalManual)
-                                            <button type="button" wire:click="recalcularDesgloseFiscal" class="text-xs text-bcn-primary hover:underline">{{ __('Recalcular de los renglones') }}</button>
+                                            <button type="button" wire:click="recalcularDesgloseFiscal" class="text-xs text-bcn-primary hover:underline">{{ $esServicio ? __('Recalcular del detalle') : __('Recalcular de los renglones') }}</button>
                                         @endif
                                         <button type="button" wire:click="agregarIva" class="text-xs text-bcn-primary hover:underline">{{ __('+ Alícuota') }}</button>
                                     </div>
@@ -522,7 +537,7 @@
                                         </div>
                                     @endforeach
                                     @if($ivas === [])
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Se calcula automáticamente al cargar renglones con IVA') }}</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">{{ $esServicio ? __('Se calcula automáticamente al cargar el detalle con IVA') : __('Se calcula automáticamente al cargar renglones con IVA') }}</p>
                                     @endif
                                 </div>
                                 {{-- Netos del encabezado (Libro IVA Compras) --}}
@@ -540,15 +555,18 @@
                                 </div>
                             </div>
                         @endif
+                    @endif
 
-                        {{-- Conceptos de pie de factura (RF-15) — colapsable --}}
+                    {{-- Conceptos de pie de factura (RF-15) — colapsable. D23: en una
+                        factura de servicio son EL detalle (visibles aun sin fiscal) --}}
+                    @if($this->esFiscalActual() || $esServicio)
                         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
-                            x-data="{ abierto: {{ $conceptos !== [] ? 'true' : 'false' }} }">
+                            x-data="{ abierto: {{ ($conceptos !== [] || $esServicio) ? 'true' : 'false' }} }">
                             <button type="button" @click="abierto = !abierto"
                                 class="w-full flex items-center justify-between px-3 sm:px-4 py-2 text-left">
                                 <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                                    {{ __('Conceptos del pie') }}
-                                    <span class="font-normal text-xs text-gray-500 dark:text-gray-400">({{ __('flete, imp. internos, envases...') }})</span>
+                                    {{ $esServicio ? __('Detalle del servicio') : __('Conceptos del pie') }}
+                                    <span class="font-normal text-xs text-gray-500 dark:text-gray-400">({{ $esServicio ? __('renglones libres: descripción + monto + IVA') : __('flete, imp. internos, envases...') }})</span>
                                     @if($conceptos !== [])
                                         <span class="ml-1 px-1.5 py-0.5 text-xs rounded-full bg-bcn-primary/10 text-bcn-primary">{{ count($conceptos) }}</span>
                                     @endif
@@ -560,13 +578,15 @@
                             <div x-show="abierto" x-collapse class="px-3 sm:px-4 pb-3 space-y-2">
                                 @foreach($conceptos as $index => $concepto)
                                     <div class="flex flex-wrap items-center gap-2" wire:key="concepto-{{ $index }}">
-                                        <select wire:model.live="conceptos.{{ $index }}.tipo"
-                                            class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                            <option value="flete">{{ __('Flete') }}</option>
-                                            <option value="impuestos_internos">{{ __('Imp. internos') }}</option>
-                                            <option value="envases">{{ __('Envases') }}</option>
-                                            <option value="otro">{{ __('Otro') }}</option>
-                                        </select>
+                                        @if(! $esServicio)
+                                            <select wire:model.live="conceptos.{{ $index }}.tipo"
+                                                class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                <option value="flete">{{ __('Flete') }}</option>
+                                                <option value="impuestos_internos">{{ __('Imp. internos') }}</option>
+                                                <option value="envases">{{ __('Envases') }}</option>
+                                                <option value="otro">{{ __('Otro') }}</option>
+                                            </select>
+                                        @endif
                                         <input type="text" wire:model="conceptos.{{ $index }}.descripcion" placeholder="{{ __('Descripción') }}"
                                             class="flex-1 min-w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         <input type="text" wire:model.live.debounce.500ms="conceptos.{{ $index }}.monto" placeholder="{{ __('Monto') }}"
@@ -581,23 +601,27 @@
                                                 @endforeach
                                             </select>
                                         @endif
-                                        <label class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer whitespace-nowrap"
-                                            title="{{ __('Los conceptos que computan costo se prorratean a los renglones (landed cost)') }}">
-                                            <input type="checkbox" wire:model.live="conceptos.{{ $index }}.computa_costo"
-                                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
-                                            {{ __('Computa costo') }}
-                                        </label>
+                                        @if(! $esServicio)
+                                            <label class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-400 cursor-pointer whitespace-nowrap"
+                                                title="{{ __('Los conceptos que computan costo se prorratean a los renglones (landed cost)') }}">
+                                                <input type="checkbox" wire:model.live="conceptos.{{ $index }}.computa_costo"
+                                                    class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
+                                                {{ __('Computa costo') }}
+                                            </label>
+                                        @endif
                                         <button type="button" wire:click="quitarConcepto({{ $index }})" tabindex="-1"
                                             class="text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="{{ __('Quitar') }}">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                         </button>
                                     </div>
                                 @endforeach
-                                <button type="button" wire:click="agregarConcepto" class="text-xs text-bcn-primary hover:underline">{{ __('+ Agregar concepto') }}</button>
+                                <button type="button" wire:click="agregarConcepto" class="text-xs text-bcn-primary hover:underline">{{ $esServicio ? __('+ Agregar renglón de detalle') : __('+ Agregar concepto') }}</button>
                             </div>
                         </div>
+                    @endif
 
-                        {{-- Percepciones sufridas (RF-06) — colapsable --}}
+                    {{-- Percepciones sufridas (RF-06) — colapsable --}}
+                    @if($this->esFiscalActual())
                         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
                             x-data="{ abierto: {{ $percepciones !== [] ? 'true' : 'false' }} }">
                             <button type="button" @click="abierto = !abierto"
@@ -650,14 +674,17 @@
                     @endif
                 </div>
 
+
                 {{-- Pie: la cuenta completa, para verificar contra la factura en vivo (D7 #5) --}}
                 <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2 sm:p-3 h-fit lg:sticky lg:top-0">
                     <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ __('Totales del comprobante') }}</h4>
                     <dl class="space-y-1 text-sm">
-                        <div class="flex justify-between">
-                            <dt class="text-gray-600 dark:text-gray-400">{{ $this->discriminaActual() ? __('Neto (renglones c/desc.)') : __('Subtotal (renglones c/desc.)') }}</dt>
-                            <dd class="text-gray-900 dark:text-white">$@precio($totales['subtotal'])</dd>
-                        </div>
+                        @if(! $esServicio)
+                            <div class="flex justify-between">
+                                <dt class="text-gray-600 dark:text-gray-400">{{ $this->discriminaActual() ? __('Neto (renglones c/desc.)') : __('Subtotal (renglones c/desc.)') }}</dt>
+                                <dd class="text-gray-900 dark:text-white">$@precio($totales['subtotal'])</dd>
+                            </div>
+                        @endif
                         @if($totales['descuento_global'] > 0)
                             <div class="flex justify-between">
                                 <dt class="text-gray-600 dark:text-gray-400">{{ __('Descuento global') }} ({{ $descuentoGlobal }}%)</dt>
@@ -666,7 +693,7 @@
                         @endif
                         @if($totales['conceptos'] > 0)
                             <div class="flex justify-between">
-                                <dt class="text-gray-600 dark:text-gray-400">{{ __('Conceptos') }}</dt>
+                                <dt class="text-gray-600 dark:text-gray-400">{{ $esServicio ? __('Detalle del servicio') : __('Conceptos') }}</dt>
                                 <dd class="text-gray-900 dark:text-white">$@precio($totales['conceptos'])</dd>
                             </div>
                         @endif
