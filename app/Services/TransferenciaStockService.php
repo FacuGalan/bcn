@@ -25,16 +25,6 @@ use Illuminate\Support\Facades\Log;
  */
 class TransferenciaStockService
 {
-    protected $ventaService;
-
-    protected $compraService;
-
-    public function __construct(VentaService $ventaService, CompraService $compraService)
-    {
-        $this->ventaService = $ventaService;
-        $this->compraService = $compraService;
-    }
-
     /**
      * Solicita una transferencia de stock entre sucursales
      *
@@ -310,54 +300,12 @@ class TransferenciaStockService
      */
     protected function crearDocumentosFiscales(TransferenciaStock $transferencia, int $usuarioId): void
     {
-        // TODO: Implementar cuando tengamos el sistema de proveedores internos
-        // Por ahora lanzamos una excepción indicando que esta funcionalidad está pendiente
+        // TODO: Implementar con el futuro módulo inter-sucursal (proveedores internos):
+        // venta en sucursal origen + compra en sucursal destino, vinculadas a la transferencia.
+        // Ver visión futura anotada en .claude/specs/compras-costos-precios.md
 
         Log::warning('Transferencia fiscal solicitada pero aún no implementada', [
             'transferencia_id' => $transferencia->id,
         ]);
-
-        // Para transferencias fiscales, se debería:
-        // 1. Crear un proveedor interno para la sucursal origen
-        // 2. Crear una venta en sucursal origen
-        // 3. Crear una compra en sucursal destino
-        // 4. Vincular estos documentos a la transferencia
-
-        // Ejemplo (a implementar):
-        /*
-        $venta = $this->ventaService->crearVenta([
-            'sucursal_id' => $transferencia->sucursal_origen_id,
-            'cliente_id' => null, // Cliente interno = sucursal destino
-            'usuario_id' => $usuarioId,
-            'tipo_comprobante' => 'transferencia',
-            'forma_pago' => 'transferencia',
-            // ... otros datos
-        ], [
-            [
-                'articulo_id' => $transferencia->articulo_id,
-                'cantidad' => $transferencia->cantidad,
-                'precio_unitario' => 0, // O precio de costo
-            ]
-        ]);
-
-        $compra = $this->compraService->crearCompra([
-            'sucursal_id' => $transferencia->sucursal_destino_id,
-            'proveedor_id' => null, // Proveedor interno = sucursal origen
-            'usuario_id' => $usuarioId,
-            'tipo_comprobante' => 'transferencia',
-            'forma_pago' => 'transferencia',
-            // ... otros datos
-        ], [
-            [
-                'articulo_id' => $transferencia->articulo_id,
-                'cantidad' => $transferencia->cantidad,
-                'precio_unitario' => 0,
-            ]
-        ]);
-
-        $transferencia->venta_id = $venta->id;
-        $transferencia->compra_id = $compra->id;
-        $transferencia->save();
-        */
     }
 }
