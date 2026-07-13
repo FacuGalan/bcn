@@ -1,6 +1,6 @@
 # Compras → Costos → Precios - Especificación
 
-## Estado: EN REVISIÓN
+## Estado: IMPLEMENTADO — verificado (/sdd-verify 2026-07-13); Fase 9 restante: docs + PR
 
 > Spec creado el 2026-07-01 tras sesión de diseño con el usuario (decisiones D1-D7).
 > Es el SDD propio que la Fase 6 del spec `sistema-impositivo.md` dejó como
@@ -11,6 +11,12 @@
 > D17-D20 (cancelación con pagos, NC de proveedor en v1, pago por sucursal,
 > permiso confirmar) + replanteo total del código de compras (touchpoints como
 > único contrato) + fixes de consistencia.
+> Ronda 2026-07-09 (revisión impositiva profunda pre-apply, aprobada por el
+> usuario): período del crédito = fecha_comprobante, compra_ivas como fuente
+> canónica del ledger, factura A a monotributista (RG 5003/2021) como
+> advertencia, D21 (fórmulas según condición IVA del comercio), D22 (cuentas
+> de compra para reportes), menú padre "Compras" + ABM de proveedores nuevo,
+> rename a costo_unitario_computable.
 > Pendiente de aprobación del usuario antes de /sdd-apply.
 
 ---
@@ -54,9 +60,11 @@ de clientes, con pago al alta o posterior contra el mismo ledger.
 
 ## Principios de Diseño
 
-1. **El costo se almacena SIEMPRE neto (sin IVA)**. La vista "costo final con IVA"
-   se deriva con el `TipoIva` del artículo, espejo exacto del circuito de venta
-   (que deriva el neto dividiendo el precio final).
+1. **El costo se almacena SIEMPRE como costo COMPUTABLE**: neto (sin IVA) cuando
+   el IVA fue crédito fiscal recuperable; total pagado cuando no lo fue (por eso
+   el campo se llama `computable` y no `neto`). La vista "costo final con IVA"
+   se deriva con el `TipoIva` del artículo solo cuando aplica, espejo del
+   circuito de venta (que deriva el neto dividiendo el precio final).
 2. **Costo computable** (estándar contable/ERP): el IVA solo integra el costo
    cuando NO es recuperable. RI + comprobante que discrimina IVA ⇒ costo = neto
    (el IVA es crédito fiscal). Comprador que no computa crédito (monotributo) o
@@ -104,24 +112,39 @@ Cadena completa del costo (por renglón):
          SÍ ⇒ ya es neto (el IVA fue crédito fiscal, no integra el costo)
          NO ⇒ tal cual: todo lo pagado ES el costo
     ÷ factor de conversión (unidad de compra → unidad de stock, D8)
-    = COSTO UNITARIO NETO (por unidad de stock; persiste en el renglón)
+    = COSTO UNITARIO COMPUTABLE (por unidad de stock; persiste en el renglón)
+    (NOTA naming: se llama "computable", NO "neto" — en compras B/C/no fiscales
+     contiene el IVA no recuperable. Es correcto contablemente: ese IVA es
+     costo real porque la venta genera débito pleno sin crédito que lo compense.)
 
 Descuentos anidados por renglón (D6):
   factor = (1−d1/100) × (1−d2/100) × ... × (1−dn/100)
   precio_efectivo = precio_lista_proveedor × factor
 
 Costo promedio ponderado (PPP), por sucursal y consolidado:
-  nuevo_ppp = (stock_previo × ppp_previo + cantidad × costo_unitario_neto)
+  nuevo_ppp = (stock_previo × ppp_previo + cantidad × costo_unitario_computable)
               / (stock_previo + cantidad)
-  (si stock_previo ≤ 0 ⇒ nuevo_ppp = costo_unitario_neto)
+  (si stock_previo ≤ 0 ⇒ nuevo_ppp = costo_unitario_computable)
 
 Precio sugerido (D2 — el precio del artículo es FINAL con IVA):
-  precio_final_sugerido = costo_rector_neto × (1 + utilidad/100) × (1 + alic/100)
+  precio_final_sugerido = costo_rector × (1 + utilidad/100) × (1 + alic_efectiva/100)
   → redondeo sobre el precio FINAL
 
 Margen real (inverso, misma división que hace la venta):
-  neto_venta  = precio_final ÷ (1 + alic/100)
-  margen_real = (neto_venta − costo_rector_neto) / costo_rector_neto × 100
+  neto_venta  = precio_final ÷ (1 + alic_efectiva/100)
+  margen_real = (neto_venta − costo_rector) / costo_rector × 100
+
+alic_efectiva (D21 — condición IVA del COMERCIO):
+  CUIT default del comercio es RI (esResponsableInscripto)
+      ⇒ alic_efectiva = alícuota del TipoIva del artículo
+  comercio que NO computa IVA (monotributo/exento)
+      ⇒ alic_efectiva = 0 en AMBAS fórmulas
+  (Sin esto, a un monotributista el sugerido le agregaría un ×1,21 que no debe
+   a nadie y el margen informado sería 40% cuando el real es ~69%: para un
+   no-RI el costo es bruto y TODO el precio de venta es ingreso.)
+  Además: si articulo.precio_iva_incluido = false (el precio del artículo se
+  almacena NETO), el sugerido se materializa SIN el factor (1+alic) y el margen
+  no divide — espejo exacto de VentaService.php:313-315.
 
 Utilidad objetivo (cascada):
   articulo.utilidad_porcentaje ?? categoria.utilidad_porcentaje ?? config.utilidad_default
@@ -132,11 +155,15 @@ Utilidad objetivo (cascada):
 ## Requisitos Funcionales
 
 ### RF-01: Costo computable por renglón de compra
-- Al confirmar una compra, cada renglón produce un `costo_unitario_neto` según la
-  regla de costo computable (condición IVA del CUIT comprador de la compra +
-  tipo de comprobante) y los descuentos anidados aplicados.
-- El tipo de comprobante define si discrimina IVA: `factura_a` discrimina;
+- Al confirmar una compra, cada renglón produce un `costo_unitario_computable`
+  según la regla de costo computable (condición IVA del CUIT comprador de la
+  compra + tipo de comprobante) y los descuentos anidados aplicados.
+- El tipo de comprobante define si discrimina IVA: `factura_a` y `factura_m`
+  discriminan (la M se trata como la A para el crédito; las retenciones que la
+  M implica quedan manuales en v1 — pregunta anotada para el contador);
   `factura_b`, `factura_c`, remito/no fiscal NO discriminan.
+- El campo se llama `computable` (no "neto") a propósito: en compras que no
+  discriminan contiene el IVA no recuperable (ver nota en fórmulas canónicas).
 
 ### RF-02: Costos del artículo (último / promedio / reposición)
 - `costo_ultimo`: se actualiza con cada compra confirmada (por sucursal de la
@@ -144,7 +171,7 @@ Utilidad objetivo (cascada):
 - `costo_promedio`: PPP recalculado en la misma confirmación (stock de la sucursal
   para la fila sucursal; stock total del comercio para la consolidada).
   Arranque: si el PPP previo es NULL (catálogo preexistente sin costo), la
-  primera compra lo fija = `costo_unitario_neto` (el stock previo sin costo NO
+  primera compra lo fija = `costo_unitario_computable` (el stock previo sin costo NO
   pondera). Backfill desde `movimientos_stock.costo` queda como opción futura.
 - `costo_reposicion`: editable a mano; si es NULL, todo lector usa fallback a
   `costo_ultimo`.
@@ -185,8 +212,29 @@ Utilidad objetivo (cascada):
   sin `compra_ivas`/netos, sin percepciones, nada al ledger fiscal. El renglón
   carga el precio final pagado directo y ese total ES el costo (regla D4). La UI
   oculta las secciones fiscales cuando el toggle está activo.
-- Validación comprobante×CUIT: los tipos de comprobante se filtran según la
-  condición IVA del CUIT comprador (un monotributista no recibe factura A).
+- Validación comprobante×CUIT: **ADVERTENCIA no bloqueante** (corregido
+  2026-07-09). Desde la RG 5003/2021 un monotributista SÍ recibe factura A
+  (con leyenda "Receptor Responsable Monotributo") — bloquearla impediría
+  cargar facturas reales; `CondicionIva` ya lo documenta (códigos 6/13/16
+  válidos para factura A). La matriz dura es SOLO la regla de costo computable:
+  factura A + comprador no-RI ⇒ discrimina pero SIN crédito fiscal, todo lo
+  pagado es costo. La advertencia señala combinaciones atípicas (ej. factura B
+  a un RI) sin impedir la carga.
+- **Gate del crédito fiscal (explícito)**: se envía `$ivaCredito` al ledger
+  SOLO si `fiscal AND el tipo discrimina AND el CUIT comprador es RI
+  (esResponsableInscripto)`. OJO: `ImpuestoService::registrarDesdeCompra` NO
+  gatea por condición IVA (a diferencia del débito, que sí gatea RI en
+  `registrarDesdeComprobante`, ImpuestoService.php:441) — el gate es
+  responsabilidad del `CompraService` (caller), documentado en su contrato.
+- **Fuente canónica del crédito = `compra_ivas`** (el desglose de la factura
+  física, RF-14), NUNCA la suma de renglones. El array `$ivaCredito` (con
+  base_imponible/alicuota/monto por alícuota) se arma desde `compra_ivas`.
+- **Período del crédito = `fecha_comprobante`**: `registrarDesdeCompra` hoy usa
+  `$compra->fecha ?? now()` (ImpuestoService.php:540) — se ajusta en la Fase 4
+  para preferir `fecha_comprobante` (y `compras.fecha` se sanea de su
+  `ON UPDATE CURRENT_TIMESTAMP`, RF-12, que hoy la re-pisa en cada update).
+  Sin esto, una factura de junio cargada en julio computa el crédito en el
+  período equivocado y el Libro IVA Compras no cuadra con la posición.
 - `fecha_comprobante` es OBLIGATORIA en compras fiscales (rige el período del
   crédito); solo puede ser NULL con el toggle no fiscal. Si cae en un período
   fiscal viejo/ya presentado: advertencia NO bloqueante (AFIP admite computar
@@ -256,12 +304,29 @@ Utilidad objetivo (cascada):
 ### RF-14: Desglose de IVA y totales del comprobante
 - Tabla `compra_ivas` (espejo de `ComprobanteFiscalIva`): base imponible e importe
   por alícuota. Encabezado con `neto_gravado`, `neto_no_gravado`, `neto_exento`.
-- Con esto el Libro IVA Compras (Fase 7 fiscal) cuadra contra la factura física
-  sin depender de derivar del detalle (redondeos, conceptos).
+- **Es la fuente CANÓNICA del crédito fiscal** (alimenta `$ivaCredito` de
+  `registrarDesdeCompra`) y del Libro IVA Compras — simetría exacta con el
+  débito, que sale de `comprobante_fiscal_iva`. Así el Libro cuadra contra la
+  factura física sin depender de derivar del detalle (redondeos, conceptos).
+- Carga: se PRE-SUGIERE desde los renglones (tipo_iva_id × bases con descuentos
+  aplicados) + conceptos gravados (RF-15), y es EDITABLE para calzar con la
+  factura física. Validación de cuadre no bloqueante: si
+  `Σ(renglones+conceptos)` difiere de `compra_ivas` por más que una tolerancia
+  de redondeo (± $1 por alícuota), advertir antes de confirmar.
+- El descuento global (RF-05) reduce las bases: la sugerencia calcula el IVA
+  DESPUÉS de aplicar cascada de renglón + prorrateo del descuento global (la
+  factura real ya lo trae así).
 
 ### RF-15: Conceptos de pie de factura (D9)
 - Tabla `compra_conceptos`: renglones no-artículo de la factura (flete, impuestos
   internos, envases, otros) con monto y flag `computa_costo`.
+- `monto` sigue la MISMA base que los renglones: NETO si el comprobante
+  discrimina IVA, final si no (2026-07-09). El flete de una factura A viene
+  neto y su IVA vive en el desglose del pie ⇒ en `compra_ivas` (RF-14).
+- `tipo_iva_id` (NULL = no gravado/exento, ej. impuestos internos): permite que
+  la SUGERENCIA automática de `compra_ivas` incluya los conceptos gravados y
+  cierre contra la factura. No genera cálculo propio — solo alimenta la
+  sugerencia editable.
 - Los que computan costo se PRORRATEAN a los renglones por importe (landed cost).
   Caso argentino clave: impuestos internos de bebidas SON costo real (no son IVA
   ni percepción — no se recuperan).
@@ -271,7 +336,7 @@ Utilidad objetivo (cascada):
 - `articulo_proveedor.factor_conversion` (default 1): se compra en "bultos" del
   proveedor y se stockea en unidades propias. El renglón persiste
   `cantidad_comprada` (bultos) y `cantidad` (stock = comprada × factor).
-- Costo unitario neto = costo del bulto ÷ factor (siempre por unidad de STOCK).
+- Costo unitario computable = costo del bulto ÷ factor (siempre por unidad de STOCK).
 
 ### RF-17: Flujo borrador → completada → cancelada (D10 + D11)
 - `estado` pasa a ser SOLO ciclo de vida: `enum('borrador','completada','cancelada')`.
@@ -376,9 +441,19 @@ Utilidad objetivo (cascada):
   sin él no se muestran columnas ni modales de costo), `costos.editar` (costo
   manual/reposición y utilidad), `compras.revisar_precios` (aplicar RF-10/RF-11),
   `compras.pagar_avanzado` (D14: elegir otra caja, efectivo de Tesorería o
-  cuenta de empresa como origen del pago; sin él, solo la caja activa).
-- Menú: verificar/crear ítem Compras (idempotente, `menu_items.slug` UNIQUE) +
-  ítem "Pagos a proveedores" en el mismo grupo.
+  cuenta de empresa como origen del pago; sin él, solo la caja activa),
+  `compras.proveedores` (ABM de proveedores) y `compras.reportes` (RF-22).
+- **Menú: grupo PADRE nuevo "Compras"** (2026-07-09, pedido del usuario —
+  verificado: hoy NO existe ningún ítem de compras en `menu_items`; la ruta
+  `compras.index` está huérfana de menú). Estructura (patrón de los grupos
+  existentes, ej. Ventas id=33; slug UNIQUE, migración idempotente):
+  - **Compras** (padre, sin ruta, orden entre Stock y Clientes)
+    - Compras → `compras.index` (orden 1)
+    - Proveedores → `compras.proveedores` (orden 2) — componente NUEVO
+      `GestionarProveedores` (hoy no existe ABM: los proveedores solo aparecen
+      en un select dentro de Compras)
+    - Pagos a proveedores → `compras.pagos-proveedores` (orden 3)
+    - Reportes → `compras.reportes` (orden 4, RF-22)
 
 ### RF-21: Nota de crédito de proveedor — devolución parcial (D18)
 - La NC es una fila más de `compras` con `tipo_comprobante` NC (fiscal A/B/C o
@@ -387,14 +462,39 @@ Utilidad objetivo (cascada):
   y mismo anti-duplicado (proveedor+tipo+número).
 - Efectos al confirmar (inversos y PARCIALES, por renglón cargado):
   - **Stock**: egreso por las cantidades devueltas (en unidades de stock).
-  - **Fiscal**: reversa proporcional del crédito IVA/percepciones, registrada en
-    el PERÍODO de la NC (patrón NC cross-período de la revisión Fable).
+  - **Fiscal**: la NC física trae su PROPIO desglose de IVA ⇒ la NC carga sus
+    propias filas de `compra_ivas` (del documento real) y ESE desglose alimenta
+    la reversa del crédito (en negativo), registrada en el PERÍODO de la NC
+    (patrón NC cross-período de la revisión Fable). La derivación proporcional
+    desde la compra origen queda solo como PRECARGA sugerida, editable
+    (2026-07-09 — antes decía "reversa proporcional", que era una aproximación).
   - **Costos**: NO recalcula `costo_ultimo` ni PPP (una devolución parcial no
     restaura el costo anterior; misma filosofía documentada de RF-07).
   - **Cta cte**: tipo `nota_credito`, DEBE que baja el `saldo_pendiente` de la
     compra origen hasta cubrirlo; el excedente (o una NC suelta) genera saldo a
     favor (`saldo_favor_haber`).
 - Cancelar una NC confirmada revierte sus efectos por contraasiento.
+
+### RF-22: Cuentas de compra — agrupación para reportes (D22)
+- Catálogo `cuentas_compra` por comercio (ABM simple: nombre, orden, activo),
+  seed inicial editable: Mercadería, Insumos, Servicios, Gastos generales.
+  Es una agrupación de gestión (NO plan de cuentas contable formal): sirve
+  para responder "¿cuánto gasté en qué?" por período.
+- **Configuración: default por PROVEEDOR + override por COMPRA** (decisión
+  2026-07-09): `proveedores.cuenta_compra_id` (NULL = sin default) precarga
+  `compras.cuenta_compra_id` al elegir proveedor; editable en el encabezado de
+  la compra. Por artículo NO (un artículo casi siempre es "mercadería" y no
+  tipifica el gasto; el proveedor sí lo tipifica). NULL permitido = "sin
+  clasificar" (los reportes lo muestran como categoría propia para ir saneando).
+- Las NC heredan la cuenta de su compra origen (editable); restan en el reporte.
+- **Reporte "Compras por cuenta"** (pantalla Reportes del grupo Compras):
+  período + sucursal → total por cuenta (compras completadas − NC), con
+  drill-down a las compras. Cortes secundarios: por proveedor y por mes.
+  Patrón visual: `ReportesTesoreria`.
+- Futuro anotado (no bloquear): split por RENGLÓN para facturas mixtas
+  (mercadería + gastos en un mismo comprobante) — la columna en el encabezado
+  no lo impide, se agregaría `cuenta_compra_id` NULL en el detalle que
+  prevalece sobre el encabezado.
 
 ### RF-12: Replanteo del schema y módulo de compras (prerequisito)
 - **El código actual de compras se REESCRIBE** (directiva 2026-07-02):
@@ -412,8 +512,10 @@ Utilidad objetivo (cascada):
 - Saneos concretos del schema actual: `numero`→`numero_comprobante`,
   `iva`→`total_iva`, agregar `tipo_comprobante`/`saldo_pendiente`/
   `observaciones`/`tipo_iva_id`/`precio_sin_iva`; **`compras.fecha` es
-  `timestamp ON UPDATE CURRENT_TIMESTAMP`** (se pisa sola en cada update) →
-  pasar a `date` sin ON UPDATE; `forma_pago` set final (o FK `formas_pago`,
+  `timestamp ON UPDATE CURRENT_TIMESTAMP`** (se pisa sola en cada update — y es
+  la fecha que HOY usa el ledger fiscal, ImpuestoService.php:540) →
+  pasar a `date` sin ON UPDATE; dropear `compras.caja_id` (huérfana con D14);
+  `forma_pago` set final (o FK `formas_pago`,
   decidir en Fase 1 — el SQL base y el código hoy usan dos sets distintos);
   estados D11 con mapeo `pendiente`→`completada`.
 - El componente reescrito es `SucursalAware` (NO CajaAware, D14) y aplica los
@@ -499,11 +601,24 @@ KEY (`compra_id`).
 | `compra_id` | bigint unsigned | — | FK compras, CASCADE |
 | `tipo` | enum('flete','impuestos_internos','envases','otro') | 'otro' | |
 | `descripcion` | varchar(150) NULL | NULL | |
-| `monto` | decimal(12,2) | — | |
+| `monto` | decimal(12,2) | — | Misma base que los renglones: neto si el comprobante discrimina (RF-15) |
+| `tipo_iva_id` | bigint unsigned NULL | NULL | FK tipos_iva; NULL = no gravado. Alimenta la sugerencia de compra_ivas |
 | `computa_costo` | tinyint(1) | 0 | true ⇒ se prorratea a los renglones por importe |
 | `created_at/updated_at` | timestamp NULL | | |
 
 KEY (`compra_id`).
+
+#### `cuentas_compra` (RF-22, D22)
+| Campo | Tipo | Default | Descripción |
+|-------|------|---------|-------------|
+| `id` | bigint PK | auto | |
+| `nombre` | varchar(100) | — | |
+| `orden` | int | 0 | |
+| `activo` | tinyint(1) | 1 | |
+| `created_at/updated_at` | timestamp NULL | | |
+
+Seed inicial (editable): Mercadería, Insumos, Servicios, Gastos generales
+(+ ProvisionComercioCommand).
 
 #### `configuracion_costos` (una fila por comercio)
 | Campo | Tipo | Default | Descripción |
@@ -606,7 +721,9 @@ de cuenta. Orígenes distintos de 'caja' requieren `compras.pagar_avanzado`.)
   RF-16; `cantidad` (existente) queda SIEMPRE en unidades de stock (= comprada × factor),
   así el código de stock no cambia
 - Agregar: `codigo_proveedor_usado` (varchar(50) NULL) — trazabilidad de carga por código
-- Agregar: `costo_unitario_neto` (decimal(12,4) NULL) — resultado final de la cadena (por unidad de stock)
+- Agregar: `costo_unitario_computable` (decimal(12,4) NULL) — resultado final de la
+  cadena (por unidad de stock). Renombrado de "neto" el 2026-07-09: en compras
+  B/C/no fiscales contiene el IVA no recuperable (ver fórmulas canónicas)
 - Reconciliar drift (RF-12): `tipo_iva_id` (FK tipos_iva NULL), `precio_sin_iva`
   (decimal(12,2) NULL) — el modelo ya los usa.
 
@@ -629,15 +746,22 @@ de cuenta. Orígenes distintos de 'caja' requieren `compras.pagar_avanzado`.)
 - Agregar (RF-14): `neto_gravado`, `neto_no_gravado`, `neto_exento` (decimal(12,2), 0).
 - Agregar (RF-05): `descuento_global_porcentaje` (decimal(6,2) NULL),
   `descuento_global_monto` (decimal(12,2), 0).
+- Agregar (RF-22): `cuenta_compra_id` (bigint unsigned NULL, FK cuentas_compra
+  SET NULL) — precargada desde el proveedor, editable por compra.
+- Deprecar `caja_id` (2026-07-09): con D14 la caja pertenece al PAGO
+  (`pago_proveedor_pagos.caja_id`), no a la compra — dropear en el saneamiento
+  (verificar antes que ningún dato existente lo necesite migrar a un pago).
 - Semántica de `estado` (RF-17/D11): `borrador` = sin efectos; `completada` =
   confirmada (stock+costos+ledger+cta cte); `cancelada` = revertida. Situación de
   pago SIEMPRE derivada de `saldo_pendiente`.
 
-#### `proveedores` — Cambios (RF-18)
+#### `proveedores` — Cambios (RF-18/RF-22)
 - Agregar: `tiene_cuenta_corriente` (tinyint(1), 0) — habilita cta cte y pagos
 - Agregar: `dias_pago` (int NULL) — precarga `fecha_vencimiento` de la compra
 - Agregar: `saldo_cache` (decimal(12,2), 0) + `ultimo_movimiento_ccp_at`
   (timestamp NULL) — patrón cache de Cliente (actualización con lockForUpdate)
+- Agregar (RF-22): `cuenta_compra_id` (bigint unsigned NULL, FK cuentas_compra
+  SET NULL) — cuenta default que precarga la compra
 
 #### `articulos` — Cambios
 - Agregar: `utilidad_porcentaje` (decimal(6,2) NULL) AFTER `precio_iva_incluido` — override
@@ -662,6 +786,8 @@ la caja pertenece al pago, D14)
 - Sección percepciones sufridas (combobox catálogo impuestos + base/alícuota/monto).
 - Sección pago (RF-19): contado o cta cte (si el proveedor la tiene) + pago
   inicial parcial opcional + `fecha_vencimiento` precargada con `dias_pago`.
+- Cuenta de compra (RF-22): selector en el encabezado, precargado con el
+  default del proveedor, editable.
 - Al confirmar: resumen con costos actualizados y acceso a la revisión de precios.
 - **Los detalles finos de UX de esta pantalla se discuten en su fase (D7)** — la
   estructura de datos de este spec ya los soporta.
@@ -679,11 +805,43 @@ la caja pertenece al pago, D14)
   utilidad override, flag "precio administrado por utilidad", historial de costos
   (modal, patrón historial de precios), proveedores del artículo (códigos +
   costos por proveedor).
+- El costo vigente muestra su ORIGEN (proveedor + tipo de comprobante):
+  el mismo artículo comprado con factura A ($100 neto) y luego con B ($121
+  total) salta ~21% de base sin cambio real de precio — es correcto
+  contablemente (el costo B ES mayor: IVA no recuperable), pero el operador
+  tiene que poder verlo para no repricear a ciegas (nota 2026-07-09).
+- **Claridad conceptual OBLIGATORIA en toda UI de costos** (pedido del usuario
+  2026-07-09, aplica acá, a la revisión de precios RF-10 y a cualquier display
+  de costo/utilidad/precio): (a) el término de cara al operador es "Costo" a
+  secas — "computable" es jerga de spec/BD; el detalle de cómo nació (neto de
+  factura A / total pagado de B) se ve en el historial y en el origen;
+  (b) los tres costos se etiquetan por su pregunta: "Último (¿cuánto me sale
+  hoy?)", "Promedio (¿cuánto me costó lo que tengo?)", "Reposición (manual)";
+  (c) donde se calcule precio sugerido o margen, mostrar la CUENTA visible y
+  desglosada (costo → +utilidad % → +IVA si aplica → redondeo → precio final),
+  no solo el resultado — el operador tiene que poder seguir el cálculo;
+  (d) dejar explícito en la UI que el costo se actualiza con las COMPRAS
+  (nunca con las ventas).
 
 ### 4. Configuración
 - `utilidad_default` en configuración del comercio (junto a config existente).
 - `utilidad_porcentaje` en el ABM de categorías.
-- ABM de proveedores: `tiene_cuenta_corriente` + `dias_pago`.
+
+### 4b. Proveedores (`/compras/proveedores`) — componente NUEVO
+**Componente nuevo**: `App\Livewire\Compras\GestionarProveedores`
+(hoy NO existe ABM de proveedores — solo un select dentro de Compras;
+patrón: `GestionarClientes`, Lazy + skeleton, permiso `compras.proveedores`)
+- ABM completo: datos del proveedor + `tiene_cuenta_corriente` + `dias_pago`
+  + cuenta de compra default (RF-22) + saldo de cta cte (informativo, con
+  acceso al estado de cuenta).
+- ABM del catálogo `cuentas_compra` (modal simple desde esta pantalla o desde
+  configuración — decidir en la fase de UI).
+
+### 4c. Reportes de compras (`/compras/reportes`) — RF-22
+**Componente nuevo**: `App\Livewire\Compras\ReportesCompras`
+(patrón `ReportesTesoreria`, permiso `compras.reportes`)
+- Compras por cuenta (período + sucursal, completadas − NC, drill-down),
+  cortes por proveedor y por mes.
 
 ### 5. Pagos a proveedores (`/pagos-proveedores`) — RF-19
 **Componente nuevo**: `App\Livewire\Compras\GestionarPagosProveedores`
@@ -705,7 +863,7 @@ la caja pertenece al pago, D14)
 - `costoComputableRenglon(array $renglon, Compra $compra): float` — cadena completa
   RF-01: cascada de descuentos del renglón − prorrateo descuento global + prorrateo
   conceptos al costo → regla computable (condición IVA del CUIT + tipo comprobante)
-  → ÷ factor de conversión = costo unitario neto por unidad de STOCK.
+  → ÷ factor de conversión = costo unitario computable por unidad de STOCK.
 - `registrarDesdeCompra(Compra $compra, ?int $usuarioId): void` — por renglón:
   actualiza `articulo_costos` (fila sucursal + fila consolidada NULL: último + PPP),
   upsert `articulo_proveedor`, registra `historial_costos`. Idempotente por compra.
@@ -718,6 +876,11 @@ la caja pertenece al pago, D14)
   — fórmula canónica + redondeo. NOTA: `aplicarRedondeo()` hoy es `protected` en
   el Livewire `CambioMasivoPrecios.php:291` — extraerlo a `PrecioService` para
   poder reutilizarlo desde acá.
+- `alicuotaEfectiva(Articulo $a): float` (D21) — alícuota del TipoIva del
+  artículo SI el CUIT default del comercio es RI (`esResponsableInscripto()`)
+  Y `articulo.precio_iva_incluido`; 0 en caso contrario. La usan `margenReal`
+  y `precioSugerido` (única puerta — nunca leer la alícuota directo en fórmulas
+  de pricing).
 
 ### `CompraService` — REESCRIBIR (RF-12: sin compatibilidad con la lógica actual)
 - NC de proveedor (RF-21): mismo pipeline de confirmación con efectos inversos
@@ -726,11 +889,19 @@ la caja pertenece al pago, D14)
   renglones con descuentos y cantidades (RF-05/16), `compra_ivas`, `compra_conceptos`,
   percepciones. En estado borrador NO hay efectos (RF-17).
 - `confirmarCompra()`: transacción única — prorrateos (descuento global + conceptos
-  al costo, por importe) → `costo_unitario_neto` por renglón → stock →
+  al costo, por importe) → `costo_unitario_computable` por renglón → stock →
   `CostoService::registrarDesdeCompra()` → `ImpuestoService::registrarDesdeCompra()`
   → `CuentaCorrienteProveedorService::registrarMovimientosCompra()` (RF-18) →
   pago inicial vía `PagoProveedorService` (RF-19) → repricing automático (RF-11).
   Idempotente.
+  **Contrato fiscal del caller (2026-07-09)**: `$ivaCredito` se arma desde
+  `compra_ivas` (fuente canónica, RF-14) y se envía SOLO si `fiscal AND el tipo
+  discrimina AND el CUIT comprador es RI` — el service NO gatea por condición
+  IVA (su docblock ya lo delega al caller); vacío en todo otro caso.
+- **Ajuste a `ImpuestoService::registrarDesdeCompra/anularDesdeCompra`**: el
+  período fiscal pasa de `$compra->fecha ?? now()` (línea 540) a
+  `fecha_comprobante` (RF-06/RF-13); `anularDesdeCompra` al patrón NC
+  cross-período (reversa negativa en el período de la cancelación).
 - `cancelarCompra()`: → `ImpuestoService::anularDesdeCompra()` (ajustado a patrón
   NC cross-período) + `CostoService::revertirCostoUltimoSiCorresponde()` +
   `CuentaCorrienteProveedorService::anularMovimientosCompra()` + reversa de stock
@@ -739,8 +910,8 @@ la caja pertenece al pago, D14)
   elimina sin reversas.
 - `registrarPago()` actual desaparece → `PagoProveedorService` (RF-19).
 - Fix del stock: `MovimientoStock::crearMovimientoCompra` pasa a recibir el
-  `costo_unitario_neto` (hoy usa `precio_sin_iva`, que es incorrecto para compras
-  que no discriminan).
+  `costo_unitario_computable` (hoy usa `precio_sin_iva`, que es incorrecto para
+  compras que no discriminan).
 
 ### `CuentaCorrienteProveedorService` — nuevo (espejo de `CuentaCorrienteService`)
 - `registrarMovimientosCompra(Compra $c, int $usuarioId): array` — HABER por el
@@ -787,13 +958,15 @@ la caja pertenece al pago, D14)
 2. `add_encabezado_completo_a_compras` — RF-13/14/05: nro comprobante proveedor +
    UNIQUE, fechas, netos, descuento global.
 3. `create_compra_ivas`
-4. `create_compra_conceptos`
+4. `create_compra_conceptos` (incluye tipo_iva_id, RF-15)
 5. `create_articulo_costos`
 6. `create_historial_costos`
 7. `create_articulo_proveedor` (incluye factor_conversion)
 8. `create_configuracion_costos` (+ seed de la fila con defaults, incl. ProvisionComercioCommand)
+8b. `create_cuentas_compra` — RF-22: catálogo + seed inicial + `cuenta_compra_id`
+    en `proveedores` y `compras` (+ ProvisionComercioCommand).
 9. `add_costos_y_descuentos_a_compras_detalle` — descuentos, prorrateos, cantidades,
-   codigo_proveedor_usado, costo_unitario_neto.
+   codigo_proveedor_usado, costo_unitario_computable.
 10. `add_utilidad_a_articulos` (utilidad_porcentaje + precio_administrado_por_utilidad)
 11. `add_utilidad_a_categorias`
 12. `add_cta_cte_a_proveedores` — RF-18: tiene_cuenta_corriente, dias_pago, caches.
@@ -822,73 +995,88 @@ revisión post-compra. (Lista final en /sdd-apply.)
 
 ## Criterios de Aceptación
 
-- [ ] Compra factura A de comprador RI: costo = neto con descuentos; el IVA va al
+- [x] Compra factura A de comprador RI: costo = neto con descuentos; el IVA va al
       ledger como crédito fiscal; percepciones al ledger, NO al costo.
-- [ ] Compra no fiscal / factura B de comprador RI (y toda compra de monotributo):
+- [x] Compra no fiscal / factura B de comprador RI (y toda compra de monotributo):
       costo = total pagado con descuentos; nada al ledger de IVA.
-- [ ] Descuentos 10+5+3 sobre renglón de $1000 ⇒ neto efectivo $829,35
+- [x] Descuentos 10+5+3 sobre renglón de $1000 ⇒ neto efectivo $829,35
       (1000×0,90×0,95×0,97 — cascada, no suma) persistido con la lista y el monto.
-- [ ] Confirmar compra actualiza costo_ultimo + PPP en fila sucursal Y consolidada,
+- [x] Confirmar compra actualiza costo_ultimo + PPP en fila sucursal Y consolidada,
       upsert de articulo_proveedor y filas de historial_costos.
-- [ ] PPP: stock 10 @ $100 + compra 5 @ $130 ⇒ $110.
-- [ ] Cancelar la compra que fijó el último costo restaura el anterior (historial
+- [x] PPP: stock 10 @ $100 + compra 5 @ $130 ⇒ $110.
+- [x] Cancelar la compra que fijó el último costo restaura el anterior (historial
       origen 'cancelacion'); cancelación fiscal cross-período con reversa negativa.
-- [ ] Cascada de utilidad: artículo 50 % pisa categoría 40 % pisa comercio 30 %.
-- [ ] Precio sugerido: costo neto $100, utilidad 40 %, IVA 21 % ⇒ final $169,40
+- [x] Cascada de utilidad: artículo 50 % pisa categoría 40 % pisa comercio 30 %.
+- [x] Precio sugerido: costo neto $100, utilidad 40 %, IVA 21 % ⇒ final $169,40
       (+ redondeo configurado); margen real inverso reproduce la utilidad (pre-redondeo).
-- [ ] Revisión post-compra lista solo artículos con margen real < objetivo y aplica
+- [x] Revisión post-compra lista solo artículos con margen real < objetivo y aplica
       en lote registrando HistorialPrecio.
-- [ ] Artículo con flag automático se repricea al confirmar la compra sin pasar
+- [x] Artículo con flag automático se repricea al confirmar la compra sin pasar
       por la revisión.
-- [ ] Carga de renglón por código de proveedor encuentra el artículo y precarga
+- [x] Carga de renglón por código de proveedor encuentra el artículo y precarga
       descuentos habituales y factor de conversión.
-- [ ] No se puede cargar dos veces el mismo comprobante del proveedor
+- [x] No se puede cargar dos veces el mismo comprobante del proveedor
       (proveedor + tipo + número → UNIQUE con mensaje claro).
-- [ ] Descuento global −5 % sobre comprobante de 2 renglones se prorratea por
+- [x] Descuento global −5 % sobre comprobante de 2 renglones se prorratea por
       importe y reduce el costo unitario de ambos.
-- [ ] Concepto "impuestos internos $500, computa costo" se prorratea a los
+- [x] Concepto "impuestos internos $500, computa costo" se prorratea a los
       renglones; concepto "flete $300, no computa" completa el total sin tocar costos.
-- [ ] Compra de 2 bultos x12 @ $1200/bulto ⇒ stock +24 unidades, costo unitario
+- [x] Compra de 2 bultos x12 @ $1200/bulto ⇒ stock +24 unidades, costo unitario
       neto $100 (con factor 12).
-- [ ] Borrador: se guarda y edita sin tocar stock/costos/ledger; al confirmar se
+- [x] Borrador: se guarda y edita sin tocar stock/costos/ledger; al confirmar se
       dispara todo una sola vez; borrador se elimina sin reversas.
-- [ ] Migración de estados: las compras 'pendiente' existentes quedan 'completada'
+- [x] Migración de estados: las compras 'pendiente' existentes quedan 'completada'
       con su `saldo_pendiente` intacto; ninguna es interpretable como borrador.
-- [ ] Compra cta cte de proveedor CC genera HABER por el total; contado total
+- [x] Compra cta cte de proveedor CC genera HABER por el total; contado total
       genera par HABER/DEBE con saldo 0 (extracto completo).
-- [ ] Pago inicial al confirmar una compra cta cte se materializa como
+- [x] Pago inicial al confirmar una compra cta cte se materializa como
       PagoProveedor (un solo camino de escritura) y baja el saldo.
-- [ ] Pago parcial aplicado a 2 compras (FIFO) genera los DEBE, baja el
+- [x] Pago parcial aplicado a 2 compras (FIFO) genera los DEBE, baja el
       `saldo_pendiente` de ambas y registra egreso de caja según el desglose de FP.
-- [ ] Anticipo a proveedor genera saldo a favor nuestro; el pago siguiente lo
+- [x] Anticipo a proveedor genera saldo a favor nuestro; el pago siguiente lo
       consume (`uso_saldo_favor`).
-- [ ] Anular una orden de pago contraasienta ledger + el origen de fondos (caja,
+- [x] Anular una orden de pago contraasienta ledger + el origen de fondos (caja,
       tesorería o cuenta empresa) y restaura los `saldo_pendiente`; bloqueada
       solo si algún renglón de origen caja tiene el turno cerrado — una OP 100%
       tesorería/cuenta empresa se anula siempre (el saldo vuelve al origen).
-- [ ] Sin `compras.pagar_avanzado` el pago solo puede salir de la caja activa
+- [x] Sin `compras.pagar_avanzado` el pago solo puede salir de la caja activa
       (con validación de saldo); con el permiso se puede pagar desde otra caja,
       efectivo de Tesorería o cuenta de empresa, y cada origen valida su saldo.
-- [ ] Compra con toggle NO FISCAL: sin desglose de IVA, sin compra_ivas, sin
+- [x] Compra con toggle NO FISCAL: sin desglose de IVA, sin compra_ivas, sin
       percepciones, nada al ledger fiscal; el total pagado es el costo.
-- [ ] NC de proveedor por 3 de 10 unidades: stock −3, reversa proporcional del
+- [x] NC de proveedor por 3 de 10 unidades: stock −3, reversa proporcional del
       crédito fiscal en el PERÍODO de la NC, DEBE en ledger que baja el saldo de
       la compra origen; `costo_ultimo` y PPP intactos.
-- [ ] Cancelar compra con pagos aplicados ofrece cascada o saldo a favor; con
+- [x] Cancelar compra con pagos aplicados ofrece cascada o saldo a favor; con
       turno de caja cerrado en un renglón caja, solo saldo a favor.
-- [ ] Cancelar y recargar la misma factura del proveedor es posible (el
+- [x] Cancelar y recargar la misma factura del proveedor es posible (el
       anti-duplicado excluye canceladas); cargarla dos veces activa, NO.
-- [ ] Primera compra de un artículo con stock previo y PPP NULL fija
-      PPP = costo unitario neto (el stock sin costo no pondera).
-- [ ] Un CUIT comprador monotributista no puede cargar factura A
-      (validación comprobante×CUIT).
-- [ ] Cancelar una compra confirmada contraasienta el ledger de proveedor y la
+- [x] Primera compra de un artículo con stock previo y PPP NULL fija
+      PPP = costo unitario computable (el stock sin costo no pondera).
+- [x] Factura A bajo CUIT comprador monotributista SE PUEDE cargar (RG
+      5003/2021): advertencia no bloqueante, SIN crédito al ledger, todo lo
+      pagado (IVA incluido) es costo.
+- [x] El crédito fiscal del ledger sale de `compra_ivas` (no de la suma de
+      renglones) y su período es `fecha_comprobante`: factura de junio cargada
+      en julio computa el crédito en JUNIO.
+- [x] Desglose sugerido vs cargado: si Σ(renglones+conceptos gravados) difiere
+      de `compra_ivas` por más de la tolerancia, advertencia antes de confirmar.
+- [x] Comercio cuyo CUIT default NO es RI: precio sugerido = costo × (1+utilidad)
+      SIN factor de IVA y margen real sin división (alic_efectiva = 0, D21).
+- [x] Concepto flete $300 con tipo_iva 21% en factura A: entra neto al prorrateo
+      de costo y su IVA aparece en la sugerencia de compra_ivas.
+- [x] Compra hereda la cuenta de compra default del proveedor, editable; reporte
+      "Compras por cuenta" suma completadas − NC por período y muestra "sin
+      clasificar" como categoría propia (RF-22).
+- [x] Menú: grupo padre "Compras" con hijos Compras / Proveedores / Pagos a
+      proveedores / Reportes, con sus permisos respectivos.
+- [x] Cancelar una compra confirmada contraasienta el ledger de proveedor y la
       caja (nunca mutación directa de saldos).
-- [ ] Permisos compras.* sembrados y ENFORCED (middleware + hasPermissionTo);
+- [x] Permisos compras.* sembrados y ENFORCED (middleware + hasPermissionTo);
       usuario sin `costos.ver` no ve costos ni márgenes en ninguna pantalla.
-- [ ] `compra_ivas` + netos del encabezado cuadran contra el total del comprobante
+- [x] `compra_ivas` + netos del encabezado cuadran contra el total del comprobante
       y alimentan el Libro IVA Compras.
-- [ ] Smoke tests Livewire de componentes nuevos/modificados; tests de CostoService
+- [x] Smoke tests Livewire de componentes nuevos/modificados; tests de CostoService
       (matriz condición IVA × tipo comprobante, PPP, cascada, historial, reversión)
       y de los services de cta cte proveedor/pagos (es dinero: suite completa).
 
@@ -896,54 +1084,413 @@ revisión post-compra. (Lista final en /sdd-apply.)
 
 ## Plan de Implementación
 
-### Fase 1: Replanteo schema compras + permisos (RF-12, RF-20) [PENDIENTE]
-Migración al schema final (estados D11, forma_pago, fecha sin ON UPDATE,
-preservando datos) + menú/permisos (con mapa permiso→rol a definir con el
-usuario) + verificación real por comercio + tenant_tables.sql. El código de
-compras se reescribe en las Fases 4-6; esta fase deja la base de datos y los
-permisos listos. Sin cambios funcionales visibles.
+### Fase 1: Replanteo schema compras + permisos (RF-12, RF-20) [COMPLETO]
+Migración al schema final (estados D11, forma_pago, fecha sin ON UPDATE, drop
+caja_id, preservando datos) + menú (grupo padre "Compras" + hijos) / permisos
+(con mapa permiso→rol a definir con el usuario) + verificación real por
+comercio + tenant_tables.sql. El código de compras se reescribe en las Fases
+4-6; esta fase deja la base de datos y los permisos listos. Sin cambios
+funcionales visibles.
 
-### Fase 2: BD de costos [PENDIENTE]
-Migraciones 2-11 (incl. detalle de compras, utilidad en artículos/categorías) +
-modelos (`ArticuloCosto`, `HistorialCosto`, `ArticuloProveedor`,
-`ConfiguracionCostos`) + relaciones en `Articulo`/`Proveedor`/`Categoria` +
-ProvisionComercioCommand.
+#### Ajustes de implementación (Fase 1, 2026-07-09)
+- Migraciones: `2026_07_09_120000_reconciliar_schema_compras` +
+  `2026_07_09_120100_add_compras_menu_y_permisos`. Ejecutadas en dev Y test;
+  efecto verificado contra BD real (no solo exit code del migrate).
+- **`compras.caja_id` NO se dropeó**: el `CompraService` actual la usa en todo
+  el flujo; el drop se difiere a la Fase 4/5 (cuando el service reescrito y
+  `pago_proveedor_pagos` tomen su lugar).
+- **El menú nació INACTIVO** (padre "Compras" orden 5 + 4 hijos, permisos ya
+  creados y asignados): el componente actual es el que se reescribe en Fase 6 —
+  no se expone. Activación: Fase 5 → proveedores + pagos-proveedores; Fase 6 →
+  padre + listado-compras; Fase 8 → reportes-compras. La navegación filtra
+  `activo=true` (MenuItem:90).
+- Hijo del listado: slug `listado-compras` (el slug `compras` lo lleva el padre,
+  UNIQUE) — nombre "Listado de Compras", patrón Ventas/Clientes.
+- **Permisos según la convención REAL del proyecto** (no la del docblock viejo):
+  pantallas = `menu.{slug}` (listado-compras/proveedores/pagos-proveedores/
+  reportes-compras), acciones = `func.compras.*` (crear/confirmar/cancelar/
+  pagar/pagar_avanzado/revisar_precios) y `func.costos.*` (ver/editar) vía
+  `permisos_funcionales`. NO existen func.compras.ver/proveedores/reportes (los
+  cubre el permiso de menú). Sin middleware `permission:` en rutas — el
+  proyecto no lo usa en ninguna (verificado); autorización en componentes.
+- Asignación default: Administrador + Super Administrador en todos los tenants
+  (patrón delivery); el resto de los roles se asigna por comercio desde la
+  pantalla Roles y Permisos.
+- Parche compat D11 en el service viejo (`CompraService:80`): `estado` siempre
+  `completada` (antes cta_cte ⇒ 'pendiente', valor que ya no existe en el enum).
+  La vista vieja conserva referencias muertas a 'pendiente' (filtro/badge) —
+  inofensivas, muere todo en la reescritura de Fase 6.
+- Hallazgo: los comercios 5-13 son registros residuales SIN tablas tenant
+  (ni `sucursales`) — la migración los saltea con guard; el único tenant real
+  (comercio 1) quedó reconciliado y `compra_percepciones` se crea donde falte.
+- `WithTenant::$testTables` ganó compras/compras_detalle/compra_percepciones
+  (DELETE selectivo para los tests de las fases siguientes).
+- Verificación: pint OK, suite Smoke completa 193 verdes, tenant_tables.sql
+  regenerado (bloques compras + compras_detalle al schema final).
 
-### Fase 3: CostoService núcleo [PENDIENTE]
+### Fase 2: BD de costos [COMPLETO]
+Migraciones 2-11 (incl. detalle de compras, utilidad en artículos/categorías,
+cuentas_compra RF-22) + modelos (`ArticuloCosto`, `HistorialCosto`,
+`ArticuloProveedor`, `ConfiguracionCostos`, `CuentaCompra`) + relaciones en
+`Articulo`/`Proveedor`/`Categoria` + ProvisionComercioCommand.
+
+#### Ajustes de implementación (Fase 2, 2026-07-09)
+- Migraciones 2-11 en UN bundle (`2026_07_09_130000_create_bd_costos_fase2`,
+  patrón validado en integraciones de pago), idempotente columna a columna.
+  Ejecutada en dev y test, efecto verificado contra BD real (7 tablas nuevas,
+  las columnas de compras/compras_detalle/articulos/categorias/proveedores y
+  los seeds de configuracion_costos + las 4 cuentas de compra).
+- Modelos nuevos (7): ArticuloCosto, HistorialCosto (UPDATED_AT null, patrón
+  HistorialPrecio), ArticuloProveedor, ConfiguracionCostos (singleton
+  `obtener()` con firstOrCreate — cubre tenants de test creados del SQL pelado
+  sin seeds), CuentaCompra, CompraIva, CompraConcepto. Actualizados (5):
+  Compra (encabezado completo + relaciones ivas/conceptos/cuentaCompra/
+  compraOrigen/notasCredito), CompraDetalle, Articulo (utilidad + costos()/
+  historialCostos()/proveedores()), Categoria, Proveedor (cuentaCompra()/
+  articulos()).
+- `ProvisionComercioCommand::seedCostos()` nuevo (config + cuentas de compra
+  para comercios nuevos; menú y permisos ya los toma genérico de Fase 1).
+- **Gotcha MySQL documentado en el schema**: el UNIQUE (articulo_id,
+  sucursal_id) NO impide duplicar la fila consolidada (NULL admite N filas) —
+  la unicidad del consolidado la garantiza CostoService como única puerta de
+  escritura (firstOrCreate + lockForUpdate en transacción, Fase 3).
+- tenant_tables.sql regenerado por DUMP REAL del comercio 1 (12 bloques:
+  5 reemplazados + 7 nuevos, prefijo → {{PREFIX}}, sin AUTO_INCREMENT) y
+  VALIDADO end-to-end con TEST_FORCE_RECREATE=1 (recreación completa desde el
+  SQL + smoke verde).
+- WithTenant::$testTables ganó las 7 tablas nuevas.
+- Verificación: pint OK, suite Smoke completa 193 verdes.
+
+### Fase 3: CostoService núcleo [COMPLETO]
 Costo computable + registrarDesdeCompra (último/PPP/proveedor/historial/consolidado)
 + actualizarManual + reversión + cascada utilidad + margen/precio sugerido.
 Suite de tests completa (es el corazón del feature).
 
-### Fase 4: CompraService nuevo [PENDIENTE]
-Reescritura completa (RF-12): borrador→completada→cancelada, descuentos
-anidados, costo_unitario_neto, percepciones → ImpuestoService (registrar/anular
-con patrón NC), CostoService, costo correcto en MovimientoStock, NC de proveedor
-(RF-21: efectos inversos parciales). Tests de integración
-compra→costo→ledger→NC.
+#### Ajustes de implementación (Fase 3, 2026-07-09)
+- `CostoService` (app/Services/CostoService.php) con TODOS los métodos del
+  spec + `prorratearPorImporte()` público (el prorrateo de descuento global y
+  conceptos es del pipeline de confirmación — Fase 4 — pero la herramienta con
+  residuo-al-último vive acá) y `costoRector()` como lector formal con la
+  config (ultimo/promedio/reposición con fallback).
+- **Contrato de `registrarDesdeCompra` fijado**: asume que el stock YA incluye
+  la compra (orden del pipeline: stock → costos) y resta la cantidad propia
+  para ponderar el PPP contra el stock previo. Agrupa renglones por artículo
+  (el mismo artículo en N renglones pondera dentro del comprobante).
+- Desvío documentado de RF-03: el historial se registra por CADA compra aunque
+  el costo no cambie — es el marcador de idempotencia y la trazabilidad de
+  "qué costo trajo cada compra" (evita re-aplicar el PPP en un retry).
+- RF-07: restaurar a "sin costo" (cancelar la primera compra) registra
+  `costo_nuevo = 0` con detalle explícito (la columna es NOT NULL); el origen
+  (proveedor/compra previos) se reapunta desde el historial previo.
+- `alicuotaEfectiva` (D21): CUIT resuelto por sucursal vía pivot
+  `cuit_sucursal.es_principal` (fallback: primer CUIT de la sucursal;
+  consolidado: primer CUIT activo del comercio; sin CUIT ⇒ NO computa IVA).
+- Gotcha: la relación artículo→categoría se llama `categoriaModel` (no
+  `categoria`) — la cascada de utilidad la usa.
+- `PrecioService::aplicarRedondeo(float, string)` público extraído de
+  CambioMasivoPrecios (que ahora delega) — tipos: ninguno/entero/decena/centena.
+- Tests: `CostoServiceTest` 28 verdes cubriendo TODOS los criterios de
+  aceptación de la fase (cascada 829,35 / PPP 110 / arranque PPP NULL /
+  sugerido 169,40 / monotributo 140 sin IVA / margen inverso 40% / cascada
+  utilidad 50-40-30 / consolidado multi-sucursal / reversión con restauración
+  / idempotencia / redondeos). Suite completa de services: 287 verdes.
+- Nota de entorno de test: cuits/cuit_sucursal no están en el DELETE selectivo
+  de WithTenant — la suite limpia SOLO sus cuits (un DELETE global choca con
+  FKs de residuos de otras suites, ej. cuentas_empresa→cuits).
 
-### Fase 5: Cuenta corriente de proveedores (RF-18/19) [PENDIENTE]
+### Fase 4: CompraService nuevo [COMPLETO]
+Reescritura completa (RF-12): borrador→completada→cancelada, descuentos
+anidados, costo_unitario_computable, gate del crédito + `$ivaCredito` desde
+compra_ivas, ajuste de ImpuestoService (período = fecha_comprobante; anular
+con patrón NC cross-período), CostoService, costo correcto en MovimientoStock,
+NC de proveedor (RF-21: efectos inversos parciales, desglose IVA propio).
+Tests de integración compra→costo→ledger→NC (incl. matriz condición IVA ×
+tipo comprobante contra el ledger y el período del crédito).
+
+#### Ajustes de implementación (Fase 4, 2026-07-09)
+- **ImpuestoService ajustado**: `registrarDesdeCompra` usa
+  `fecha_comprobante ?? fecha` para el período + parámetro `esNotaCredito`
+  (RF-21: reversa NEGATIVA con el desglose PROPIO de la NC en su período);
+  `anularDesdeCompra` REESCRITO al patrón cross-período — reversas negativas
+  fechadas HOY, originales quedan ACTIVOS y netean a cero (antes flipaba
+  estado en el período original, que puede estar declarado). Idempotente por
+  suma-cero. El test viejo `anular_desde_compra_contraasienta` se adaptó a la
+  semántica nueva + 2 tests nuevos (período por fecha_comprobante, NC negativa).
+- **Caso RG 5003 completado en la CADENA DE COSTO** (hallazgo de esta fase —
+  la regla del spec era ambigua acá): factura A/M con comprador NO-RI viene
+  NETA impresa, pero el IVA no recuperable ES costo ⇒
+  `costoComputableRenglon` ganó `alicuota_no_recuperable` (la alícuota del
+  tipo_iva del renglón cuando `discrimina AND !compradorRI`; 0 en el resto).
+  Test: neto 100 + IVA 21 ⇒ computable 121 para monotributo comprador.
+- Compra model: constantes de estado (D11) y de tipos de comprobante
+  (factura_a/b/c/m, no_fiscal, nota_credito_a/b/c/no_fiscal) + helpers
+  esNotaCredito()/esFiscal()/discriminaIva()/esBorrador() + scopes
+  borradores/completadas/canceladas/activas (el scope 'pendientes' murió).
+- CompraService API: crearBorrador / actualizarBorrador (hereda sucursal y
+  usuario al validar) / eliminarBorrador / confirmarCompra / cancelarCompra /
+  esComprobanteDuplicado / advertenciaComprobanteCuit (los textos de la
+  advertencia RG 5003 y "B a un RI" listos para la UI de Fase 6).
+- Validaciones de coherencia D15 en la confirmación: comprobante que no
+  discrimina NO lleva compra_ivas; compra no fiscal NO lleva percepciones;
+  NC con origen exige misma proveedor + completada; fecha_comprobante
+  obligatoria si fiscal.
+- Números internos: COM-{suc}-{8dig} para compras, NCP- para NC (el real del
+  proveedor viaja en numero_comprobante_proveedor).
+- **Cancelar con pagos aplicados bloqueado hasta Fase 5** (guard
+  saldo_pendiente == total): el hook D17 (cascada o saldo a favor) se
+  implementa con la cta cte de proveedores.
+- El componente viejo `Compras` no rompe en mount (usa boot() con DI y el
+  contenedor resuelve el constructor nuevo); sus acciones viejas quedan
+  muertas hasta la reescritura de Fase 6 (menú inactivo, sin exposición).
+- Verificación: pint OK, CompraServiceTest 17 verdes (integración
+  compra→costo→ledger→NC completa, matriz A-RI/B-RI/A-mono/no-fiscal,
+  prorrateos con flete y descuento global, factor bulto→stock, anti-duplicado
+  con recarga post-cancelación, cross-período), suite services 306 verdes,
+  Smoke 193 verdes.
+
+### Fase 5: Cuenta corriente de proveedores (RF-18/19) [COMPLETO]
 Migraciones 12-14 + modelos + `CuentaCorrienteProveedorService` +
 `PagoProveedorService` (incl. `MovimientoCaja::crearEgresoPagoProveedor` y
 `TesoreriaService::registrarEgresoExterno` nuevos) + cableado en
 confirmar/cancelar compra (D17) + pantalla `GestionarPagosProveedores` (ruta +
-Lazy + skeleton) + estado de cuenta + ABM proveedor (CC/días de pago).
+Lazy + skeleton) + estado de cuenta + **componente `GestionarProveedores`
+NUEVO** (ABM completo: CC/días de pago/cuenta de compra default — hoy no
+existe ABM de proveedores) + ABM `cuentas_compra`.
 Suite de tests completa (es dinero: ledger + contraasientos + caja/tesorería).
 
-### Fase 6: UI de compras [PENDIENTE]
-Componente reescrito (SucursalAware): carga por código de proveedor, descuentos
-por renglón, percepciones, tipo de comprobante, toggle no fiscal, NC, sección
-pago (contado/cta cte/pago inicial con caja activa). **Antes de esta fase:
-sesión de diseño UX con el usuario (D7).**
+#### Ajustes de implementación (Fase 5, 2026-07-09 — commits 5a núcleo + 5b UI)
+- Migración bundle `2026_07_09_150000` (12-14): orden CREATE pagos ANTES que
+  el ledger (su FK apunta a pagos_proveedores); activa el menú padre Compras
+  + Proveedores + Pagos a Proveedores (listado-compras sigue inactivo hasta
+  Fase 6).
+- **Desvío semántico documentado vs el espejo de clientes**: el movimiento
+  `uso_saldo_favor` SOLO consume el saldo (saldo_favor_debe, sin debe) — la
+  reducción de deuda viaja en el DEBE de las aplicaciones por compra, que
+  incluyen los fondos del saldo a favor (con debe además, la deuda bajaba dos
+  veces; posible bug latente del lado CLIENTES a revisar aparte).
+- El saldo de caja lo actualiza el CALLER (convención del proyecto:
+  aumentarSaldo/disminuirSaldo); el contraasiento de MovimientoCaja lo
+  restaura solo. PagoProveedorService egresa con disminuirSaldo en efectivo.
+- Origen 'caja': movimiento de caja SOLO para FP efectivo (espejo del
+  criterio afecta_caja de cobros); FP con cuenta_empresa_id vinculada egresa
+  además en la cuenta (espejo exacto del ingreso automático de cobros).
+- El permiso `func.compras.pagar_avanzado` se autoriza en el COMPONENTE
+  (service API-first sin sesión); el service valida los SALDOS de cada origen.
+- Contado SIN datos de pago ⇒ completada con saldo pendiente (D11: lo impago
+  se deriva del saldo; se paga después por la pantalla). Con datos, los
+  fondos cubren el total exacto. Default de forma_pago del borrador: cta_cte
+  si el proveedor tiene CC, efectivo si no.
+- D17 'saldo_favor': contraasiento del DEBE de cada pago aplicado + movimiento
+  `devolucion_saldo` con saldo_favor_haber (la OP queda ACTIVA — la plata
+  salió de verdad); 'anular_pagos' anula cada OP ENTERA (si tocaba otras
+  compras, también les restaura el saldo — documentado).
+- Cancelar una NC restaura el saldo de la compra origen (tope: su total).
+- UI: `GestionarProveedores` (SucursalAware; ABM + cuentas de compra + estado
+  de cuenta) y `GestionarPagosProveedores` (CajaAware + session sucursal,
+  patrón GestionarCobranzas; pago FIFO/manual, saldo a favor, desglose por
+  origen gated por pagar_avanzado, anticipo, extracto + OPs con anulación).
+  Rutas compras/proveedores y compras/pagos-proveedores.
+- MovimientoTesoreria ganó REFERENCIA_EGRESO_EXTERNO y REFERENCIA_PAGO_PROVEEDOR
+  (columna varchar, sin migración).
+- Verificación: CuentaCorrienteProveedorTest 17 verdes (ledger pasivo, contado
+  par haber/debe, pago inicial, FIFO 2 compras, anticipo+consumo, tesorería
+  con validación de saldo, caja insuficiente, anulación OP + D16, D17 ambas
+  ramas, NC contra saldo + excedente, extracto), services 323 verdes, smoke
+  Compras 4 nuevos (197 smokes totales), 112 traducciones ×3 (4122 parejas),
+  pint OK.
 
-### Fase 7: Utilidad y margen en artículos/config [PENDIENTE]
+### Fase 6: UI de compras [COMPLETO]
+Componente reescrito (SucursalAware): carga por código de proveedor, descuentos
+por renglón, percepciones, tipo de comprobante, toggle no fiscal, NC, desglose
+compra_ivas sugerido/editable con validación de cuadre, cuenta de compra
+(RF-22), sección pago (contado/cta cte/pago inicial con caja activa).
+**Sesión de diseño UX (D7) HECHA — decisiones abajo.**
+
+#### Sesión UX D7 (2026-07-09, decidida con el usuario)
+1. **Estructura**: `/compras` = listado; la carga/edición abre un MODAL A
+   PANTALLA COMPLETA. **Patrón de referencia (enmienda 2026-07-10): el modal
+   de alta/edición de PEDIDOS DELIVERY** — todo el comprobante se simula
+   dentro del modal y se puede modificar ahí mismo (no hace falta calcar el
+   editor de ventas).
+2. **Renglones = grilla tipo planilla** con navegación por teclado (Enter/Tab
+   avanza de celda; al final agrega fila). Buscador de artículo en la primera
+   celda que matchea código propio, código del proveedor seleccionado y
+   nombre. Columnas: Artículo | Cant. comprada (bultos) | Factor (precargado
+   de articulo_proveedor, editable) | Cant. stock (auto = comprada × factor) |
+   Precio unit. | Desc. | Unit. efectivo | Subtotal.
+3. **Alta rápida de artículo INLINE** desde el buscador de la grilla (patrón
+   /combobox-alta-rapida: modal mínimo nombre/categoría/IVA/código) — además
+   persiste automáticamente el código del proveedor en articulo_proveedor.
+4. **Descuentos en cascada como TEXTO "10+5+3"** en la celda (como los imprime
+   la factura del proveedor); al lado se muestra el unitario efectivo.
+5. **Sección fiscal SIEMPRE VISIBLE** junto a los totales: desglose de IVA
+   autocalculado de los renglones y EDITABLE para calzar con la factura
+   física, con advertencia de cuadre (no bloqueante); Conceptos y
+   Percepciones como sub-secciones colapsables; el pie muestra la cuenta
+   completa (neto − desc global + conceptos + IVA + percepciones = total)
+   para verificar contra la factura en vivo. Toggle NO FISCAL oculta todo el
+   bloque (D15). Advertencia comprobante×CUIT no bloqueante (textos ya en
+   CompraService::advertenciaComprobanteCuit).
+6. **Pago = MODAL AL CONFIRMAR** (patrón cobro de ventas): cta cte (sin pago o
+   pago inicial parcial) / contado (desglose FP por el total); vencimiento
+   precargado con dias_pago del proveedor.
+7. **Borrador con botón explícito** [Guardar borrador]; el listado los muestra
+   retomables/eliminables.
+8. **Post-confirmación**: resumen con aviso "N artículos bajo el margen
+   objetivo → [Revisar precios]" — NO bloquea, la revisión es retomable
+   (pantalla en Fase 8).
+9. **NC**: camino principal desde el DETALLE de la compra ([Cargar NC]
+   precarga renglones con cantidades a devolver, tope lo comprado); camino
+   secundario "Nueva NC" suelta desde el listado.
+10. **Listado = patrón lista de pedidos** (el formato de delivery/mostrador):
+    datos con botones inline (badge de pago = botón pagar), badges de estado,
+    acciones acotadas (Ver / Editar / Cargar NC / Cancelar).
+11. **Detalle con reconstrucción PERFECTA** (pedido explícito): renglones con
+    descuentos y computables, desglose fiscal, conceptos, percepciones, pagos
+    aplicados, NCs vinculadas y costos que generó — se debe poder recrear
+    exactamente los montos de la factura.
+12. **Edición "como si fuese el alta"** (pedido explícito): borrador = edición
+    directa; una COMPLETADA se reabre en el MISMO editor precargado en modo
+    corrección (patrón modal editar pedido delivery: se simula el comprobante
+    completo en el modal y se modifica ahí) — por detrás se materializa como
+    cancelar+recrear atómico
+    (preserva la inmutabilidad del ledger por contraasientos, RF-17). Los
+    CONFLICTOS (pagos aplicados, turno cerrado, stock insuficiente para
+    revertir, NCs vinculadas) se resuelven con decisiones puntuales DURANTE
+    la implementación con el usuario — anotado como pendiente de decisión.
+13. **Mobile**: listado en cards; el editor es desktop-first (la grilla
+    scrollea horizontal en móvil — la carga de facturas es tarea de escritorio).
+
+#### Ajustes de implementación (Fase 6, 2026-07-10)
+
+- **Arquitectura**: `Compras` (listado full-page, SucursalAware+Lazy) monta
+  condicionalmente el sub-componente `EditorCompra` (SIN ruta propia) con
+  `@if($editorAbierto) <livewire:compras.editor-compra :key="editorKey++">`
+  — patrón exacto de PedidosDelivery/NuevoPedidoDelivery (enmienda 2026-07-10:
+  la referencia es el modal de alta/edición de pedidos delivery, no el editor
+  de ventas, que resultó ser full-page y no modal).
+- **Pago rápido en el listado** (D7 #10): el badge de pago abre un modal que
+  aplica a ESA compra vía `PagoProveedorService::registrarPago` (mismo
+  desglose FP + origen D14 de GestionarPagosProveedores).
+- **Netos RF-14**: `CompraService::crearBorrador/actualizarBorrador` aceptan
+  `neto_no_gravado`/`neto_exento` en `$data` (editables en la UI junto al
+  desglose) y `recalcularTotales` puebla `neto_gravado` = Σ bases de
+  `compra_ivas` (antes los tres quedaban en 0).
+- **Sugerencia fiscal**: el desglose de IVA + netos se auto-sugiere de los
+  renglones (cascada + prorrateo desc. global + conceptos gravados) hasta que
+  el usuario lo edita a mano (`fiscalManual`); botón "Recalcular" vuelve a la
+  sugerencia. Cuadre ±$1 por alícuota como advertencia amarilla no bloqueante.
+- **Gate costos.ver**: columna "Costo unit." del detalle, sección "Costos que
+  generó" y el aviso de margen post-confirmación solo se muestran/calculan
+  con `func.costos.ver`.
+- **Alta rápida** (D7 #3): crea el artículo con `precio_base` opcional (0 si
+  no se indica — quedará bajo margen y lo agarra la revisión de Fase 8) y
+  persiste `articulo_proveedor.codigo_proveedor` si se cargó.
+- **Corrección de completadas (D7 #12) — decisión 2026-07-10 con el usuario
+  ("completa con D17")**: `CompraService::corregirCompra()` = cancelar +
+  crearBorrador + confirmarCompra en UNA transacción, con rastro cruzado en
+  observaciones. Conflictos: pagos aplicados ⇒ el modal de pago pregunta D17
+  (saldo a favor — consumible como pago de la corregida en la misma
+  transacción, `saldoFavorProyectado()` — o cascada; turno cerrado bloquea la
+  cascada vía PagoProveedorService); NCs vinculadas activas ⇒ BLOQUEADO
+  (resolver la NC primero, validado en service y UI); stock insuficiente para
+  revertir ⇒ la reversa lanza y se deshace todo. UI: lápiz/botón "Corregir" en
+  listado y detalle (gate confirmar+cancelar); el editor detecta completada en
+  `cargarCompra` (modoCorreccion, sin guardar borrador). El anti-duplicado
+  exceptúa la original (`correccionDeId`). Tests: 3 en CompraServiceTest +
+  smoke de carga borrador/corrección.
+- Menú `listado-compras` ACTIVADO (migración 2026_07_10_120000).
+- 146 traducciones ×3; smokes: 6 tests nuevos en SmokeComprasTest.
+
+### Fase 7: Utilidad y margen en artículos/config [COMPLETO]
 Config comercio + categorías + artículos (override, flag, columnas margen,
 historial de costos, proveedores del artículo). Permisos `costos.ver/editar`.
 
-### Fase 8: Revisión de precios + repricing automático [PENDIENTE]
-`RevisionPreciosCompra` + flag automático en confirmación.
+#### Ajustes de implementación (Fase 7, 2026-07-10)
 
-### Fase 9: Verificación + docs [PENDIENTE]
+- **GestionarArticulos**: columna "Margen" (badge semáforo verde ≥ objetivo /
+  amarillo ≥ 80% / rojo, tooltip con objetivo y costo; también en cards móvil)
+  vía `margenDe()` → `CostoService::margenReal` por fila (página de 10, sin
+  cache — aceptable). Modal: sección "Costos y utilidad" con los 3 costos
+  etiquetados por su pregunta (§3b), ORIGEN del costo vigente (proveedor +
+  tipo de comprobante, §3 nota A↔B), edición manual de último/reposición
+  (`CostoService::actualizarManual`, fila de la SUCURSAL ACTIVA; reposición
+  vacía = borra), override de utilidad + flag repricing, la CUENTA del
+  sugerido desglosada y REACTIVA al override tipeado (`cuentaSugerida()`,
+  §3c), proveedores del artículo (RF-04) y modal "Historial de costos"
+  (espejo del de precios, con tipo/origen/proveedor/% cambio).
+- **Gates**: `func.costos.ver` oculta columna, sección y historial;
+  `func.costos.editar` habilita inputs de costo/utilidad/flag (server-side:
+  sin permiso los campos NI SE ESCRIBEN en save()).
+- **GestionarCategorias**: campo "Utilidad objetivo (%)" (vacío = hereda del
+  comercio), mismos gates.
+- **ConfiguracionEmpresa (tab Empresa)**: "Utilidad objetivo por defecto (%)"
+  lee/escribe `ConfiguracionCostos::obtener()` (costo rector fijo 'ultimo' en
+  v1, informado en el hint del campo).
+- Los inputs numéricos son strings con '' = null (parseo manual con coma
+  tolerada, NO reglas `numeric` que revientan con string vacío).
+- 42 traducciones ×3 (incluye claves viejas sin traducir de esos archivos);
+  smoke nuevo: edit con costos + historial de costos.
+
+### Fase 8: Revisión de precios + repricing + reportes [COMPLETO]
+`RevisionPreciosCompra` + flag automático en confirmación + `ReportesCompras`
+(compras por cuenta, RF-22).
+
+#### Ajustes de implementación (Fase 8, 2026-07-10)
+
+- **Repricing automático (RF-11)**: paso 7 de `confirmarCompra` —
+  `repricearAutomaticos()`: artículos con flag → `precioSugerido` (redondeo
+  'ninguno' en v1 — un redondeo configurable para el automático queda como
+  mejora futura, no estaba definido en el spec), alcance = regla RF-10
+  (override sucursal si existe, si no global), `HistorialPrecio` origen
+  'utilidad_automatica'. Resultado en `CompraService::$ultimoRepricing`
+  (propiedad pública de la instancia) que el editor lee para informarlo en
+  el resumen (bloque azul, sin gate de costos: son precios de venta).
+- **RevisionPreciosCompra (RF-10)**: sub-componente SIN ruta montado por el
+  listado `Compras` (evento `abrir-revision-precios` desde el detalle y desde
+  el resumen del editor; `cerrar-revision-precios` para cerrar). RETOMABLE:
+  `recalcular()` siempre contra vigentes; tras aplicar re-lista (los que
+  superan el objetivo desaparecen). Redondeo select con las opciones reales
+  de `PrecioService::aplicarRedondeo` (sin_redondeo/entero/decena/centena).
+  Precio nuevo editable por fila + checkbox. Gates: abrir = `func.costos.ver`;
+  aplicar = `func.compras.revisar_precios`. Origen historial:
+  'revision_compra' (con sucursal_id si el alcance es override).
+- **ReportesCompras (RF-22)**: patrón ReportesTesoreria (generar bajo demanda,
+  stat-tiles + tabla por corte) con cortes cuenta/proveedor/mes, NC restando,
+  "Sin clasificar" como fila propia y drill-down expandible a las compras del
+  grupo. Agrupa por `fecha` (de carga — el período fiscal usa
+  fecha_comprobante y vive en el Libro IVA, no acá). Ruta `compras.reportes`
+  + ítem de menú `reportes-compras` ACTIVADO (migración 2026_07_10_150000) —
+  el grupo Compras queda completo.
+- 33 traducciones ×3; smokes: ReportesCompras genera + RevisionPreciosCompra
+  monta sobre completada; test RF-11 en CompraServiceTest (flag repricea,
+  sin flag intacto, historial 'utilidad_automatica').
+
+### Fase 9: Verificación + docs [EN PROGRESO]
 /sdd-verify + @docs-sync + manual de usuario.
+
+#### Verificación (2026-07-13, /sdd-verify APROBADO)
+- Validación EN VIVO del usuario: circuito completo Fases 6-8 + ronda UX del
+  editor (2026-07-13) — OK.
+- Suites: services 328 verdes (CompraService 22, CostoService 28,
+  CuentaCorrienteProveedor 17 incluidos) + Livewire 267 verdes (SmokeCompras 21).
+- Tests agregados en el verify: revisión de precios aplica en lote + registra
+  HistorialPrecio origen 'revision_compra' (retomable), reporte por cuenta con
+  NC restando (resumen + corte).
+- Verificación estática: menú padre compras + 4 hijos activos en menu_items,
+  rutas compras.* en web.php, 8 permisos funcionales compras.*/costos.* en
+  permisos_funcionales (syncAllToSpatie → seedRolesYPermisos), traducciones
+  4369 claves ×3 idiomas consistentes.
+- Sin cobertura de test directo (verificados en vivo / one-shot): migración de
+  estados 'pendiente'→'completada' (one-shot Fase 1 con efecto verificado en
+  BD), gate UI de pagar_avanzado (forzado a caja activa), advertencia de cuadre
+  sugerido vs cargado (componente), búsqueda por código de proveedor en el
+  editor (el service ArticuloProveedor::porCodigo sí se ejercita vía selección).
+- Ronda UX post-validación (2026-07-13, commits 303d75c/58aa2ef): sugerencia de
+  tipo de comprobante por condición IVA proveedor×CUIT, n° comprobante en 2
+  inputs con zero-pad, fix dropdown/tipeo rápido, navegación flechas, foco a
+  cantidad, alta rápida proveedor, lupa búsqueda avanzada, precarga de precio
+  desde costo vigente, densidad. Con test de matriz A/B/C + 6 smokes.
 
 ### Fases futuras (fuera de alcance)
 - **Transferencias inter-sucursal** (D5, ampliada 2026-07-02): módulo PROPIO
@@ -1085,3 +1632,40 @@ historial de costos, proveedores del artículo). Permisos `costos.ver/editar`.
     permisos de compras solo en docblock (sin seed/middleware/authorize); drift
     de `forma_pago` mayor al anotado (dos sets distintos SQL vs código);
     `cancelarCompra()` sin contraasiento de caja.
+- 2026-07-09 (quinta ronda: revisión impositiva profunda pre-apply, verificada
+  contra código real y APROBADA por el usuario):
+  - **Fixes críticos del circuito IVA** (el corazón del balance compra/venta):
+    (1) período del crédito = `fecha_comprobante` — `registrarDesdeCompra` usaba
+    `compra->fecha` (ImpuestoService.php:540), que además hoy es timestamp
+    ON UPDATE y se auto-pisa; (2) fuente canónica del crédito = `compra_ivas`
+    (nunca la suma de renglones) + validación de cuadre con tolerancia +
+    sugerencia calculada DESPUÉS de descuentos; (3) gate explícito del caller:
+    crédito solo si fiscal AND discrimina AND CUIT comprador RI (el service no
+    gatea, a diferencia del débito que gatea RI en línea 441); (4) la validación
+    comprobante×CUIT pasa a ADVERTENCIA — post RG 5003/2021 un monotributista
+    SÍ recibe factura A (CondicionIva ya documenta códigos 6/13/16 válidos);
+    la regla de costo (discrimina + no-RI ⇒ todo al costo) ya lo manejaba bien.
+  - **D21 — alícuota efectiva por condición del comercio**: las fórmulas de
+    precio sugerido y margen anulan la alícuota si el CUIT default del comercio
+    no es RI (para un monotributista el costo es bruto y todo el precio es
+    ingreso; la fórmula única le inflaba el sugerido y le mentía el margen).
+    También respetan `articulo.precio_iva_incluido=false`. Única puerta:
+    `CostoService::alicuotaEfectiva()`.
+  - **D22 — Cuentas de compra** (pedido del usuario): agrupación de gestión
+    para reportes de gastos. Configuración elegida: catálogo `cuentas_compra`
+    + default por PROVEEDOR + override por COMPRA (por artículo no tipifica el
+    gasto; solo por compra obliga a elegir siempre). Reporte "Compras por
+    cuenta". Split por renglón anotado como futuro (facturas mixtas).
+  - **Menú: grupo padre "Compras"** (pedido del usuario): Compras / Proveedores
+    / Pagos a proveedores / Reportes. Verificado: hoy NO hay ítem de compras en
+    menu_items ni ABM de proveedores (solo un select en Compras) → componente
+    `GestionarProveedores` NUEVO en Fase 5 + permisos `compras.proveedores` y
+    `compras.reportes`.
+  - Menores: rename `costo_unitario_neto`→`costo_unitario_computable` (en B/C/
+    no fiscal contiene IVA no recuperable — nombre honesto); conceptos con
+    `tipo_iva_id` y monto en la misma base que renglones (flete de factura A =
+    neto, su IVA en compra_ivas); NC carga su PROPIO desglose de IVA (el
+    proporcional solo precarga); factura M = A para el crédito (retenciones
+    manuales v1, pregunta al contador); UI muestra origen/tipo de comprobante
+    del costo vigente (salto de base A↔B ~21% es real pero hay que verlo);
+    drop de `compras.caja_id` (huérfana con D14).

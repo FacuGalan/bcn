@@ -328,6 +328,19 @@
                                     {{ __('Stock') }}: {{ number_format($articulo->stock_cantidad ?? 0, 2) }}
                                 </span>
                             @endif
+                            @if($this->puedeVerCostos())
+                                @php $margenMobile = $this->margenDe($articulo); @endphp
+                                @if($margenMobile !== null)
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium
+                                        {{ $margenMobile['margen_real'] >= $margenMobile['utilidad_objetivo']
+                                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                            : ($margenMobile['margen_real'] >= $margenMobile['utilidad_objetivo'] * 0.8
+                                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                                : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200') }}">
+                                        {{ __('Margen') }}: {{ number_format($margenMobile['margen_real'], 1) }}%
+                                    </span>
+                                @endif
+                            @endif
                         </div>
                         @php
                             $precioEfectivoMobile = $articulo->precio_sucursal !== null ? $articulo->precio_sucursal : ($articulo->precio_base ?? 0);
@@ -388,6 +401,9 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Artículo') }}</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Categoría') }}</th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Precio') }}</th>
+                            @if($this->puedeVerCostos())
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider" title="{{ __('Margen real sobre el costo (el costo se actualiza con las compras)') }}">{{ __('Margen') }}</th>
+                            @endif
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Stock') }}</th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">{{ __('Acciones') }}</th>
                         </tr>
@@ -424,6 +440,26 @@
                                         </div>
                                     @endif
                                 </td>
+                                @if($this->puedeVerCostos())
+                                    <td class="px-6 py-4 whitespace-nowrap text-right">
+                                        @php $margenFila = $this->margenDe($articulo); @endphp
+                                        @if($margenFila !== null)
+                                            @php
+                                                $claseMargen = $margenFila['margen_real'] >= $margenFila['utilidad_objetivo']
+                                                    ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                                    : ($margenFila['margen_real'] >= $margenFila['utilidad_objetivo'] * 0.8
+                                                        ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
+                                                        : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200');
+                                            @endphp
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $claseMargen }}"
+                                                  title="{{ __('Objetivo') }}: {{ number_format($margenFila['utilidad_objetivo'], 1) }}% · {{ __('Costo') }}: ${{ number_format($margenFila['costo_rector'], 2) }}">
+                                                {{ number_format($margenFila['margen_real'], 1) }}%
+                                            </span>
+                                        @else
+                                            <span class="text-xs text-gray-400" title="{{ __('Sin costo registrado: se completa con la primera compra') }}">—</span>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td class="px-6 py-4 whitespace-nowrap text-right">
                                     @if($articulo->modo_stock_sucursal && $articulo->modo_stock_sucursal !== 'ninguno')
                                         <span class="text-sm font-medium text-gray-900 dark:text-white">
@@ -494,7 +530,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400" >
+                                <td colspan="{{ $this->puedeVerCostos() ? 7 : 6 }}" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400" >
 
                                     <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
@@ -913,6 +949,155 @@
                                         </button>
                                     </div>
                                 </div>
+
+                                <!-- Costos y utilidad (Fase 7 spec compras-costos, RF-02/08/09) -->
+                                @if($this->puedeVerCostos())
+                                    <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                        <div class="flex items-center justify-between mb-1">
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Costos y utilidad') }}</label>
+                                            @if($editMode)
+                                                <button type="button" wire:click="verHistorialCostos({{ $articuloId }})"
+                                                    class="text-xs text-teal-600 dark:text-teal-400 hover:underline">
+                                                    {{ __('Historial de costos') }}
+                                                </button>
+                                            @endif
+                                        </div>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                            {{ __('El costo se actualiza con las COMPRAS (nunca con las ventas)') }}
+                                        </p>
+
+                                        @if($editMode)
+                                            @php
+                                                $ci = $costosInfo;
+                                                $filaVista = $ci['usa_consolidado'] ?? false ? ($ci['consolidado'] ?? null) : ($ci['sucursal'] ?? null);
+                                                $filaVista = $filaVista ?? ($ci['consolidado'] ?? null);
+                                            @endphp
+
+                                            {{-- Los 3 costos, etiquetados por su pregunta (§3b) --}}
+                                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                        {{ __('Último') }} <span class="font-normal">({{ __('¿cuánto me sale hoy?') }})</span>
+                                                    </label>
+                                                    @if($this->puedeEditarCostos())
+                                                        <input type="text" wire:model="costo_ultimo_manual"
+                                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                    @else
+                                                        <p class="mt-1 text-sm text-gray-900 dark:text-white text-right">
+                                                            {{ $filaVista && $filaVista['ultimo'] !== null ? '$'.number_format($filaVista['ultimo'], 2) : '—' }}
+                                                        </p>
+                                                    @endif
+                                                    @if($ci['origen'] ?? null)
+                                                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400" title="{{ __('Origen del costo vigente: con factura A el costo es neto, con B incluye el IVA no recuperable') }}">
+                                                            {{ $ci['origen'] }}@if($filaVista['fecha'] ?? null) · {{ $filaVista['fecha'] }}@endif
+                                                        </p>
+                                                    @endif
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                        {{ __('Promedio') }} <span class="font-normal">({{ __('¿cuánto me costó lo que tengo?') }})</span>
+                                                    </label>
+                                                    <p class="mt-1 text-sm text-gray-900 dark:text-white text-right py-2">
+                                                        {{ $filaVista && $filaVista['promedio'] !== null ? '$'.number_format($filaVista['promedio'], 2) : '—' }}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                                                        {{ __('Reposición') }} <span class="font-normal">({{ __('manual') }})</span>
+                                                    </label>
+                                                    @if($this->puedeEditarCostos())
+                                                        <input type="text" wire:model="costo_reposicion" placeholder="{{ __('Vacío = usa el último') }}"
+                                                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                    @else
+                                                        <p class="mt-1 text-sm text-gray-900 dark:text-white text-right py-2">
+                                                            {{ $filaVista && $filaVista['reposicion'] !== null ? '$'.number_format($filaVista['reposicion'], 2) : '—' }}
+                                                        </p>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                            @if($ci['usa_consolidado'] ?? false)
+                                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                    {{ __('Sin costos propios en esta sucursal: se muestra el consolidado del comercio') }}
+                                                </p>
+                                            @endif
+                                        @endif
+
+                                        {{-- Utilidad objetivo + repricing automático --}}
+                                        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Utilidad objetivo (%)') }}</label>
+                                                <input type="text" wire:model.live.debounce.400ms="utilidad_porcentaje"
+                                                    @if(! $this->puedeEditarCostos()) disabled @endif
+                                                    placeholder="{{ $editMode && ($costosInfo['utilidad_heredada'] ?? null) !== null
+                                                        ? __('Hereda :valor% de :origen', ['valor' => number_format($costosInfo['utilidad_heredada'], 1), 'origen' => $costosInfo['origen_utilidad'] ?? __('comercio')])
+                                                        : __('Hereda de categoría/comercio') }}"
+                                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-60">
+                                            </div>
+                                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between self-end">
+                                                <label class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer" title="{{ __('Al confirmar una compra que cambia el costo, el precio se recalcula solo con la utilidad objetivo') }}">
+                                                    {{ __('Precio administrado por utilidad') }}
+                                                </label>
+                                                <button type="button"
+                                                    @if($this->puedeEditarCostos()) wire:click="$toggle('precio_administrado_por_utilidad')" @endif
+                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_administrado_por_utilidad ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                                    role="switch" aria-checked="{{ $precio_administrado_por_utilidad ? 'true' : 'false' }}">
+                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_administrado_por_utilidad ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {{-- La cuenta del precio sugerido, visible y desglosada (§3c) --}}
+                                        @if($editMode)
+                                            @php $cuenta = $this->cuentaSugerida(); @endphp
+                                            @if($cuenta !== null)
+                                                <div class="mt-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
+                                                    {{ __('Precio sugerido') }}:
+                                                    ${{ number_format($cuenta['costo'], 2) }} ({{ __('costo') }})
+                                                    × {{ number_format(1 + $cuenta['utilidad'] / 100, 2) }} ({{ __('utilidad') }} {{ number_format($cuenta['utilidad'], 1) }}%)
+                                                    @if($cuenta['alicuota'] > 0)
+                                                        × {{ number_format(1 + $cuenta['alicuota'] / 100, 2) }} ({{ __('IVA') }} {{ number_format($cuenta['alicuota'], 1) }}%)
+                                                    @endif
+                                                    = <strong>${{ number_format($cuenta['sugerido'], 2) }}</strong>
+                                                    @if(($costosInfo['margen'] ?? null) !== null)
+                                                        · {{ __('Margen real actual') }}: <strong>{{ number_format($costosInfo['margen']['margen_real'], 1) }}%</strong>
+                                                        ({{ __('objetivo') }} {{ number_format($costosInfo['margen']['utilidad_objetivo'], 1) }}%)
+                                                    @endif
+                                                </div>
+                                            @endif
+
+                                            {{-- Proveedores del artículo (RF-04) --}}
+                                            @if(($costosInfo['proveedores'] ?? []) !== [])
+                                                <div class="mt-3">
+                                                    <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Proveedores del artículo') }}</label>
+                                                    <div class="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
+                                                        <table class="min-w-full text-xs">
+                                                            <thead class="bg-gray-50 dark:bg-gray-900">
+                                                                <tr>
+                                                                    <th class="px-2 py-1.5 text-left font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Proveedor') }}</th>
+                                                                    <th class="px-2 py-1.5 text-left font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Código') }}</th>
+                                                                    <th class="px-2 py-1.5 text-right font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Factor') }}</th>
+                                                                    <th class="px-2 py-1.5 text-right font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Último costo') }}</th>
+                                                                    <th class="px-2 py-1.5 text-right font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Última compra') }}</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
+                                                                @foreach($costosInfo['proveedores'] as $prov)
+                                                                    <tr>
+                                                                        <td class="px-2 py-1.5 text-gray-800 dark:text-gray-200">{{ $prov['proveedor'] }}</td>
+                                                                        <td class="px-2 py-1.5 text-gray-600 dark:text-gray-400">{{ $prov['codigo'] ?? '—' }}</td>
+                                                                        <td class="px-2 py-1.5 text-right text-gray-600 dark:text-gray-400">{{ rtrim(rtrim(number_format($prov['factor'], 4, ',', '.'), '0'), ',') }}</td>
+                                                                        <td class="px-2 py-1.5 text-right text-gray-800 dark:text-gray-200">{{ $prov['costo'] !== null ? '$'.number_format($prov['costo'], 2) : '—' }}</td>
+                                                                        <td class="px-2 py-1.5 text-right text-gray-600 dark:text-gray-400">{{ $prov['fecha'] ?? '—' }}</td>
+                                                                    </tr>
+                                                                @endforeach
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            @endif
+                                        @endif
+                                    </div>
+                                @endif
 
                                 <!-- Configuración de stock y sucursal -->
                                 <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
@@ -1662,6 +1847,132 @@
                                         </td>
                                         <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['sucursal'] ?? __('Genérico') }}</td>
                                         <td class="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 max-w-xs truncate">{{ $registro['detalle'] ?? '-' }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </x-slot:body>
+
+            <x-slot:footer>
+                <button type="button"
+                        @click="close()"
+                        class="w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-600 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-500 sm:w-auto sm:text-sm">
+                    {{ __('Cerrar') }}
+                </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    <!-- Modal Historial de Costos (RF-03, espejo del historial de precios) -->
+    @if($showHistorialCostosModal)
+        @php
+            $historialCostos = $this->getHistorialCostos();
+            $articuloHistorialCostos = $historialCostosArticuloId ? \App\Models\Articulo::find($historialCostosArticuloId) : null;
+        @endphp
+        <x-bcn-modal
+            :show="$showHistorialCostosModal"
+            title="{{ __('Historial de costos') . ' - ' . ($articuloHistorialCostos?->nombre ?? '') }}"
+            color="bg-bcn-primary"
+            maxWidth="4xl"
+            onClose="cerrarHistorialCostos"
+            zIndex="z-[55]"
+        >
+            <x-slot:body>
+                @if(empty($historialCostos))
+                    <div class="text-center py-8 text-gray-500 dark:text-gray-400">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                        <p class="mt-2 text-sm">{{ __('Sin cambios registrados') }}</p>
+                        <p class="mt-1 text-xs">{{ __('El costo se actualiza con las COMPRAS (nunca con las ventas)') }}</p>
+                    </div>
+                @else
+                    @php
+                        $origenCostoClases = fn ($origen) => match($origen) {
+                            'compra' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+                            'manual' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+                            'cancelacion' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+                            'importacion' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+                            default => 'bg-gray-100 text-gray-800 dark:bg-gray-600 dark:text-gray-200',
+                        };
+                        $origenCostoLabel = fn ($origen) => match($origen) {
+                            'compra' => __('Compra'),
+                            'manual' => __('Manual'),
+                            'cancelacion' => __('Cancelación'),
+                            'importacion' => __('Importación'),
+                            default => $origen,
+                        };
+                        $tipoCostoLabel = fn ($tipo) => $tipo === 'reposicion' ? __('Reposición') : __('Último');
+                    @endphp
+                    <!-- Vista móvil: cards -->
+                    <div class="sm:hidden space-y-3">
+                        @foreach($historialCostos as $registro)
+                            <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                                <div class="flex items-center justify-between mb-2">
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $registro['fecha'] }}</span>
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $origenCostoClases($registro['origen']) }}">
+                                        {{ $origenCostoLabel($registro['origen']) }}
+                                    </span>
+                                </div>
+                                <div class="flex items-center gap-2 mb-1">
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ $tipoCostoLabel($registro['tipo']) }}:</span>
+                                    <span class="text-sm text-gray-500 dark:text-gray-400 line-through">{{ $registro['anterior'] !== null ? '$'.number_format($registro['anterior'], 2) : '—' }}</span>
+                                    <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                                    <span class="text-sm font-semibold text-gray-900 dark:text-white">${{ number_format($registro['nuevo'], 2) }}</span>
+                                    @if($registro['porcentaje'] !== null)
+                                        <span class="text-xs {{ $registro['porcentaje'] > 0 ? 'text-red-500' : 'text-green-500' }}">
+                                            ({{ $registro['porcentaje'] > 0 ? '+' : '' }}{{ number_format($registro['porcentaje'], 1) }}%)
+                                        </span>
+                                    @endif
+                                </div>
+                                <div class="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                                    <span>{{ $registro['usuario'] }}@if($registro['proveedor']) · {{ $registro['proveedor'] }}@endif</span>
+                                    <span>{{ $registro['sucursal'] }}</span>
+                                </div>
+                                @if($registro['detalle'])
+                                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 italic">{{ $registro['detalle'] }}</p>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <!-- Vista desktop: tabla -->
+                    <div class="hidden sm:block overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-700">
+                                <tr>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Fecha') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Usuario') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Tipo') }}</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Anterior') }}</th>
+                                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Nuevo') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Origen') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Proveedor') }}</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase">{{ __('Sucursal') }}</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                                @foreach($historialCostos as $registro)
+                                    <tr class="hover:bg-gray-50 dark:hover:bg-gray-700">
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['fecha'] }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['usuario'] }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $tipoCostoLabel($registro['tipo']) }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-right text-gray-500 dark:text-gray-400 line-through">{{ $registro['anterior'] !== null ? '$'.number_format($registro['anterior'], 2) : '—' }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-right font-medium text-gray-900 dark:text-white">
+                                            ${{ number_format($registro['nuevo'], 2) }}
+                                            @if($registro['porcentaje'] !== null)
+                                                <span class="text-xs {{ $registro['porcentaje'] > 0 ? 'text-red-500' : 'text-green-500' }}">
+                                                    ({{ $registro['porcentaje'] > 0 ? '+' : '' }}{{ number_format($registro['porcentaje'], 1) }}%)
+                                                </span>
+                                            @endif
+                                        </td>
+                                        <td class="px-4 py-2 whitespace-nowrap">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $origenCostoClases($registro['origen']) }}">
+                                                {{ $origenCostoLabel($registro['origen']) }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['proveedor'] ?? '—' }}</td>
+                                        <td class="px-4 py-2 whitespace-nowrap text-sm text-gray-600 dark:text-gray-300">{{ $registro['sucursal'] }}</td>
                                     </tr>
                                 @endforeach
                             </tbody>

@@ -518,10 +518,16 @@ class ImpuestoService
      *    factura) → ledger sentido sufrido con la naturaleza del impuesto.
      *
      * Guard: sin `cuit_id` no genera nada (compra sin atribución fiscal).
-     * Idempotente por origen. Cuando el módulo de compras se desarrolle, persiste
-     * las percepciones y llama acá con el IVA crédito; cancelar → anularDesdeCompra().
+     * Idempotente por origen. El caller (CompraService) arma $ivaCredito desde
+     * `compra_ivas` (fuente canónica) SOLO si fiscal AND discrimina AND CUIT
+     * comprador RI; cancelar → anularDesdeCompra().
+     *
+     * $esNotaCredito (RF-21): la NC de proveedor registra la reversa del
+     * crédito con SU PROPIO desglose, en NEGATIVO y en el período de la NC
+     * (patrón NC cross-período) — el caller pasa los montos del documento en
+     * positivo y acá se invierten.
      */
-    public function registrarDesdeCompra(Compra $compra, array $ivaCredito = [], ?int $usuarioId = null): void
+    public function registrarDesdeCompra(Compra $compra, array $ivaCredito = [], ?int $usuarioId = null, bool $esNotaCredito = false): void
     {
         if ($compra->cuit_id === null) {
             return; // Sin atribución fiscal: no alimenta el ledger.
@@ -537,14 +543,21 @@ class ImpuestoService
             return;
         }
 
-        $fecha = $compra->fecha ?? now();
+        // Período del crédito = fecha del COMPROBANTE del proveedor (RF-06 del
+        // spec compras-costos: una factura de junio cargada en julio computa
+        // el crédito en JUNIO). Fallback a la fecha de la compra.
+        $fecha = $compra->fecha_comprobante ?? $compra->fecha ?? now();
+        $signo = $esNotaCredito ? -1 : 1;
+        $observaciones = $esNotaCredito
+            ? __('Nota de crédito de proveedor (compra origen #:id)', ['id' => $compra->compra_origen_id ?? 0])
+            : null;
 
         // IVA crédito fiscal por alícuota (sentido sufrido).
         $impuestoIvaCredito = Impuesto::porCodigo('iva_credito')->first();
 
         if ($impuestoIvaCredito !== null) {
             foreach ($ivaCredito as $linea) {
-                $monto = round((float) ($linea['monto'] ?? 0), 2);
+                $monto = round(abs((float) ($linea['monto'] ?? 0)), 2);
 
                 if ($monto <= 0) {
                     continue;
@@ -557,20 +570,21 @@ class ImpuestoService
                     'sentido' => MovimientoFiscal::SENTIDO_SUFRIDO,
                     'naturaleza' => MovimientoFiscal::NATURALEZA_CREDITO_FISCAL,
                     'fecha' => $fecha,
-                    'base_imponible' => $linea['base_imponible'] ?? null,
+                    'base_imponible' => isset($linea['base_imponible']) ? $signo * abs((float) $linea['base_imponible']) : null,
                     'alicuota' => $linea['alicuota'] ?? null,
-                    'monto' => $monto,
+                    'monto' => $signo * $monto,
                     'origen_tipo' => 'Compra',
                     'origen_id' => $compra->id,
+                    'observaciones' => $observaciones,
                     'usuario_id' => $usuarioId,
-                ]);
+                ], permitirNegativo: $esNotaCredito);
             }
         }
 
         // Percepciones/retenciones sufridas (ya persistidas en compra_percepciones).
         foreach ($compra->percepciones as $percepcion) {
             $impuesto = $percepcion->impuesto;
-            $monto = round((float) $percepcion->monto, 2);
+            $monto = round(abs((float) $percepcion->monto), 2);
 
             if ($impuesto === null || $monto <= 0) {
                 continue;
@@ -583,20 +597,27 @@ class ImpuestoService
                 'sentido' => MovimientoFiscal::SENTIDO_SUFRIDO,
                 'naturaleza' => $impuesto->naturaleza_default,
                 'fecha' => $fecha,
-                'base_imponible' => $percepcion->base_imponible,
+                'base_imponible' => $percepcion->base_imponible !== null ? $signo * abs((float) $percepcion->base_imponible) : null,
                 'alicuota' => $percepcion->alicuota,
-                'monto' => $monto,
+                'monto' => $signo * $monto,
                 'certificado_numero' => $percepcion->certificado_numero,
                 'origen_tipo' => 'Compra',
                 'origen_id' => $compra->id,
+                'observaciones' => $observaciones,
                 'usuario_id' => $usuarioId,
-            ]);
+            ], permitirNegativo: $esNotaCredito);
         }
     }
 
     /**
-     * Contraasienta los movimientos fiscales de una compra al cancelarla
-     * (RF-05). Anula todos los movimientos activos con origen Compra.
+     * Revierte los movimientos fiscales de una compra al cancelarla (RF-05),
+     * con el patrón NC CROSS-PERÍODO (revisión Fable + spec compras-costos):
+     * el período original puede estar ya declarado ante el fisco, así que la
+     * cancelación NO pisa el original — registra reversas NEGATIVAS fechadas
+     * HOY (período actual), dejando los originales activos (netean a cero).
+     *
+     * Idempotente: si la suma neta del origen ya es cero, la reversa ya corrió.
+     * Cancela también NCs (sus movimientos negativos se revierten en positivo).
      */
     public function anularDesdeCompra(Compra $compra, ?int $usuarioId = null): void
     {
@@ -606,12 +627,30 @@ class ImpuestoService
             ->where('origen_id', $compra->id)
             ->get();
 
-        foreach ($movimientos as $movimiento) {
-            $this->anularMovimientoFiscal(
-                $movimiento,
-                $usuarioId ?? (int) ($compra->usuario_id ?? 0),
-                __('Cancelación de compra #:id', ['id' => $compra->id]),
-            );
+        if ($movimientos->isEmpty() || abs((float) $movimientos->sum('monto')) < 0.01) {
+            return;
+        }
+
+        foreach ($movimientos as $original) {
+            $this->registrarMovimientoFiscal([
+                'cuit_id' => $original->cuit_id,
+                'sucursal_id' => $original->sucursal_id,
+                'impuesto_id' => $original->impuesto_id,
+                'sentido' => $original->sentido,
+                'naturaleza' => $original->naturaleza,
+                'fecha' => now(),
+                'base_imponible' => $original->base_imponible !== null ? -1 * (float) $original->base_imponible : null,
+                'alicuota' => $original->alicuota,
+                'monto' => -1 * (float) $original->monto,
+                'certificado_numero' => $original->certificado_numero,
+                'origen_tipo' => 'Compra',
+                'origen_id' => $compra->id,
+                'observaciones' => __('Cancelación de compra #:id (reversa del movimiento #:mov)', [
+                    'id' => $compra->id,
+                    'mov' => $original->id,
+                ]),
+                'usuario_id' => $usuarioId ?? (int) ($compra->usuario_id ?? 0),
+            ], permitirNegativo: true);
         }
     }
 

@@ -57,12 +57,22 @@ class Proveedor extends Model
         'es_sucursal_interna',
         'sucursal_id',
         'cliente_id',
+        // Cuenta de compra default para reportes (spec compras-costos RF-22)
+        'cuenta_compra_id',
+        // Cuenta corriente (RF-18): habilita el circuito de deuda/pagos
+        'tiene_cuenta_corriente',
+        'dias_pago',
+        'saldo_cache',
+        'ultimo_movimiento_ccp_at',
         'activo',
     ];
 
     protected $casts = [
         'es_sucursal_interna' => 'boolean',
         'activo' => 'boolean',
+        'tiene_cuenta_corriente' => 'boolean',
+        'saldo_cache' => 'decimal:2',
+        'ultimo_movimiento_ccp_at' => 'datetime',
     ];
 
     // Relaciones
@@ -74,6 +84,35 @@ class Proveedor extends Model
     public function condicionIva(): BelongsTo
     {
         return $this->belongsTo(CondicionIva::class, 'condicion_iva_id');
+    }
+
+    /**
+     * Cuenta de compra default (RF-22): precarga compras.cuenta_compra_id.
+     */
+    public function cuentaCompra(): BelongsTo
+    {
+        return $this->belongsTo(CuentaCompra::class, 'cuenta_compra_id');
+    }
+
+    /**
+     * Artículos que este proveedor provee (códigos + costos, RF-04).
+     */
+    public function articulos(): HasMany
+    {
+        return $this->hasMany(ArticuloProveedor::class, 'proveedor_id');
+    }
+
+    /**
+     * Ledger de cuenta corriente (RF-18) y órdenes de pago (RF-19).
+     */
+    public function movimientosCuentaCorriente(): HasMany
+    {
+        return $this->hasMany(MovimientoCuentaCorrienteProveedor::class, 'proveedor_id');
+    }
+
+    public function pagosProveedor(): HasMany
+    {
+        return $this->hasMany(PagoProveedor::class, 'proveedor_id');
     }
 
     /**

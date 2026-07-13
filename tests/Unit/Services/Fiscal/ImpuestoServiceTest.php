@@ -1038,16 +1038,61 @@ class ImpuestoServiceTest extends TestCase
         $this->assertEquals(1, MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', 303)->count());
     }
 
-    public function test_anular_desde_compra_contraasienta(): void
+    public function test_anular_desde_compra_reversa_cross_periodo(): void
     {
+        // Patrón NC cross-período (spec compras-costos): la cancelación NO pisa
+        // el original (su período puede estar declarado) — registra una reversa
+        // NEGATIVA fechada HOY; ambos quedan activos y netean a cero.
         $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
-        $c = $this->compra(304, $this->cuit()->id);
-        $this->service->registrarDesdeCompra($c, [['base_imponible' => 1000, 'alicuota' => 21, 'monto' => 210]], 7);
+        $c = $this->compra(304, $this->cuit()->id, [], '2026-05-10'); // período viejo
 
+        $this->service->registrarDesdeCompra($c, [['base_imponible' => 1000, 'alicuota' => 21, 'monto' => 210]], 7);
         $this->service->anularDesdeCompra($c, 7);
 
-        $activos = MovimientoFiscal::activos()->where('origen_tipo', 'Compra')->where('origen_id', 304)->count();
-        $this->assertEquals(0, $activos);
+        $movs = MovimientoFiscal::activos()->where('origen_tipo', 'Compra')->where('origen_id', 304)->get();
+
+        $this->assertCount(2, $movs);
+        $this->assertEqualsWithDelta(0.0, (float) $movs->sum('monto'), 0.001);
+
+        $reversa = $movs->first(fn ($m) => (float) $m->monto < 0);
+        $original = $movs->first(fn ($m) => (float) $m->monto > 0);
+        $this->assertEquals('2026-05', $original->periodo_fiscal);
+        $this->assertEquals(now()->format('Y-m'), $reversa->periodo_fiscal); // reversa en el período ACTUAL
+
+        // Idempotente: re-anular no duplica (la suma ya es cero).
+        $this->service->anularDesdeCompra($c, 7);
+        $this->assertEquals(2, MovimientoFiscal::activos()->where('origen_tipo', 'Compra')->where('origen_id', 304)->count());
+    }
+
+    public function test_registrar_desde_compra_usa_fecha_comprobante_para_el_periodo(): void
+    {
+        // RF-06 spec compras-costos: factura de junio cargada en julio computa
+        // el crédito en JUNIO (fecha_comprobante rige, no la fecha de carga).
+        $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
+        $c = $this->compra(305, $this->cuit()->id, [], '2026-07-09');
+        $c->fecha_comprobante = '2026-06-15';
+
+        $this->service->registrarDesdeCompra($c, [['base_imponible' => 1000, 'alicuota' => 21, 'monto' => 210]], 7);
+
+        $mov = MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', 305)->first();
+        $this->assertEquals('2026-06', $mov->periodo_fiscal);
+    }
+
+    public function test_registrar_desde_compra_nota_credito_en_negativo(): void
+    {
+        // RF-21: la NC de proveedor registra la reversa del crédito con SU
+        // desglose, en negativo y en el período de la NC.
+        $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
+        $nc = $this->compra(306, $this->cuit()->id, [], '2026-07-09');
+        $nc->fecha_comprobante = '2026-07-05';
+        $nc->compra_origen_id = 300;
+
+        $this->service->registrarDesdeCompra($nc, [['base_imponible' => 300, 'alicuota' => 21, 'monto' => 63]], 7, esNotaCredito: true);
+
+        $mov = MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', 306)->first();
+        $this->assertEquals(-63.0, (float) $mov->monto);
+        $this->assertEquals(-300.0, (float) $mov->base_imponible);
+        $this->assertEquals('2026-07', $mov->periodo_fiscal);
     }
 
     // ==================== registrarDesdeConciliacion (RF-06, Fase 4a) ====================

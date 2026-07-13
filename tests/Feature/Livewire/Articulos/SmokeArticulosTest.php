@@ -5,6 +5,7 @@ namespace Tests\Feature\Livewire\Articulos;
 use App\Livewire\Articulos\AsignarEtiquetas;
 use App\Livewire\Articulos\AsignarOpcionales;
 use App\Livewire\Articulos\CambioMasivoPrecios;
+use App\Livewire\Articulos\GestionarArticulos;
 use App\Livewire\Articulos\GestionarEtiquetas;
 use App\Livewire\Articulos\GestionarGruposOpcionales;
 use App\Livewire\Articulos\GestionarRecetas;
@@ -13,6 +14,7 @@ use Livewire\Livewire;
 use Tests\TestCase;
 use Tests\Traits\WithSucursal;
 use Tests\Traits\WithTenant;
+use Tests\Traits\WithVentaHelpers;
 
 /**
  * Smoke tests: cada componente debe montar sin error.
@@ -26,7 +28,7 @@ use Tests\Traits\WithTenant;
  */
 class SmokeArticulosTest extends TestCase
 {
-    use WithSucursal, WithTenant;
+    use WithSucursal, WithTenant, WithVentaHelpers;
 
     protected function setUp(): void
     {
@@ -75,5 +77,21 @@ class SmokeArticulosTest extends TestCase
     public function test_gestionar_recetas_monta(): void
     {
         Livewire::test(GestionarRecetas::class)->assertOk();
+    }
+
+    /**
+     * Fase 7 (spec compras-costos): el modal de edición renderiza con la
+     * sección de costos/utilidad y el historial de costos abre sin error.
+     */
+    public function test_gestionar_articulos_edit_con_costos_monta(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+
+        Livewire::test(GestionarArticulos::class)
+            ->call('edit', $articulo->id)
+            ->assertSet('showModal', true)
+            ->call('verHistorialCostos', $articulo->id)
+            ->assertOk();
     }
 }

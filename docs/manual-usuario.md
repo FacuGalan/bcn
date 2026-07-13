@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-08 (nuevo modulo Pedidos Delivery / Take-Away: panel kanban/lista, repartidores y fondos, configuracion de zonas y promesa de entrega, tokens de API; y mejoras al listado de Pedidos por Mostrador con botones inline)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-13 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras")
 
 ---
 
@@ -21,6 +21,16 @@
   - [4.2 Vista Lista](#42-vista-lista)
   - [4.3 Vista Kanban](#43-vista-kanban)
 - [5. Compras](#5-compras)
+  - [5.1 Listado de Compras](#51-listado-de-compras)
+  - [5.2 Alta y Edicion de una Compra](#52-alta-y-edicion-de-una-compra)
+  - [5.3 Correccion de una Compra Completada](#53-correccion-de-una-compra-completada)
+  - [5.4 Notas de Credito de Proveedor](#54-notas-de-credito-de-proveedor)
+  - [5.5 Ver Detalle de una Compra](#55-ver-detalle-de-una-compra)
+  - [5.6 Cancelar una Compra](#56-cancelar-una-compra)
+  - [5.7 Revision de Precios Post-Compra](#57-revision-de-precios-post-compra)
+  - [5.8 Proveedores](#58-proveedores)
+  - [5.9 Pagos a Proveedores](#59-pagos-a-proveedores)
+  - [5.10 Reportes de Compras](#510-reportes-de-compras)
 - [6. Stock e Inventario](#6-stock-e-inventario)
   - [6.1 Inventario por Sucursal](#61-inventario-por-sucursal)
   - [6.2 Movimientos de Stock](#62-movimientos-de-stock)
@@ -1249,48 +1259,174 @@ El panel derecho muestra subtotal, IVA, descuentos aplicados y total final, actu
 
 ## 5. Compras
 
-El modulo de Compras permite registrar las compras a proveedores, lo cual actualiza automaticamente el stock y registra los movimientos de caja.
+El modulo de Compras registra las facturas/comprobantes de los proveedores. Al confirmar una compra el sistema actualiza automaticamente el stock, calcula el **costo** del articulo (ultimo, promedio y de reposicion), registra el credito fiscal de IVA y las percepciones sufridas, mueve la cuenta corriente del proveedor y, si corresponde, dispara la revision de precios de venta. El menu "Compras" agrupa 4 pantallas: **Compras** (listado + carga), **Proveedores**, **Pagos a proveedores** y **Reportes**.
+
+Los permisos relevantes del modulo son `func.compras.crear` (cargar/editar borradores), `func.compras.confirmar` (mover stock/costos/ledger/plata), `func.compras.cancelar`, `func.compras.pagar`, `func.compras.pagar_avanzado` (elegir otro origen de fondos), `func.compras.revisar_precios` y `func.costos.ver`/`func.costos.editar` (sin `func.costos.ver` no se muestran costos ni margenes en ninguna pantalla del sistema).
+
+### 5.1 Listado de Compras
+
+Pantalla `/compras`. Patron identico al listado de Pedidos: filas con los datos y botones inline sobre cada dato (el badge de pago es tambien el boton para pagar).
 
 #### Que ve al entrar
 
-- Encabezado con el titulo "Compras" y un boton **"Nueva Compra"**.
-- Panel de filtros similar al de ventas.
-- Tabla con las compras registradas.
+- Botones **"Nueva Compra"** y **"Nueva NC"** (nota de credito de proveedor suelta, sin compra origen).
+- Panel de filtros.
+- Tabla (cards en movil) con las compras de la sucursal activa.
 
 #### Filtros disponibles
 
-- **Buscar**: Por numero de comprobante o nombre de proveedor.
-- **Estado**: Todas, Completada, Pendiente, Cancelada.
-- **Forma de Pago**: Efectivo, Debito, Credito, Cuenta Corriente.
-- **Fecha Desde / Fecha Hasta**: Rango de fechas.
+- **Buscar**: Por numero de comprobante interno, numero de comprobante del proveedor o nombre de proveedor.
+- **Estado**: Todas, Borradores, Completadas, Con saldo pendiente, Canceladas.
+- **Proveedor**: Selector.
+- **Fecha Desde / Fecha Hasta**: Rango de fechas (por defecto, ultimos 30 dias).
 
-#### Como registrar una compra
+#### Columnas y acciones
 
-1. Haga clic en **"Nueva Compra"**.
-2. Se abrira un modal con el formulario de compra.
-3. **Seleccione un proveedor** (obligatorio): Busque por nombre o CUIT.
-4. **Agregue articulos**: Busque y seleccione los articulos comprados. Para cada articulo indique:
-   - Cantidad comprada.
-   - Precio unitario sin IVA (el costo de compra).
-   - El IVA se calcula automaticamente segun la configuracion del articulo.
-5. El sistema calcula automaticamente el subtotal, el IVA (credito fiscal) y el total.
-6. **Seleccione la forma de pago**:
-   - Si paga al contado, seleccione efectivo, debito o credito, y la caja correspondiente.
-   - Si es a cuenta corriente, no necesita seleccionar caja.
-7. Haga clic en **"Procesar Compra"**.
+Cada fila muestra: Proveedor, Comprobante (tipo + numero del proveedor), Fecha, Total, **Pago** (badge "Pagada" / "Saldo: $X" / "Impaga" — es un boton si tiene saldo pendiente, ver 5.9), **Estado** (badge Borrador/Completada/Cancelada) y Acciones:
 
-#### Diferencias con las ventas
+- **Ver detalle**: abre el detalle completo (ver 5.5).
+- **Editar borrador** (lapiz): reabre el editor con los datos cargados.
+- **Corregir** (solo completadas, requiere permisos de confirmar y cancelar): ver 5.3.
+- **Registrar pago**: abre un modal de pago rapido para esa compra puntual (desglose de formas de pago, mismo circuito que Pagos a Proveedores).
+- **Cargar NC**: solo en compras completadas que no son ya una NC (ver 5.4).
+- **Cancelar**: solo en completadas (ver 5.6).
+- **Eliminar borrador**: solo en borradores; se borra sin generar reversas (nunca tuvo efectos).
 
-- Las compras **aumentan** el stock (las ventas lo disminuyen).
-- Las compras generan **egresos** en la caja (las ventas generan ingresos).
-- El IVA en compras es **credito fiscal** (a favor de su empresa).
-- El proveedor es **obligatorio** (en ventas el cliente es opcional).
+### 5.2 Alta y Edicion de una Compra
 
-#### Ver detalle y anular
+Al hacer clic en "Nueva Compra" (o al editar un borrador) se abre un **modal a pantalla completa** que simula todo el comprobante: encabezado, grilla de renglones, seccion fiscal y totales. Es de escritorio (la grilla scrollea horizontal en movil; cargar una factura larga es tarea de escritorio).
 
-- **Ver detalle**: Muestra la informacion completa de la compra (proveedor, articulos, montos, forma de pago).
-- **Anular compra**: Revierte el stock y registra un contraasiento en la caja. Se requiere un motivo de anulacion.
-- **Registrar pago**: Para compras a cuenta corriente, puede registrar pagos parciales o totales.
+#### Encabezado
+
+- **Proveedor**: combobox con busqueda; boton para dar de alta un proveedor nuevo sin salir del editor (nombre, CUIT, condicion de IVA, dias de pago, cuenta de compra, si tiene cuenta corriente).
+- **CUIT comprador**: el CUIT del comercio que recibe la factura (define el credito fiscal).
+- **Tipo de comprobante**: se sugiere automaticamente segun la condicion de IVA del proveedor cruzada con la del CUIT comprador (editable). Factura A, B, C o M (M se trata como A para el credito).
+- **Compra no fiscal** (toggle): oculta toda la seccion fiscal — sin desglose de IVA, sin percepciones, nada se envia al libro IVA. El total pagado es directamente el costo.
+- **N° de comprobante**: dos campos (punto de venta + numero), con relleno de ceros automatico. No se puede cargar dos veces el mismo comprobante activo del mismo proveedor y tipo (se puede recargar tras cancelar la anterior).
+- **Fecha de comprobante** (obligatoria en compras fiscales: define el periodo del credito de IVA) y **Fecha de vencimiento** (se precarga con los "dias de pago" del proveedor).
+- **Cuenta de compra**: agrupacion de gestion para los reportes (Mercaderia, Insumos, Servicios, Gastos generales, etc.); se precarga con el default del proveedor y es editable por comprobante.
+- **Descuento global (%)**: descuento del pie de factura, se prorratea automaticamente entre los renglones por importe.
+- **Observaciones**.
+
+#### Grilla de renglones (tipo planilla)
+
+Navegacion por teclado (Enter/flechas avanzan de celda; al llegar al final se agrega una fila nueva). Columnas: **Articulo** (buscador que matchea codigo propio, codigo del proveedor seleccionado o nombre; boton de alta rapida de articulo sin salir de la grilla; lupa de busqueda avanzada con filtro por etiquetas), **Cant. comprada** (en la unidad del proveedor, ej. "bultos"), **Factor** (unidades de stock por unidad de compra, se precarga del articulo-proveedor y es editable), **Cant. stock** (calculada = comprada × factor), **Precio unit.** (se precarga automaticamente con el costo vigente del articulo cuando la celda esta vacia), **Desc.** (descuentos en cascada como texto, ej. "10+5+3", igual que los imprime la factura del proveedor), **Unit. efectivo** (resultado de aplicar la cascada) y **Subtotal**.
+
+El alta rapida de un articulo nuevo persiste tambien el codigo del proveedor para poder buscarlo por ese codigo en compras futuras.
+
+#### Seccion fiscal (siempre visible, se oculta solo con el toggle "no fiscal")
+
+- **Desglose de IVA**: se auto-sugiere a partir de los renglones (cascada de descuentos + descuento global prorrateado + conceptos gravados) y es totalmente editable para calzar con la factura fisica; boton **"Recalcular"** para volver a la sugerencia. Si el monto cargado difiere del sugerido por alicuota, aparece una advertencia (no bloqueante).
+- **Neto no gravado** / **Neto exento**.
+- **Conceptos del pie** (colapsable): flete, impuestos internos, envases u otro, con monto, IVA del concepto (si aplica) y el flag **"Computa costo"** (si esta activo, el importe se prorratea entre los renglones — por ejemplo, impuestos internos de bebidas son costo real).
+- **Percepciones sufridas** (colapsable): impuesto del catalogo, base imponible, alicuota, monto y numero de certificado.
+- **Totales del comprobante**: neto/subtotal de renglones, descuento global, conceptos, IVA, percepciones y total — para verificar contra la factura fisica en vivo.
+
+El sistema tambien puede mostrar una advertencia no bloqueante si la combinacion tipo de comprobante × condicion IVA del comprador es atipica (por ejemplo, una factura B a un Responsable Inscripto), o si la fecha del comprobante cae en un periodo fiscal ya cerrado.
+
+#### Guardar borrador o confirmar
+
+- **"Guardar borrador"**: persiste todo sin ningun efecto (no toca stock, costos ni cuenta corriente); se puede retomar despues.
+- **"Confirmar compra"**: abre el **modal de pago**:
+  - **Cuenta corriente** (si el proveedor la tiene habilitada): sin pago, o con un **pago inicial parcial** opcional.
+  - **Contado**: desglose de una o mas formas de pago por el total.
+  - El origen de los fondos es por defecto la **caja activa**; con el permiso `func.compras.pagar_avanzado` se puede elegir, por cada renglon del desglose, otra caja de la sucursal, efectivo de **Tesoreria** o una **cuenta de empresa**.
+  - Se puede usar **saldo a favor** del proveedor si existe.
+- Al confirmar, el sistema actualiza stock, costos, credito de IVA (si corresponde), cuenta corriente del proveedor y, si algun articulo quedo con margen por debajo del objetivo, lo informa en un **resumen** con el boton **"Revisar precios"** (ver 5.7). Si algun articulo tiene el flag de repricing automatico activado, se muestra tambien la lista de precios que se actualizaron solos.
+
+### 5.3 Correccion de una Compra Completada
+
+Una compra **completada es inmutable**: no vuelve a estado borrador. Para corregirla, se usa el boton **"Corregir"** (listado o detalle; requiere permisos de confirmar Y de cancelar), que reabre el mismo editor precargado con todos los datos — se edita exactamente como si fuera un alta nueva. Al guardar, por detras el sistema **cancela la compra original y crea una nueva en una sola operacion** (preserva la trazabilidad del ledger por contraasientos).
+
+Situaciones que la correccion resuelve o bloquea:
+
+- **Pagos aplicados a la original**: se pregunta si dejarlos como **saldo a favor** del proveedor (consumible en la compra corregida) o **anularlos en cascada** (bloqueado si algun pago salio de una caja con el turno ya cerrado).
+- **Notas de credito vinculadas activas**: la correccion queda **bloqueada** hasta resolver la NC primero.
+- **Stock insuficiente para revertir**: si al cancelar la original no hay stock suficiente para deshacer el movimiento, la correccion se cancela por completo.
+
+### 5.4 Notas de Credito de Proveedor
+
+Registra una devolucion parcial (o total) de una compra ya confirmada. Dos caminos:
+
+- **Desde el detalle de la compra** ("Cargar NC"): precarga los renglones con las cantidades a devolver, con tope en lo comprado.
+- **"Nueva NC" desde el listado**: NC suelta, sin compra origen (por ejemplo, un descuento financiero posterior).
+
+La NC usa el mismo editor y el mismo flujo borrador → completada → cancelada. Al confirmarla: descuenta stock por las cantidades devueltas, carga su **propio** desglose de IVA (que reduce el credito fiscal en el periodo de la NC, no el de la compra original) y genera un movimiento de cuenta corriente que reduce la deuda de la compra origen (el excedente, o una NC suelta, genera saldo a favor). Los costos (ultimo/promedio) **no** se recalculan.
+
+### 5.5 Ver Detalle de una Compra
+
+Muestra la reconstruccion completa de la factura: datos del encabezado (proveedor, comprobante, estado + pago, fechas, CUIT comprador, cuenta de compra, quien la cargo, compra origen si es una NC, observaciones), renglones (con cantidad comprada × factor = cantidad de stock, precio unitario, descuentos aplicados, IVA por renglon y, con permiso de ver costos, el costo unitario que genero), desglose de IVA, conceptos del pie, percepciones sufridas, el resumen de totales del comprobante, los pagos aplicados (con su estado), las notas de credito vinculadas y — con permiso de ver costos — los costos que la compra actualizo (costo anterior → nuevo, con el % de cambio).
+
+Desde el detalle tambien se puede **Editar borrador**, **Revisar precios**, **Corregir**, **Cargar NC** o **Cancelar compra** segun el estado y los permisos del usuario.
+
+### 5.6 Cancelar una Compra
+
+Requiere indicar un **motivo**. Revierte stock, costo (si esta compra fijo el ultimo costo vigente, se restaura el anterior), credito fiscal y movimiento de cuenta corriente, todo por contraasiento (nunca se muta un saldo directamente).
+
+Si la compra tiene **pagos aplicados**, el usuario elige:
+
+- **Dejar como saldo a favor** del proveedor (la plata realmente salio).
+- **Anular los pagos en cascada** (para el caso de una carga por error, sin pago real) — bloqueado si algun pago se hizo desde una caja cuyo turno ya esta cerrado; en ese caso solo queda la opcion de saldo a favor.
+
+### 5.7 Revision de Precios Post-Compra
+
+Se abre desde el resumen posterior a confirmar una compra, o en cualquier momento desde el boton **"Revisar precios"** del detalle (requiere `func.costos.ver` para abrirla). Lista los articulos de la compra cuyo **margen real** quedo por debajo de la utilidad objetivo: costo, precio actual, margen real, utilidad objetivo y **precio sugerido** (con un selector de redondeo: sin redondeo, entero, decena o centena).
+
+Cada fila tiene un checkbox y el precio nuevo es editable a mano. El boton **"Aplicar"** (requiere `func.compras.revisar_precios`) actualiza en lote los precios seleccionados y registra el cambio en el historial de precios del articulo.
+
+La revision es **retomable**: siempre calcula contra el costo y el precio **vigentes** (no una foto del momento de la compra) — si otra compra posterior ya cambio el costo, la revision lo refleja; los articulos que ya superaron el objetivo desaparecen de la lista.
+
+### 5.8 Proveedores
+
+Pantalla `/compras/proveedores` (permiso de menu propio — hasta esta version los proveedores solo existian como un selector dentro de Compras).
+
+#### Que ve al entrar
+
+- Filtros de busqueda y estado.
+- Tabla con los proveedores: nombre, CUIT, condicion de IVA, cuenta de compra default, si tiene cuenta corriente y estado.
+
+#### Alta / edicion de un proveedor
+
+- Datos generales: codigo, nombre, razon social, CUIT, email, telefono, direccion, condicion de IVA.
+- **Cuenta de compra default** (RF-22): la cuenta que se precarga al elegir este proveedor en una compra nueva.
+- **Tiene cuenta corriente**: habilita el circuito de cuenta corriente y pagos a plazo (proveedores sin esta opcion solo admiten compras al contado).
+- **Dias de pago**: precarga la fecha de vencimiento de las compras de este proveedor.
+
+#### Acciones
+
+- **Activar/Desactivar**.
+- **Ver estado de cuenta**: extracto de la cuenta corriente del proveedor en la sucursal activa (compras, pagos, notas de credito, con el saldo progresivo).
+- **Cuentas de compra**: modal de ABM simple del catalogo de cuentas de compra (nombre, orden, activo) usado por todo el sistema para clasificar los gastos.
+
+### 5.9 Pagos a Proveedores
+
+Pantalla `/compras/pagos-proveedores`. Espejo de Cobranzas y Cuenta Corriente de Clientes, pero del lado de lo que el comercio debe pagar. La operatoria (deuda, aging, pagos) es siempre de la **sucursal activa**.
+
+#### Que ve al entrar
+
+- Buscador de proveedores.
+- Tabla con los proveedores con deuda o con cuenta corriente habilitada, mostrando el saldo de la sucursal activa.
+
+#### Registrar un pago
+
+1. Haga clic en **"Pagar"** junto al proveedor (o **"Anticipo"** para un pago sin compras asociadas).
+2. Se muestran las compras pendientes del proveedor, con antiguedad por fecha de vencimiento.
+3. **Distribuir**: ingrese un monto total y el sistema lo asigna automaticamente a las compras mas antiguas primero (FIFO); tambien puede indicar manualmente cuanto aplicar a cada compra.
+4. **Saldo a favor**: si el proveedor tiene saldo a favor previo, puede aplicarlo al pago.
+5. **Formas de pago**: agregue una o mas (desglose). El origen de los fondos es por defecto la **caja activa**; con el permiso `func.compras.pagar_avanzado` puede elegir otra caja, efectivo de Tesoreria o una cuenta de empresa para cada renglon del desglose.
+6. Si el monto pagado supera la deuda aplicada, el excedente queda como saldo a favor del proveedor.
+7. Confirme el pago: genera una orden de pago (numerada) y actualiza el saldo pendiente de cada compra.
+
+#### Estado de cuenta y anulacion
+
+- **Ver estado de cuenta**: extracto completo (compras, pagos, notas de credito) con saldo acumulado, y el listado de ordenes de pago recientes.
+- **Anular orden de pago**: revierte el ledger y el origen de los fondos (caja, tesoreria o cuenta de empresa) y restaura el saldo pendiente de las compras afectadas. Si algun renglon de la orden salio de una caja con el turno ya cerrado, esa orden no se puede anular (una orden 100% tesoreria/cuenta de empresa siempre se puede anular).
+
+### 5.10 Reportes de Compras
+
+Pantalla `/compras/reportes` (patron identico a Reportes de Tesoreria): elija el rango de fechas y el tipo de corte (**por cuenta de compra**, **por proveedor** o **por mes**) y presione **"Generar"**.
+
+Muestra tarjetas resumen (comprobantes, total de compras, total de notas de credito, neto) y una tabla con el corte elegido — las notas de credito **restan** del total. La cuenta "Sin clasificar" agrupa las compras sin cuenta de compra asignada. Cada fila del corte se puede expandir (drill-down) para ver las compras individuales que la componen.
 
 ---
 
@@ -2014,7 +2150,7 @@ Es el catalogo central de productos de su comercio.
 #### Que ve al entrar
 
 - Panel de filtros.
-- Tabla con todos los articulos mostrando: codigo, nombre, categoria, precio, stock en la sucursal actual, tipo y estado.
+- Tabla con todos los articulos mostrando: codigo, nombre, categoria, precio, stock en la sucursal actual, tipo, estado y (con el permiso `func.costos.ver`) una columna **"Margen"** con un semaforo (verde si el margen real esta en linea con la utilidad objetivo, amarillo si esta cerca, rojo si esta por debajo) y tooltip con el detalle; tambien aparece en las cards de movil.
 - Botones en el header: **"Nuevo Articulo"**, **"Plantilla"** e **"Importar"** (en escritorio). En movil, el boton **"⋯"** agrupa las opciones "Descargar plantilla", "Importar" y "Cambio masivo de precios".
 
 #### Filtros disponibles
@@ -2059,6 +2195,23 @@ Haga clic en el boton de edicion del articulo. Se abre el mismo formulario con l
 - **Ver historial de precios**: Muestra el registro de todos los cambios de precio que ha tenido el articulo.
 
 - **Eliminar**: Solo si el articulo no tiene operaciones asociadas (ventas, compras, stock). De lo contrario, desactivelo.
+
+#### Costos y utilidad (requiere permiso "Ver costos")
+
+Dentro del modal de edicion, con el permiso `func.costos.ver` aparece la seccion **"Costos y utilidad"** (oculta por completo sin este permiso — es un dato sensible). Deja explicito que **el costo se actualiza con las COMPRAS, nunca con las ventas**:
+
+- **Los 3 costos** de la sucursal activa (si no tiene costos propios, se muestra el consolidado del comercio), etiquetados por su pregunta:
+  - **Ultimo** (¿cuanto me sale hoy?): el costo de la ultima compra confirmada. Editable a mano con el permiso `func.costos.editar`.
+  - **Promedio** (¿cuanto me costo lo que tengo?): costo promedio ponderado (PPP), de solo lectura.
+  - **Reposicion** (manual): valor editable a mano; si se deja vacio, el sistema usa el ultimo costo como referencia.
+  - Junto al costo ultimo se muestra su **origen** (proveedor + tipo de comprobante de la compra que lo genero) — el mismo articulo comprado con factura A o con factura B puede saltar de base sin que haya cambiado el precio real (el IVA no recuperable de la B es costo).
+- **"Historial de costos"**: modal (espejo del historial de precios) con cada cambio de costo: fecha, usuario, tipo (ultimo/reposicion), costo anterior → nuevo, % de cambio, origen (compra/manual/importacion/cancelacion), proveedor y sucursal.
+- **Utilidad objetivo (%)**: override de este articulo en particular. Si se deja vacio, hereda de la categoria o, si la categoria tampoco define una, del valor por defecto del comercio (configuracion). El campo muestra en el placeholder de quien esta heredando el valor.
+- **Precio administrado por utilidad**: switch opt-in — si esta activo, cada vez que una compra confirmada cambia el costo del articulo, su precio de venta se recalcula solo con la formula de utilidad objetivo (sin pasar por la revision manual de precios).
+- **La cuenta del precio sugerido**, siempre desglosada y visible (costo × utilidad × IVA si corresponde = precio sugerido), reactiva a lo que se va tipeando en el override de utilidad, junto con el margen real actual del articulo.
+- **Proveedores del articulo**: tabla de los proveedores que venden este articulo, con su codigo propio, factor de conversion (unidades de stock por unidad de compra) y ultimo costo/fecha de compra a cada uno.
+
+Sin el permiso `func.costos.editar`, todos estos campos se muestran de solo lectura (los inputs de costo/utilidad/switch quedan deshabilitados).
 
 #### Importar y exportar articulos desde Excel
 
@@ -2136,6 +2289,7 @@ Haga clic en **"Nueva Categoria"** y complete:
 - **Prefijo** (opcional): Un prefijo corto (ej: "BEB") que se usara para generar automaticamente los codigos de los articulos de esta categoria.
 - **Color**: Color identificativo que se usara en la interfaz.
 - **Icono** (opcional): Icono representativo.
+- **Utilidad objetivo (%)** (visible solo con el permiso `func.costos.ver`, editable con `func.costos.editar`): override de la utilidad para todos los articulos de esta categoria. Si se deja vacio, hereda el valor por defecto configurado a nivel comercio; los articulos individuales pueden a su vez pisar este valor con su propio override.
 - **Activo**: Si la categoria esta habilitada.
 
 #### Acciones
@@ -2455,6 +2609,7 @@ Datos generales del comercio:
 - Telefono.
 - Email.
 - Logo (puede subir una imagen).
+- **Utilidad objetivo por defecto (%)** (visible con `func.costos.ver`, editable con `func.costos.editar`): es la base de la cascada de utilidad del modulo de Compras/Costos — se usa cuando ni la categoria ni el articulo definen su propio override. El costo que se toma como referencia (costo "rector") es siempre el **ultimo** costo de compra.
 
 #### Pestana "CUITs"
 
@@ -3773,7 +3928,10 @@ Permite emitir y revocar **tokens de integracion** para que aplicaciones externa
 | **Concepto de pago** | Clasificacion del medio de pago (efectivo, debito, credito, transferencia). |
 | **Condicion de IVA** | Situacion fiscal del cliente o proveedor (Responsable Inscripto, Monotributo, Consumidor Final, etc.). |
 | **Contraasiento** | Movimiento que revierte una operacion anterior (se usa al anular ventas, compras o producciones). |
-| **Cuenta corriente** | Linea de credito que el comercio otorga a un cliente, permitiendole comprar y pagar despues. |
+| **Costo computable** | Costo que se guarda del articulo: es el neto de la factura cuando el IVA fue credito fiscal recuperable, o el total pagado (IVA incluido) cuando no lo fue (factura B, no fiscal, comprador que no es Responsable Inscripto). |
+| **Costo rector** | El costo que el sistema usa como referencia para calcular el precio sugerido y el margen real: es siempre el costo **ultimo** de compra. |
+| **Cuenta corriente** | Linea de credito que el comercio otorga a un cliente, permitiendole comprar y pagar despues. Existe tambien del lado proveedores (deuda del comercio hacia ellos). |
+| **Cuenta de compra** | Agrupacion de gestion (Mercaderia, Insumos, Servicios, etc.) para clasificar el gasto de una compra y poder reportarlo por categoria. |
 | **CUIT** | Clave Unica de Identificacion Tributaria; numero fiscal asignado a personas y empresas en Argentina. |
 | **Desglose de pagos** | Division de un pago en multiples formas de pago (pago mixto). |
 | **Etiqueta** | Clasificador libre que se asigna a articulos para filtrar y organizar. |
@@ -3787,13 +3945,17 @@ Permite emitir y revocar **tokens de integracion** para que aplicaciones externa
 | **IIBB** | Ingresos Brutos. Impuesto provincial sobre los ingresos de la actividad comercial. |
 | **IVA** | Impuesto al Valor Agregado. |
 | **Lista de precios** | Conjunto de precios con ajustes (recargos o descuentos) sobre los precios base. |
+| **Margen real** | Rentabilidad efectiva de un articulo, calculada sobre el costo rector y el precio de venta vigente (formula inversa a la del precio sugerido). |
 | **Materia prima** | Articulo que se usa como ingrediente en recetas pero que tipicamente no se vende directamente. |
 | **Modo stock** | Como el sistema controla el stock de un articulo: Ninguno, Unitario o Por Receta. |
-| **Nota de Credito** | Comprobante fiscal que anula total o parcialmente una factura. |
+| **Nota de Credito** | Comprobante fiscal que anula total o parcialmente una factura. Del lado de compras, la carga un proveedor sobre una compra ya confirmada (devolucion parcial o total). |
 | **NxM** | Tipo de promocion: "Lleva N, paga M" (o bonifica la diferencia). |
 | **Opcional** | Opcion dentro de un grupo opcional que puede tener precio adicional y receta propia. |
+| **Orden de pago** | Comprobante numerado que registra un pago realizado a un proveedor (analogo al recibo de cobro a un cliente). |
+| **PPP (Costo promedio ponderado)** | Costo calculado ponderando el stock previo y su costo contra la cantidad y el costo de cada compra nueva; refleja "cuanto me costo lo que tengo". |
 | **Produccion** | Proceso de fabricar un articulo a partir de sus ingredientes (segun receta). |
 | **Posicion fiscal** | Estado tributario de un CUIT en un periodo: cuanto debe de IVA e IIBB, descontando creditos y retenciones sufridas. |
+| **Precio sugerido** | Precio de venta calculado a partir del costo, la utilidad objetivo y el IVA (si corresponde), con redondeo configurable. |
 | **Punto de venta** | Numero habilitado ante ARCA para emitir comprobantes fiscales. |
 | **Receta** | Composicion de un articulo en terminos de ingredientes y cantidades. |
 | **Rendicion** | Proceso por el cual una caja (o un repartidor) entrega el efectivo del turno o fondo a tesoreria. |
@@ -3809,5 +3971,6 @@ Permite emitir y revocar **tokens de integracion** para que aplicaciones externa
 | **Tipo de cambio** | Cotizacion de una moneda respecto a otra (tasa de compra y tasa de venta). |
 | **Token de API** | Credencial emitida por el comercio para que una aplicacion externa opere sobre pedidos delivery via la API REST. |
 | **Turno** | Periodo operativo de una caja, desde su apertura hasta su cierre con arqueo. |
+| **Utilidad objetivo** | Porcentaje de markup que el comercio quiere ganar sobre el costo de un articulo. Se hereda en cascada: comercio, categoria, articulo (cada nivel puede pisar al anterior). |
 | **Wizard** | Asistente paso a paso que guia al usuario en un proceso complejo. |
 | **Zona de entrega** | Area dibujada en el mapa con costo de envio propio, usada para cotizar el envio de un pedido delivery. |

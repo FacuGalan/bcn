@@ -39,6 +39,44 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  */
 class Compra extends Model
 {
+    // Estados D11: SOLO ciclo de vida — lo impago se deriva de saldo_pendiente.
+    public const ESTADO_BORRADOR = 'borrador';
+
+    public const ESTADO_COMPLETADA = 'completada';
+
+    public const ESTADO_CANCELADA = 'cancelada';
+
+    // Tipos de comprobante (RF-01/RF-06/RF-21). Discriminan IVA: A y M (la M
+    // se trata como la A para el crédito; sus retenciones quedan manuales v1).
+    public const TIPO_FACTURA_A = 'factura_a';
+
+    public const TIPO_FACTURA_B = 'factura_b';
+
+    public const TIPO_FACTURA_C = 'factura_c';
+
+    public const TIPO_FACTURA_M = 'factura_m';
+
+    public const TIPO_NO_FISCAL = 'no_fiscal';
+
+    public const TIPO_NC_A = 'nota_credito_a';
+
+    public const TIPO_NC_B = 'nota_credito_b';
+
+    public const TIPO_NC_C = 'nota_credito_c';
+
+    public const TIPO_NC_NO_FISCAL = 'nota_credito_no_fiscal';
+
+    public const TIPOS_DISCRIMINAN_IVA = [
+        self::TIPO_FACTURA_A,
+        self::TIPO_FACTURA_M,
+        self::TIPO_NC_A,
+    ];
+
+    public const TIPOS_NO_FISCALES = [
+        self::TIPO_NO_FISCAL,
+        self::TIPO_NC_NO_FISCAL,
+    ];
+
     protected $connection = 'pymes_tenant';
 
     protected $table = 'compras';
@@ -46,13 +84,23 @@ class Compra extends Model
     protected $fillable = [
         'sucursal_id',
         'proveedor_id',
+        'compra_origen_id',
         'cuit_id',
+        'cuenta_compra_id',
         'caja_id',
         'usuario_id',
         'numero_comprobante',
+        'numero_comprobante_proveedor',
         'fecha',
+        'fecha_comprobante',
+        'fecha_vencimiento',
         'tipo_comprobante',
         'subtotal',
+        'neto_gravado',
+        'neto_no_gravado',
+        'neto_exento',
+        'descuento_global_porcentaje',
+        'descuento_global_monto',
         'total',
         'total_iva',
         'forma_pago',
@@ -63,7 +111,14 @@ class Compra extends Model
 
     protected $casts = [
         'fecha' => 'date',
+        'fecha_comprobante' => 'date',
+        'fecha_vencimiento' => 'date',
         'subtotal' => 'decimal:2',
+        'neto_gravado' => 'decimal:2',
+        'neto_no_gravado' => 'decimal:2',
+        'neto_exento' => 'decimal:2',
+        'descuento_global_porcentaje' => 'decimal:2',
+        'descuento_global_monto' => 'decimal:2',
         'total' => 'decimal:2',
         'total_iva' => 'decimal:2',
         'saldo_pendiente' => 'decimal:2',
@@ -116,20 +171,64 @@ class Compra extends Model
         return $this->hasOne(MovimientoCaja::class, 'compra_id');
     }
 
-    // Scopes
-    public function scopeCompletadas($query)
+    /**
+     * Desglose de IVA por alícuota del comprobante (RF-14) — fuente canónica
+     * del crédito fiscal y del Libro IVA Compras.
+     */
+    public function ivas(): HasMany
     {
-        return $query->where('estado', 'completada');
+        return $this->hasMany(CompraIva::class, 'compra_id');
     }
 
-    public function scopePendientes($query)
+    /**
+     * Conceptos de pie de factura (RF-15): flete, impuestos internos, etc.
+     */
+    public function conceptos(): HasMany
     {
-        return $query->where('estado', 'pendiente');
+        return $this->hasMany(CompraConcepto::class, 'compra_id');
+    }
+
+    /**
+     * Cuenta de compra para reportes de gastos (RF-22).
+     */
+    public function cuentaCompra(): BelongsTo
+    {
+        return $this->belongsTo(CuentaCompra::class, 'cuenta_compra_id');
+    }
+
+    /**
+     * Compra original de una nota de crédito (RF-21); NULL en compras
+     * normales y NC sueltas.
+     */
+    public function compraOrigen(): BelongsTo
+    {
+        return $this->belongsTo(Compra::class, 'compra_origen_id');
+    }
+
+    public function notasCredito(): HasMany
+    {
+        return $this->hasMany(Compra::class, 'compra_origen_id');
+    }
+
+    // Scopes
+    public function scopeBorradores($query)
+    {
+        return $query->where('estado', self::ESTADO_BORRADOR);
+    }
+
+    public function scopeCompletadas($query)
+    {
+        return $query->where('estado', self::ESTADO_COMPLETADA);
     }
 
     public function scopeCanceladas($query)
     {
-        return $query->where('estado', 'cancelada');
+        return $query->where('estado', self::ESTADO_CANCELADA);
+    }
+
+    public function scopeActivas($query)
+    {
+        return $query->where('estado', '!=', self::ESTADO_CANCELADA);
     }
 
     public function scopePorSucursal($query, int $sucursalId)
@@ -176,11 +275,39 @@ class Compra extends Model
     }
 
     /**
-     * Verifica si la compra está pendiente
+     * Verifica si la compra es un borrador (D11: sin efectos).
      */
-    public function estaPendiente(): bool
+    public function esBorrador(): bool
     {
-        return $this->estado === 'pendiente';
+        return $this->estado === self::ESTADO_BORRADOR;
+    }
+
+    /**
+     * ¿Es una nota de crédito de proveedor? (RF-21)
+     */
+    public function esNotaCredito(): bool
+    {
+        return $this->tipo_comprobante !== null
+            && str_starts_with($this->tipo_comprobante, 'nota_credito');
+    }
+
+    /**
+     * ¿El comprobante es fiscal? (D15: el toggle no fiscal desactiva todo el
+     * circuito de impuestos)
+     */
+    public function esFiscal(): bool
+    {
+        return $this->tipo_comprobante !== null
+            && ! in_array($this->tipo_comprobante, self::TIPOS_NO_FISCALES, true);
+    }
+
+    /**
+     * ¿El comprobante discrimina IVA? (RF-01: define la base del precio
+     * cargado y si puede haber crédito fiscal)
+     */
+    public function discriminaIva(): bool
+    {
+        return in_array($this->tipo_comprobante, self::TIPOS_DISCRIMINAN_IVA, true);
     }
 
     /**

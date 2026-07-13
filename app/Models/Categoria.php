@@ -49,11 +49,14 @@ class Categoria extends Model
         'orden',
         'activo',
         'tipo_iva_id',
+        // Override de utilidad objetivo (spec compras-costos RF-08)
+        'utilidad_porcentaje',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
         'orden' => 'integer',
+        'utilidad_porcentaje' => 'decimal:2',
     ];
 
     // ==================== Relaciones ====================

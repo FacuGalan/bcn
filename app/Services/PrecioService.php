@@ -829,4 +829,19 @@ class PrecioService
 
         return $comparacion;
     }
+
+    /**
+     * Redondeo de precios finales (extraído de CambioMasivoPrecios para
+     * reutilizarlo desde CostoService::precioSugerido, spec compras-costos).
+     * Tipos: 'ninguno' (round 2), 'entero', 'decena', 'centena'.
+     */
+    public function aplicarRedondeo(float $precio, string $tipo = 'ninguno'): float
+    {
+        return match ($tipo) {
+            'entero' => round($precio),
+            'decena' => round($precio / 10) * 10,
+            'centena' => round($precio / 100) * 100,
+            default => round($precio, 2),
+        };
+    }
 }
