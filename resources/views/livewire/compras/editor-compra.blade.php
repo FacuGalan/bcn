@@ -110,7 +110,7 @@
             <div class="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2 sm:p-3">
                 <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                     {{-- 1. Proveedor (combobox con búsqueda + alta rápida) --}}
-                    <div class="col-span-2"
+                    <div class="col-span-2 lg:col-span-3"
                         x-data="{
                             abierto: false,
                             busqueda: '',
@@ -172,7 +172,7 @@
 
                     {{-- 2. CUIT comprador --}}
                     @if($this->esFiscalActual())
-                        <div class="col-span-2 lg:col-span-2">
+                        <div class="col-span-2">
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('CUIT comprador') }}</label>
                             <select wire:model.live="cuitId"
                                 class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
@@ -201,7 +201,7 @@
                     </div>
 
                     {{-- 4. Número del comprobante del proveedor (RF-13): PV + número, con relleno de ceros --}}
-                    <div class="col-span-2 lg:col-span-2"
+                    <div class="col-span-2"
                         x-data="{ pad(v, len) { v = v.trim(); return /^\d+$/.test(v) ? v.padStart(len, '0') : v; } }">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('N° comprobante') }}</label>
                         <div class="mt-1 flex items-center gap-1">
@@ -212,7 +212,7 @@
                             <span class="text-gray-400 dark:text-gray-500">-</span>
                             <input type="text" wire:model="numeroCbte" placeholder="00012345" maxlength="20" inputmode="numeric"
                                 @blur="$wire.set('numeroCbte', pad($event.target.value, 8))"
-                                class="block flex-1 min-w-0 rounded-md shadow-sm text-sm dark:bg-gray-700 dark:text-white focus:ring focus:ring-opacity-50
+                                class="block w-28 rounded-md shadow-sm text-sm dark:bg-gray-700 dark:text-white focus:ring focus:ring-opacity-50
                                     {{ $esDuplicado ? 'border-red-500 dark:border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:border-bcn-primary focus:ring-bcn-primary' }}">
                         </div>
                         @if($esDuplicado)
@@ -237,7 +237,7 @@
                     @endif
 
                     {{-- 6. Cuenta de compra (RF-22) --}}
-                    <div>
+                    <div class="lg:col-span-2">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Cuenta de compra') }}</label>
                         <select wire:model="cuentaCompraId"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">

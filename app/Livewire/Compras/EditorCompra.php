@@ -544,6 +544,8 @@ class EditorCompra extends Component
             'tipo_iva_id' => $articulo->tipo_iva_id,
         ]);
 
+        $this->precargarPrecioDesdeCosto($fila, $articulo, $ap);
+
         $this->sugerirDesgloseFiscal();
 
         // El foco sigue a la celda Cantidad del renglón (lo escucha el x-data raíz).
@@ -568,6 +570,38 @@ class EditorCompra extends Component
 
         $this->seleccionarArticuloFila($this->filaBusquedaAvanzada, $articuloId);
         $this->filaBusquedaAvanzada = null;
+    }
+
+    /**
+     * Precarga el precio unitario del renglón desde el costo vigente (solo si
+     * está vacío): costo del proveedor para ese artículo, o el costo rector de
+     * la sucursal. Los costos se guardan por UNIDAD DE STOCK y post-descuentos,
+     * así que se multiplica por el factor y se DESANDAN los descuentos
+     * habituales precargados — sin tocar nada, el unitario efectivo queda
+     * exactamente en el costo cargado.
+     */
+    protected function precargarPrecioDesdeCosto(int $fila, Articulo $articulo, ?ArticuloProveedor $ap): void
+    {
+        if (trim((string) $this->renglones[$fila]['precio_unitario']) !== '') {
+            return;
+        }
+
+        $costo = $ap?->costo_ultimo !== null
+            ? (float) $ap->costo_ultimo
+            : app(CostoService::class)->costoRector($articulo, $this->sucursalId);
+
+        if ($costo === null || $costo <= 0) {
+            return;
+        }
+
+        $factor = $this->num($this->renglones[$fila]['factor_conversion']);
+        $precio = $costo * ($factor > 0 ? $factor : 1.0);
+
+        foreach ($this->parseDescuentos((string) $this->renglones[$fila]['descuentos_texto']) as $descuento) {
+            $precio /= (1 - $descuento / 100);
+        }
+
+        $this->renglones[$fila]['precio_unitario'] = $this->numAString(round($precio, 4));
     }
 
     public function cerrarResultadosFila(int $fila): void

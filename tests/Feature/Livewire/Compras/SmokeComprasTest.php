@@ -224,6 +224,34 @@ class SmokeComprasTest extends TestCase
             ->assertOk();
     }
 
+    public function test_editor_precarga_precio_desde_costo_del_proveedor(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Costo '.uniqid(), 'activo' => true]);
+
+        // Costo por unidad de stock (post-descuentos): 90. Con factor 10 y
+        // descuento habitual 10%, el precio de lista reconstruido es
+        // 90 × 10 / 0.9 = 1000 → el unitario efectivo vuelve a caer en 90/u.
+        \App\Models\ArticuloProveedor::create([
+            'articulo_id' => $articulo->id,
+            'proveedor_id' => $proveedor->id,
+            'codigo_proveedor' => 'PC-1',
+            'factor_conversion' => 10,
+            'descuentos_habituales' => [10],
+            'costo_ultimo' => 90,
+            'activo' => true,
+        ]);
+
+        Livewire::test(EditorCompra::class)
+            ->call('seleccionarProveedor', $proveedor->id)
+            ->call('seleccionarArticuloFila', 0, $articulo->id)
+            ->assertSet('renglones.0.precio_unitario', '1000')
+            ->assertSet('renglones.0.factor_conversion', '10')
+            ->assertSet('renglones.0.descuentos_texto', '10')
+            ->assertOk();
+    }
+
     public function test_editor_busqueda_avanzada_selecciona_en_la_fila(): void
     {
         $this->crearTiposIva();
