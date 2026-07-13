@@ -2,11 +2,13 @@
 
 namespace App\Livewire\Compras;
 
+use App\Livewire\Concerns\Carrito\WithBusquedaArticulos;
 use App\Models\Articulo;
 use App\Models\ArticuloProveedor;
 use App\Models\Caja;
 use App\Models\Categoria;
 use App\Models\Compra;
+use App\Models\CondicionIva;
 use App\Models\CuentaCompra;
 use App\Models\CuentaEmpresa;
 use App\Models\Cuit;
@@ -42,6 +44,8 @@ use Livewire\Component;
  */
 class EditorCompra extends Component
 {
+    use WithBusquedaArticulos;
+
     // ==================== Identidad / modo ====================
 
     public ?int $compraId = null;
@@ -74,7 +78,10 @@ class EditorCompra extends Component
 
     public ?int $cuitId = null;
 
-    public string $numeroComprobanteProveedor = '';
+    /** N° de comprobante del proveedor en 2 partes: punto de venta + número (RF-13). */
+    public string $numeroPv = '';
+
+    public string $numeroCbte = '';
 
     public ?string $fechaComprobante = null;
 
@@ -155,6 +162,27 @@ class EditorCompra extends Component
 
     public string $artRapidoPrecioVenta = '';
 
+    // ==================== Alta rápida de proveedor ====================
+
+    public bool $mostrarModalProveedorRapido = false;
+
+    public string $provRapidoNombre = '';
+
+    public string $provRapidoCuit = '';
+
+    public ?int $provRapidoCondicionIvaId = null;
+
+    public ?int $provRapidoDiasPago = null;
+
+    public ?int $provRapidoCuentaCompraId = null;
+
+    public bool $provRapidoCuentaCorriente = false;
+
+    // ==================== Búsqueda avanzada de artículos (lupa) ====================
+
+    /** Fila de la grilla que abrió el modal de búsqueda avanzada. */
+    public ?int $filaBusquedaAvanzada = null;
+
     // ==================== Mount / carga ====================
 
     public function mount(?int $compraId = null, ?int $ncOrigenId = null, bool $esNC = false): void
@@ -183,6 +211,41 @@ class EditorCompra extends Component
         }
     }
 
+    // ==================== N° de comprobante en 2 partes (RF-13) ====================
+
+    /**
+     * "0003-00012345" → [numeroPv, numeroCbte]. Si el texto no matchea el
+     * formato PV-número (compras no fiscales con formato libre), va entero
+     * a la segunda parte.
+     */
+    protected function descomponerNumeroComprobante(string $numero): void
+    {
+        $numero = trim($numero);
+
+        if (preg_match('/^(\d{1,5})-(\d{1,8})$/', $numero, $m)) {
+            $this->numeroPv = str_pad($m[1], 4, '0', STR_PAD_LEFT);
+            $this->numeroCbte = str_pad($m[2], 8, '0', STR_PAD_LEFT);
+
+            return;
+        }
+
+        $this->numeroPv = '';
+        $this->numeroCbte = $numero;
+    }
+
+    /** Las 2 partes compuestas como se persisten ("PV-número", una sola o ''). */
+    public function numeroComprobanteCompuesto(): string
+    {
+        $pv = trim($this->numeroPv);
+        $cbte = trim($this->numeroCbte);
+
+        if ($pv !== '' && $cbte !== '') {
+            return $pv.'-'.$cbte;
+        }
+
+        return $cbte !== '' ? $cbte : $pv;
+    }
+
     /** CUIT comprador default: el principal de la sucursal (patrón CostoService). */
     protected function cuitDefault(): ?Cuit
     {
@@ -209,7 +272,7 @@ class EditorCompra extends Component
         $this->tipoComprobante = $compra->tipo_comprobante;
         $this->noFiscal = ! $compra->esFiscal();
         $this->cuitId = $compra->cuit_id ?? $this->cuitId;
-        $this->numeroComprobanteProveedor = (string) ($compra->numero_comprobante_proveedor ?? '');
+        $this->descomponerNumeroComprobante((string) ($compra->numero_comprobante_proveedor ?? ''));
         $this->fechaComprobante = $compra->fecha_comprobante?->toDateString();
         $this->fechaVencimiento = $compra->fecha_vencimiento?->toDateString();
         $this->cuentaCompraId = $compra->cuenta_compra_id;
@@ -342,11 +405,8 @@ class EditorCompra extends Component
      */
     public function updated(string $name, mixed $value): void
     {
-        if (preg_match('/^renglones\.(\d+)\.busqueda$/', $name, $m)) {
-            $this->buscarArticuloFila((int) $m[1]);
-
-            return;
-        }
+        // La búsqueda por fila NO se rutea acá: el input es deferred y la
+        // dispara Alpine con debounce propio (el morph no pisa el tipeo).
 
         // El usuario editó el desglose a mano: dejar de pisarlo.
         if (str_starts_with($name, 'ivas.') || in_array($name, ['netoNoGravado', 'netoExento'], true)) {
@@ -360,8 +420,14 @@ class EditorCompra extends Component
         if ($recalculan) {
             if ($name === 'noFiscal') {
                 $this->tipoComprobante = $this->tiposDisponibles()[0];
+                $this->sugerirTipoComprobante();
             }
 
+            $this->sugerirDesgloseFiscal();
+        }
+
+        if ($name === 'cuitId') {
+            $this->sugerirTipoComprobante();
             $this->sugerirDesgloseFiscal();
         }
 
@@ -479,6 +545,29 @@ class EditorCompra extends Component
         ]);
 
         $this->sugerirDesgloseFiscal();
+
+        // El foco sigue a la celda Cantidad del renglón (lo escucha el x-data raíz).
+        $this->dispatch('foco-celda', fila: $fila, col: 'cantidad');
+    }
+
+    // ==================== Búsqueda avanzada (lupa, patrón ventas) ====================
+
+    /** Abre el modal de búsqueda avanzada (trait WithBusquedaArticulos) para una fila. */
+    public function abrirBusquedaAvanzada(int $fila): void
+    {
+        $this->filaBusquedaAvanzada = $fila;
+        $this->abrirModalBusquedaArticulos();
+    }
+
+    /** Requerido por el trait: el modal delega acá al seleccionar. */
+    public function seleccionarArticulo(int $articuloId): void
+    {
+        if ($this->filaBusquedaAvanzada === null || ! isset($this->renglones[$this->filaBusquedaAvanzada])) {
+            return;
+        }
+
+        $this->seleccionarArticuloFila($this->filaBusquedaAvanzada, $articuloId);
+        $this->filaBusquedaAvanzada = null;
     }
 
     public function cerrarResultadosFila(int $fila): void
@@ -618,6 +707,60 @@ class EditorCompra extends Component
         }
     }
 
+    // ==================== Alta rápida de proveedor ====================
+
+    public function abrirProveedorRapido(string $busqueda = ''): void
+    {
+        $this->provRapidoNombre = trim($busqueda);
+        $this->provRapidoCuit = '';
+        $this->provRapidoCondicionIvaId = null;
+        $this->provRapidoDiasPago = null;
+        $this->provRapidoCuentaCompraId = null;
+        $this->provRapidoCuentaCorriente = false;
+
+        $this->mostrarModalProveedorRapido = true;
+    }
+
+    public function cerrarProveedorRapido(): void
+    {
+        $this->mostrarModalProveedorRapido = false;
+    }
+
+    public function guardarProveedorRapido(): void
+    {
+        $this->validate([
+            'provRapidoNombre' => 'required|string|min:2|max:191',
+            'provRapidoCuit' => 'nullable|string|max:20',
+            'provRapidoCondicionIvaId' => 'nullable|integer',
+            'provRapidoDiasPago' => 'nullable|integer|min:0|max:365',
+            'provRapidoCuentaCompraId' => 'nullable|integer',
+        ], [
+            'provRapidoNombre.required' => __('El nombre es obligatorio'),
+        ]);
+
+        try {
+            $proveedor = Proveedor::create([
+                'nombre' => $this->provRapidoNombre,
+                'cuit' => trim($this->provRapidoCuit) ?: null,
+                'condicion_iva_id' => $this->provRapidoCondicionIvaId,
+                'cuenta_compra_id' => $this->provRapidoCuentaCompraId,
+                'tiene_cuenta_corriente' => $this->provRapidoCuentaCorriente,
+                'dias_pago' => $this->provRapidoDiasPago,
+                'activo' => true,
+            ]);
+
+            $this->cerrarProveedorRapido();
+            $this->seleccionarProveedor($proveedor->id);
+
+            // El combobox mantiene su lista local en Alpine: se le empuja el nuevo.
+            $this->dispatch('proveedor-creado', id: $proveedor->id, nombre: $proveedor->nombre, cuit: $proveedor->cuit);
+            $this->dispatch('notify', type: 'success', message: __('Proveedor ":nombre" creado', ['nombre' => $proveedor->nombre]));
+        } catch (Exception $e) {
+            Log::error('Error en alta rápida de proveedor (compras): '.$e->getMessage());
+            $this->dispatch('notify', type: 'error', message: __('Error al crear el proveedor'));
+        }
+    }
+
     // ==================== Proveedor ====================
 
     public function seleccionarProveedor(?int $proveedorId): void
@@ -641,6 +784,27 @@ class EditorCompra extends Component
         if ($proveedor->dias_pago !== null && ! $this->fechaVencimiento) {
             $this->fechaVencimiento = now()->addDays((int) $proveedor->dias_pago)->toDateString();
         }
+
+        $this->sugerirTipoComprobante();
+        $this->sugerirDesgloseFiscal();
+    }
+
+    /**
+     * Sugiere la letra según condición IVA del proveedor (emisor) × CUIT
+     * comprador (receptor). Cada cambio de proveedor o CUIT recalcula y PISA
+     * el select (la letra depende de ambos); el usuario puede editarlo después.
+     */
+    public function sugerirTipoComprobante(): void
+    {
+        if ($this->noFiscal || ! $this->proveedorId) {
+            return;
+        }
+
+        $condProveedor = Proveedor::find($this->proveedorId)?->condicionIva;
+        $condCuit = $this->cuitId ? Cuit::with('condicionIva')->find($this->cuitId)?->condicionIva : null;
+
+        $this->tipoComprobante = app(CompraService::class)
+            ->sugerirTipoComprobante($condProveedor, $condCuit, $this->esNC);
     }
 
     // ==================== Cálculos (públicos para la vista) ====================
@@ -972,14 +1136,16 @@ class EditorCompra extends Component
 
     public function esDuplicado(): bool
     {
-        if (! $this->proveedorId || trim($this->numeroComprobanteProveedor) === '') {
+        $numero = $this->numeroComprobanteCompuesto();
+
+        if (! $this->proveedorId || $numero === '') {
             return false;
         }
 
         return app(CompraService::class)->esComprobanteDuplicado(
             $this->proveedorId,
             $this->tipoComprobante,
-            trim($this->numeroComprobanteProveedor),
+            $numero,
             $this->correccionDeId ?? $this->compraId,
         );
     }
@@ -1058,7 +1224,7 @@ class EditorCompra extends Component
             'compra_origen_id' => $this->ncOrigenId,
             'cuit_id' => $this->esFiscalActual() ? $this->cuitId : null,
             'cuenta_compra_id' => $this->cuentaCompraId,
-            'numero_comprobante_proveedor' => trim($this->numeroComprobanteProveedor) ?: null,
+            'numero_comprobante_proveedor' => $this->numeroComprobanteCompuesto() ?: null,
             'fecha_comprobante' => $this->esFiscalActual() ? ($this->fechaComprobante ?: null) : $this->fechaComprobante,
             'fecha_vencimiento' => $this->fechaVencimiento ?: null,
             'descuento_global_porcentaje' => $this->num($this->descuentoGlobal) > 0 ? $this->num($this->descuentoGlobal) : null,
@@ -1440,6 +1606,7 @@ class EditorCompra extends Component
                 ->orderBy('nombre')
                 ->get(['id', 'nombre']),
             'categorias' => Categoria::where('activo', true)->orderBy('nombre')->get(['id', 'nombre', 'prefijo']),
+            'condicionesIva' => CondicionIva::orderBy('nombre')->get(['id', 'nombre']),
             'formasPago' => FormaPago::where('activo', true)
                 ->where('es_mixta', false)
                 ->where('solo_sistema', false)

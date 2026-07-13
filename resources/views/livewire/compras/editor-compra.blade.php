@@ -20,6 +20,7 @@
         // Navegación tipo planilla: Enter avanza de celda; en la última celda
         // de la última fila agrega un renglón nuevo (D7 #2).
         celdas() { return Array.from($el.querySelectorAll('[data-cell]:not([disabled])')); },
+        enfocar(c) { if (c) { c.focus(); c.select?.(); } },
         avanzar(e) {
             const celdas = this.celdas();
             const i = celdas.indexOf(e.target);
@@ -28,25 +29,55 @@
                 $wire.agregarRenglon().then(() => this.$nextTick(() => {
                     const nuevas = this.celdas();
                     const maxFila = Math.max(...nuevas.map(c => +c.dataset.fila || 0));
-                    const primera = nuevas.find(c => +c.dataset.fila === maxFila);
-                    if (primera) primera.focus();
+                    this.enfocar(nuevas.find(c => +c.dataset.fila === maxFila));
                 }));
             } else {
-                celdas[i + 1].focus();
+                this.enfocar(celdas[i + 1]);
             }
+        },
+        // ↑/↓: misma columna de la fila anterior/siguiente (si esa fila no
+        // tiene la columna — artículo ya elegido — cae a la primera celda).
+        moverFila(e, delta) {
+            const fila = +e.target.dataset.fila + delta;
+            if (fila < 0) return;
+            const col = e.target.dataset.col;
+            this.enfocar(
+                $el.querySelector(`[data-cell][data-fila='${fila}'][data-col='${col}']:not([disabled])`)
+                ?? $el.querySelector(`[data-cell][data-fila='${fila}']:not([disabled])`)
+            );
+        },
+        // ←/→: celda vecina SOLO con el caret en el borde del texto (no
+        // rompe la edición dentro del input).
+        moverCol(e, delta) {
+            const el = e.target;
+            const len = (el.value ?? '').length;
+            const enBorde = delta < 0
+                ? (el.selectionStart === 0 && el.selectionEnd === 0)
+                : (el.selectionStart === len && el.selectionEnd === len);
+            if (!enBorde) return;
+            e.preventDefault();
+            const celdas = this.celdas();
+            this.enfocar(celdas[celdas.indexOf(el) + delta]);
+        },
+        focusCelda(fila, col) {
+            this.$nextTick(() => this.enfocar($el.querySelector(`[data-cell][data-fila='${fila}'][data-col='${col}']:not([disabled])`)));
+        },
+        modalAbierto() {
+            return $wire.mostrarModalPago || $wire.mostrarModalResumen || $wire.mostrarModalArticuloRapido
+                || $wire.mostrarModalProveedorRapido || $wire.mostrarModalBusquedaArticulos;
         }
     }"
-    @keydown.escape.window="if (!$wire.mostrarModalPago && !$wire.mostrarModalResumen && !$wire.mostrarModalArticuloRapido) $wire.cerrar()"
+    @foco-celda.window="focusCelda($event.detail.fila, $event.detail.col ?? 'cantidad')"
+    @keydown.escape.window="if (!modalAbierto()) $wire.cerrar()"
     @keydown.window="
-        const modalAbierto = $wire.mostrarModalPago || $wire.mostrarModalResumen || $wire.mostrarModalArticuloRapido;
-        if ($event.key === 'F2' && !modalAbierto) { $event.preventDefault(); $wire.abrirModalPago(); }
-        if ($event.ctrlKey && ($event.key === 'g' || $event.key === 'G') && !modalAbierto) { $event.preventDefault(); $wire.guardarBorrador(); }
+        if ($event.key === 'F2' && !modalAbierto()) { $event.preventDefault(); $wire.abrirModalPago(); }
+        if ($event.ctrlKey && ($event.key === 'g' || $event.key === 'G') && !modalAbierto()) { $event.preventDefault(); $wire.guardarBorrador(); }
     "
 >
     <div class="w-full bg-white dark:bg-gray-900 flex flex-col overflow-hidden rounded-lg shadow-2xl">
 
         {{-- Header --}}
-        <div class="bg-bcn-primary text-white px-4 sm:px-6 py-3 flex items-center justify-between gap-3 flex-shrink-0 rounded-t-lg">
+        <div class="bg-bcn-primary text-white px-4 sm:px-6 py-2 flex items-center justify-between gap-3 flex-shrink-0 rounded-t-lg">
             <h2 class="text-base sm:text-lg font-bold flex items-center gap-2 flex-wrap">
                 @if($esNC)
                     {{ $compraId ? __('Editar Nota de Crédito') : __('Nueva Nota de Crédito') }}
@@ -73,12 +104,12 @@
         </div>
 
         {{-- Cuerpo scrolleable --}}
-        <div class="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 min-h-0">
+        <div class="flex-1 overflow-y-auto p-2 sm:p-3 space-y-2 min-h-0">
 
             {{-- ============ ENCABEZADO ============ --}}
-            <div class="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4">
-                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-                    {{-- Proveedor (combobox con búsqueda) --}}
+            <div class="bg-gray-50 dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2 sm:p-3">
+                <div class="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                    {{-- 1. Proveedor (combobox con búsqueda + alta rápida) --}}
                     <div class="col-span-2"
                         x-data="{
                             abierto: false,
@@ -103,53 +134,45 @@
                                 this.abierto = false;
                             }
                         }"
+                        @proveedor-creado.window="proveedores.push({ id: $event.detail.id, nombre: $event.detail.nombre, cuit: $event.detail.cuit }); busqueda = ''; abierto = false"
                         @click.away="abierto = false">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Proveedor') }} *</label>
-                        <div class="relative mt-1">
-                            <input type="text"
-                                :value="abierto ? busqueda : nombreSeleccionado()"
-                                @input="busqueda = $event.target.value; highlight = 0"
-                                @focus="abierto = true; busqueda = ''"
-                                @keydown.arrow-down.prevent="highlight = Math.min(highlight + 1, filtrados.length - 1)"
-                                @keydown.arrow-up.prevent="highlight = Math.max(highlight - 1, 0)"
-                                @keydown.enter.stop.prevent="if (filtrados[highlight]) seleccionar(filtrados[highlight])"
-                                @keydown.escape.stop="abierto = false"
-                                placeholder="{{ __('Buscar proveedor...') }}"
-                                class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <div x-show="abierto" x-transition.opacity
-                                class="absolute z-50 mt-1 w-full max-h-48 overflow-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
-                                <template x-for="(p, i) in filtrados" :key="p.id">
-                                    <button type="button" @click="seleccionar(p)"
-                                        :class="i === highlight ? 'bg-bcn-primary/10 dark:bg-bcn-primary/20' : ''"
-                                        class="flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300">
-                                        <span x-text="p.nombre"></span>
-                                        <span class="text-xs text-gray-400" x-text="p.cuit"></span>
-                                    </button>
-                                </template>
-                                <p x-show="!filtrados.length" class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">{{ __('Sin resultados') }}</p>
+                        <div class="mt-1 flex">
+                            <div class="relative flex-1 min-w-0">
+                                <input type="text"
+                                    :value="abierto ? busqueda : nombreSeleccionado()"
+                                    @input="busqueda = $event.target.value; highlight = 0"
+                                    @focus="abierto = true; busqueda = ''"
+                                    @keydown.arrow-down.prevent="highlight = Math.min(highlight + 1, filtrados.length - 1)"
+                                    @keydown.arrow-up.prevent="highlight = Math.max(highlight - 1, 0)"
+                                    @keydown.enter.stop.prevent="if (filtrados[highlight]) seleccionar(filtrados[highlight])"
+                                    @keydown.escape.stop="abierto = false"
+                                    placeholder="{{ __('Buscar proveedor...') }}"
+                                    class="block w-full rounded-l-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                <div x-show="abierto" x-transition.opacity
+                                    class="absolute z-50 mt-1 w-full max-h-48 overflow-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
+                                    <template x-for="(p, i) in filtrados" :key="p.id">
+                                        <button type="button" @click="seleccionar(p)"
+                                            :class="i === highlight ? 'bg-bcn-primary/10 dark:bg-bcn-primary/20' : ''"
+                                            class="flex items-center gap-2 w-full px-3 py-2 text-sm text-left text-gray-700 dark:text-gray-300">
+                                            <span x-text="p.nombre"></span>
+                                            <span class="text-xs text-gray-400" x-text="p.cuit"></span>
+                                        </button>
+                                    </template>
+                                    <p x-show="!filtrados.length" class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">{{ __('Sin resultados') }}</p>
+                                </div>
                             </div>
+                            <button type="button" @click="abierto = false; $wire.abrirProveedorRapido(busqueda)"
+                                class="flex-shrink-0 inline-flex items-center justify-center px-2 self-stretch bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                title="{{ __('Nuevo proveedor') }}">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                            </button>
                         </div>
                     </div>
 
-                    {{-- Tipo de comprobante + toggle no fiscal (D15) --}}
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Comprobante') }}</label>
-                        <select wire:model.live="tipoComprobante" @if($noFiscal) disabled @endif
-                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-60">
-                            @foreach($this->tiposDisponibles() as $tipo)
-                                <option value="{{ $tipo }}">{{ __('compra_tipo_'.$tipo) }}</option>
-                            @endforeach
-                        </select>
-                        <label class="mt-1.5 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
-                            <input type="checkbox" wire:model.live="noFiscal"
-                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
-                            {{ __('Compra no fiscal') }}
-                        </label>
-                    </div>
-
-                    {{-- CUIT comprador --}}
+                    {{-- 2. CUIT comprador --}}
                     @if($this->esFiscalActual())
-                        <div>
+                        <div class="col-span-2 lg:col-span-2">
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('CUIT comprador') }}</label>
                             <select wire:model.live="cuitId"
                                 class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
@@ -161,18 +184,43 @@
                         </div>
                     @endif
 
-                    {{-- Número del comprobante del proveedor (RF-13) --}}
+                    {{-- 3. Tipo de comprobante (sugerido por proveedor × CUIT, editable) + toggle no fiscal (D15) --}}
                     <div>
+                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Comprobante') }}</label>
+                        <select wire:model.live="tipoComprobante" @if($noFiscal) disabled @endif
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-60">
+                            @foreach($this->tiposDisponibles() as $tipo)
+                                <option value="{{ $tipo }}">{{ __('compra_tipo_'.$tipo) }}</option>
+                            @endforeach
+                        </select>
+                        <label class="mt-1 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer">
+                            <input type="checkbox" wire:model.live="noFiscal"
+                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
+                            {{ __('Compra no fiscal') }}
+                        </label>
+                    </div>
+
+                    {{-- 4. Número del comprobante del proveedor (RF-13): PV + número, con relleno de ceros --}}
+                    <div class="col-span-2 lg:col-span-2"
+                        x-data="{ pad(v, len) { v = v.trim(); return /^\d+$/.test(v) ? v.padStart(len, '0') : v; } }">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('N° comprobante') }}</label>
-                        <input type="text" wire:model.live.debounce.500ms="numeroComprobanteProveedor" placeholder="0003-00012345"
-                            class="mt-1 block w-full rounded-md shadow-sm text-sm dark:bg-gray-700 dark:text-white focus:ring focus:ring-opacity-50
-                                {{ $esDuplicado ? 'border-red-500 dark:border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:border-bcn-primary focus:ring-bcn-primary' }}">
+                        <div class="mt-1 flex items-center gap-1">
+                            <input type="text" wire:model="numeroPv" placeholder="0001" maxlength="5" inputmode="numeric"
+                                @blur="$wire.set('numeroPv', pad($event.target.value, 4))"
+                                class="block w-16 rounded-md shadow-sm text-sm text-center dark:bg-gray-700 dark:text-white focus:ring focus:ring-opacity-50
+                                    {{ $esDuplicado ? 'border-red-500 dark:border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:border-bcn-primary focus:ring-bcn-primary' }}">
+                            <span class="text-gray-400 dark:text-gray-500">-</span>
+                            <input type="text" wire:model="numeroCbte" placeholder="00012345" maxlength="20" inputmode="numeric"
+                                @blur="$wire.set('numeroCbte', pad($event.target.value, 8))"
+                                class="block flex-1 min-w-0 rounded-md shadow-sm text-sm dark:bg-gray-700 dark:text-white focus:ring focus:ring-opacity-50
+                                    {{ $esDuplicado ? 'border-red-500 dark:border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:border-bcn-primary focus:ring-bcn-primary' }}">
+                        </div>
                         @if($esDuplicado)
                             <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ __('Ya existe una compra activa con este comprobante') }}</p>
                         @endif
                     </div>
 
-                    {{-- Fechas --}}
+                    {{-- 5. Fechas --}}
                     <div>
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">
                             {{ __('Fecha comprobante') }}@if($this->esFiscalActual()) *@endif
@@ -188,7 +236,7 @@
                         </div>
                     @endif
 
-                    {{-- Cuenta de compra (RF-22) --}}
+                    {{-- 6. Cuenta de compra (RF-22) --}}
                     <div>
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Cuenta de compra') }}</label>
                         <select wire:model="cuentaCompraId"
@@ -200,15 +248,15 @@
                         </select>
                     </div>
 
-                    {{-- Descuento global (RF-05) --}}
+                    {{-- 7. Descuento global (RF-05) --}}
                     <div>
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Desc. global (%)') }}</label>
                         <input type="text" wire:model.live.debounce.500ms="descuentoGlobal" placeholder="0"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                     </div>
 
-                    {{-- Observaciones --}}
-                    <div class="col-span-2">
+                    {{-- 8. Observaciones --}}
+                    <div class="col-span-2 lg:col-span-3">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Observaciones') }}</label>
                         <input type="text" wire:model="observaciones"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
@@ -254,23 +302,53 @@
                             @foreach($renglones as $i => $renglon)
                                 @php $calc = $this->calcularRenglon($renglon); @endphp
                                 <tr wire:key="renglon-{{ $i }}">
-                                    {{-- Artículo: buscador (código propio / código proveedor / nombre) --}}
-                                    <td class="px-3 py-1.5 relative">
+                                    {{-- Artículo: buscador (código propio / código proveedor / nombre).
+                                         Input DEFERRED + debounce Alpine (el morph no pisa el tipeo) y
+                                         dropdown position:fixed (ningún overflow/footer lo tapa). --}}
+                                    <td class="px-3 py-1 relative">
                                         @if(empty($renglon['articulo_id']))
-                                            <div x-data="{ highlight: 0 }" @click.away="$wire.cerrarResultadosFila({{ $i }})">
-                                                <input type="text"
-                                                    wire:model.live.debounce.300ms="renglones.{{ $i }}.busqueda"
-                                                    data-cell data-fila="{{ $i }}"
-                                                    placeholder="{{ __('Código, código proveedor o nombre...') }}"
-                                                    @keydown.arrow-down.prevent="highlight = Math.min(highlight + 1, {{ count($renglon['resultados']) - 1 }})"
-                                                    @keydown.arrow-up.prevent="highlight = Math.max(highlight - 1, 0)"
-                                                    @keydown.enter.stop.prevent="
-                                                        const resultados = @js(collect($renglon['resultados'])->pluck('id'));
-                                                        if (resultados[highlight] !== undefined) $wire.seleccionarArticuloFila({{ $i }}, resultados[highlight]);
-                                                    "
-                                                    class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                                @if($renglon['resultados'] !== [] || mb_strlen(trim($renglon['busqueda'])) >= 2)
-                                                    <div class="absolute z-30 mt-1 left-3 right-3 max-h-56 overflow-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
+                                            @php $hayDropdown = $renglon['resultados'] !== [] || mb_strlen(trim($renglon['busqueda'])) >= 2; @endphp
+                                            <div x-data="{
+                                                    highlight: 0,
+                                                    t: null,
+                                                    ddPos: '',
+                                                    posicionarDd() {
+                                                        const r = $refs.buscador.getBoundingClientRect();
+                                                        this.ddPos = `position: fixed; top: ${r.bottom + 4}px; left: ${r.left}px; width: ${Math.max(r.width, 320)}px; z-index: 60;`;
+                                                    }
+                                                }"
+                                                @click.away="@if($hayDropdown) $wire.cerrarResultadosFila({{ $i }}) @endif">
+                                                <div class="flex">
+                                                    <input type="text" x-ref="buscador"
+                                                        wire:model="renglones.{{ $i }}.busqueda"
+                                                        data-cell data-fila="{{ $i }}" data-col="articulo"
+                                                        placeholder="{{ __('Código, código proveedor o nombre...') }}"
+                                                        @input="highlight = 0; clearTimeout(t); t = setTimeout(() => $wire.buscarArticuloFila({{ $i }}), 350)"
+                                                        @keydown.arrow-down.prevent="@if($renglon['resultados'] !== []) highlight = Math.min(highlight + 1, {{ count($renglon['resultados']) - 1 }}) @else moverFila($event, 1) @endif"
+                                                        @keydown.arrow-up.prevent="@if($renglon['resultados'] !== []) highlight = Math.max(highlight - 1, 0) @else moverFila($event, -1) @endif"
+                                                        @keydown.arrow-left="moverCol($event, -1)"
+                                                        @keydown.arrow-right="moverCol($event, 1)"
+                                                        @keydown.enter.stop.prevent="
+                                                            const resultados = @js(collect($renglon['resultados'])->pluck('id'));
+                                                            if (resultados[highlight] !== undefined) $wire.seleccionarArticuloFila({{ $i }}, resultados[highlight]);
+                                                        "
+                                                        @if($hayDropdown) @keydown.escape.stop="$wire.cerrarResultadosFila({{ $i }})" @endif
+                                                        class="block w-full rounded-l-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                    <button type="button" wire:click="abrirBusquedaAvanzada({{ $i }})" tabindex="-1"
+                                                        class="flex-shrink-0 inline-flex items-center justify-center px-2 self-stretch bg-gray-500 hover:bg-gray-600 text-white focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                                        title="{{ __('Búsqueda avanzada') }}">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                                                    </button>
+                                                    <button type="button" wire:click="abrirAltaRapida({{ $i }})" tabindex="-1"
+                                                        class="flex-shrink-0 inline-flex items-center justify-center px-2 self-stretch bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                                        title="{{ __('Crear artículo nuevo') }}">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                                                    </button>
+                                                </div>
+                                                @if($hayDropdown)
+                                                    <div x-init="posicionarDd()" :style="ddPos"
+                                                        @scroll.window.capture="if (!$el.contains($event.target)) posicionarDd()"
+                                                        class="fixed max-h-56 overflow-auto bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg">
                                                         @foreach($renglon['resultados'] as $ri => $resultado)
                                                             <button type="button"
                                                                 wire:click="seleccionarArticuloFila({{ $i }}, {{ $resultado['id'] }})"
@@ -313,9 +391,11 @@
                                     </td>
 
                                     {{-- Cantidad comprada (bultos) --}}
-                                    <td class="px-2 py-1.5">
+                                    <td class="px-2 py-1">
                                         <input type="text" wire:model.live.debounce.500ms="renglones.{{ $i }}.cantidad_comprada"
-                                            data-cell data-fila="{{ $i }}" @keydown.enter.prevent="avanzar($event)"
+                                            data-cell data-fila="{{ $i }}" data-col="cantidad" @keydown.enter.prevent="avanzar($event)"
+                                            @keydown.arrow-up.prevent="moverFila($event, -1)" @keydown.arrow-down.prevent="moverFila($event, 1)"
+                                            @keydown.arrow-left="moverCol($event, -1)" @keydown.arrow-right="moverCol($event, 1)"
                                             class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         @if(isset($renglon['max_cantidad']) && $this->num($renglon['cantidad_comprada']) > $renglon['max_cantidad'])
                                             <p class="text-xs text-red-600 dark:text-red-400 mt-0.5">{{ __('Máx.') }}: {{ $renglon['max_cantidad'] }}</p>
@@ -323,41 +403,47 @@
                                     </td>
 
                                     {{-- Factor de conversión (RF-16) --}}
-                                    <td class="px-2 py-1.5">
+                                    <td class="px-2 py-1">
                                         <input type="text" wire:model.live.debounce.500ms="renglones.{{ $i }}.factor_conversion"
-                                            data-cell data-fila="{{ $i }}" @keydown.enter.prevent="avanzar($event)"
+                                            data-cell data-fila="{{ $i }}" data-col="factor" @keydown.enter.prevent="avanzar($event)"
+                                            @keydown.arrow-up.prevent="moverFila($event, -1)" @keydown.arrow-down.prevent="moverFila($event, 1)"
+                                            @keydown.arrow-left="moverCol($event, -1)" @keydown.arrow-right="moverCol($event, 1)"
                                             title="{{ __('Unidades de stock por bulto del proveedor') }}"
                                             class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                     </td>
 
                                     {{-- Cantidad stock (auto) --}}
-                                    <td class="px-2 py-1.5 text-right text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                    <td class="px-2 py-1 text-right text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
                                         {{ rtrim(rtrim(number_format($calc['cantidad_stock'], 3, ',', '.'), '0'), ',') }}
                                     </td>
 
                                     {{-- Precio unitario (por bulto; neto si discrimina, final si no) --}}
-                                    <td class="px-2 py-1.5">
+                                    <td class="px-2 py-1">
                                         <input type="text" wire:model.live.debounce.500ms="renglones.{{ $i }}.precio_unitario"
-                                            data-cell data-fila="{{ $i }}" @keydown.enter.prevent="avanzar($event)"
+                                            data-cell data-fila="{{ $i }}" data-col="precio" @keydown.enter.prevent="avanzar($event)"
+                                            @keydown.arrow-up.prevent="moverFila($event, -1)" @keydown.arrow-down.prevent="moverFila($event, 1)"
+                                            @keydown.arrow-left="moverCol($event, -1)" @keydown.arrow-right="moverCol($event, 1)"
                                             class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                     </td>
 
                                     {{-- Descuentos en cascada como texto (D7 #4) --}}
-                                    <td class="px-2 py-1.5">
+                                    <td class="px-2 py-1">
                                         <input type="text" wire:model.live.debounce.500ms="renglones.{{ $i }}.descuentos_texto"
-                                            data-cell data-fila="{{ $i }}" @keydown.enter.prevent="avanzar($event)"
+                                            data-cell data-fila="{{ $i }}" data-col="desc" @keydown.enter.prevent="avanzar($event)"
+                                            @keydown.arrow-up.prevent="moverFila($event, -1)" @keydown.arrow-down.prevent="moverFila($event, 1)"
+                                            @keydown.arrow-left="moverCol($event, -1)" @keydown.arrow-right="moverCol($event, 1)"
                                             placeholder="10+5+3" title="{{ __('Descuentos en cascada, como los imprime la factura') }}"
                                             class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                     </td>
 
                                     {{-- Unitario efectivo (auto) --}}
-                                    <td class="px-2 py-1.5 text-right text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                                    <td class="px-2 py-1 text-right text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
                                         $@precio($calc['unitario_efectivo'])
                                     </td>
 
                                     {{-- Tipo de IVA del renglón --}}
                                     @if($this->esFiscalActual() && $this->discriminaActual())
-                                        <td class="px-2 py-1.5">
+                                        <td class="px-2 py-1">
                                             <select wire:model.live="renglones.{{ $i }}.tipo_iva_id"
                                                 class="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                                 <option value="">—</option>
@@ -369,12 +455,12 @@
                                     @endif
 
                                     {{-- Subtotal --}}
-                                    <td class="px-3 py-1.5 text-right text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
+                                    <td class="px-3 py-1 text-right text-sm font-medium text-gray-900 dark:text-white whitespace-nowrap">
                                         $@precio($calc['subtotal'])
                                     </td>
 
                                     {{-- Quitar --}}
-                                    <td class="px-2 py-1.5 text-center">
+                                    <td class="px-2 py-1 text-center">
                                         <button type="button" wire:click="quitarRenglon({{ $i }})" tabindex="-1"
                                             class="text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="{{ __('Quitar renglón') }}">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -397,12 +483,12 @@
             </div>
 
             {{-- ============ SECCIÓN FISCAL + TOTALES (D7 #5) ============ --}}
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                <div class="space-y-3">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-2">
+                <div class="space-y-2">
                     @if($this->esFiscalActual())
                         {{-- Desglose de IVA (RF-14) — solo comprobantes que discriminan --}}
                         @if($this->discriminaActual())
-                            <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4">
+                            <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2 sm:p-3">
                                 <div class="flex items-center justify-between mb-2">
                                     <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300">
                                         {{ __('Desglose de IVA') }}
@@ -459,7 +545,7 @@
                         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
                             x-data="{ abierto: {{ $conceptos !== [] ? 'true' : 'false' }} }">
                             <button type="button" @click="abierto = !abierto"
-                                class="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 text-left">
+                                class="w-full flex items-center justify-between px-3 sm:px-4 py-2 text-left">
                                 <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
                                     {{ __('Conceptos del pie') }}
                                     <span class="font-normal text-xs text-gray-500 dark:text-gray-400">({{ __('flete, imp. internos, envases...') }})</span>
@@ -515,7 +601,7 @@
                         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700"
                             x-data="{ abierto: {{ $percepciones !== [] ? 'true' : 'false' }} }">
                             <button type="button" @click="abierto = !abierto"
-                                class="w-full flex items-center justify-between px-3 sm:px-4 py-2.5 text-left">
+                                class="w-full flex items-center justify-between px-3 sm:px-4 py-2 text-left">
                                 <span class="text-sm font-semibold text-gray-700 dark:text-gray-300">
                                     {{ __('Percepciones sufridas') }}
                                     @if($percepciones !== [])
@@ -565,7 +651,7 @@
                 </div>
 
                 {{-- Pie: la cuenta completa, para verificar contra la factura en vivo (D7 #5) --}}
-                <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-3 sm:p-4 h-fit lg:sticky lg:top-0">
+                <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-2 sm:p-3 h-fit lg:sticky lg:top-0">
                     <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ __('Totales del comprobante') }}</h4>
                     <dl class="space-y-1 text-sm">
                         <div class="flex justify-between">
@@ -613,7 +699,7 @@
         </div>
 
         {{-- Footer de acciones --}}
-        <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-3 flex flex-wrap items-center justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-lg">
+        <div class="flex-shrink-0 border-t border-gray-200 dark:border-gray-700 px-3 sm:px-4 py-2 flex flex-wrap items-center justify-end gap-2 bg-gray-50 dark:bg-gray-800 rounded-b-lg">
             <button type="button" wire:click="cerrar"
                 class="inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600">
                 {{ __('Cancelar') }}
@@ -953,4 +1039,72 @@
         </x-slot:footer>
     </x-bcn-modal>
 @endif
+
+{{-- ============ MODAL ALTA RÁPIDA DE PROVEEDOR ============ --}}
+@if($mostrarModalProveedorRapido)
+    <x-bcn-modal :title="__('Nuevo proveedor (alta rápida)')" color="bg-indigo-600" maxWidth="md" onClose="cerrarProveedorRapido" submit="guardarProveedorRapido">
+        <x-slot:body>
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Nombre') }} *</label>
+                    <input type="text" wire:model="provRapidoNombre" x-init="$nextTick(() => $el.focus())"
+                        class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                    @error('provRapidoNombre') <span class="text-red-600 dark:text-red-400 text-xs">{{ $message }}</span> @enderror
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('CUIT') }}</label>
+                        <input type="text" wire:model="provRapidoCuit" placeholder="30-12345678-9"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Condición IVA') }}</label>
+                        <select wire:model="provRapidoCondicionIvaId"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                            <option value="">{{ __('Sin especificar') }}</option>
+                            @foreach($condicionesIva as $condicion)
+                                <option value="{{ $condicion->id }}">{{ $condicion->nombre }}</option>
+                            @endforeach
+                        </select>
+                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{{ __('Define la letra de comprobante sugerida') }}</p>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Días de pago') }}</label>
+                        <input type="number" wire:model="provRapidoDiasPago" min="0" max="365" placeholder="{{ __('Opcional') }}"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                        @error('provRapidoDiasPago') <span class="text-red-600 dark:text-red-400 text-xs">{{ $message }}</span> @enderror
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Cuenta de compra') }}</label>
+                        <select wire:model="provRapidoCuentaCompraId"
+                            class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-indigo-500 focus:ring focus:ring-indigo-500 focus:ring-opacity-50">
+                            <option value="">{{ __('Sin clasificar') }}</option>
+                            @foreach($cuentasCompra as $cuenta)
+                                <option value="{{ $cuenta->id }}">{{ $cuenta->nombre }}</option>
+                            @endforeach
+                        </select>
+                    </div>
+                </div>
+                <label class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+                    <input type="checkbox" wire:model="provRapidoCuentaCorriente"
+                        class="rounded border-gray-300 dark:border-gray-600 text-indigo-600 focus:ring-indigo-500 dark:bg-gray-700">
+                    {{ __('Tiene cuenta corriente') }}
+                </label>
+            </div>
+        </x-slot:body>
+        <x-slot:footer>
+            <button type="button" @click="close()"
+                class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 focus:outline-none sm:mt-0 sm:w-auto sm:text-sm">
+                {{ __('Cancelar') }}
+            </button>
+            <button type="submit"
+                class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none sm:ml-3 sm:w-auto sm:text-sm">
+                {{ __('Crear proveedor') }}
+            </button>
+        </x-slot:footer>
+    </x-bcn-modal>
+@endif
+
+{{-- ============ MODAL BÚSQUEDA AVANZADA DE ARTÍCULOS (lupa, patrón ventas) ============ --}}
+@include('livewire.carrito._modal-busqueda-articulos')
 </div>

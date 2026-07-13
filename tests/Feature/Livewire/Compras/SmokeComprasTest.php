@@ -9,6 +9,8 @@ use App\Livewire\Compras\GestionarProveedores;
 use App\Livewire\Compras\ReportesCompras;
 use App\Livewire\Compras\RevisionPreciosCompra;
 use App\Models\Compra;
+use App\Models\CondicionIva;
+use App\Models\Cuit;
 use App\Models\Proveedor;
 use App\Services\CompraService;
 use Livewire\Livewire;
@@ -152,6 +154,108 @@ class SmokeComprasTest extends TestCase
             ->assertSet('correccionDeId', $completada->id)
             ->assertSet('compraId', null)
             ->assertOk();
+    }
+
+    // ==================== Ronda UX 2026-07-13 (editor) ====================
+
+    public function test_editor_sugiere_tipo_comprobante_por_proveedor_y_cuit(): void
+    {
+        $ri = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'Responsable Inscripto']);
+        $mono = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_MONOTRIBUTO], ['nombre' => 'Monotributo']);
+
+        $cuitRi = Cuit::create([
+            'numero_cuit' => '20'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT).'1',
+            'razon_social' => 'CUIT UX Smoke '.uniqid(),
+            'condicion_iva_id' => $ri->id,
+            'activo' => true,
+        ]);
+        $provRi = Proveedor::create(['nombre' => 'Prov RI '.uniqid(), 'condicion_iva_id' => $ri->id, 'activo' => true]);
+        $provMono = Proveedor::create(['nombre' => 'Prov Mono '.uniqid(), 'condicion_iva_id' => $mono->id, 'activo' => true]);
+
+        Livewire::test(EditorCompra::class)
+            ->set('cuitId', $cuitRi->id)
+            ->call('seleccionarProveedor', $provRi->id)
+            ->assertSet('tipoComprobante', Compra::TIPO_FACTURA_A)
+            ->call('seleccionarProveedor', $provMono->id)
+            ->assertSet('tipoComprobante', Compra::TIPO_FACTURA_C)
+            // Editable a mano después de la sugerencia
+            ->set('tipoComprobante', Compra::TIPO_FACTURA_B)
+            ->assertSet('tipoComprobante', Compra::TIPO_FACTURA_B)
+            ->assertOk();
+    }
+
+    public function test_editor_compone_y_descompone_numero_comprobante(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Numero '.uniqid(), 'activo' => true]);
+
+        $editor = Livewire::test(EditorCompra::class)
+            ->call('seleccionarProveedor', $proveedor->id)
+            ->call('seleccionarArticuloFila', 0, $articulo->id)
+            ->set('renglones.0.precio_unitario', '100')
+            ->set('numeroPv', '0003')
+            ->set('numeroCbte', '00012345')
+            ->call('guardarBorrador')
+            ->assertOk();
+
+        $compra = Compra::findOrFail($editor->get('compraId'));
+        $this->assertSame('0003-00012345', $compra->numero_comprobante_proveedor);
+
+        // Al recargar el borrador, las 2 partes vuelven separadas.
+        Livewire::test(EditorCompra::class, ['compraId' => $compra->id])
+            ->assertSet('numeroPv', '0003')
+            ->assertSet('numeroCbte', '00012345')
+            ->assertOk();
+    }
+
+    public function test_editor_busca_selecciona_y_enfoca_cantidad(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', ['nombre' => 'Yerba UX Smoke '.uniqid()]);
+
+        Livewire::test(EditorCompra::class)
+            ->set('renglones.0.busqueda', 'Yerba UX Smoke')
+            ->call('buscarArticuloFila', 0)
+            ->assertSet('renglones.0.resultados', fn ($resultados) => count($resultados) > 0)
+            ->call('seleccionarArticuloFila', 0, $articulo->id)
+            ->assertSet('renglones.0.articulo_id', $articulo->id)
+            ->assertDispatched('foco-celda', fila: 0, col: 'cantidad')
+            ->assertOk();
+    }
+
+    public function test_editor_busqueda_avanzada_selecciona_en_la_fila(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+
+        Livewire::test(EditorCompra::class)
+            ->call('abrirBusquedaAvanzada', 0)
+            ->assertSet('mostrarModalBusquedaArticulos', true)
+            ->call('seleccionarArticuloModal', $articulo->id)
+            ->assertSet('mostrarModalBusquedaArticulos', false)
+            ->assertSet('renglones.0.articulo_id', $articulo->id)
+            ->assertOk();
+    }
+
+    public function test_editor_alta_rapida_de_proveedor_crea_y_selecciona(): void
+    {
+        $ri = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'Responsable Inscripto']);
+        $nombre = 'Distribuidora UX '.uniqid();
+
+        $editor = Livewire::test(EditorCompra::class)
+            ->call('abrirProveedorRapido', $nombre)
+            ->assertSet('mostrarModalProveedorRapido', true)
+            ->assertSet('provRapidoNombre', $nombre)
+            ->set('provRapidoCondicionIvaId', $ri->id)
+            ->call('guardarProveedorRapido')
+            ->assertSet('mostrarModalProveedorRapido', false)
+            ->assertDispatched('proveedor-creado')
+            ->assertOk();
+
+        $proveedor = Proveedor::where('nombre', $nombre)->first();
+        $this->assertNotNull($proveedor);
+        $this->assertSame($proveedor->id, $editor->get('proveedorId'));
     }
 
     // ==================== Fase 8: revisión de precios + reportes ====================

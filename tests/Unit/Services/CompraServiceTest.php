@@ -462,6 +462,39 @@ class CompraServiceTest extends TestCase
         $this->assertNull($this->servicio->advertenciaComprobanteCuit($condicionMono, Compra::TIPO_FACTURA_C));
     }
 
+    /**
+     * Matriz emisor (proveedor) × receptor (CUIT comprador) — espejo invertido
+     * de la regla de ventas (RI→RI/Mono = A por RG 5003; RI→resto = B;
+     * emisor mono/exento = C).
+     */
+    public function test_sugerir_tipo_comprobante_matriz_emisor_receptor(): void
+    {
+        // El catálogo de config_test puede no traer todos los códigos.
+        $ri = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'Responsable Inscripto']);
+        $mono = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_MONOTRIBUTO], ['nombre' => 'Monotributo']);
+        $exento = CondicionIva::firstOrCreate(['codigo' => CondicionIva::SUJETO_EXENTO], ['nombre' => 'Sujeto Exento']);
+        $cf = CondicionIva::firstOrCreate(['codigo' => CondicionIva::CONSUMIDOR_FINAL], ['nombre' => 'Consumidor Final']);
+
+        // Proveedor RI
+        $this->assertSame(Compra::TIPO_FACTURA_A, $this->servicio->sugerirTipoComprobante($ri, $ri));
+        $this->assertSame(Compra::TIPO_FACTURA_A, $this->servicio->sugerirTipoComprobante($ri, $mono));
+        $this->assertSame(Compra::TIPO_FACTURA_B, $this->servicio->sugerirTipoComprobante($ri, $exento));
+        $this->assertSame(Compra::TIPO_FACTURA_B, $this->servicio->sugerirTipoComprobante($ri, $cf));
+        $this->assertSame(Compra::TIPO_FACTURA_B, $this->servicio->sugerirTipoComprobante($ri, null));
+
+        // Proveedor monotributista / exento emite C, sea quien sea el receptor
+        $this->assertSame(Compra::TIPO_FACTURA_C, $this->servicio->sugerirTipoComprobante($mono, $ri));
+        $this->assertSame(Compra::TIPO_FACTURA_C, $this->servicio->sugerirTipoComprobante($exento, $ri));
+
+        // Sin condición del proveedor: B conservador (no asume crédito)
+        $this->assertSame(Compra::TIPO_FACTURA_B, $this->servicio->sugerirTipoComprobante(null, $ri));
+
+        // Modo NC: misma letra, tipo nota de crédito
+        $this->assertSame(Compra::TIPO_NC_A, $this->servicio->sugerirTipoComprobante($ri, $ri, esNC: true));
+        $this->assertSame(Compra::TIPO_NC_C, $this->servicio->sugerirTipoComprobante($mono, $ri, esNC: true));
+        $this->assertSame(Compra::TIPO_NC_B, $this->servicio->sugerirTipoComprobante($ri, $cf, esNC: true));
+    }
+
     // ==================== Repricing automático (RF-11, Fase 8) ====================
 
     public function test_articulo_con_flag_se_repricea_al_confirmar(): void

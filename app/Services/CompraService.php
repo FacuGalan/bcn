@@ -405,6 +405,40 @@ class CompraService
         return null;
     }
 
+    /**
+     * Sugiere la letra del comprobante que el PROVEEDOR (emisor) debería
+     * emitirle al CUIT comprador (receptor). Espejo invertido de
+     * ComprobanteFiscalService::determinarTipoComprobante (ventas):
+     *   - emisor monotributista/exento ⇒ C
+     *   - emisor RI → receptor RI o monotributista (RG 5003/2021) ⇒ A; resto ⇒ B
+     *   - emisor sin condición conocida ⇒ B (conservador, no asume crédito)
+     * Es solo una SUGERENCIA para la UI: el usuario carga lo que la factura
+     * física diga.
+     */
+    public function sugerirTipoComprobante(?CondicionIva $condProveedor, ?CondicionIva $condCuit, bool $esNC = false): string
+    {
+        $letra = 'b';
+
+        if ($condProveedor !== null) {
+            if ($condProveedor->esMonotributista() || $condProveedor->esExento()) {
+                $letra = 'c';
+            } elseif ($condProveedor->esResponsableInscripto()) {
+                $letra = ($condCuit !== null && ($condCuit->esResponsableInscripto() || $condCuit->esMonotributista()))
+                    ? 'a'
+                    : 'b';
+            } else {
+                // Consumidor final / no categorizado no emiten A ni B.
+                $letra = 'c';
+            }
+        }
+
+        return match ($letra) {
+            'a' => $esNC ? Compra::TIPO_NC_A : Compra::TIPO_FACTURA_A,
+            'c' => $esNC ? Compra::TIPO_NC_C : Compra::TIPO_FACTURA_C,
+            default => $esNC ? Compra::TIPO_NC_B : Compra::TIPO_FACTURA_B,
+        };
+    }
+
     // ==================== Internos ====================
 
     private function validarEncabezado(array $data): void
