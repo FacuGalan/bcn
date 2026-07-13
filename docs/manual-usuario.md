@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-13 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-13 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra)
 
 ---
 
@@ -1298,11 +1298,13 @@ Al hacer clic en "Nueva Compra" (o al editar un borrador) se abre un **modal a p
 
 #### Encabezado
 
-- **Proveedor**: combobox con busqueda; boton para dar de alta un proveedor nuevo sin salir del editor (nombre, CUIT, condicion de IVA, dias de pago, cuenta de compra, si tiene cuenta corriente).
+El encabezado se recorre con **Enter** campo a campo (igual que la grilla de renglones): en el combobox de proveedor, Enter selecciona la sugerencia resaltada y avanza al campo siguiente; en el resto de los campos, Enter simplemente avanza (a diferencia de la grilla, la ultima celda del encabezado no agrega ningun renglon).
+
+- **Proveedor**: combobox con busqueda; boton para dar de alta un proveedor nuevo sin salir del editor (nombre, CUIT, condicion de IVA, dias de pago, cuenta de compra, si tiene cuenta corriente). Debajo del proveedor esta el tilde **"Factura de servicio"** (ver mas abajo).
 - **CUIT comprador**: el CUIT del comercio que recibe la factura (define el credito fiscal).
 - **Tipo de comprobante**: se sugiere automaticamente segun la condicion de IVA del proveedor cruzada con la del CUIT comprador (editable). Factura A, B, C o M (M se trata como A para el credito).
 - **Compra no fiscal** (toggle): oculta toda la seccion fiscal — sin desglose de IVA, sin percepciones, nada se envia al libro IVA. El total pagado es directamente el costo.
-- **Factura de servicio** (toggle, debajo de "Compra no fiscal"): activa la modalidad de servicio (luz, gas, alquiler, honorarios, etc.). Se explica en detalle mas abajo, "Factura de servicio".
+- **Factura de servicio** (toggle, debajo del proveedor): activa la modalidad de servicio (luz, gas, alquiler, honorarios, etc.). Se explica en detalle mas abajo, "Factura de servicio".
 - **N° de comprobante**: dos campos (punto de venta + numero), con relleno de ceros automatico. No se puede cargar dos veces el mismo comprobante activo del mismo proveedor y tipo (se puede recargar tras cancelar la anterior).
 - **Fecha de comprobante** (obligatoria en compras fiscales: define el periodo del credito de IVA) y **Fecha de vencimiento** (se precarga con los "dias de pago" del proveedor).
 - **Cuenta de compra**: agrupacion de gestion para los reportes (Mercaderia, Insumos, Servicios, Gastos generales, etc.); se precarga con el default del proveedor y es editable por comprobante. **Es obligatoria en una factura de servicio** (marcada con `*`).
@@ -1314,6 +1316,8 @@ Al hacer clic en "Nueva Compra" (o al editar un borrador) se abre un **modal a p
 Navegacion por teclado (Enter/flechas avanzan de celda; al llegar al final se agrega una fila nueva). Columnas: **Articulo** (buscador que matchea codigo propio, codigo del proveedor seleccionado o nombre; boton de alta rapida de articulo sin salir de la grilla; lupa de busqueda avanzada con filtro por etiquetas), **Cant. comprada** (en la unidad del proveedor, ej. "bultos"), **Factor** (unidades de stock por unidad de compra, se precarga del articulo-proveedor y es editable), **Cant. stock** (calculada = comprada × factor), **Precio unit.** (se precarga automaticamente con el costo vigente del articulo cuando la celda esta vacia), **Desc.** (descuentos en cascada como texto, ej. "10+5+3", igual que los imprime la factura del proveedor), **Unit. efectivo** (resultado de aplicar la cascada) y **Subtotal**.
 
 El alta rapida de un articulo nuevo persiste tambien el codigo del proveedor para poder buscarlo por ese codigo en compras futuras.
+
+Al seleccionar un articulo, la celda **Desc.** se precarga con los descuentos en cascada de la **ultima compra completada** de ese articulo a ese proveedor (si existe); si nunca se le compro, o esa ultima compra no tuvo descuentos, se usan los **descuentos habituales** cargados en la ficha del proveedor para ese articulo (ver 5.8). En ambos casos el valor queda editable.
 
 Esta grilla **no se muestra** cuando la compra es una factura de servicio (ver mas abajo).
 
@@ -2191,9 +2195,11 @@ Haga clic en **"Nuevo Articulo"** y complete el formulario:
 - **Pesable**: Marque si el articulo se vende por peso (kg, gr, lt, etc.). Al agregarlo en el punto de venta se abrira un modal para ingresar la cantidad o el valor. Los articulos pesables usan modo de stock "unitario" automaticamente.
 - **Vendible**: Si el articulo aparece en el punto de venta.
 - **Tipo de IVA**: Seleccione la alicuota de IVA (21%, 10.5%, exento, etc.).
-- **Precio IVA Incluido**: Indica si el precio que ingresa ya incluye IVA.
-- **Precio base**: El precio de venta sin ajustes de lista.
-- **Precio por sucursal** (opcional): Si esta sucursal tiene un precio diferente al base.
+
+En la seccion **"Configuracion sucursal activa"** (junto al modo de stock y "Vendible"):
+
+- **Precio de venta**: campo unico de precio. En un comercio de **una sola sucursal** edita directamente el precio general del articulo. En un comercio **multi-sucursal** muestra el precio efectivo de la sucursal activa y **siempre** se persiste como override de esa sucursal al guardar (el precio generico global de fallback ya no se edita desde aqui; se administrara a futuro desde el componente Manager). Dejar el campo vacio **no** hace que vuelva a usar el generico: es un dato obligatorio.
+- **IVA incluido en el precio** (switch, junto al precio de venta): debajo muestra la aclaracion segun el estado — *"Precio FINAL: el IVA va adentro y se desglosa al facturar"* (activado) o *"Precio NETO: el IVA se suma encima al vender"* (desactivado).
 - **Modo de stock**: Ninguno (no controla stock), Unitario (control directo), o Por Receta (se descuenta por ingredientes).
 - **Sucursales**: En que sucursales esta disponible el articulo.
 - **Etiquetas**: Asigne etiquetas para clasificar el articulo.
@@ -2225,7 +2231,7 @@ Dentro del modal de edicion, con el permiso `func.costos.ver` aparece la seccion
 - **"Historial de costos"**: modal (espejo del historial de precios) con cada cambio de costo: fecha, usuario, tipo (ultimo/reposicion), costo anterior → nuevo, % de cambio, origen (compra/manual/importacion/cancelacion), proveedor y sucursal.
 - **Utilidad objetivo (%)**: override de este articulo en particular. Si se deja vacio, hereda de la categoria o, si la categoria tampoco define una, del valor por defecto del comercio (configuracion). El campo muestra en el placeholder de quien esta heredando el valor.
 - **Precio administrado por utilidad**: switch opt-in — si esta activo, cada vez que una compra confirmada cambia el costo del articulo, su precio de venta se recalcula solo con la formula de utilidad objetivo (sin pasar por la revision manual de precios).
-- **La cuenta del precio sugerido**, siempre desglosada y visible (costo × utilidad × IVA si corresponde = precio sugerido), reactiva a lo que se va tipeando en el override de utilidad, junto con el margen real actual del articulo.
+- **La cuenta del precio sugerido**, siempre desglosada y visible (costo × utilidad × IVA si corresponde = precio sugerido), reactiva a lo que se va tipeando en el override de utilidad, junto con el margen real actual del articulo. Junto al sugerido hay un boton **"Usar como precio"**: copia el valor sugerido al campo "Precio de venta" de la seccion de sucursal (no persiste nada por si solo — hay que hacer clic en **"Guardar"** para que quede grabado, con su historial de precios normal).
 - **Proveedores del articulo**: tabla de los proveedores que venden este articulo, con su codigo propio, factor de conversion (unidades de stock por unidad de compra) y ultimo costo/fecha de compra a cada uno.
 
 Sin el permiso `func.costos.editar`, todos estos campos se muestran de solo lectura (los inputs de costo/utilidad/switch quedan deshabilitados).
@@ -2642,6 +2648,8 @@ Gestion de los CUITs fiscales del comercio (una empresa puede tener varios CUITs
 - Entorno AFIP: Testing o Produccion.
 - Certificado digital y clave privada para facturacion electronica.
 - **Puntos de Venta**: Cada CUIT puede tener multiples puntos de venta numerados, necesarios para la emision de comprobantes fiscales.
+
+Si conviven **CUITs activos con condiciones de IVA distintas** (por ejemplo, uno Responsable Inscripto y otro Monotributo), se muestra un aviso amarillo arriba de la lista: el precio sugerido y el margen de los articulos (modulo Articulos, seccion "Costos y utilidad") se calculan con el CUIT **principal de cada sucursal**, que puede no coincidir con el CUIT del punto de venta que efectivamente factura — conviene verificar que coincidan.
 
 Cada CUIT en la lista expone tres botones de accion adicionales (accesibles desde el menu de acciones de la fila):
 

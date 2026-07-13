@@ -1268,7 +1268,7 @@ N proveedores por articulo, con su codigo y costos propios.
 | `proveedor_id` | bigint FK | CASCADE |
 | `codigo_proveedor` | varchar(50) nullable | Codigo del articulo en el catalogo del proveedor (busqueda en la carga de compras) |
 | `factor_conversion` | decimal(10,4) | Unidades de stock por unidad de compra (default 1.0000, D8: bulto x12 ⇒ 12) |
-| `descuentos_habituales` | json nullable | Lista ordenada de % que se precargan en el renglon (editables) |
+| `descuentos_habituales` | json nullable | Lista ordenada de % que se precargan en el renglon (editables). Es el FALLBACK: el editor prioriza los descuentos de la ULTIMA compra completada al proveedor si existen (ver 3.8.6) |
 | `costo_ultimo` | decimal(12,4) nullable | Ultimo costo computable de ESTE proveedor en particular |
 | `fecha_ultima_compra` | timestamp nullable | |
 | `activo` | boolean | |
@@ -3566,6 +3566,11 @@ El sistema de precios tiene **4 niveles de especificidad** (de mayor a menor):
 - `articulos_sucursales.precio_base` (override por sucursal, si existe y no es NULL)
 - `articulos.precio_base` (precio global del articulo)
 
+**ABM de articulos (`GestionarArticulos`), UI de precio unico (2026-07-13)**: el modal ya no expone ambos campos por separado. Muestra un unico campo "Precio de venta" que:
+- En comercio de **una sola sucursal**: hace `wire:model` directo sobre `precio_base` (el generico).
+- En comercio **multi-sucursal** (edicion de un articulo existente): hace `wire:model` sobre `precio_sucursal` (override de `articulos_sucursales.precio_base` de la sucursal activa) y **siempre** persiste ahi al guardar — nunca vacia el override para "caer" al generico. El precio generico global (`articulos.precio_base`) deja de ser editable desde este modal; queda como dato de fallback interno (se administrara desde Manager a futuro).
+- El listado (`gestionar-articulos.blade.php`) dejo de mostrar el precio generico chico debajo del efectivo cuando hay override de sucursal.
+
 **Redondeo**: Despues de aplicar el ajuste, se redondea segun la configuracion de la lista:
 - `ninguno` -- 2 decimales
 - `entero` -- Al entero mas cercano
@@ -3795,6 +3800,15 @@ alic_efectiva (D21, unica puerta CostoService::alicuotaEfectiva()):
       ⇒ alicuota del TipoIva del articulo
   comercio que NO computa IVA (monotributo/exento), o precio_iva_incluido = false
       ⇒ 0 en AMBAS formulas siguientes (para un no-RI el costo es bruto y TODO el precio es ingreso)
+```
+
+`CostoService::comercioComputaIva()` — que CUIT determina si "el comercio computa IVA":
+- **Con sucursal** (precio sugerido/margen de esa sucursal): CUIT `es_principal = true` del pivot `sucursal_cuit`, o el primero asignado si no hay marcado principal.
+- **Sin sucursal** (consolidado): CUIT principal (o primer CUIT) de la **sucursal PRINCIPAL** del comercio (`Sucursal::principal()`) — fix 2026-07-13, antes usaba `Cuit::activos()->first()` (orden arbitrario, podia traer un CUIT Monotributo cuando el principal era RI o viceversa). Fallback final si la sucursal no tiene CUIT: primer CUIT activo del comercio.
+- Sin ningun CUIT configurado ⇒ no computa IVA (pricing informal: costo bruto, precio pleno).
+- Si conviven CUITs activos con condiciones de IVA distintas, `ConfiguracionEmpresa::cuitsCondicionesMixtas` (tab CUITs) muestra un aviso: el sugerido/margen puede no coincidir con el CUIT del punto de venta que factura.
+
+```
 
 precio_final_sugerido = costo_rector × (1 + utilidad/100) × (1 + alic_efectiva/100)  → redondeo sobre el FINAL
 
@@ -3808,6 +3822,8 @@ El costo rector para pricing es siempre `costo_ultimo` (v1; `configuracion_costo
 **Revision de precios post-compra** (RF-10, `RevisionPreciosCompra`): al confirmar una compra, lista los articulos cuyo margen real quedo por debajo del objetivo. Es RETOMABLE — calcula siempre contra costo y precio VIGENTES (no una foto del momento de la compra). Aplicar en lote escribe el precio (override de la sucursal de la compra si existe, si no el global) + `HistorialPrecio::registrar()` con `origen = 'revision_compra'`.
 
 **Repricing automatico** (RF-11): articulos con `precio_administrado_por_utilidad = true` se repriceann solos al confirmar la compra (mismo calculo + redondeo `'ninguno'` en v1), `HistorialPrecio` con `origen = 'utilidad_automatica'`.
+
+**Boton "Usar como precio"** (`GestionarArticulos::aplicarPrecioSugerido()`, ABM de articulos, fix 2026-07-13): copia `cuentaSugerida()['sugerido']` al campo de precio del modal en memoria (sin persistir nada por si solo); el `Guardar` posterior lo escribe por el camino normal de edicion de articulo, con su `HistorialPrecio` estandar (`origen = 'articulo_editar'` u `'override_sucursal'`).
 
 #### 3.8.4 Circuito fiscal de la compra (gate del credito)
 
@@ -3832,6 +3848,7 @@ Ledger `movimientos_cuenta_corriente_proveedor`, espejo de clientes pero con sem
 
 - `articulo_proveedor.factor_conversion`: se compra en la unidad del proveedor (ej. "bulto x12") y se stockea en unidades propias. `compras_detalle.cantidad_comprada` (bultos) × `factor_conversion` = `compras_detalle.cantidad` (SIEMPRE en stock).
 - `compra_conceptos`: renglones no-articulo (flete, impuestos internos, envases, otro) con flag `computa_costo` — si esta activo, el importe se prorratea a los renglones POR IMPORTE (landed cost). Caso clave: los impuestos internos de bebidas SI son costo real (no se recuperan).
+- **Precarga de descuentos al seleccionar articulo** (`EditorCompra::seleccionarArticuloFila()`, fix 2026-07-13): la celda de descuentos del renglon se precarga en este orden de precedencia — 1) los descuentos del `compras_detalle` de la ULTIMA compra `completada` de ese articulo a ese proveedor (`descuentosUltimaCompra()`: excluye notas de credito, filtra descuentos `> 0`, `orderByDesc('id')`); 2) si no hubo compra previa (o la ultima no tuvo descuentos), cae al fallback `articulo_proveedor.descuentos_habituales`. Motivo: los descuentos habituales del catalogo suelen quedar desactualizados; lo que efectivamente factura el proveedor la ultima vez es mejor senal.
 
 #### 3.8.7 Permisos del modulo (RF-20)
 
