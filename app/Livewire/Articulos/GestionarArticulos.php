@@ -861,6 +861,27 @@ class GestionarArticulos extends Component
         ];
     }
 
+    /**
+     * Copia el precio sugerido al campo de precio del modal: el usuario VE el
+     * cambio y lo persiste con Guardar por el camino de siempre (historial
+     * 'articulo_editar' / 'override_sucursal'). Respeta el alcance efectivo:
+     * si la sucursal activa tiene override, el sugerido va al override.
+     */
+    public function aplicarPrecioSugerido(): void
+    {
+        $cuenta = $this->cuentaSugerida();
+
+        if ($cuenta === null || $cuenta['sugerido'] <= 0) {
+            return;
+        }
+
+        if ($this->precio_sucursal !== null) {
+            $this->precio_sucursal = $cuenta['sugerido'];
+        } else {
+            $this->precio_base = $cuenta['sugerido'];
+        }
+    }
+
     /** Margen real para la columna del listado (semáforo vs objetivo, RF-09). */
     public function margenDe(Articulo $articulo): ?array
     {

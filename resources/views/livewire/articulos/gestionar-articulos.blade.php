@@ -1062,6 +1062,14 @@
                                                         · {{ __('Margen real actual') }}: <strong>{{ number_format($costosInfo['margen']['margen_real'], 1) }}%</strong>
                                                         ({{ __('objetivo') }} {{ number_format($costosInfo['margen']['utilidad_objetivo'], 1) }}%)
                                                     @endif
+                                                    @if($cuenta['sugerido'] > 0)
+                                                        <button type="button" wire:click="aplicarPrecioSugerido"
+                                                            title="{{ $precio_sucursal !== null ? __('Copia el sugerido al precio de esta sucursal (override); se persiste al guardar') : __('Copia el sugerido al precio de venta; se persiste al guardar') }}"
+                                                            class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-medium">
+                                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            {{ __('Usar como precio') }}
+                                                        </button>
+                                                    @endif
                                                 </div>
                                             @endif
 

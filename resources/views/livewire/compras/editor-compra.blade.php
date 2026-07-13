@@ -26,6 +26,9 @@
             const i = celdas.indexOf(e.target);
             if (i === -1) return;
             if (i === celdas.length - 1) {
+                // Solo la grilla agrega renglón al final; en el encabezado
+                // (única zona con celdas en una factura de servicio) no hace nada.
+                if (e.target.dataset.fila === undefined) return;
                 $wire.agregarRenglon().then(() => this.$nextTick(() => {
                     const nuevas = this.celdas();
                     const maxFila = Math.max(...nuevas.map(c => +c.dataset.fila || 0));
@@ -142,13 +145,13 @@
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Proveedor') }} *</label>
                         <div class="mt-1 flex">
                             <div class="relative flex-1 min-w-0">
-                                <input type="text"
+                                <input type="text" data-cell
                                     :value="abierto ? busqueda : nombreSeleccionado()"
                                     @input="busqueda = $event.target.value; highlight = 0"
                                     @focus="abierto = true; busqueda = ''"
                                     @keydown.arrow-down.prevent="highlight = Math.min(highlight + 1, filtrados.length - 1)"
                                     @keydown.arrow-up.prevent="highlight = Math.max(highlight - 1, 0)"
-                                    @keydown.enter.stop.prevent="if (filtrados[highlight]) seleccionar(filtrados[highlight])"
+                                    @keydown.enter.stop.prevent="if (abierto && filtrados[highlight]) { seleccionar(filtrados[highlight]); $nextTick(() => avanzar($event)); } else { avanzar($event); }"
                                     @keydown.escape.stop="abierto = false"
                                     placeholder="{{ __('Buscar proveedor...') }}"
                                     class="block w-full rounded-l-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
@@ -171,13 +174,21 @@
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
                             </button>
                         </div>
+                        {{-- D23: modalidad servicio — sin artículos, el detalle son los conceptos.
+                            Vive bajo el proveedor: su flag "prestador de servicios" la precarga. --}}
+                        <label class="mt-1 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer"
+                            title="{{ __('Factura de servicio (luz, gas, alquiler...): sin artículos ni stock — el detalle son renglones libres y la cuenta de compra es obligatoria') }}">
+                            <input type="checkbox" wire:model.live="esServicio"
+                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
+                            {{ __('Factura de servicio') }}
+                        </label>
                     </div>
 
                     {{-- 2. CUIT comprador --}}
                     @if($this->esFiscalActual())
                         <div class="col-span-2">
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('CUIT comprador') }}</label>
-                            <select wire:model.live="cuitId"
+                            <select wire:model.live="cuitId" data-cell @keydown.enter.prevent="avanzar($event)"
                                 class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                 <option value="">{{ __('Sin CUIT') }}</option>
                                 @foreach($cuits as $cuit)
@@ -190,7 +201,7 @@
                     {{-- 3. Tipo de comprobante (sugerido por proveedor × CUIT, editable) + toggle no fiscal (D15) --}}
                     <div>
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Comprobante') }}</label>
-                        <select wire:model.live="tipoComprobante" @if($noFiscal) disabled @endif
+                        <select wire:model.live="tipoComprobante" @if($noFiscal) disabled @endif data-cell @keydown.enter.prevent="avanzar($event)"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-60">
                             @foreach($this->tiposDisponibles() as $tipo)
                                 <option value="{{ $tipo }}">{{ __('compra_tipo_'.$tipo) }}</option>
@@ -201,13 +212,6 @@
                                 class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
                             {{ __('Compra no fiscal') }}
                         </label>
-                        {{-- D23: modalidad servicio — sin artículos, el detalle son los conceptos --}}
-                        <label class="mt-1 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 cursor-pointer"
-                            title="{{ __('Factura de servicio (luz, gas, alquiler...): sin artículos ni stock — el detalle son renglones libres y la cuenta de compra es obligatoria') }}">
-                            <input type="checkbox" wire:model.live="esServicio"
-                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-700 w-3.5 h-3.5">
-                            {{ __('Factura de servicio') }}
-                        </label>
                     </div>
 
                     {{-- 4. Número del comprobante del proveedor (RF-13): PV + número, con relleno de ceros --}}
@@ -216,11 +220,13 @@
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('N° comprobante') }}</label>
                         <div class="mt-1 flex items-center gap-1">
                             <input type="text" wire:model="numeroPv" placeholder="0001" maxlength="5" inputmode="numeric"
+                                data-cell @keydown.enter.prevent="avanzar($event)"
                                 @blur="$wire.set('numeroPv', pad($event.target.value, 4))"
                                 class="block w-16 rounded-md shadow-sm text-sm text-center dark:bg-gray-700 dark:text-white focus:ring focus:ring-opacity-50
                                     {{ $esDuplicado ? 'border-red-500 dark:border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:border-bcn-primary focus:ring-bcn-primary' }}">
                             <span class="text-gray-400 dark:text-gray-500">-</span>
                             <input type="text" wire:model="numeroCbte" placeholder="00012345" maxlength="20" inputmode="numeric"
+                                data-cell @keydown.enter.prevent="avanzar($event)"
                                 @blur="$wire.set('numeroCbte', pad($event.target.value, 8))"
                                 class="block w-28 rounded-md shadow-sm text-sm dark:bg-gray-700 dark:text-white focus:ring focus:ring-opacity-50
                                     {{ $esDuplicado ? 'border-red-500 dark:border-red-500 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 dark:border-gray-600 focus:border-bcn-primary focus:ring-bcn-primary' }}">
@@ -235,13 +241,13 @@
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">
                             {{ __('Fecha comprobante') }}@if($this->esFiscalActual()) *@endif
                         </label>
-                        <input type="date" wire:model.live="fechaComprobante"
+                        <input type="date" wire:model.live="fechaComprobante" data-cell @keydown.enter.prevent="avanzar($event)"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                     </div>
                     @if(! $esNC)
                         <div>
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Vencimiento') }}</label>
-                            <input type="date" wire:model="fechaVencimiento"
+                            <input type="date" wire:model="fechaVencimiento" data-cell @keydown.enter.prevent="avanzar($event)"
                                 class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         </div>
                     @endif
@@ -249,7 +255,7 @@
                     {{-- 6. Cuenta de compra (RF-22; obligatoria en servicios, D23) --}}
                     <div class="lg:col-span-2">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Cuenta de compra') }}@if($esServicio) *@endif</label>
-                        <select wire:model="cuentaCompraId"
+                        <select wire:model="cuentaCompraId" data-cell @keydown.enter.prevent="avanzar($event)"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                             <option value="">{{ __('Sin clasificar') }}</option>
                             @foreach($cuentasCompra as $cuenta)
@@ -262,7 +268,7 @@
                     @if(! $esServicio)
                         <div>
                             <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Desc. global (%)') }}</label>
-                            <input type="text" wire:model.live.debounce.500ms="descuentoGlobal" placeholder="0"
+                            <input type="text" wire:model.live.debounce.500ms="descuentoGlobal" placeholder="0" data-cell @keydown.enter.prevent="avanzar($event)"
                                 class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         </div>
                     @endif
@@ -270,7 +276,7 @@
                     {{-- 8. Observaciones --}}
                     <div class="col-span-2 lg:col-span-3">
                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Observaciones') }}</label>
-                        <input type="text" wire:model="observaciones"
+                        <input type="text" wire:model="observaciones" data-cell @keydown.enter.prevent="avanzar($event)"
                             class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                     </div>
                 </div>

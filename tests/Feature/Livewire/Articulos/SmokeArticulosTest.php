@@ -49,6 +49,41 @@ class SmokeArticulosTest extends TestCase
         parent::tearDown();
     }
 
+    /**
+     * "Usar como precio": copia el sugerido al campo del modal (alcance global
+     * si no hay override de sucursal) y Guardar lo persiste por el camino normal.
+     */
+    public function test_gestionar_articulos_aplica_precio_sugerido(): void
+    {
+        // El sugerido está gateado por func.costos.ver: system admin lo tiene todo.
+        $this->actingAs(User::factory()->create(['is_system_admin' => true]));
+
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', [
+            'precio_base' => 100,
+            'utilidad_porcentaje' => 50,
+        ]);
+        \App\Models\ArticuloCosto::create([
+            'articulo_id' => $articulo->id,
+            'sucursal_id' => $this->sucursalId,
+            'costo_ultimo' => 100,
+            'fecha_costo_ultimo' => now(),
+        ]);
+
+        $editor = Livewire::test(GestionarArticulos::class)
+            ->call('edit', $articulo->id)
+            ->call('aplicarPrecioSugerido')
+            ->assertOk();
+
+        // Sin CUIT RI en la sucursal la alícuota efectiva es 0:
+        // sugerido = 100 × (1 + 50%) = 150 → va al campo, no a la BD todavía.
+        $this->assertEquals(150.0, (float) $editor->get('precio_base'));
+        $this->assertEquals(100.0, (float) $articulo->fresh()->precio_base);
+
+        $editor->call('save')->assertOk();
+        $this->assertEquals(150.0, (float) $articulo->fresh()->precio_base);
+    }
+
     public function test_asignar_etiquetas_monta(): void
     {
         Livewire::test(AsignarEtiquetas::class)->assertOk();
