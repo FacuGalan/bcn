@@ -1111,7 +1111,7 @@ Indices: KEY (`conciliacion_cuenta_id`, `clasificacion`), KEY (`id_externo`).
 
 ### 2.9 Compras, Costos y Cuenta Corriente de Proveedores
 
-> Modulo reescrito por completo (spec `compras-costos-precios`, D1-D22): compra (fiscal o no) → costo computable neto del renglon → costos del articulo (ultimo/promedio/reposicion, por sucursal + consolidado) → historial → utilidad objetivo → precio de venta sugerido → revision/repricing. Incluye el lado PAGO: cuenta corriente de proveedores espejo de la de clientes.
+> Modulo reescrito por completo (spec `compras-costos-precios`, D1-D22): compra (fiscal o no) → costo computable neto del renglon → costos del articulo (ultimo/promedio/reposicion, por sucursal + consolidado) → historial → utilidad objetivo → precio de venta sugerido → revision/repricing. Incluye el lado PAGO: cuenta corriente de proveedores espejo de la de clientes. Incrementos post-merge D23 (factura de servicio) y D24 (percepciones habituales por proveedor) — ver 3.8.8.
 
 #### Tabla: `compras`
 Encabezado de cada comprobante de compra (factura, NC de proveedor o compra no fiscal). `estado` es **solo ciclo de vida** (D11); lo impago se deriva SIEMPRE de `saldo_pendiente > 0`, nunca del estado.
@@ -1126,6 +1126,7 @@ Encabezado de cada comprobante de compra (factura, NC de proveedor o compra no f
 | `cuit_id` | bigint FK nullable | CUIT del comercio (comprador) al que se imputa fiscalmente la compra. ON DELETE SET NULL. NULL = no alimenta el ledger fiscal |
 | `usuario_id` | bigint FK | Usuario que registro |
 | `tipo_comprobante` | varchar | `factura_a`, `factura_b`, `factura_c`, `factura_m`, `no_fiscal`, `nota_credito_a`, `nota_credito_b`, `nota_credito_c`, `nota_credito_no_fiscal` |
+| `es_servicio` | boolean default false | D23: modalidad "factura de servicio" (luz, gas, alquiler...). Sin renglones de articulo ni efectos de stock/costos/repricing; el detalle son los `compra_conceptos`. Helper `Compra::esServicio()` |
 | `compra_origen_id` | bigint FK nullable (compras) | Si es una NC: la compra original que devuelve. NULL en compras normales y NC sueltas |
 | `cuenta_compra_id` | bigint FK nullable (cuentas_compra) | Agrupacion de gestion para reportes (precargada del proveedor, editable) |
 | `fecha` | date | Fecha de carga (usada para agrupar reportes) |
@@ -1181,7 +1182,7 @@ Renglones de cada compra. `cantidad` queda SIEMPRE en unidades de STOCK (no camb
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
 #### Tabla: `compra_conceptos` (D9, pie de factura)
-Renglones no-articulo del comprobante (flete, impuestos internos, envases, otros).
+Renglones no-articulo del comprobante (flete, impuestos internos, envases, otros). En una compra con `es_servicio = true` (D23), esta tabla es el UNICO detalle de la compra (no hay `compras_detalle`): la UI la retitula "Detalle del servicio", la muestra siempre abierta y fuerza `computa_costo = false` en todos los renglones (sin renglones de articulo no hay prorrateo posible). Requiere al menos 1 fila con monto > 0 para poder confirmar una factura de servicio.
 
 | Columna | Tipo | Descripcion |
 |---|---|---|
@@ -1291,6 +1292,8 @@ Proveedores del comercio. Un proveedor puede estar vinculado a un cliente (para 
 | `sucursal_id` | bigint FK nullable | FK a sucursal si es interna |
 | `cliente_id` | bigint FK nullable | FK a cliente vinculado |
 | `cuenta_compra_id` | bigint FK nullable | Cuenta de compra default (RF-22), precarga la de la compra |
+| `es_servicio` | boolean default false | D23: proveedor de servicios (ej. EDESUR). Al elegirlo en `EditorCompra::seleccionarProveedor()`, PISA `compras.es_servicio` con este flag (editable despues, igual que la letra sugerida) |
+| `percepciones_habituales` | json nullable, cast array | D24: `[{impuesto_id, alicuota}]` — percepciones tipicas de este proveedor. Al elegirlo en una compra FISCAL, `EditorCompra::precargarPercepcionesHabituales()` las precarga como renglones de percepcion (impuesto + alicuota; monto y base vacios) solo si no hay percepciones ya cargadas por el usuario. No es calculo: el monto exacto sale siempre de la factura fisica |
 | `tiene_cuenta_corriente` | boolean | Habilita el circuito de cta cte y pagos a plazo (default false) |
 | `dias_pago` | int nullable | Precarga `fecha_vencimiento` de las compras de este proveedor |
 | `saldo_cache` | decimal(12,2) | Cache del saldo consolidado del comercio (patron Cliente, `lockForUpdate`) |
@@ -3835,6 +3838,28 @@ Ledger `movimientos_cuenta_corriente_proveedor`, espejo de clientes pero con sem
 `func.compras.crear` (cargar/editar borradores) es distinto de `func.compras.confirmar` (mueve stock/costos/ledger/plata) y de `func.compras.cancelar`/`func.compras.pagar`/`func.compras.pagar_avanzado` (elegir origen de fondos alternativo)/`func.compras.revisar_precios` (aplicar RF-10/RF-11). `func.costos.ver`/`func.costos.editar` gatean TODA visibilidad de costos y margenes en el sistema (GestionarArticulos, GestionarCategorias, ConfiguracionEmpresa, el editor y el detalle de compras) — sin `func.costos.ver` no se muestran ni columnas ni modales de costo. Menu: grupo padre "Compras" (Compras / Proveedores / Pagos a proveedores / Reportes).
 
 **Compras internas**: si el proveedor es una sucursal interna (`es_sucursal_interna = true`), la compra representa una transferencia fiscal entre sucursales (modulo propio de transferencias inter-sucursal, fuera de alcance de este spec — ver seccion de fases futuras del spec).
+
+#### 3.8.8 Factura de servicio (D23) y percepciones habituales por proveedor (D24)
+
+Incrementos post-merge del spec (acordados 2026-07-13, fuera del alcance original D1-D22). Misma pantalla y mismo modelo `Compra`, solo agregan una modalidad y una precarga de conveniencia.
+
+**D23 — Factura de servicio** (`compras.es_servicio`, ej. luz, gas, alquiler, honorarios):
+
+- Sin grilla de articulos: nada de stock, costos ni repricing automatico. El detalle son los `compra_conceptos` (ver tabla arriba).
+- `CompraService::validarConfirmacion()`: si `es_servicio`, exige `detalles->isEmpty()` (rechaza renglones de articulo cargados), `conceptos->isNotEmpty()` (al menos 1 renglon de detalle) y `cuenta_compra_id !== null` (obligatoria, es el eje del reporte D22 RF-22). Sin NC (`esNotaCredito()`), la regla `detalles->isEmpty()` normal (compra sin renglones = error) queda excluida para servicio.
+- `CompraService::confirmarCompra()`: saltea el paso 4 (`CostoService::registrarDesdeCompra()`) y el paso 8 (`repricearAutomaticos()`) cuando `esServicio()` es true (ademas de cuando es NC). `cancelarCompra()` saltea `revertirCostoUltimoSiCorresponde()` en el mismo caso.
+- `EditorCompra`: `totales()` y `calcularSugerenciaFiscal()` ignoran la grilla de renglones si `esServicio`; `construirPayload()` fuerza `renglones = []` y `computa_costo = false` en todos los conceptos. `validarParaGuardar()` valida conceptos+cuenta en vez de renglones.
+- **Precarga desde el proveedor**: `seleccionarProveedor()` pisa `$this->esServicio = $proveedor->es_servicio` (igual criterio que la letra sugerida — editable despues).
+- **NC de un servicio**: `precargarNcDesdeOrigen()` copia `esServicio` de la compra origen y precarga `conceptos` (no `renglones`) desde `origen->conceptos`.
+- Descuento global oculto en servicio (aplica solo a renglones, que no existen).
+- Vistas: badge "Servicio" (sky) en listado y detalle de compra; el detalle oculta la tabla de renglones.
+
+**D24 — Percepciones habituales por proveedor** (`proveedores.percepciones_habituales`):
+
+- ABM en `GestionarProveedores`: repetidor `{impuesto_id, alicuota}`, catalogo de impuestos filtrado a `naturaleza_default = 'percepcion'`.
+- `EditorCompra::precargarPercepcionesHabituales()` se invoca desde `seleccionarProveedor()`: si el proveedor tiene percepciones habituales Y la compra actual es fiscal Y NO hay percepciones ya cargadas (impuesto o monto > 0 en algun renglon existente), precarga renglones `{impuesto_id, alicuota, monto: '', base_imponible: ''}`. El monto queda vacio a proposito — no es un calculo, sale de la factura fisica de cada compra puntual.
+- No reemplaza percepciones cargadas manualmente por el usuario (chequeo de "cargadas" antes de precargar).
+- Sigue bloqueado (no codeado) el calculo automatico de percepciones IIBB por jurisdiccion/Convenio Multilateral — depende de la respuesta pendiente del contador (ver seccion 3.13 Sistema Impositivo).
 
 ### 3.9 Facturacion Fiscal
 
