@@ -1,6 +1,6 @@
 # Compras → Costos → Precios - Especificación
 
-## Estado: APROBADO — EN IMPLEMENTACIÓN (Fases 1-5 completas)
+## Estado: IMPLEMENTADO — verificado (/sdd-verify 2026-07-13); Fase 9 restante: docs + PR
 
 > Spec creado el 2026-07-01 tras sesión de diseño con el usuario (decisiones D1-D7).
 > Es el SDD propio que la Fase 6 del spec `sistema-impositivo.md` dejó como
@@ -995,88 +995,88 @@ revisión post-compra. (Lista final en /sdd-apply.)
 
 ## Criterios de Aceptación
 
-- [ ] Compra factura A de comprador RI: costo = neto con descuentos; el IVA va al
+- [x] Compra factura A de comprador RI: costo = neto con descuentos; el IVA va al
       ledger como crédito fiscal; percepciones al ledger, NO al costo.
-- [ ] Compra no fiscal / factura B de comprador RI (y toda compra de monotributo):
+- [x] Compra no fiscal / factura B de comprador RI (y toda compra de monotributo):
       costo = total pagado con descuentos; nada al ledger de IVA.
-- [ ] Descuentos 10+5+3 sobre renglón de $1000 ⇒ neto efectivo $829,35
+- [x] Descuentos 10+5+3 sobre renglón de $1000 ⇒ neto efectivo $829,35
       (1000×0,90×0,95×0,97 — cascada, no suma) persistido con la lista y el monto.
-- [ ] Confirmar compra actualiza costo_ultimo + PPP en fila sucursal Y consolidada,
+- [x] Confirmar compra actualiza costo_ultimo + PPP en fila sucursal Y consolidada,
       upsert de articulo_proveedor y filas de historial_costos.
-- [ ] PPP: stock 10 @ $100 + compra 5 @ $130 ⇒ $110.
-- [ ] Cancelar la compra que fijó el último costo restaura el anterior (historial
+- [x] PPP: stock 10 @ $100 + compra 5 @ $130 ⇒ $110.
+- [x] Cancelar la compra que fijó el último costo restaura el anterior (historial
       origen 'cancelacion'); cancelación fiscal cross-período con reversa negativa.
-- [ ] Cascada de utilidad: artículo 50 % pisa categoría 40 % pisa comercio 30 %.
-- [ ] Precio sugerido: costo neto $100, utilidad 40 %, IVA 21 % ⇒ final $169,40
+- [x] Cascada de utilidad: artículo 50 % pisa categoría 40 % pisa comercio 30 %.
+- [x] Precio sugerido: costo neto $100, utilidad 40 %, IVA 21 % ⇒ final $169,40
       (+ redondeo configurado); margen real inverso reproduce la utilidad (pre-redondeo).
-- [ ] Revisión post-compra lista solo artículos con margen real < objetivo y aplica
+- [x] Revisión post-compra lista solo artículos con margen real < objetivo y aplica
       en lote registrando HistorialPrecio.
-- [ ] Artículo con flag automático se repricea al confirmar la compra sin pasar
+- [x] Artículo con flag automático se repricea al confirmar la compra sin pasar
       por la revisión.
-- [ ] Carga de renglón por código de proveedor encuentra el artículo y precarga
+- [x] Carga de renglón por código de proveedor encuentra el artículo y precarga
       descuentos habituales y factor de conversión.
-- [ ] No se puede cargar dos veces el mismo comprobante del proveedor
+- [x] No se puede cargar dos veces el mismo comprobante del proveedor
       (proveedor + tipo + número → UNIQUE con mensaje claro).
-- [ ] Descuento global −5 % sobre comprobante de 2 renglones se prorratea por
+- [x] Descuento global −5 % sobre comprobante de 2 renglones se prorratea por
       importe y reduce el costo unitario de ambos.
-- [ ] Concepto "impuestos internos $500, computa costo" se prorratea a los
+- [x] Concepto "impuestos internos $500, computa costo" se prorratea a los
       renglones; concepto "flete $300, no computa" completa el total sin tocar costos.
-- [ ] Compra de 2 bultos x12 @ $1200/bulto ⇒ stock +24 unidades, costo unitario
+- [x] Compra de 2 bultos x12 @ $1200/bulto ⇒ stock +24 unidades, costo unitario
       neto $100 (con factor 12).
-- [ ] Borrador: se guarda y edita sin tocar stock/costos/ledger; al confirmar se
+- [x] Borrador: se guarda y edita sin tocar stock/costos/ledger; al confirmar se
       dispara todo una sola vez; borrador se elimina sin reversas.
-- [ ] Migración de estados: las compras 'pendiente' existentes quedan 'completada'
+- [x] Migración de estados: las compras 'pendiente' existentes quedan 'completada'
       con su `saldo_pendiente` intacto; ninguna es interpretable como borrador.
-- [ ] Compra cta cte de proveedor CC genera HABER por el total; contado total
+- [x] Compra cta cte de proveedor CC genera HABER por el total; contado total
       genera par HABER/DEBE con saldo 0 (extracto completo).
-- [ ] Pago inicial al confirmar una compra cta cte se materializa como
+- [x] Pago inicial al confirmar una compra cta cte se materializa como
       PagoProveedor (un solo camino de escritura) y baja el saldo.
-- [ ] Pago parcial aplicado a 2 compras (FIFO) genera los DEBE, baja el
+- [x] Pago parcial aplicado a 2 compras (FIFO) genera los DEBE, baja el
       `saldo_pendiente` de ambas y registra egreso de caja según el desglose de FP.
-- [ ] Anticipo a proveedor genera saldo a favor nuestro; el pago siguiente lo
+- [x] Anticipo a proveedor genera saldo a favor nuestro; el pago siguiente lo
       consume (`uso_saldo_favor`).
-- [ ] Anular una orden de pago contraasienta ledger + el origen de fondos (caja,
+- [x] Anular una orden de pago contraasienta ledger + el origen de fondos (caja,
       tesorería o cuenta empresa) y restaura los `saldo_pendiente`; bloqueada
       solo si algún renglón de origen caja tiene el turno cerrado — una OP 100%
       tesorería/cuenta empresa se anula siempre (el saldo vuelve al origen).
-- [ ] Sin `compras.pagar_avanzado` el pago solo puede salir de la caja activa
+- [x] Sin `compras.pagar_avanzado` el pago solo puede salir de la caja activa
       (con validación de saldo); con el permiso se puede pagar desde otra caja,
       efectivo de Tesorería o cuenta de empresa, y cada origen valida su saldo.
-- [ ] Compra con toggle NO FISCAL: sin desglose de IVA, sin compra_ivas, sin
+- [x] Compra con toggle NO FISCAL: sin desglose de IVA, sin compra_ivas, sin
       percepciones, nada al ledger fiscal; el total pagado es el costo.
-- [ ] NC de proveedor por 3 de 10 unidades: stock −3, reversa proporcional del
+- [x] NC de proveedor por 3 de 10 unidades: stock −3, reversa proporcional del
       crédito fiscal en el PERÍODO de la NC, DEBE en ledger que baja el saldo de
       la compra origen; `costo_ultimo` y PPP intactos.
-- [ ] Cancelar compra con pagos aplicados ofrece cascada o saldo a favor; con
+- [x] Cancelar compra con pagos aplicados ofrece cascada o saldo a favor; con
       turno de caja cerrado en un renglón caja, solo saldo a favor.
-- [ ] Cancelar y recargar la misma factura del proveedor es posible (el
+- [x] Cancelar y recargar la misma factura del proveedor es posible (el
       anti-duplicado excluye canceladas); cargarla dos veces activa, NO.
-- [ ] Primera compra de un artículo con stock previo y PPP NULL fija
+- [x] Primera compra de un artículo con stock previo y PPP NULL fija
       PPP = costo unitario computable (el stock sin costo no pondera).
-- [ ] Factura A bajo CUIT comprador monotributista SE PUEDE cargar (RG
+- [x] Factura A bajo CUIT comprador monotributista SE PUEDE cargar (RG
       5003/2021): advertencia no bloqueante, SIN crédito al ledger, todo lo
       pagado (IVA incluido) es costo.
-- [ ] El crédito fiscal del ledger sale de `compra_ivas` (no de la suma de
+- [x] El crédito fiscal del ledger sale de `compra_ivas` (no de la suma de
       renglones) y su período es `fecha_comprobante`: factura de junio cargada
       en julio computa el crédito en JUNIO.
-- [ ] Desglose sugerido vs cargado: si Σ(renglones+conceptos gravados) difiere
+- [x] Desglose sugerido vs cargado: si Σ(renglones+conceptos gravados) difiere
       de `compra_ivas` por más de la tolerancia, advertencia antes de confirmar.
-- [ ] Comercio cuyo CUIT default NO es RI: precio sugerido = costo × (1+utilidad)
+- [x] Comercio cuyo CUIT default NO es RI: precio sugerido = costo × (1+utilidad)
       SIN factor de IVA y margen real sin división (alic_efectiva = 0, D21).
-- [ ] Concepto flete $300 con tipo_iva 21% en factura A: entra neto al prorrateo
+- [x] Concepto flete $300 con tipo_iva 21% en factura A: entra neto al prorrateo
       de costo y su IVA aparece en la sugerencia de compra_ivas.
-- [ ] Compra hereda la cuenta de compra default del proveedor, editable; reporte
+- [x] Compra hereda la cuenta de compra default del proveedor, editable; reporte
       "Compras por cuenta" suma completadas − NC por período y muestra "sin
       clasificar" como categoría propia (RF-22).
-- [ ] Menú: grupo padre "Compras" con hijos Compras / Proveedores / Pagos a
+- [x] Menú: grupo padre "Compras" con hijos Compras / Proveedores / Pagos a
       proveedores / Reportes, con sus permisos respectivos.
-- [ ] Cancelar una compra confirmada contraasienta el ledger de proveedor y la
+- [x] Cancelar una compra confirmada contraasienta el ledger de proveedor y la
       caja (nunca mutación directa de saldos).
-- [ ] Permisos compras.* sembrados y ENFORCED (middleware + hasPermissionTo);
+- [x] Permisos compras.* sembrados y ENFORCED (middleware + hasPermissionTo);
       usuario sin `costos.ver` no ve costos ni márgenes en ninguna pantalla.
-- [ ] `compra_ivas` + netos del encabezado cuadran contra el total del comprobante
+- [x] `compra_ivas` + netos del encabezado cuadran contra el total del comprobante
       y alimentan el Libro IVA Compras.
-- [ ] Smoke tests Livewire de componentes nuevos/modificados; tests de CostoService
+- [x] Smoke tests Livewire de componentes nuevos/modificados; tests de CostoService
       (matriz condición IVA × tipo comprobante, PPP, cascada, historial, reversión)
       y de los services de cta cte proveedor/pagos (es dinero: suite completa).
 
@@ -1466,8 +1466,31 @@ historial de costos, proveedores del artículo). Permisos `costos.ver/editar`.
   monta sobre completada; test RF-11 en CompraServiceTest (flag repricea,
   sin flag intacto, historial 'utilidad_automatica').
 
-### Fase 9: Verificación + docs [PENDIENTE]
+### Fase 9: Verificación + docs [EN PROGRESO]
 /sdd-verify + @docs-sync + manual de usuario.
+
+#### Verificación (2026-07-13, /sdd-verify APROBADO)
+- Validación EN VIVO del usuario: circuito completo Fases 6-8 + ronda UX del
+  editor (2026-07-13) — OK.
+- Suites: services 328 verdes (CompraService 22, CostoService 28,
+  CuentaCorrienteProveedor 17 incluidos) + Livewire 267 verdes (SmokeCompras 21).
+- Tests agregados en el verify: revisión de precios aplica en lote + registra
+  HistorialPrecio origen 'revision_compra' (retomable), reporte por cuenta con
+  NC restando (resumen + corte).
+- Verificación estática: menú padre compras + 4 hijos activos en menu_items,
+  rutas compras.* en web.php, 8 permisos funcionales compras.*/costos.* en
+  permisos_funcionales (syncAllToSpatie → seedRolesYPermisos), traducciones
+  4369 claves ×3 idiomas consistentes.
+- Sin cobertura de test directo (verificados en vivo / one-shot): migración de
+  estados 'pendiente'→'completada' (one-shot Fase 1 con efecto verificado en
+  BD), gate UI de pagar_avanzado (forzado a caja activa), advertencia de cuadre
+  sugerido vs cargado (componente), búsqueda por código de proveedor en el
+  editor (el service ArticuloProveedor::porCodigo sí se ejercita vía selección).
+- Ronda UX post-validación (2026-07-13, commits 303d75c/58aa2ef): sugerencia de
+  tipo de comprobante por condición IVA proveedor×CUIT, n° comprobante en 2
+  inputs con zero-pad, fix dropdown/tipeo rápido, navegación flechas, foco a
+  cantidad, alta rápida proveedor, lupa búsqueda avanzada, precarga de precio
+  desde costo vigente, densidad. Con test de matriz A/B/C + 6 smokes.
 
 ### Fases futuras (fuera de alcance)
 - **Transferencias inter-sucursal** (D5, ampliada 2026-07-02): módulo PROPIO

@@ -316,4 +316,112 @@ class SmokeComprasTest extends TestCase
             ->call('recalcular')
             ->assertOk();
     }
+
+    /**
+     * RF-10: la revisión lista solo artículos bajo el objetivo, aplica en lote
+     * (precio global sin override de sucursal) y registra HistorialPrecio con
+     * origen 'revision_compra'; al recalcular, el artículo ya no aparece.
+     */
+    public function test_revision_precios_aplica_en_lote_y_registra_historial(): void
+    {
+        // aplicar() está gateado por func.compras.revisar_precios: system admin
+        // dedicado (tiene todos los permisos sin depender del seed del fixture).
+        $this->actingAs(\App\Models\User::factory()->create(['is_system_admin' => true]));
+
+        $this->crearTiposIva();
+
+        // Precio 100 con costo 100 ⇒ margen 0% < objetivo 50% (sin CUIT: alícuota
+        // efectiva 0, sugerido = costo × 1,5 = 150).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', [
+            'precio_base' => 100,
+            'utilidad_porcentaje' => 50,
+        ]);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Revision Aplica '.uniqid(), 'activo' => true]);
+
+        $borrador = app(CompraService::class)->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NO_FISCAL,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 1, 'factor_conversion' => 1, 'precio_unitario' => 100],
+        ]);
+        app(CompraService::class)->confirmarCompra($borrador, 1);
+
+        $revision = Livewire::test(RevisionPreciosCompra::class, ['compraId' => $borrador->id])
+            ->assertSet('filas', fn ($filas) => count($filas) === 1 && $filas[0]['articulo_id'] === $articulo->id);
+
+        // El sugerido depende de la alícuota efectiva del fixture (con CUIT RI
+        // incluye el factor de IVA): el assert es contra la fila calculada.
+        $sugerido = (float) $revision->get('filas')[0]['sugerido'];
+
+        $revision->call('aplicar')
+            // Retomable: aplicado el precio, el margen alcanza el objetivo y sale de la lista.
+            ->assertSet('filas', [])
+            ->assertOk();
+
+        $this->assertEquals($sugerido, (float) $articulo->fresh()->precio_base);
+        $this->assertTrue(
+            \App\Models\HistorialPrecio::where('articulo_id', $articulo->id)
+                ->where('origen', 'revision_compra')
+                ->exists()
+        );
+    }
+
+    /**
+     * RF-22: el reporte por cuenta agrupa las completadas del período y las NC
+     * RESTAN, tanto en el resumen como en el corte por cuenta.
+     */
+    public function test_reporte_por_cuenta_resta_las_nc(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Reporte '.uniqid(), 'activo' => true]);
+        $cuenta = \App\Models\CuentaCompra::create(['nombre' => 'Mercadería UX '.uniqid(), 'orden' => 99, 'activo' => true]);
+
+        $servicio = app(CompraService::class);
+
+        $compra = $servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NO_FISCAL,
+            'cuenta_compra_id' => $cuenta->id,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 10, 'factor_conversion' => 1, 'precio_unitario' => 100],
+        ]);
+        $servicio->confirmarCompra($compra, 1); // total 1000
+
+        $nc = $servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NC_NO_FISCAL,
+            'compra_origen_id' => $compra->id,
+            'cuenta_compra_id' => $cuenta->id,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 3, 'factor_conversion' => 1, 'precio_unitario' => 100],
+        ]);
+        $servicio->confirmarCompra($nc, 1); // NC 300
+
+        Livewire::test(ReportesCompras::class)
+            ->set('tipoReporte', 'cuenta')
+            ->set('fechaDesde', now()->toDateString())
+            ->set('fechaHasta', now()->toDateString())
+            ->call('generarReporte')
+            ->assertSet('resumen', function ($resumen) {
+                return $resumen['compras'] >= 1000.0
+                    && $resumen['notas_credito'] >= 300.0
+                    && abs($resumen['neto'] - ($resumen['compras'] - $resumen['notas_credito'])) < 0.01;
+            })
+            ->assertSet('datosReporte', function ($datos) use ($cuenta) {
+                $grupo = collect($datos)->firstWhere('etiqueta', $cuenta->nombre);
+
+                return $grupo !== null
+                    && abs($grupo['compras'] - 1000.0) < 0.01
+                    && abs($grupo['notas_credito'] - 300.0) < 0.01
+                    && abs($grupo['neto'] - 700.0) < 0.01;
+            })
+            ->assertOk();
+    }
 }
