@@ -419,6 +419,8 @@ Catalogo maestro de articulos/productos del comercio.
 | `tipo_iva_id` | bigint FK nullable | Tipo de IVA aplicable |
 | `precio_iva_incluido` | boolean | Si los precios incluyen IVA (default: true) |
 | `precio_base` | decimal(12,2) | Precio base del articulo |
+| `utilidad_porcentaje` | decimal(6,2) nullable | Override de utilidad objetivo (markup % sobre costo neto); NULL = hereda de `categorias.utilidad_porcentaje` o, en su defecto, de `configuracion_costos.utilidad_default` (spec compras-costos, RF-08) |
+| `precio_administrado_por_utilidad` | boolean | Default false. RF-11: opt-in de repricing automatico — al confirmar una compra que cambia el costo de este articulo, su precio se recalcula solo con la formula de precio sugerido |
 | `activo` | boolean | Si esta activo |
 | `created_at`, `updated_at`, `deleted_at` | timestamp | Timestamps + soft delete |
 
@@ -454,6 +456,7 @@ Categorias para clasificar articulos.
 | `icono` | varchar(50) nullable | Nombre del icono |
 | `activo` | boolean | Si esta activa |
 | `tipo_iva_id` | bigint FK nullable | IVA por defecto para articulos de esta categoria |
+| `utilidad_porcentaje` | decimal(6,2) nullable | Override de utilidad objetivo para los articulos de esta categoria; NULL = hereda de `configuracion_costos.utilidad_default` (spec compras-costos, RF-08, nivel intermedio de la cascada comercio → categoria → articulo) |
 | `created_at`, `updated_at`, `deleted_at` | timestamp | Timestamps + soft delete |
 
 #### Import/Export de Categorias
@@ -1106,46 +1109,174 @@ Indices: KEY (`conciliacion_cuenta_id`, `clasificacion`), KEY (`id_externo`).
 
 **Idempotencia cross-corrida**: la unicidad no es un UNIQUE en la tabla (filas ignoradas o descartadas pueden repetirse legitimamente en corridas solapadas). La guarda es una query al aplicar: si ya existe un `MovimientoCuentaEmpresa` con origen `ConciliacionFila` de la misma cuenta y mismo `(tipo, id_externo)`, la fila se clasifica `ya_registrado` y no vuelve a proponer movimiento.
 
-### 2.9 Compras
+### 2.9 Compras, Costos y Cuenta Corriente de Proveedores
+
+> Modulo reescrito por completo (spec `compras-costos-precios`, D1-D22): compra (fiscal o no) → costo computable neto del renglon → costos del articulo (ultimo/promedio/reposicion, por sucursal + consolidado) → historial → utilidad objetivo → precio de venta sugerido → revision/repricing. Incluye el lado PAGO: cuenta corriente de proveedores espejo de la de clientes.
 
 #### Tabla: `compras`
-Compras realizadas a proveedores.
+Encabezado de cada comprobante de compra (factura, NC de proveedor o compra no fiscal). `estado` es **solo ciclo de vida** (D11); lo impago se deriva SIEMPRE de `saldo_pendiente > 0`, nunca del estado.
 
 | Columna | Tipo | Descripcion |
 |---|---|---|
 | `id` | bigint PK | ID unico |
-| `numero` | varchar(191) | Numero de comprobante |
+| `numero_comprobante` | varchar(191) | Numero interno autogenerado (`COM-{suc}-{8dig}`, o `NCP-` para notas de credito) |
+| `numero_comprobante_proveedor` | varchar(20) nullable | Numero REAL del comprobante del proveedor (formato libre, ej: `0003-00012345`) |
 | `sucursal_id` | bigint FK | Sucursal |
 | `proveedor_id` | bigint FK | Proveedor |
-| `cuit_id` | bigint FK nullable | CUIT del comercio al que se imputa fiscalmente la compra (RF-05, Fase 6). ON DELETE SET NULL. Si NULL, la compra no alimenta el ledger fiscal. |
-| `caja_id` | bigint FK nullable | Caja de pago |
+| `cuit_id` | bigint FK nullable | CUIT del comercio (comprador) al que se imputa fiscalmente la compra. ON DELETE SET NULL. NULL = no alimenta el ledger fiscal |
 | `usuario_id` | bigint FK | Usuario que registro |
-| `fecha` | timestamp | Fecha |
-| `subtotal` | decimal(12,2) | Subtotal |
-| `iva` | decimal(12,2) | Total IVA |
-| `total` | decimal(12,2) | Total |
-| `forma_pago` | enum | `efectivo`, `tarjeta`, `transferencia`, `cheque`, `cuenta_corriente` |
-| `estado` | enum | `pendiente`, `completada`, `cancelada` |
-| `created_at`, `updated_at` | timestamp | Timestamps |
+| `tipo_comprobante` | varchar | `factura_a`, `factura_b`, `factura_c`, `factura_m`, `no_fiscal`, `nota_credito_a`, `nota_credito_b`, `nota_credito_c`, `nota_credito_no_fiscal` |
+| `compra_origen_id` | bigint FK nullable (compras) | Si es una NC: la compra original que devuelve. NULL en compras normales y NC sueltas |
+| `cuenta_compra_id` | bigint FK nullable (cuentas_compra) | Agrupacion de gestion para reportes (precargada del proveedor, editable) |
+| `fecha` | date | Fecha de carga (usada para agrupar reportes) |
+| `fecha_comprobante` | date nullable | Fecha de la factura — **rige el periodo fiscal del credito de IVA**. Obligatoria si es fiscal |
+| `fecha_vencimiento` | date nullable | Aging de deuda en cta cte (se precarga con `proveedores.dias_pago`) |
+| `subtotal` | decimal(12,2) | Suma de renglones con descuentos aplicados (neto si discrimina IVA, final si no) |
+| `descuento_global_porcentaje` | decimal(6,2) nullable | % de descuento del pie del comprobante |
+| `descuento_global_monto` | decimal(12,2) | Monto del descuento global (se prorratea a los renglones por importe) |
+| `neto_gravado`, `neto_no_gravado`, `neto_exento` | decimal(12,2) | Netos del encabezado (espejo de `comprobante_fiscal_iva`) |
+| `total_iva` | decimal(12,2) | Total de IVA (suma de `compra_ivas`) |
+| `total` | decimal(12,2) | Total del comprobante |
+| `saldo_pendiente` | decimal(12,2) | Cache de lo impago; la fuente de verdad es el ledger `movimientos_cuenta_corriente_proveedor` |
+| `forma_pago` | varchar | `efectivo`, `debito`, `credito`, `transferencia`, `cheque`, `cta_cte` |
+| `estado` | enum | `borrador`, `completada`, `cancelada` (D11 — ciclo de vida puro) |
+| `observaciones` | text nullable | |
+| `created_at`, `updated_at` | timestamp | `created_at` = momento de carga |
+
+**Anti-duplicado** (validacion de aplicacion, no UNIQUE de BD): `(proveedor_id, tipo_comprobante, numero_comprobante_proveedor)` excluyendo `estado = 'cancelada'` — permite recargar la misma factura tras cancelarla, pero no cargarla dos veces activa.
 
 #### Tabla: `compras_detalle`
-Items de cada compra.
+Renglones de cada compra. `cantidad` queda SIEMPRE en unidades de STOCK (no cambia el codigo de stock existente); `cantidad_comprada` es la unidad del proveedor (ej. bultos).
 
 | Columna | Tipo | Descripcion |
 |---|---|---|
 | `id` | bigint PK | ID unico |
 | `compra_id` | bigint FK | Compra |
 | `articulo_id` | bigint FK | Articulo comprado |
-| `cantidad` | decimal(12,3) | Cantidad |
-| `precio_unitario` | decimal(12,2) | Precio unitario |
-| `subtotal` | decimal(12,2) | Subtotal |
-| `iva_porcentaje` | decimal(5,2) | Porcentaje IVA |
-| `iva_monto` | decimal(12,2) | Monto IVA |
-| `total` | decimal(12,2) | Total del item |
+| `codigo_proveedor_usado` | varchar(50) nullable | Trazabilidad: codigo del proveedor usado para encontrar el articulo en la carga |
+| `cantidad_comprada` | decimal(12,3) nullable | Cantidad en la unidad de COMPRA (bultos) |
+| `factor_conversion` | decimal(10,4) | Unidades de stock por unidad de compra (default 1) |
+| `cantidad` | decimal(12,3) | Cantidad en unidades de STOCK = `cantidad_comprada × factor_conversion` |
+| `precio_unitario` | decimal(12,2) | Precio de factura por unidad de COMPRA (neto si discrimina IVA, final si no) |
+| `precio_sin_iva` | decimal(12,2) nullable | |
+| `descuentos` | json nullable | Lista ordenada de % en cascada sobre el renglon (ej: `[10, 5, 3]`) |
+| `descuento_monto` | decimal(12,2) | Total descontado por la cascada propia del renglon |
+| `descuento_global_monto` | decimal(12,4) | Porcion prorrateada del descuento global del comprobante (RF-05) |
+| `conceptos_costo_monto` | decimal(12,4) | Porcion prorrateada de los conceptos que computan costo (RF-15, landed cost) |
+| `costo_unitario_computable` | decimal(12,4) nullable | Resultado final de la cadena de costo, por unidad de STOCK (ver formula en 3.8) |
+| `tipo_iva_id` | bigint FK nullable | Tipo de IVA del renglon |
+| `subtotal` | decimal(12,2) | Subtotal del renglon |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
-#### Tabla: `proveedores`
-Proveedores del comercio. Un proveedor puede estar vinculado a un cliente (para cuentas corrientes cruzadas) y puede ser una sucursal interna (transferencias entre sucursales).
+#### Tabla: `compra_ivas` (espejo de `comprobante_fiscal_iva`)
+**Fuente CANONICA del credito fiscal** (nunca la suma de renglones) y del Libro IVA Compras. Se pre-sugiere desde los renglones + conceptos gravados, y es editable para calzar con la factura fisica.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `compra_id` | bigint FK | Compra |
+| `alicuota` | decimal(5,2) | 21.00 / 10.50 / 27.00 / 0.00 |
+| `base_imponible` | decimal(12,2) | Neto gravado a esa alicuota |
+| `importe` | decimal(12,2) | IVA de esa alicuota |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `compra_conceptos` (D9, pie de factura)
+Renglones no-articulo del comprobante (flete, impuestos internos, envases, otros).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `compra_id` | bigint FK | Compra |
+| `tipo` | enum | `flete`, `impuestos_internos`, `envases`, `otro` |
+| `descripcion` | varchar(150) nullable | |
+| `monto` | decimal(12,2) | Misma base que los renglones (neto si discrimina, final si no) |
+| `tipo_iva_id` | bigint FK nullable | NULL = no gravado/exento. Alimenta la sugerencia de `compra_ivas` |
+| `computa_costo` | boolean | true = se prorratea a los renglones por importe (landed cost). Ej: impuestos internos de bebidas SI son costo real |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `compra_percepciones`
+Percepciones sufridas en la compra (impuesto del catalogo, base/alicuota/monto). Al confirmar se cablean a `ImpuestoService::registrarDesdeCompra()` (credito de IVA + percepciones → ledger fiscal). Con comprador no-RI, se cargan solo informativas (suman a la deuda, sin ledger fiscal en v1).
+
+#### Tabla: `cuentas_compra` (RF-22, D22)
+Catalogo de agrupacion de GESTION (no plan de cuentas contable formal) para responder "¿cuanto gaste en que?" por periodo.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `nombre` | varchar(100) | Ej: Mercaderia, Insumos, Servicios, Gastos generales (seed inicial) |
+| `orden` | int | Orden de visualizacion |
+| `activo` | boolean | |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+Configuracion: default por PROVEEDOR (`proveedores.cuenta_compra_id`) + override por COMPRA (`compras.cuenta_compra_id`); NULL = "sin clasificar" (los reportes lo muestran como categoria propia). Las NC heredan la cuenta de su compra origen.
+
+#### Tabla: `configuracion_costos`
+Una fila por comercio (singleton, `ConfiguracionCostos::obtener()` con `firstOrCreate`).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `utilidad_default` | decimal(6,2) | Markup % por defecto del comercio (default 30.00), base de la cascada de utilidad |
+| `costo_rector` | enum | `ultimo`, `promedio`, `reposicion` — v1 fijo en `'ultimo'` (UI de solo lectura) |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `articulo_costos`
+Costos del articulo, POR SUCURSAL + fila consolidada (`sucursal_id = NULL`, se actualiza con cada compra de cualquier sucursal). Tres costos en paralelo, uno rector (`costo_ultimo`, configurable a futuro).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `articulo_id` | bigint FK | ON DELETE CASCADE |
+| `sucursal_id` | bigint FK nullable | NULL = consolidado del comercio |
+| `costo_ultimo` | decimal(12,4) nullable | Costo computable de la ultima compra confirmada ("¿cuanto me sale hoy?") |
+| `costo_promedio` | decimal(12,4) nullable | PPP — costo promedio ponderado ("¿cuanto me costo lo que tengo?") |
+| `costo_reposicion` | decimal(12,4) nullable | Manual; NULL ⇒ fallback a `costo_ultimo` |
+| `proveedor_ultimo_id` | bigint FK nullable | Proveedor de origen del ultimo costo |
+| `compra_ultima_id` | bigint FK nullable | Compra de origen del ultimo costo |
+| `fecha_costo_ultimo` | timestamp nullable | |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**UNIQUE** `(articulo_id, sucursal_id)` — gotcha: en MySQL NULL admite N filas, asi que esto NO impide duplicar el consolidado; la unicidad la garantiza `CostoService` (unica puerta de escritura) con `firstOrCreate` + `lockForUpdate` en transaccion.
+
+#### Tabla: `historial_costos`
+Append-only, espejo de `historial_precios`. El PPP NO se historiza (reconstruible desde `movimientos_stock.costo`; una fila por compra seria ruido). El historial se registra por CADA compra confirmada aunque el costo no cambie (marcador de idempotencia + trazabilidad de que costo trajo cada compra).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `articulo_id` | bigint FK | CASCADE |
+| `sucursal_id` | bigint FK nullable | NULL = consolidado |
+| `tipo_costo` | enum | `ultimo`, `reposicion` |
+| `costo_anterior` | decimal(12,4) nullable | |
+| `costo_nuevo` | decimal(12,4) | |
+| `porcentaje_cambio` | decimal(8,2) nullable | |
+| `origen` | enum | `compra`, `manual`, `importacion`, `cancelacion` |
+| `compra_id` | bigint FK nullable | |
+| `proveedor_id` | bigint FK nullable | |
+| `usuario_id` | bigint nullable | Sin FK (users vive en `config`) |
+| `detalle` | varchar(255) nullable | |
+| `created_at` | timestamp | `UPDATED_AT = null` (tabla inmutable) |
+
+#### Tabla: `articulo_proveedor` (RF-04)
+N proveedores por articulo, con su codigo y costos propios.
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `articulo_id` | bigint FK | CASCADE |
+| `proveedor_id` | bigint FK | CASCADE |
+| `codigo_proveedor` | varchar(50) nullable | Codigo del articulo en el catalogo del proveedor (busqueda en la carga de compras) |
+| `factor_conversion` | decimal(10,4) | Unidades de stock por unidad de compra (default 1.0000, D8: bulto x12 ⇒ 12) |
+| `descuentos_habituales` | json nullable | Lista ordenada de % que se precargan en el renglon (editables) |
+| `costo_ultimo` | decimal(12,4) nullable | Ultimo costo computable de ESTE proveedor en particular |
+| `fecha_ultima_compra` | timestamp nullable | |
+| `activo` | boolean | |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+**UNIQUE** `(articulo_id, proveedor_id)`; **KEY** `(proveedor_id, codigo_proveedor)` para la busqueda por codigo. Un mismo `codigo_proveedor` en 2+ articulos no se bloquea por UNIQUE (se resuelve con un selector en la busqueda).
+
+#### Tabla: `proveedores` (extendida)
+Proveedores del comercio. Un proveedor puede estar vinculado a un cliente (para cuentas corrientes cruzadas) y puede ser una sucursal interna (transferencias entre sucursales, fase futura).
 
 | Columna | Tipo | Descripcion |
 |---|---|---|
@@ -1155,12 +1286,106 @@ Proveedores del comercio. Un proveedor puede estar vinculado a un cliente (para 
 | `razon_social` | varchar(191) nullable | Razon social |
 | `cuit` | varchar(20) nullable | CUIT |
 | `email`, `telefono`, `direccion` | varchar nullable | Contacto |
-| `condicion_iva_id` | int FK nullable | Condicion IVA |
+| `condicion_iva_id` | int FK nullable | Condicion IVA (define la letra de comprobante sugerida junto con el CUIT comprador) |
 | `es_sucursal_interna` | boolean | Si es una sucursal propia (para transferencias) |
 | `sucursal_id` | bigint FK nullable | FK a sucursal si es interna |
 | `cliente_id` | bigint FK nullable | FK a cliente vinculado |
+| `cuenta_compra_id` | bigint FK nullable | Cuenta de compra default (RF-22), precarga la de la compra |
+| `tiene_cuenta_corriente` | boolean | Habilita el circuito de cta cte y pagos a plazo (default false) |
+| `dias_pago` | int nullable | Precarga `fecha_vencimiento` de las compras de este proveedor |
+| `saldo_cache` | decimal(12,2) | Cache del saldo consolidado del comercio (patron Cliente, `lockForUpdate`) |
+| `ultimo_movimiento_ccp_at` | timestamp nullable | |
 | `activo` | boolean | Si esta activo |
 | `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `movimientos_cuenta_corriente_proveedor` (RF-18, espejo de `movimientos_cuenta_corriente`)
+Ledger append-only. **Semantica de PASIVO** (invertida respecto de clientes): **HABER = aumenta la deuda** (compra), **DEBE = la reduce** (pago). Saldo = `Σhaber − Σdebe` sobre movimientos `activo`, on-the-fly (nunca se persiste en la fila).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `proveedor_id` | bigint FK | Proveedor |
+| `sucursal_id` | bigint FK | Sucursal (la operatoria de pago es POR SUCURSAL ACTIVA, D19) |
+| `fecha` | date | |
+| `tipo` | enum | `compra`, `pago`, `anticipo`, `uso_saldo_favor`, `nota_credito`, `devolucion_saldo`, `anulacion_compra`, `anulacion_pago`, `ajuste_debito`, `ajuste_credito` |
+| `debe` | decimal(12,2) | Reduce la deuda (pago, NC del proveedor) |
+| `haber` | decimal(12,2) | Aumenta la deuda (compra) |
+| `saldo_favor_debe` | decimal(12,2) | Consume saldo a favor nuestro |
+| `saldo_favor_haber` | decimal(12,2) | Genera saldo a favor nuestro (anticipo) |
+| `documento_tipo` | enum | `compra`, `pago`, `pago_compra`, `ajuste` |
+| `documento_id` | bigint | Polimorfico |
+| `compra_id` | bigint FK nullable | SET NULL |
+| `pago_proveedor_id` | bigint FK nullable | SET NULL |
+| `concepto` | varchar(255) | |
+| `observaciones` | text nullable | Motivo de anulacion |
+| `estado` | enum | `activo`, `anulado` (contraasientos: AMBOS quedan `activo` y se cancelan matematicamente) |
+| `anulado_por_movimiento_id` | bigint nullable (self-FK) | SET NULL |
+| `usuario_id` | bigint | Sin FK (users en `config`) |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+Sin columnas de snapshot de moneda extranjera en v1.
+
+#### Tabla: `pagos_proveedores` (RF-19, analogo de `cobros`)
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `numero` | varchar(20) | `OP-{suc}-{8 dig}` (patron `generarNumeroRecibo`) |
+| `proveedor_id` | bigint FK | |
+| `sucursal_id` | bigint FK | |
+| `caja_id` | bigint FK nullable | |
+| `fecha` | date | |
+| `monto_total` | decimal(12,2) | |
+| `saldo_favor_usado` | decimal(12,2) | |
+| `monto_a_favor` | decimal(12,2) | Excedente → anticipo |
+| `tipo` | enum | `pago`, `anticipo` |
+| `observaciones` | text nullable | |
+| `estado` | enum | `activo`, `anulado` |
+| `motivo_anulacion` | varchar(255) nullable | |
+| `anulado_por_usuario_id` | bigint FK nullable | |
+| `anulado_at` | timestamp nullable | |
+| `cierre_turno_id` | bigint FK nullable | |
+| `usuario_id` | bigint | |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `pago_proveedor_compras` (analogo de `cobro_ventas`)
+Pivot: aplicacion de un pago a una o mas compras (FIFO o manual, parcial).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `pago_proveedor_id` | bigint FK | CASCADE |
+| `compra_id` | bigint FK | |
+| `monto_aplicado` | decimal(12,2) | Baja `compras.saldo_pendiente` |
+| `saldo_anterior`, `saldo_posterior` | decimal(12,2) | Snapshot de auditoria |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+#### Tabla: `pago_proveedor_pagos` (desglose de FP, analogo de `cobro_pagos`)
+Espejo fiel de `cobro_pagos` (mismas FKs de movimiento/estado/cierre_turno por renglon — sin eso la anulacion por origen y D16 no serian implementables).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `pago_proveedor_id` | bigint FK | CASCADE |
+| `forma_pago_id` | bigint FK | |
+| `monto` | decimal(12,2) | |
+| `origen` | enum | `caja`, `tesoreria`, `cuenta_empresa` (D14: de donde salen los fondos) |
+| `caja_id` | bigint FK nullable | Origen 'caja'; default la caja activa |
+| `cuenta_empresa_id` | bigint FK nullable | Origen 'cuenta_empresa' |
+| `movimiento_caja_id` | bigint FK nullable | Para contraasentar exacto al anular |
+| `movimiento_cuenta_empresa_id` | bigint FK nullable | Idem, origen cuenta |
+| `movimiento_tesoreria_id` | bigint FK nullable | Idem, origen tesoreria |
+| `cierre_turno_id` | bigint FK nullable | POR RENGLON (D16: turno cerrado bloquea solo renglones con origen 'caja') |
+| `estado` | enum | `activo`, `anulado` |
+| `created_at`, `updated_at` | timestamp | Timestamps |
+
+Origenes distintos de `'caja'` requieren el permiso `func.compras.pagar_avanzado`. El origen `'tesoreria'` usa la Tesoreria de la sucursal del pago (sin FK de cuenta especifica).
+
+#### Services
+- **CostoService** (`app/Services/CostoService.php`): unica puerta de escritura de costos. `costoComputableRenglon()`, `registrarDesdeCompra()`, `revertirCostoUltimoSiCorresponde()`, `actualizarManual()`, `utilidadObjetivo()`, `margenReal()`, `precioSugerido()`, `alicuotaEfectiva()`, `costoRector()`, `prorratearPorImporte()`.
+- **CompraService** (`app/Services/CompraService.php`, reescrito): `crearBorrador()`/`actualizarBorrador()`/`eliminarBorrador()`, `confirmarCompra()` (transaccion unica: prorrateos → costo → stock → `CostoService` → `ImpuestoService` → `CuentaCorrienteProveedorService` → pago inicial → repricing automatico), `cancelarCompra()`, `corregirCompra()` (cancelar+recrear atomico), `sugerirTipoComprobante()`, `advertenciaComprobanteCuit()`, `esComprobanteDuplicado()`.
+- **CuentaCorrienteProveedorService** (`app/Services/CuentaCorrienteProveedorService.php`, espejo de `CuentaCorrienteService`): `registrarMovimientosCompra()`, `registrarMovimientosPago()`, `anularMovimientosCompra()`/`anularMovimientosPago()`, `obtenerExtracto()`/`obtenerExtractoResumido()`, `obtenerSaldos()`, `obtenerComprasPendientes()` (FIFO por `fecha_vencimiento`), `actualizarCacheProveedor()`.
+- **PagoProveedorService** (`app/Services/PagoProveedorService.php`, espejo de `CobroService`): `registrarPago()`, `registrarAnticipo()`, `anularPago()`, `distribuirMontoFIFO()`, `generarNumeroOrdenPago()`. Egresa segun origen: `MovimientoCaja::crearEgresoPagoProveedor()`, `TesoreriaService::registrarEgresoExterno()` o `CuentaEmpresaService::registrarMovimientoAutomatico()`.
 
 ### 2.10 Configuracion y Precios
 
@@ -3510,21 +3735,106 @@ Flujo de produccion (via `ProduccionService`):
 
 6. **Anulacion**: Se crean contraasientos para revertir todos los movimientos de stock.
 
-### 3.8 Compras
+### 3.8 Compras, Costos y Precios
 
-Flujo de compra (via `CompraService`):
+Modulo reescrito por completo (spec `.claude/specs/compras-costos-precios.md`, D1-D22). Principio rector: **el costo se almacena SIEMPRE como costo COMPUTABLE** (neto cuando el IVA fue credito fiscal recuperable; total pagado cuando no lo fue). El campo se llama `costo_unitario_computable` (no "neto") a proposito: en compras B/C/no fiscales/monotributo CONTIENE el IVA no recuperable — es correcto contablemente (la venta genera debito pleno sin credito que lo compense).
 
-1. Se selecciona el proveedor.
-2. Se ingresan los articulos comprados con precio unitario, cantidad e IVA.
-3. Se elige la forma de pago: efectivo (genera egreso en caja), cuenta corriente (queda pendiente), transferencia, etc.
-4. Al confirmar:
-   - Se crea registro en `compras`
-   - Se crean detalles en `compras_detalle`
-   - Se aumenta stock de cada articulo (movimiento `compra`)
-   - Si es pago en efectivo: se crea movimiento de caja (egreso)
-   - Si es cuenta corriente: la compra queda en estado `pendiente` con saldo_pendiente > 0
+#### 3.8.1 Ciclo de vida de la compra (D10/D11)
 
-**Compras internas**: Si el proveedor es una sucursal interna (`es_sucursal_interna = true`), la compra representa una transferencia fiscal entre sucursales.
+`estado` es SOLO ciclo de vida: `borrador` → `completada` → `cancelada`. Lo impago NUNCA se deriva del estado; siempre de `saldo_pendiente > 0`.
+
+- **`borrador`**: editable, SIN NINGUN efecto (no toca stock, costos, ledger fiscal ni caja/cta cte). Se elimina directamente sin reversas.
+- **Confirmar** (`CompraService::confirmarCompra()`, transaccion unica `DB::connection('pymes_tenant')->transaction()`), en este orden:
+  1. Prorrateo del descuento global + de los conceptos que computan costo (por IMPORTE del renglon, nunca por cantidad).
+  2. Calculo de `costo_unitario_computable` por renglon (ver 3.8.2).
+  3. Movimiento de stock (`MovimientoStock::crearMovimientoCompra`, con el `costo_unitario_computable`, NO `precio_sin_iva`).
+  4. `CostoService::registrarDesdeCompra()` — actualiza `articulo_costos` (fila sucursal + fila consolidada), upsert `articulo_proveedor`, historial.
+  5. `ImpuestoService::registrarDesdeCompra()` — credito de IVA (si corresponde, ver 3.8.4) + percepciones sufridas al ledger fiscal.
+  6. `CuentaCorrienteProveedorService::registrarMovimientosCompra()` — HABER por el total (+ DEBE por lo pagado en el momento).
+  7. Pago inicial (si se cargo) via `PagoProveedorService::registrarPago()`.
+  8. Repricing automatico (RF-11) de los articulos con `precio_administrado_por_utilidad = true`.
+  Todo el pipeline es idempotente.
+- **Cancelar** (`cancelarCompra()`): reversas por CONTRAASIENTO de stock, costos (restaura `costo_ultimo` anterior si esta compra lo fijo, con fila nueva de `historial_costos` origen `cancelacion`), fiscal (patron NC cross-periodo: reversa NEGATIVA fechada hoy, el original queda activo) y cta cte de proveedor. Si tiene pagos aplicados, el usuario elige (D17): anular los pagos en cascada (bloqueado si algun renglon salio de una caja con turno cerrado) o dejarlos como saldo a favor del proveedor.
+- **Correccion de una completada** (D7 #12, `corregirCompra()`): una compra `completada` es INMUTABLE (no vuelve a borrador). "Corregir" = `cancelarCompra()` + `crearBorrador()` + `confirmarCompra()` en UNA transaccion (rastro cruzado en `observaciones`). Bloqueada si tiene notas de credito activas vinculadas; requiere permisos de confirmar Y cancelar.
+
+#### 3.8.2 Formula canonica del costo (RF-01, por renglon)
+
+```
+precio_unitario de factura (neto si discrimina IVA; final si no)
+  × cascada de descuentos del renglon        (1−d1/100)(1−d2/100)...
+  − prorrateo del descuento global (por importe)
+  + prorrateo de conceptos que computan costo (por importe, landed cost)
+  = costo unitario facturado
+  → ¿discrimina IVA Y el CUIT comprador es RI (esResponsableInscripto)?
+       SI ⇒ ya es neto (el IVA fue credito fiscal, no integra el costo)
+       NO ⇒ todo lo pagado ES el costo (incluye el IVA no recuperable)
+  ÷ factor_conversion (unidad de compra → unidad de stock, D8)
+  = COSTO UNITARIO COMPUTABLE (persiste en compras_detalle.costo_unitario_computable)
+```
+
+Caso RG 5003/2021 (factura A/M a comprador NO-RI): la factura viene NETA impresa, pero el IVA no recuperable ES costo ⇒ `costoComputableRenglon()` suma `neto + (neto × alicuota_no_recuperable)` cuando `discrimina AND !compradorRI`.
+
+**Descuentos anidados** (D6): `factor = (1−d1/100) × (1−d2/100) × ... × (1−dn/100)`, `precio_efectivo = precio_lista × factor`. Ejemplo criterio de aceptacion: renglon de $1000 con "10+5+3" ⇒ `1000 × 0.90 × 0.95 × 0.97 = $829.35` (cascada, no suma de porcentajes).
+
+**Costo promedio ponderado (PPP)**, por sucursal y consolidado:
+```
+nuevo_ppp = (stock_previo × ppp_previo + cantidad × costo_unitario_computable) / (stock_previo + cantidad)
+(si ppp_previo es NULL ⇒ nuevo_ppp = costo_unitario_computable; el stock previo SIN costo no pondera)
+```
+
+#### 3.8.3 Cascada de utilidad y precio sugerido (RF-08/RF-09, D2)
+
+```
+utilidad objetivo = articulo.utilidad_porcentaje ?? categoria.utilidad_porcentaje ?? config.utilidad_default
+
+alic_efectiva (D21, unica puerta CostoService::alicuotaEfectiva()):
+  CUIT default del comercio es RI (esResponsableInscripto) Y articulo.precio_iva_incluido = true
+      ⇒ alicuota del TipoIva del articulo
+  comercio que NO computa IVA (monotributo/exento), o precio_iva_incluido = false
+      ⇒ 0 en AMBAS formulas siguientes (para un no-RI el costo es bruto y TODO el precio es ingreso)
+
+precio_final_sugerido = costo_rector × (1 + utilidad/100) × (1 + alic_efectiva/100)  → redondeo sobre el FINAL
+
+margen_real (formula inversa, misma division que hace la venta):
+  neto_venta  = precio_final ÷ (1 + alic_efectiva/100)
+  margen_real = (neto_venta − costo_rector) / costo_rector × 100
+```
+
+El costo rector para pricing es siempre `costo_ultimo` (v1; `configuracion_costos.costo_rector` fijo en `'ultimo'`). Ejemplo de aceptacion: costo neto $100, utilidad 40%, IVA 21% ⇒ precio final sugerido $169.40 (antes de redondeo).
+
+**Revision de precios post-compra** (RF-10, `RevisionPreciosCompra`): al confirmar una compra, lista los articulos cuyo margen real quedo por debajo del objetivo. Es RETOMABLE — calcula siempre contra costo y precio VIGENTES (no una foto del momento de la compra). Aplicar en lote escribe el precio (override de la sucursal de la compra si existe, si no el global) + `HistorialPrecio::registrar()` con `origen = 'revision_compra'`.
+
+**Repricing automatico** (RF-11): articulos con `precio_administrado_por_utilidad = true` se repriceann solos al confirmar la compra (mismo calculo + redondeo `'ninguno'` en v1), `HistorialPrecio` con `origen = 'utilidad_automatica'`.
+
+#### 3.8.4 Circuito fiscal de la compra (gate del credito)
+
+- El credito de IVA se envia al ledger fiscal SOLO si: `fiscal AND el tipo de comprobante discrimina AND el CUIT comprador es RI`. `ImpuestoService::registrarDesdeCompra()` NO gatea por condicion IVA — el gate es responsabilidad del `CompraService` (caller).
+- **Fuente CANONICA del credito = `compra_ivas`** (el desglose de la factura fisica), nunca la suma de renglones.
+- **Periodo del credito = `fecha_comprobante`** (no la fecha de carga): una factura de junio cargada en julio computa el credito en JUNIO.
+- Toggle **compra no fiscal** (D15): desactiva TODO el calculo de impuestos (sin `compra_ivas`, sin percepciones, nada al ledger); el total pagado es directamente el costo.
+- Cancelacion fiscal: patron NC cross-periodo (`anularDesdeCompra`, reversa negativa fechada hoy; el original queda activo y suman cero).
+- **Nota de credito de proveedor** (RF-21, D18): fila de `compras` con `compra_origen_id`. Efectos inversos PARCIALES al confirmar: stock egreso por lo devuelto, fiscal con el desglose PROPIO de la NC (no derivado, solo precargado como sugerencia) en el periodo de la NC, cta cte tipo `nota_credito` que baja el saldo de la compra origen (el excedente genera saldo a favor). Los costos (`costo_ultimo`/PPP) NO se recalculan.
+
+#### 3.8.5 Cuenta corriente de proveedores y pagos (RF-18/RF-19, D12)
+
+Ledger `movimientos_cuenta_corriente_proveedor`, espejo de clientes pero con semantica de **PASIVO**: HABER aumenta la deuda (compra), DEBE la reduce (pago). Saldo on-the-fly sobre movimientos `activo` (nunca persiste en la fila). La operatoria de pago (deuda, FIFO, aging) es SIEMPRE de la sucursal ACTIVA (D19); `proveedores.saldo_cache` es el consolidado informativo del comercio.
+
+- Proveedor sin `tiene_cuenta_corriente`: solo admite compras al contado, sin filas de ledger (aunque el pago igual genera `PagoProveedor` + egreso, para rastro auditable).
+- Compra confirmada de proveedor con CC: HABER por el total + DEBE por lo pagado en el momento (contado total ⇒ par HABER/DEBE con saldo 0).
+- **Origen de fondos del pago** (D14): por default, la CAJA ACTIVA (valida apertura y saldo). Con el permiso `func.compras.pagar_avanzado`, por renglon del desglose: otra caja, efectivo de Tesoreria (`TesoreriaService::registrarEgresoExterno()`) o una cuenta de empresa (`CuentaEmpresaService::registrarMovimientoAutomatico()`, egreso).
+- **Anulacion de orden de pago** (D16): el bloqueo por `cierre_turno_id` aplica SOLO a renglones con origen `'caja'` cuyo turno esta cerrado; una OP 100% tesoreria/cuenta de empresa se anula siempre.
+- Anticipos y saldo a favor: mismos tipos que clientes (`anticipo`, `uso_saldo_favor`).
+
+#### 3.8.6 Unidades de compra vs stock (D8) y conceptos de pie (D9)
+
+- `articulo_proveedor.factor_conversion`: se compra en la unidad del proveedor (ej. "bulto x12") y se stockea en unidades propias. `compras_detalle.cantidad_comprada` (bultos) × `factor_conversion` = `compras_detalle.cantidad` (SIEMPRE en stock).
+- `compra_conceptos`: renglones no-articulo (flete, impuestos internos, envases, otro) con flag `computa_costo` — si esta activo, el importe se prorratea a los renglones POR IMPORTE (landed cost). Caso clave: los impuestos internos de bebidas SI son costo real (no se recuperan).
+
+#### 3.8.7 Permisos del modulo (RF-20)
+
+`func.compras.crear` (cargar/editar borradores) es distinto de `func.compras.confirmar` (mueve stock/costos/ledger/plata) y de `func.compras.cancelar`/`func.compras.pagar`/`func.compras.pagar_avanzado` (elegir origen de fondos alternativo)/`func.compras.revisar_precios` (aplicar RF-10/RF-11). `func.costos.ver`/`func.costos.editar` gatean TODA visibilidad de costos y margenes en el sistema (GestionarArticulos, GestionarCategorias, ConfiguracionEmpresa, el editor y el detalle de compras) — sin `func.costos.ver` no se muestran ni columnas ni modales de costo. Menu: grupo padre "Compras" (Compras / Proveedores / Pagos a proveedores / Reportes).
+
+**Compras internas**: si el proveedor es una sucursal interna (`es_sucursal_interna = true`), la compra representa una transferencia fiscal entre sucursales (modulo propio de transferencias inter-sucursal, fuera de alcance de este spec — ver seccion de fases futuras del spec).
 
 ### 3.9 Facturacion Fiscal
 
@@ -4338,6 +4648,58 @@ FROM {PREFIX}movimientos_stock
 WHERE articulo_id = ? AND sucursal_id = ? AND estado = 'activo';
 ```
 
+#### Costo vigente de un articulo (sucursal + fallback al consolidado)
+
+```sql
+-- Fila de la sucursal (preferida); si no existe, cae a la fila consolidada (sucursal_id NULL)
+SELECT costo_ultimo, costo_promedio,
+       COALESCE(costo_reposicion, costo_ultimo) as costo_reposicion_efectivo
+FROM {PREFIX}articulo_costos
+WHERE articulo_id = ? AND sucursal_id = ?
+ORDER BY sucursal_id DESC  -- prioriza la fila con sucursal_id no nulo si la busqueda es exacta
+LIMIT 1;
+```
+
+#### Deuda con un proveedor en la sucursal activa (cta cte, semantica de pasivo)
+
+```sql
+SELECT COALESCE(SUM(haber), 0) - COALESCE(SUM(debe), 0) as saldo_deudor_nuestro,
+       COALESCE(SUM(saldo_favor_haber), 0) - COALESCE(SUM(saldo_favor_debe), 0) as saldo_favor
+FROM {PREFIX}movimientos_cuenta_corriente_proveedor
+WHERE proveedor_id = ?
+  AND sucursal_id = ?
+  AND estado = 'activo';
+```
+
+#### Compras pendientes de un proveedor (aging por vencimiento, FIFO)
+
+```sql
+SELECT id, numero_comprobante, numero_comprobante_proveedor, fecha, fecha_vencimiento,
+       total, saldo_pendiente,
+       DATEDIFF(CURDATE(), fecha_vencimiento) as dias_vencido
+FROM {PREFIX}compras
+WHERE proveedor_id = ?
+  AND sucursal_id = ?
+  AND estado = 'completada'
+  AND saldo_pendiente > 0
+ORDER BY fecha_vencimiento ASC, fecha ASC;
+```
+
+#### Compras por cuenta de compra en un periodo (RF-22, las NC restan)
+
+```sql
+SELECT cc.nombre as cuenta, COUNT(*) as comprobantes,
+       SUM(CASE WHEN c.tipo_comprobante NOT LIKE 'nota_credito%' THEN c.total ELSE 0 END) as compras,
+       SUM(CASE WHEN c.tipo_comprobante LIKE 'nota_credito%' THEN c.total ELSE 0 END) as notas_credito
+FROM {PREFIX}compras c
+LEFT JOIN {PREFIX}cuentas_compra cc ON cc.id = c.cuenta_compra_id
+WHERE c.sucursal_id = ?
+  AND c.estado = 'completada'
+  AND c.fecha BETWEEN ? AND ?
+GROUP BY cc.id, cc.nombre
+ORDER BY (compras - notas_credito) DESC;
+```
+
 #### Movimientos de caja del turno actual
 
 ```sql
@@ -4721,8 +5083,11 @@ ORDER BY imp.tipo, imp.jurisdiccion;
 | Entidad | Estados | Descripcion |
 |---|---|---|
 | Venta | `completada`, `pendiente`, `cancelada` | Pendiente = cuenta corriente sin saldar |
-| Compra | `completada`, `pendiente`, `cancelada` | Pendiente = cuenta corriente proveedor |
+| Compra | `borrador`, `completada`, `cancelada` | Ciclo de vida puro (D11, spec compras-costos): lo impago se deriva SIEMPRE de `saldo_pendiente > 0`, nunca del estado. Migracion de datos: el viejo `pendiente` paso a `completada` conservando su `saldo_pendiente` |
 | Cobro | `activo`, `anulado` | |
+| MovimientoCuentaCorrienteProveedor | `activo`, `anulado` | Anulado = contraasiento. Semantica de PASIVO: HABER aumenta la deuda, DEBE la reduce (invertida respecto de clientes) |
+| PagoProveedor | `activo`, `anulado` | Analogo de `Cobro` |
+| PagoProveedorPago | `activo`, `anulado` | Analogo de `CobroPago`; bloqueo de anulacion por `cierre_turno_id` solo si el origen del renglon es `'caja'` (D16) |
 | VentaPago.estado | `activo`, `pendiente`, `anulado` | |
 | VentaPago.estado_facturacion | `no_facturado`, `facturado`, `pendiente_de_facturar`, `error_arca` | Estado fiscal del pago; `pendiente_de_facturar` = FC nueva en cola por fallo ARCA |
 | CobroPago | `activo`, `anulado` | |
@@ -4755,8 +5120,8 @@ ORDER BY imp.tipo, imp.jurisdiccion;
 **Formatos de moneda y cantidades:**
 - **Cantidades de stock**: `decimal(12,3)` -- 3 decimales para soportar articulos pesables (kg, gr, lt)
 - **Montos monetarios**: `decimal(12,2)` -- 2 decimales
-- Costos unitarios como `decimal(10,4)` (4 decimales).
-- Porcentajes como `decimal(5,2)` o `decimal(8,2)`.
+- Costos unitarios como `decimal(12,4)` (4 decimales: `articulo_costos`, `historial_costos`, `articulo_proveedor`, `compras_detalle.costo_unitario_computable` -- el PPP y los descuentos en cascada generan fracciones; el precio se redondea recien al final de la cadena, ver 3.8.2/3.8.3).
+- Porcentajes como `decimal(5,2)` o `decimal(8,2)` (utilidad objetivo: `decimal(6,2)`).
 - Tasas de cambio como `decimal(14,6)` (6 decimales).
 - La moneda principal es ARS (Peso Argentino).
 - Monedas extranjeras se manejan con `moneda_id` y `tipo_cambio_tasa`.
@@ -4769,20 +5134,25 @@ ORDER BY imp.tipo, imp.jurisdiccion;
 - `cuentas_empresa.saldo_actual` -- Se actualiza atomicamente con cada movimiento.
 - `tesorerias.saldo_actual` -- Se actualiza atomicamente con cada movimiento.
 - `cajas.saldo_actual` -- Se actualiza atomicamente con cada movimiento de caja.
+- `proveedores.saldo_cache` -- **Cache** consolidado del comercio. Se recalcula desde `movimientos_cuenta_corriente_proveedor` (patron Cliente, con `lockForUpdate`); el saldo POR SUCURSAL (D19, el que rige la operatoria de pago) se calcula siempre del ledger, nunca del cache.
+- `compras.saldo_pendiente` -- **Cache** de lo impago de la compra. La fuente de verdad es `movimientos_cuenta_corriente_proveedor` (via `pago_proveedor_compras`).
+- `articulo_costos.costo_ultimo/costo_promedio` -- NO son cache de otra tabla: son el dato primario, escrito UNICAMENTE por `CostoService::registrarDesdeCompra()`/`actualizarManual()`.
 
 **Soft deletes:**
 Las siguientes tablas usan soft delete (`deleted_at` no nulo = eliminado):
 - `ventas`, `clientes`, `articulos`, `categorias`, `cobros`, `promociones`, `promociones_especiales`, `listas_precios`, `grupos_opcionales`, `opcionales`, `comprobantes_fiscales`, `grupos_etiquetas`, `etiquetas`, `impresoras`, `cuits`, `puntos_venta`, `pedidos_delivery` (espejo de `pedidos_mostrador`, que tambien usa soft delete).
 
-Al consultar estas tablas, siempre agregar `AND deleted_at IS NULL` a menos que se quieran incluir registros eliminados.
+Al consultar estas tablas, siempre agregar `AND deleted_at IS NULL` a menos que se quieran incluir registros eliminados. `compras` y `proveedores` NO usan soft delete (una compra se cancela, no se borra; un proveedor se desactiva con `activo = false`).
 
 **Patron append-only (ledger):**
-Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_empresa`, `movimientos_fiscales`, `venta_pagos` (para cambios de pago), `integraciones_pago_eventos`, `conciliaciones_cuenta`/`conciliacion_filas`, `repartidor_fondo_movimientos` y `delivery_salida_pedidos` (historial de intentos de entrega) siguen el patron append-only:
+Las tablas `movimientos_stock`, `movimientos_cuenta_corriente`, `movimientos_cuenta_corriente_proveedor`, `movimientos_cuenta_empresa`, `movimientos_fiscales`, `historial_costos`, `venta_pagos` (para cambios de pago), `integraciones_pago_eventos`, `conciliaciones_cuenta`/`conciliacion_filas`, `repartidor_fondo_movimientos` y `delivery_salida_pedidos` (historial de intentos de entrega) siguen el patron append-only:
 - Los registros nunca se modifican ni eliminan.
 - Las anulaciones se hacen creando un **contraasiento** que invierte los montos (movimientos) o marcando el registro como `estado = 'anulado'` y creando uno nuevo (venta_pagos).
 - El original se vincula al contraasiento via `anulado_por_movimiento_id` (movimientos) o via `venta_pago_reemplazado_id` (venta_pagos).
 - Para calcular saldos de movimientos: sumar todos los activos.
 - Para calcular totales de una venta: sumar los `venta_pagos` con `estado = 'activo'`.
+- `historial_costos` no tiene contraasiento propio (es un log, no un ledger de saldos): una cancelacion que restaura un costo anterior simplemente agrega una fila nueva con `origen = 'cancelacion'`.
+- `movimientos_cuenta_corriente_proveedor` invierte la semantica de `movimientos_cuenta_corriente`: HABER aumenta la deuda (pasivo), DEBE la reduce.
 
 ---
 
