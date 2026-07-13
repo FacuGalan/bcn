@@ -365,6 +365,41 @@ class SmokeComprasTest extends TestCase
         );
     }
 
+    /**
+     * Los descuentos del renglón de la ÚLTIMA compra completada al proveedor
+     * PISAN a los habituales del catálogo al precargar el artículo (2026-07-13).
+     */
+    public function test_editor_precarga_descuentos_de_la_ultima_compra_al_proveedor(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Ult Desc '.uniqid(), 'activo' => true]);
+
+        \App\Models\ArticuloProveedor::create([
+            'articulo_id' => $articulo->id,
+            'proveedor_id' => $proveedor->id,
+            'descuentos_habituales' => [3],
+            'factor_conversion' => 1,
+            'activo' => true,
+        ]);
+
+        $compra = app(CompraService::class)->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NO_FISCAL,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 2, 'factor_conversion' => 1, 'precio_unitario' => 100, 'descuentos' => [10, 5]],
+        ]);
+        app(CompraService::class)->confirmarCompra($compra, 1);
+
+        Livewire::test(EditorCompra::class)
+            ->call('seleccionarProveedor', $proveedor->id)
+            ->call('seleccionarArticuloFila', 0, $articulo->id)
+            ->assertSet('renglones.0.descuentos_texto', '10+5')
+            ->assertOk();
+    }
+
     // ==================== Fase 8: revisión de precios + reportes ====================
 
     public function test_reportes_compras_monta_y_genera(): void

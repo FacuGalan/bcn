@@ -434,11 +434,6 @@
                                     <span class="text-sm font-medium text-gray-900 dark:text-white">
                                         ${{ number_format($precioEfectivo, 2) }}
                                     </span>
-                                    @if($articulo->precio_sucursal !== null)
-                                        <div class="text-xs text-gray-400" title="{{ __('Precio base genérico') }}">
-                                            ${{ number_format($articulo->precio_base ?? 0, 2) }}
-                                        </div>
-                                    @endif
                                 </td>
                                 @if($this->puedeVerCostos())
                                     <td class="px-6 py-4 whitespace-nowrap text-right">
@@ -853,29 +848,8 @@
                                         @error('tipo_iva_id') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                     </div>
 
-                                    <!-- Precio Base -->
-                                    <div>
-                                        <label for="precio_base" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            {{ __('Precio Base') }} *
-                                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">({{ __('fallback global') }})</span>
-                                        </label>
-                                        <div class="mt-1 relative rounded-md shadow-sm">
-                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <span class="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
-                                            </div>
-                                            <input
-                                                type="number"
-                                                id="precio_base"
-                                                wire:model="precio_base"
-                                                step="0.01"
-                                                min="0"
-                                                class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                placeholder="0.00"
-                                                required
-                                            />
-                                        </div>
-                                        @error('precio_base') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
+                                    {{-- El precio de venta vive en "Configuración sucursal activa"
+                                        (decisión 2026-07-13: un solo precio, el de la sucursal) --}}
                                 </div>
 
                                 <!-- Descripción -->
@@ -907,20 +881,6 @@
                                         </button>
                                     </div>
 
-                                    <!-- IVA Incluido -->
-                                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
-                                        <label for="precio_iva_incluido" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('IVA Incluido') }}</label>
-                                        <button
-                                            type="button"
-                                            wire:click="$toggle('precio_iva_incluido')"
-                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_iva_incluido ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
-                                            role="switch"
-                                            aria-checked="{{ $precio_iva_incluido ? 'true' : 'false' }}"
-                                        >
-                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_iva_incluido ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                                        </button>
-                                    </div>
-
                                     <!-- Pesable -->
                                     <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
                                         <label for="pesable" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Pesable') }}</label>
@@ -947,6 +907,92 @@
                                         >
                                             <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $activo ? 'translate-x-5' : 'translate-x-0' }}"></span>
                                         </button>
+                                    </div>
+                                </div>
+
+                                <!-- Configuración de la sucursal activa: precio de venta + stock.
+                                    El precio es ÚNICO (decisión 2026-07-13): en multi-sucursal
+                                    muestra el efectivo y persiste SIEMPRE sobre la sucursal activa;
+                                    el genérico global se administrará desde Manager. -->
+                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                    @multiSucursal
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                            {{ __('Configuración sucursal activa') }}
+                                        </label>
+                                    @endmultiSucursal
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <!-- Precio de venta -->
+                                        <div>
+                                            <label for="precio_venta" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Precio de venta') }} *</label>
+                                            <div class="mt-1 relative rounded-md shadow-sm">
+                                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                                    <span class="text-gray-500 dark:text-gray-400 text-xs">$</span>
+                                                </div>
+                                                <input
+                                                    type="number"
+                                                    id="precio_venta"
+                                                    wire:model="{{ $editMode && es_multi_sucursal() ? 'precio_sucursal' : 'precio_base' }}"
+                                                    step="0.01"
+                                                    min="0"
+                                                    class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                                                    placeholder="0.00"
+                                                />
+                                            </div>
+                                            @error('precio_base') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                            @error('precio_sucursal') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                        </div>
+
+                                        <!-- IVA incluido en el precio (semántica de PRICING, aclarada) -->
+                                        <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
+                                            <div class="flex items-center justify-between">
+                                                <label for="precio_iva_incluido" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('IVA incluido en el precio') }}</label>
+                                                <button
+                                                    type="button"
+                                                    wire:click="$toggle('precio_iva_incluido')"
+                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_iva_incluido ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                                    role="switch"
+                                                    aria-checked="{{ $precio_iva_incluido ? 'true' : 'false' }}"
+                                                >
+                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_iva_incluido ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                </button>
+                                            </div>
+                                            <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                                {{ $precio_iva_incluido
+                                                    ? __('Precio FINAL: el IVA va adentro y se desglosa al facturar')
+                                                    : __('Precio NETO: el IVA se suma encima al vender') }}
+                                            </p>
+                                        </div>
+
+                                        <!-- Modo stock -->
+                                        <div>
+                                            <label for="modo_stock" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Modo de stock') }}</label>
+                                            <select
+                                                id="modo_stock"
+                                                wire:model="modo_stock"
+                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
+                                            >
+                                                <option value="ninguno">{{ __('Ninguno') }}</option>
+                                                <option value="unitario">{{ __('Unitario') }}</option>
+                                                <option value="receta">{{ __('Receta') }}</option>
+                                            </select>
+                                            @error('modo_stock') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                        </div>
+
+                                        <!-- Vendible -->
+                                        <div class="flex items-end">
+                                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between w-full">
+                                                <label for="vendible" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Vendible') }}</label>
+                                                <button
+                                                    type="button"
+                                                    wire:click="$toggle('vendible')"
+                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $vendible ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                                    role="switch"
+                                                    aria-checked="{{ $vendible ? 'true' : 'false' }}"
+                                                >
+                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $vendible ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
 
@@ -1064,7 +1110,7 @@
                                                     @endif
                                                     @if($cuenta['sugerido'] > 0)
                                                         <button type="button" wire:click="aplicarPrecioSugerido"
-                                                            title="{{ $precio_sucursal !== null ? __('Copia el sugerido al precio de esta sucursal (override); se persiste al guardar') : __('Copia el sugerido al precio de venta; se persiste al guardar') }}"
+                                                            title="{{ __('Copia el sugerido al precio de venta; se persiste al guardar') }}"
                                                             class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-medium">
                                                             <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                                                             {{ __('Usar como precio') }}
@@ -1106,69 +1152,6 @@
                                         @endif
                                     </div>
                                 @endif
-
-                                <!-- Configuración de stock y sucursal -->
-                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                    @multiSucursal
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                            {{ __('Configuración sucursal activa') }}
-                                        </label>
-                                    @endmultiSucursal
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 {{ es_multi_sucursal() ? 'lg:grid-cols-3' : '' }} gap-4">
-                                        <!-- Precio sucursal (solo multi-sucursal) -->
-                                        @multiSucursal
-                                        <div>
-                                            <label for="precio_sucursal" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Precio sucursal') }}</label>
-                                            <div class="mt-1 relative rounded-md shadow-sm">
-                                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                    <span class="text-gray-500 dark:text-gray-400 text-xs">$</span>
-                                                </div>
-                                                <input
-                                                    type="number"
-                                                    id="precio_sucursal"
-                                                    wire:model="precio_sucursal"
-                                                    step="0.01"
-                                                    min="0"
-                                                    class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                                    placeholder="{{ __('Usar genérico') }}"
-                                                />
-                                            </div>
-                                            @error('precio_sucursal') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-                                        @endmultiSucursal
-
-                                        <!-- Modo stock -->
-                                        <div>
-                                            <label for="modo_stock" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Modo de stock') }}</label>
-                                            <select
-                                                id="modo_stock"
-                                                wire:model="modo_stock"
-                                                class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                            >
-                                                <option value="ninguno">{{ __('Ninguno') }}</option>
-                                                <option value="unitario">{{ __('Unitario') }}</option>
-                                                <option value="receta">{{ __('Receta') }}</option>
-                                            </select>
-                                            @error('modo_stock') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                        </div>
-
-                                        <!-- Vendible -->
-                                        <div class="flex items-end">
-                                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between w-full">
-                                                <label for="vendible" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('Vendible') }}</label>
-                                                <button
-                                                    type="button"
-                                                    wire:click="$toggle('vendible')"
-                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $vendible ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
-                                                    role="switch"
-                                                    aria-checked="{{ $vendible ? 'true' : 'false' }}"
-                                                >
-                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $vendible ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
 
                                 <!-- Delivery y Tienda (RF-16/RF-17 pedidos-delivery) -->
                                 <div class="pt-4 border-t border-gray-200 dark:border-gray-700">

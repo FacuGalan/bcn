@@ -8,6 +8,7 @@ use App\Models\ArticuloProveedor;
 use App\Models\Caja;
 use App\Models\Categoria;
 use App\Models\Compra;
+use App\Models\CompraDetalle;
 use App\Models\CondicionIva;
 use App\Models\CuentaCompra;
 use App\Models\CuentaEmpresa;
@@ -538,12 +539,17 @@ class EditorCompra extends Component
         }
 
         // Datos del proveedor para ESTE artículo (RF-04): código, factor y
-        // descuentos habituales se precargan (editables).
+        // descuentos se precargan (editables). Los descuentos del renglón de
+        // la ÚLTIMA compra a este proveedor pisan a los habituales del catálogo
+        // (pedido 2026-07-13: quedar listos para el cálculo del detalle).
         $ap = $this->proveedorId
             ? ArticuloProveedor::where('articulo_id', $articuloId)
                 ->where('proveedor_id', $this->proveedorId)
                 ->first()
             : null;
+
+        $descuentosPrecarga = $this->descuentosUltimaCompra($articuloId)
+            ?? ($ap !== null && (array) $ap->descuentos_habituales !== [] ? (array) $ap->descuentos_habituales : null);
 
         $this->renglones[$fila] = array_merge($this->renglones[$fila], [
             'articulo_id' => $articulo->id,
@@ -553,10 +559,10 @@ class EditorCompra extends Component
             'resultados' => [],
             'codigo_proveedor_usado' => $ap?->codigo_proveedor,
             'factor_conversion' => $ap !== null ? $this->numAString($ap->factor_conversion) : $this->renglones[$fila]['factor_conversion'],
-            'descuentos_texto' => $ap !== null && (array) $ap->descuentos_habituales !== []
+            'descuentos_texto' => $descuentosPrecarga !== null
                 ? implode('+', array_map(
                     fn ($x) => rtrim(rtrim(number_format((float) $x, 2, '.', ''), '0'), '.'),
-                    (array) $ap->descuentos_habituales
+                    $descuentosPrecarga
                 ))
                 : $this->renglones[$fila]['descuentos_texto'],
             'tipo_iva_id' => $articulo->tipo_iva_id,
@@ -568,6 +574,33 @@ class EditorCompra extends Component
 
         // El foco sigue a la celda Cantidad del renglón (lo escucha el x-data raíz).
         $this->dispatch('foco-celda', fila: $fila, col: 'cantidad');
+    }
+
+    /**
+     * Descuentos del renglón de la ÚLTIMA compra COMPLETADA de este artículo
+     * al proveedor seleccionado (las NC no cuentan: referencian la compra, no
+     * la condición comercial). NULL si nunca se compró o vino sin descuentos.
+     */
+    protected function descuentosUltimaCompra(int $articuloId): ?array
+    {
+        if (! $this->proveedorId) {
+            return null;
+        }
+
+        $detalle = CompraDetalle::where('articulo_id', $articuloId)
+            ->whereHas('compra', fn ($q) => $q
+                ->where('proveedor_id', $this->proveedorId)
+                ->where('estado', Compra::ESTADO_COMPLETADA)
+                ->where('tipo_comprobante', 'not like', 'nota_credito%'))
+            ->orderByDesc('id')
+            ->first();
+
+        $descuentos = array_values(array_filter(
+            (array) ($detalle?->descuentos ?? []),
+            fn ($d) => (float) $d > 0,
+        ));
+
+        return $descuentos !== [] ? $descuentos : null;
     }
 
     // ==================== Búsqueda avanzada (lupa, patrón ventas) ====================

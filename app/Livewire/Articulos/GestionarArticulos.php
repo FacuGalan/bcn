@@ -713,7 +713,12 @@ class GestionarArticulos extends Component
             ->first();
 
         $this->modo_stock = $configSucursal?->modo_stock ?? 'ninguno';
-        $this->precio_sucursal = $configSucursal?->precio_base;
+        // Precio de venta ÚNICO del modal (decisión 2026-07-13): en multi-sucursal
+        // muestra el EFECTIVO y SIEMPRE persiste sobre la sucursal activa; el
+        // genérico queda como fallback interno (se administrará desde Manager).
+        $this->precio_sucursal = es_multi_sucursal()
+            ? ($configSucursal?->precio_base ?? $articulo->precio_base)
+            : $configSucursal?->precio_base;
         $this->vendible = (bool) ($configSucursal?->vendible ?? true);
         $this->visible_tienda = (bool) ($configSucursal?->visible_tienda ?? true);
 
@@ -875,7 +880,7 @@ class GestionarArticulos extends Component
             return;
         }
 
-        if ($this->precio_sucursal !== null) {
+        if (es_multi_sucursal() && $this->editMode) {
             $this->precio_sucursal = $cuenta['sugerido'];
         } else {
             $this->precio_base = $cuenta['sugerido'];
@@ -956,7 +961,11 @@ class GestionarArticulos extends Component
             'precio_base' => 'required|numeric|min:0',
             'activo' => 'boolean',
             'modo_stock' => 'required|in:ninguno,unitario,receta',
-            'precio_sucursal' => 'nullable|numeric|min:0',
+            // El precio de venta del modal es el de la SUCURSAL en multi-sucursal:
+            // vaciarlo no vuelve al genérico (eso será tarea del Manager).
+            'precio_sucursal' => es_multi_sucursal() && $this->editMode
+                ? 'required|numeric|min:0'
+                : 'nullable|numeric|min:0',
             'vendible' => 'boolean',
             // Imagen: límite y mimes para que Livewire rechace temprano. El
             // service después valida MIME real con finfo (defensa adicional).

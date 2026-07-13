@@ -71,17 +71,22 @@ class SmokeArticulosTest extends TestCase
         ]);
 
         $editor = Livewire::test(GestionarArticulos::class)
-            ->call('edit', $articulo->id)
-            ->call('aplicarPrecioSugerido')
-            ->assertOk();
+            ->call('edit', $articulo->id);
 
-        // Sin CUIT RI en la sucursal la alícuota efectiva es 0:
-        // sugerido = 100 × (1 + 50%) = 150 → va al campo, no a la BD todavía.
-        $this->assertEquals(150.0, (float) $editor->get('precio_base'));
+        // El sugerido depende de la alícuota efectiva (si otro test dejó un
+        // CUIT RI activo, incluye el ×1,21): el assert es contra la cuenta
+        // calculada, no un valor fijo (patrón del test de RevisionPrecios).
+        $sugerido = (float) $editor->instance()->cuentaSugerida()['sugerido'];
+        $this->assertGreaterThanOrEqual(150.0, $sugerido); // 100 × 1,5 como piso
+
+        $editor->call('aplicarPrecioSugerido')->assertOk();
+
+        // Va al campo del modal, no a la BD todavía.
+        $this->assertEquals($sugerido, (float) $editor->get('precio_base'));
         $this->assertEquals(100.0, (float) $articulo->fresh()->precio_base);
 
         $editor->call('save')->assertOk();
-        $this->assertEquals(150.0, (float) $articulo->fresh()->precio_base);
+        $this->assertEquals($sugerido, (float) $articulo->fresh()->precio_base);
     }
 
     public function test_asignar_etiquetas_monta(): void
