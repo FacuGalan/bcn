@@ -28,6 +28,7 @@ class CompraPercepcion extends Model
         'base_imponible',
         'alicuota',
         'monto',
+        'coeficiente',
         'certificado_numero',
     ];
 
@@ -35,6 +36,7 @@ class CompraPercepcion extends Model
         'base_imponible' => 'decimal:2',
         'alicuota' => 'decimal:4',
         'monto' => 'decimal:2',
+        'coeficiente' => 'decimal:4',
     ];
 
     // ==================

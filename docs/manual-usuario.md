@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-13 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-14 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal")
 
 ---
 
@@ -1336,7 +1336,9 @@ En el listado y en el detalle de la compra, una factura de servicio se identific
 - **Desglose de IVA**: se auto-sugiere a partir de los renglones (cascada de descuentos + descuento global prorrateado + conceptos gravados) — o, en una factura de servicio, a partir del detalle del servicio — y es totalmente editable para calzar con la factura fisica; boton **"Recalcular"** para volver a la sugerencia. Si el monto cargado difiere del sugerido por alicuota, aparece una advertencia (no bloqueante).
 - **Neto no gravado** / **Neto exento**.
 - **Conceptos del pie** (colapsable; en una factura de servicio, "Detalle del servicio", ver arriba): flete, impuestos internos, envases u otro, con monto, IVA del concepto (si aplica) y el flag **"Computa costo"** (si esta activo, el importe se prorratea entre los renglones — por ejemplo, impuestos internos de bebidas son costo real).
-- **Percepciones sufridas** (colapsable): impuesto del catalogo, base imponible, alicuota, monto y numero de certificado. Si el proveedor tiene **percepciones habituales** cargadas (ver 5.8), se precargan automaticamente como renglones (impuesto + alicuota) al elegirlo en una compra fiscal — el monto queda vacio, porque sale de la factura fisica. Si el usuario ya cargo percepciones a mano, la precarga no las pisa.
+- **Percepciones sufridas** (colapsable): impuesto del catalogo, base imponible, alicuota, monto y **Coef.** (coeficiente computable), cada campo con su label y navegables con Enter. El **numero de certificado** arranca oculto (casi nunca se usa: el respaldo habitual es la propia factura) y se agrega por renglon con el boton **"+ certificado"**; si la compra cargada ya trae uno, el campo aparece visible. Si el proveedor tiene **percepciones habituales** cargadas (ver 5.8), se precargan automaticamente como renglones (impuesto + alicuota + coeficiente) al elegirlo en una compra fiscal; la base y el monto se completan solos apenas hay renglones cargados (ver abajo) y siempre se pueden pisar con lo que dice la factura fisica. Si el usuario ya cargo percepciones a mano, la precarga no las pisa.
+  - **Base y monto sugeridos**: mientras el renglon no se edite a mano, la base imponible se sugiere sola como la suma de las bases gravadas del desglose de IVA, y el monto como base × alicuota. Apenas se tipea la base o el monto a mano, ese renglon deja de recalcularse solo (los demas siguen sugiriendose).
+  - **Coef.** (coeficiente computable, 0 a 1): que parte del monto de la percepcion es credito fiscal computable; el resto se suma al costo de los articulos (o al gasto de la cuenta de compra, en una factura de servicio). Se precarga solo segun el impuesto elegido: percepciones de **IVA** siempre 1 (credito pleno); para IIBB u otros impuestos, toma el **"Coef. computable (compras)"** configurado para ese impuesto en el CUIT comprador (ver 12.1 "Impuestos") — si el CUIT no esta inscripto en esa jurisdiccion o no tiene la config cargada, el default es 0 (todo a costo). Es editable a mano por comprobante, igual que la base y el monto.
 - **Totales del comprobante**: neto/subtotal de renglones, descuento global, conceptos, IVA, percepciones y total — para verificar contra la factura fisica en vivo.
 
 El sistema tambien puede mostrar una advertencia no bloqueante si la combinacion tipo de comprobante × condicion IVA del comprador es atipica (por ejemplo, una factura B a un Responsable Inscripto), o si la fecha del comprobante cae en un periodo fiscal ya cerrado.
@@ -1411,7 +1413,17 @@ Pantalla `/compras/proveedores` (permiso de menu propio — hasta esta version l
 - **Tiene cuenta corriente**: habilita el circuito de cuenta corriente y pagos a plazo (proveedores sin esta opcion solo admiten compras al contado).
 - **Dias de pago**: precarga la fecha de vencimiento de las compras de este proveedor.
 - **Proveedor de servicios** (checkbox, ej. EDESUR, ABL, alquiler): al elegir este proveedor en una compra nueva, el editor sugiere automaticamente la modalidad **"Factura de servicio"** (ver 5.2) — sigue siendo editable por comprobante.
-- **Percepciones habituales**: repetidor de impuesto + alicuota tipica (ej. Percepcion IIBB Buenos Aires 3%). Al elegir este proveedor en una compra fiscal, se precargan como renglones de percepcion (impuesto y alicuota; el monto queda vacio, porque sale de la factura fisica de cada compra). No pisa percepciones ya cargadas por el usuario.
+
+#### Perfil fiscal del proveedor (percepciones habituales)
+
+Boton **"Fiscal"** en movil o el icono de documento en la fila (escritorio) abre un modal propio con el perfil fiscal del proveedor — espejo del perfil fiscal de clientes. Permite:
+
+- Buscar en el catalogo de percepciones (combobox de alta rapida) y agregar las que el proveedor suele aplicar (ej. Percepcion IIBB Buenos Aires).
+- Cargar la **alicuota habitual** de cada percepcion agregada (editable, opcional).
+- Quitar una percepcion del perfil.
+- **"Guardar"** persiste todo el perfil de una vez.
+
+Al elegir este proveedor en una compra fiscal, sus percepciones habituales se precargan como renglones de percepcion (impuesto y alicuota, con el coeficiente computable segun la config del CUIT — ver 5.2); el monto queda vacio, porque sale de la factura fisica de cada compra. No pisa percepciones ya cargadas a mano por el usuario.
 
 #### Acciones
 
@@ -2193,14 +2205,35 @@ Haga clic en **"Nuevo Articulo"** y complete el formulario:
 - **Unidad de Medida**: Unidad, Kilogramo, Litro, etc.
 - **Es materia prima**: Marque si el articulo es una materia prima (se usa en recetas pero no se vende directamente).
 - **Pesable**: Marque si el articulo se vende por peso (kg, gr, lt, etc.). Al agregarlo en el punto de venta se abrira un modal para ingresar la cantidad o el valor. Los articulos pesables usan modo de stock "unitario" automaticamente.
-- **Vendible**: Si el articulo aparece en el punto de venta.
 - **Tipo de IVA**: Seleccione la alicuota de IVA (21%, 10.5%, exento, etc.).
 
-En la seccion **"Configuracion sucursal activa"** (junto al modo de stock y "Vendible"):
+Debajo de los datos generales, el formulario se organiza en tres secciones (fix 2026-07-13):
 
+**Seccion "Costos"** (requiere permiso `func.costos.ver`; oculta por completo sin este permiso — es un dato sensible). Deja explicito que **el costo se actualiza con las COMPRAS, nunca con las ventas**:
+
+- **Los 3 costos** de la sucursal activa (si no tiene costos propios, se muestra el consolidado del comercio), etiquetados por su pregunta:
+  - **Ultimo** (¿cuanto me sale hoy?): el costo de la ultima compra confirmada. Editable a mano con el permiso `func.costos.editar`.
+  - **Promedio** (¿cuanto me costo lo que tengo?): costo promedio ponderado (PPP), de solo lectura.
+  - **Reposicion** (manual): valor editable a mano; si se deja vacio, el sistema usa el ultimo costo como referencia.
+  - Junto al costo ultimo se muestra su **origen** (proveedor + tipo de comprobante de la compra que lo genero) — el mismo articulo comprado con factura A o con factura B puede saltar de base sin que haya cambiado el precio real (el IVA no recuperable de la B es costo).
+- **"Historial de costos"**: modal (espejo del historial de precios) con cada cambio de costo: fecha, usuario, tipo (ultimo/reposicion), costo anterior → nuevo, % de cambio, origen (compra/manual/importacion/cancelacion), proveedor y sucursal. Cada compra confirmada escribe dos filas (sucursal + consolidado del comercio); cuando son identicas (comercio de una sola sucursal, o sin diferencias entre sucursales) solo se muestra la fila de la sucursal, para no duplicar la misma linea dos veces.
+- **Proveedores del articulo**: tabla de los proveedores que venden este articulo, con su codigo propio, factor de conversion (unidades de stock por unidad de compra) y ultimo costo/fecha de compra a cada uno.
+
+Sin el permiso `func.costos.editar`, los campos de costo se muestran de solo lectura.
+
+**Seccion "Utilidad y precio"**:
+
+- **Utilidad objetivo (%)** (requiere `func.costos.ver`): override de este articulo en particular. Si se deja vacio, hereda de la categoria o, si la categoria tampoco define una, del valor por defecto del comercio (configuracion). El campo muestra en el placeholder de quien esta heredando el valor.
+- **Precio administrado por utilidad** (switch, junto a la utilidad objetivo): opt-in — si esta activo, cada vez que una compra confirmada cambia el costo del articulo, su precio de venta se recalcula solo con la formula de utilidad objetivo (sin pasar por la revision manual de precios).
 - **Precio de venta**: campo unico de precio. En un comercio de **una sola sucursal** edita directamente el precio general del articulo. En un comercio **multi-sucursal** muestra el precio efectivo de la sucursal activa y **siempre** se persiste como override de esa sucursal al guardar (el precio generico global de fallback ya no se edita desde aqui; se administrara a futuro desde el componente Manager). Dejar el campo vacio **no** hace que vuelva a usar el generico: es un dato obligatorio.
 - **IVA incluido en el precio** (switch, junto al precio de venta): debajo muestra la aclaracion segun el estado — *"Precio FINAL: el IVA va adentro y se desglosa al facturar"* (activado) o *"Precio NETO: el IVA se suma encima al vender"* (desactivado).
+- **La cuenta del precio sugerido** (requiere `func.costos.ver`), siempre desglosada y visible (costo × utilidad × IVA si corresponde = precio sugerido), reactiva a lo que se va tipeando en el override de utilidad, junto con el margen real actual del articulo. Junto al sugerido hay un boton **"Usar como precio"**: copia el valor sugerido al campo "Precio de venta" de arriba (no persiste nada por si solo — hay que hacer clic en **"Guardar"** para que quede grabado, con su historial de precios normal).
+
+**Seccion "Configuracion en la sucursal"**:
+
 - **Modo de stock**: Ninguno (no controla stock), Unitario (control directo), o Por Receta (se descuenta por ingredientes).
+- **Vendible**: Si el articulo aparece en el punto de venta.
+- **Delivery y Tienda** (sub-item): "Disponible delivery", "Disponible take-away", "Visible en tienda" (por sucursal), "Destacado en tienda", "Vender sin stock" y "Orden en tienda" (posicion de la grilla). Un articulo agotado sin "Vender sin stock" se muestra en la tienda pero no se puede pedir.
 - **Sucursales**: En que sucursales esta disponible el articulo.
 - **Etiquetas**: Asigne etiquetas para clasificar el articulo.
 - **Activo**: Si el articulo esta habilitado.
@@ -2218,23 +2251,6 @@ Haga clic en el boton de edicion del articulo. Se abre el mismo formulario con l
 - **Ver historial de precios**: Muestra el registro de todos los cambios de precio que ha tenido el articulo.
 
 - **Eliminar**: Solo si el articulo no tiene operaciones asociadas (ventas, compras, stock). De lo contrario, desactivelo.
-
-#### Costos y utilidad (requiere permiso "Ver costos")
-
-Dentro del modal de edicion, con el permiso `func.costos.ver` aparece la seccion **"Costos y utilidad"** (oculta por completo sin este permiso — es un dato sensible). Deja explicito que **el costo se actualiza con las COMPRAS, nunca con las ventas**:
-
-- **Los 3 costos** de la sucursal activa (si no tiene costos propios, se muestra el consolidado del comercio), etiquetados por su pregunta:
-  - **Ultimo** (¿cuanto me sale hoy?): el costo de la ultima compra confirmada. Editable a mano con el permiso `func.costos.editar`.
-  - **Promedio** (¿cuanto me costo lo que tengo?): costo promedio ponderado (PPP), de solo lectura.
-  - **Reposicion** (manual): valor editable a mano; si se deja vacio, el sistema usa el ultimo costo como referencia.
-  - Junto al costo ultimo se muestra su **origen** (proveedor + tipo de comprobante de la compra que lo genero) — el mismo articulo comprado con factura A o con factura B puede saltar de base sin que haya cambiado el precio real (el IVA no recuperable de la B es costo).
-- **"Historial de costos"**: modal (espejo del historial de precios) con cada cambio de costo: fecha, usuario, tipo (ultimo/reposicion), costo anterior → nuevo, % de cambio, origen (compra/manual/importacion/cancelacion), proveedor y sucursal.
-- **Utilidad objetivo (%)**: override de este articulo en particular. Si se deja vacio, hereda de la categoria o, si la categoria tampoco define una, del valor por defecto del comercio (configuracion). El campo muestra en el placeholder de quien esta heredando el valor.
-- **Precio administrado por utilidad**: switch opt-in — si esta activo, cada vez que una compra confirmada cambia el costo del articulo, su precio de venta se recalcula solo con la formula de utilidad objetivo (sin pasar por la revision manual de precios).
-- **La cuenta del precio sugerido**, siempre desglosada y visible (costo × utilidad × IVA si corresponde = precio sugerido), reactiva a lo que se va tipeando en el override de utilidad, junto con el margen real actual del articulo. Junto al sugerido hay un boton **"Usar como precio"**: copia el valor sugerido al campo "Precio de venta" de la seccion de sucursal (no persiste nada por si solo — hay que hacer clic en **"Guardar"** para que quede grabado, con su historial de precios normal).
-- **Proveedores del articulo**: tabla de los proveedores que venden este articulo, con su codigo propio, factor de conversion (unidades de stock por unidad de compra) y ultimo costo/fecha de compra a cada uno.
-
-Sin el permiso `func.costos.editar`, todos estos campos se muestran de solo lectura (los inputs de costo/utilidad/switch quedan deshabilitados).
 
 #### Importar y exportar articulos desde Excel
 
@@ -2649,14 +2665,14 @@ Gestion de los CUITs fiscales del comercio (una empresa puede tener varios CUITs
 - Certificado digital y clave privada para facturacion electronica.
 - **Puntos de Venta**: Cada CUIT puede tener multiples puntos de venta numerados, necesarios para la emision de comprobantes fiscales.
 
-Si conviven **CUITs activos con condiciones de IVA distintas** (por ejemplo, uno Responsable Inscripto y otro Monotributo), se muestra un aviso amarillo arriba de la lista: el precio sugerido y el margen de los articulos (modulo Articulos, seccion "Costos y utilidad") se calculan con el CUIT **principal de cada sucursal**, que puede no coincidir con el CUIT del punto de venta que efectivamente factura — conviene verificar que coincidan.
+Si conviven **CUITs activos con condiciones de IVA distintas** (por ejemplo, uno Responsable Inscripto y otro Monotributo), se muestra un aviso amarillo arriba de la lista: el precio sugerido y el margen de los articulos (modulo Articulos, seccion "Utilidad y precio") se calculan con el CUIT **principal de cada sucursal**, que puede no coincidir con el CUIT del punto de venta que efectivamente factura — conviene verificar que coincidan.
 
 Cada CUIT en la lista expone tres botones de accion adicionales (accesibles desde el menu de acciones de la fila):
 
 **Boton "Impuestos"**: abre el modal de configuracion impositiva del CUIT. Permite:
 - Buscar impuestos del catalogo del sistema (percepciones y retenciones de IVA e IIBB por jurisdiccion, ganancias, creditos y debitos, SIRCREB) y agregarlos al CUIT.
 - Crear impuestos personalizados que no esten en el catalogo del sistema.
-- Para cada impuesto configurado, editar: alicuota (%), base minima (umbral de base imponible para aplicar la percepcion), **Percepcion minima** (umbral sobre el monto ya calculado de la percepcion: si el importe resultante no alcanza este valor, no se practica; distinto de la base minima, que se compara contra el neto gravado), numero de inscripcion, vigente desde, vigente hasta.
+- Para cada impuesto configurado, editar: alicuota (%), **"Coef. computable (compras)"** (0 a 1: que parte de una percepcion sufrida en una **compra** con ese impuesto se computa como credito fiscal; el resto se suma al costo de los articulos o al gasto de la cuenta de compra en una factura de servicio. Vacio = 1 si el CUIT esta inscripto en el impuesto, 0 si no. Es el default que trae el editor de compras en el campo "Coef." de cada percepcion — ver 5.2, editable por comprobante), base minima (umbral de base imponible para aplicar la percepcion), **Percepcion minima** (umbral sobre el monto ya calculado de la percepcion: si el importe resultante no alcanza este valor, no se practica; distinto de la base minima, que se compara contra el neto gravado), numero de inscripcion, vigente desde, vigente hasta.
 - Marcar si el CUIT actua como agente de percepcion y/o agente de retencion para ese impuesto.
 - Para los impuestos de tipo IIBB, aparece ademas el flag **"Percibir a clientes no empadronados"**: si esta activo, el sistema percibe la alicuota fija del agente a todo cliente Responsable Inscripto que no tenga perfil fiscal propio cargado para ese IIBB; si esta desactivado (valor por defecto), solo se percibe a los clientes que tienen alicuota cargada manualmente o proveniente de padron.
 - Quitar un impuesto de la configuracion del CUIT.
@@ -3949,6 +3965,7 @@ Permite emitir y revocar **tokens de integracion** para que aplicaciones externa
 | **ARCA/AFIP** | Administracion Federal de Ingresos Publicos de Argentina. El sistema puede consultar el padron y emitir comprobantes fiscales electronicos. |
 | **Carrito** | Lista de articulos seleccionados en una venta antes de confirmarla. |
 | **CBU** | Clave Bancaria Uniforme; identificador unico de una cuenta bancaria en Argentina. |
+| **Coeficiente computable** | En una percepcion sufrida en una compra: que parte de su monto es credito fiscal (va al ledger de impuestos) y que parte se suma al costo de la mercaderia (o al gasto, en una factura de servicio). Se configura por defecto en el CUIT y es editable por comprobante. |
 | **Comprobante fiscal** | Factura A, B o C emitida electronicamente ante ARCA. |
 | **Concepto de pago** | Clasificacion del medio de pago (efectivo, debito, credito, transferencia). |
 | **Condicion de IVA** | Situacion fiscal del cliente o proveedor (Responsable Inscripto, Monotributo, Consumidor Final, etc.). |

@@ -1741,7 +1741,7 @@ Precarga de CONVENIENCIA espejo de `articulo_proveedor.descuentos_habituales`:
 - Traducciones: +16 claves ×3 (es/en/pt, 4385 c/u).
 - `npm run build` corrido (clases sky nuevas del badge).
 
-## D25 — Coeficiente de computabilidad de percepciones (PENDIENTE, rama propia post-merge #154)
+## D25 — Coeficiente de computabilidad de percepciones (IMPLEMENTADO 2026-07-14, rama feat/compras-d25-coeficiente-percepciones)
 
 Aprobado por el usuario el 2026-07-14 (decisiones tomadas vía AskUserQuestion).
 Destraba la computabilidad de percepciones IIBB por jurisdicción/CM con
@@ -1783,3 +1783,30 @@ efecto en dic-2024 → todo queda a criterio de cada jurisdicción = config manu
 **Pendiente del contador (no bloquea, refina defaults):** confirmar cómputo
 100% cuando hay inscripción; si los casos parciales son fijos por
 jurisdicción/año; recupero cuando no hay inscripción (asumimos que no).
+
+**Ajustes de implementación (2026-07-14):**
+
+- `compra_percepciones.coeficiente` NULL = LEGADO/sin dato ⇒ 100% computable y
+  sin efecto en costo (comportamiento histórico: las compras existentes no
+  cambian). El "todo a costo" es el **0 explícito**, que el editor setea por
+  default cuando el CUIT no tiene config para la jurisdicción.
+- Default del coeficiente en el editor (`coeficientePercepcionDefault`):
+  percepción de tipo IVA ⇒ 1 siempre (crédito pleno RI, no depende de
+  jurisdicción); resto ⇒ `coeficiente_computable` de la config del CUIT, o
+  `inscripto ? 1 : 0`; sin config ⇒ 0. Cambiar el CUIT de la compra refresca
+  los defaults de los renglones en modo auto.
+- Sugerencia de base/monto: renglones con flag interno `auto` (precargados o
+  nuevos) siguen Σ bases gravadas del desglose de IVA × alícuota en cada
+  recálculo (incluso con desglose fiscal manual); tipear base o monto a mano
+  saca al renglón del modo auto. El flag no se persiste.
+- La parte no computable se prorratea vía `percepciones_costo_monto` (nuevo
+  término de `CostoService::costoComputableRenglon`, DESPUÉS del gross-up de
+  IVA no recuperable). No se persiste por renglón: queda embebida en
+  `costo_unitario_computable`.
+- NC/cancelación: sin código nuevo — la reversa fiscal usa los movimientos
+  guardados (ya × coef) y la de costos restaura el valor previo del historial.
+  La NC no recalcula costos (RF-21), tampoco por percepciones.
+- Verificación: CompraServiceTest +2 (coef 0,6 parte crédito/parte costo;
+  coef 0 todo a costo sin ledger), SmokeCompras +1 (default por config del
+  CUIT + sugerencia base/monto + salida del modo auto). tenant_tables.sql
+  validado con TEST_FORCE_RECREATE=1. +4 claves i18n ×3.

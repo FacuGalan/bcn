@@ -166,6 +166,14 @@
                                         <input type="text" wire:model="filas.{{ $i }}.numero_inscripcion" maxlength="30"
                                             class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
                                     </div>
+                                    {{-- D25: coeficiente computable de percepciones SUFRIDAS en compras --}}
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-700 dark:text-gray-300" title="{{ __('Qué parte de una percepción sufrida en compras se computa como crédito fiscal (0 a 1); el resto va al costo. Vacío = 1 si estás inscripto, 0 si no.') }}">{{ __('Coef. computable (compras)') }}</label>
+                                        <input type="number" step="0.0001" min="0" max="1" wire:model="filas.{{ $i }}.coeficiente_computable"
+                                            placeholder="{{ $fila['inscripto'] ? '1' : '0' }}"
+                                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-bcn-primary focus:ring-bcn-primary sm:text-sm dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+                                        @error('filas.'.$i.'.coeficiente_computable') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                                    </div>
                                     {{-- Vigencia desde --}}
                                     <div>
                                         <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Vigente desde') }}</label>

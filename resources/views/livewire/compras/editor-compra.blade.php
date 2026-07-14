@@ -644,26 +644,61 @@
                             </button>
                             <div x-show="abierto" x-collapse class="px-3 sm:px-4 pb-3 space-y-2">
                                 @foreach($percepciones as $index => $percepcion)
-                                    <div class="flex flex-wrap items-center gap-2" wire:key="percepcion-{{ $index }}">
-                                        <select wire:model.live="percepciones.{{ $index }}.impuesto_id"
-                                            class="flex-1 min-w-36 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                            <option value="">{{ __('Impuesto...') }}</option>
-                                            @foreach($impuestosPercepcion as $impuesto)
-                                                <option value="{{ $impuesto->id }}">{{ $impuesto->nombre }}</option>
-                                            @endforeach
-                                        </select>
-                                        <input type="text" wire:model="percepciones.{{ $index }}.base_imponible" placeholder="{{ __('Base') }}"
-                                            wire:change="calcularMontoPercepcion({{ $index }})"
-                                            class="w-24 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                        <input type="text" wire:model="percepciones.{{ $index }}.alicuota" placeholder="%"
-                                            wire:change="calcularMontoPercepcion({{ $index }})"
-                                            class="w-16 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                        <input type="text" wire:model.live.debounce.500ms="percepciones.{{ $index }}.monto" placeholder="{{ __('Monto') }}"
-                                            class="w-24 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                        <input type="text" wire:model="percepciones.{{ $index }}.certificado_numero" placeholder="{{ __('Certificado') }}"
-                                            class="w-28 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                    <div class="flex flex-wrap items-end gap-2" wire:key="percepcion-{{ $index }}">
+                                        <div class="flex-1 min-w-36">
+                                            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400">{{ __('Impuesto') }}</label>
+                                            <select wire:model.live="percepciones.{{ $index }}.impuesto_id"
+                                                data-cell @keydown.enter.prevent="avanzar($event)"
+                                                class="mt-0.5 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                <option value="">{{ __('Impuesto...') }}</option>
+                                                @foreach($impuestosPercepcion as $impuesto)
+                                                    <option value="{{ $impuesto->id }}">{{ $impuesto->nombre }}</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+                                        <div class="w-24">
+                                            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400">{{ __('Base') }}</label>
+                                            <input type="text" wire:model="percepciones.{{ $index }}.base_imponible" placeholder="{{ __('Base') }}"
+                                                wire:change="calcularMontoPercepcion({{ $index }})"
+                                                data-cell @keydown.enter.prevent="avanzar($event)"
+                                                class="mt-0.5 w-full text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                        </div>
+                                        <div class="w-16">
+                                            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400">{{ __('Alíc. %') }}</label>
+                                            <input type="text" wire:model="percepciones.{{ $index }}.alicuota" placeholder="%"
+                                                wire:change="calcularMontoPercepcion({{ $index }})"
+                                                data-cell @keydown.enter.prevent="avanzar($event)"
+                                                class="mt-0.5 w-full text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                        </div>
+                                        <div class="w-24">
+                                            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400">{{ __('Monto') }}</label>
+                                            <input type="text" wire:model.live.debounce.500ms="percepciones.{{ $index }}.monto" placeholder="{{ __('Monto') }}"
+                                                data-cell @keydown.enter.prevent="avanzar($event)"
+                                                class="mt-0.5 w-full text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                        </div>
+                                        <div class="w-16">
+                                            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400" title="{{ __('Parte computable como crédito fiscal (0 a 1): monto × coeficiente va al ledger fiscal, el resto al costo. Default: config del CUIT por jurisdicción.') }}">{{ __('Coef.') }}</label>
+                                            <input type="number" step="0.0001" min="0" max="1" wire:model.live.debounce.500ms="percepciones.{{ $index }}.coeficiente" placeholder="0-1"
+                                                title="{{ __('Parte computable como crédito fiscal (0 a 1): monto × coeficiente va al ledger fiscal, el resto al costo. Default: config del CUIT por jurisdicción.') }}"
+                                                data-cell @keydown.enter.prevent="avanzar($event)"
+                                                class="mt-0.5 w-full text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                        </div>
+                                        @if(!empty($percepcion['con_certificado']))
+                                            <div class="w-28">
+                                                <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400" title="{{ __('N° de constancia que respalda la percepción o retención (opcional; el respaldo habitual es la propia factura)') }}">{{ __('Certificado') }}</label>
+                                                <input type="text" wire:model="percepciones.{{ $index }}.certificado_numero" placeholder="{{ __('Certificado') }}"
+                                                    data-cell @keydown.enter.prevent="avanzar($event)"
+                                                    class="mt-0.5 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                            </div>
+                                        @else
+                                            <button type="button" wire:click="mostrarCertificadoPercepcion({{ $index }})" tabindex="-1"
+                                                class="pb-2 text-[11px] text-gray-400 hover:text-bcn-primary dark:hover:text-bcn-primary whitespace-nowrap"
+                                                title="{{ __('N° de constancia que respalda la percepción o retención (opcional; el respaldo habitual es la propia factura)') }}">
+                                                + {{ __('certificado') }}
+                                            </button>
+                                        @endif
                                         <button type="button" wire:click="quitarPercepcion({{ $index }})" tabindex="-1"
-                                            class="text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="{{ __('Quitar') }}">
+                                            class="pb-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="{{ __('Quitar') }}">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                         </button>
                                     </div>
