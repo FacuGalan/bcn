@@ -308,10 +308,15 @@ class ComprobanteFiscalService
                 'afip_response' => $respuestaCAE['response_raw'],
             ]);
 
-            // Actualizar cache de monto fiscal en la venta
+            // Actualizar cache de monto fiscal en la venta. RF-V6 (hardening fiscal
+            // saliente): refleja lo REALMENTE facturado — antes pisaba con
+            // total_final incondicional y una facturación parcial quedaba cacheada
+            // como si se hubiera facturado todo.
+            $montoFiscal = $this->montoFiscalFacturado($venta);
+
             $venta->update([
-                'monto_fiscal_cache' => $venta->total_final,
-                'monto_no_fiscal_cache' => 0,
+                'monto_fiscal_cache' => $montoFiscal,
+                'monto_no_fiscal_cache' => round(max(0, (float) $venta->total_final - $montoFiscal), 2),
             ]);
 
             // Marcar los pagos como facturados.
@@ -378,6 +383,26 @@ class ComprobanteFiscalService
 
             throw $e;
         }
+    }
+
+    /**
+     * Monto efectivamente facturado de una venta (RF-V6): saldo fiscal de sus
+     * facturas AUTORIZADAS (total menos NC que las cubren), con tope en
+     * total_final. Es la fuente del cache `monto_fiscal_cache`.
+     */
+    public function montoFiscalFacturado(Venta $venta): float
+    {
+        return min(
+            (float) $venta->total_final,
+            round(
+                $venta->comprobantesFiscales()
+                    ->facturas()
+                    ->autorizados()
+                    ->get()
+                    ->sum(fn ($cf) => $cf->saldoFiscalPendiente()),
+                2
+            )
+        );
     }
 
     /**

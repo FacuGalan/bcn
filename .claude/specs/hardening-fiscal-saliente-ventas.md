@@ -287,7 +287,7 @@ agrega algún aviso, alta en los 3 idiomas vía `/traducir`.
 3. Tests: clasificación 0% por ambos caminos + base de percepción con exentos
    (ampliar `PercepcionFiscalVentaTest`, `DesgloseFiscalRedondeoTest`).
 
-### Fase 2: Re-emisión con tributos (RF-V2) + cache fiscal (RF-V6) [PENDIENTE]
+### Fase 2: Re-emisión con tributos (RF-V2) + cache fiscal (RF-V6) [COMPLETO]
 1. Snapshot/recalculo de tributos en `emitirFcNuevaPostCommit` y
    `reintentarFacturacionPago`; base −impTrib en `calcularDesgloseIvaProporcional`.
 2. `monto_fiscal_cache` por suma de comprobantes vigentes + revisión de reversas.
