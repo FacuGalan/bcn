@@ -584,23 +584,19 @@ trait WithCalculoVenta
             $ivaCodigo = $item['iva_codigo'] ?? 5;
             $ivaPorcentaje = (float) ($item['iva_porcentaje'] ?? 21);
             $ivaNombre = $item['iva_nombre'] ?? 'IVA 21%';
-            $precioIvaIncluido = $item['precio_iva_incluido'] ?? true;
 
             $subtotalItem = $precio * $cantidad;
 
-            // Calcular neto e IVA del item
+            // Calcular neto e IVA del item. RF-A3 (hardening-circuito-precios):
+            // el precio es SIEMPRE final con IVA incluido, el desglose DIVIDE.
             if ($ivaPorcentaje == 0) {
                 // Exento o No Gravado: todo es neto
                 $netoItem = $subtotalItem;
                 $ivaItem = 0;
-            } elseif ($precioIvaIncluido) {
-                // Precio incluye IVA: neto = precio / (1 + alícuota/100)
+            } else {
+                // Precio final: neto = precio / (1 + alícuota/100)
                 $netoItem = $subtotalItem / (1 + $ivaPorcentaje / 100);
                 $ivaItem = $subtotalItem - $netoItem;
-            } else {
-                // Precio no incluye IVA (raro pero posible)
-                $netoItem = $subtotalItem;
-                $ivaItem = $subtotalItem * ($ivaPorcentaje / 100);
             }
 
             // Inicializar alícuota si no existe

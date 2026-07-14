@@ -207,7 +207,13 @@ class VentaServiceTest extends TestCase
         $this->assertLessThan((float) $detalle->precio_unitario, (float) $detalle->precio_sin_iva);
     }
 
-    public function test_crear_venta_con_iva_excluido()
+    /**
+     * RF-A3 (hardening-circuito-precios): un artículo con el flag legacy
+     * precio_iva_incluido=false (dato residual pre-migración) se trata igual
+     * que cualquier otro — el precio es FINAL, el desglose divide y
+     * neto + IVA = total exacto (se cobra lo mismo que se factura).
+     */
+    public function test_crear_venta_articulo_ex_neto_cobra_igual_que_factura()
     {
         $this->setControlStock('no_controla');
         $articulo = $this->crearArticuloConStock($this->sucursalId, 100, 'unitario', [
@@ -223,11 +229,15 @@ class VentaServiceTest extends TestCase
 
         $detalle = VentaDetalle::where('venta_id', $venta->id)->first();
         $this->assertNotNull($detalle);
-        // Cuando IVA excluido, precio_sin_iva == precio_unitario
-        $this->assertEquals(
-            round((float) $detalle->precio_unitario, 2),
-            round((float) $detalle->precio_sin_iva, 2)
+        // El desglose DIVIDE: neto = 1000 / 1.21
+        $this->assertEqualsWithDelta(826.45, (float) $detalle->precio_sin_iva, 0.01);
+        // Invariante: neto + IVA = total cobrado (el subtotal sigue siendo el precio final)
+        $this->assertEqualsWithDelta(
+            (float) $detalle->subtotal,
+            (float) $detalle->precio_sin_iva * (float) $detalle->cantidad + (float) $detalle->iva_monto,
+            0.01
         );
+        $this->assertEqualsWithDelta(1000.00, (float) $detalle->subtotal, 0.01);
     }
 
     public function test_crear_venta_con_descuento_en_detalle()

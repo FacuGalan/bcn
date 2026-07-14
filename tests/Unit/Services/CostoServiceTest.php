@@ -355,12 +355,17 @@ class CostoServiceTest extends TestCase
         $this->assertEquals(0.0, $this->servicio->alicuotaEfectiva($articulo, $this->sucursalId));
     }
 
-    public function test_alicuota_efectiva_precio_neto_es_cero(): void
+    /**
+     * RF-A3 (hardening-circuito-precios): el flag precio_iva_incluido quedó
+     * deprecado (el precio es SIEMPRE final con IVA); un residuo en false no
+     * cambia la alícuota efectiva.
+     */
+    public function test_alicuota_efectiva_ignora_flag_neto_deprecado(): void
     {
         $this->crearCuitParaSucursal(CondicionIva::RESPONSABLE_INSCRIPTO);
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', ['precio_iva_incluido' => false]);
 
-        $this->assertEquals(0.0, $this->servicio->alicuotaEfectiva($articulo, $this->sucursalId));
+        $this->assertEquals(21.0, $this->servicio->alicuotaEfectiva($articulo, $this->sucursalId));
     }
 
     public function test_alicuota_efectiva_sin_cuit_es_cero(): void

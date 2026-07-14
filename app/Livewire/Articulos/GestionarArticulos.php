@@ -175,8 +175,6 @@ class GestionarArticulos extends Component
 
     public ?int $tipo_iva_id = null;
 
-    public bool $precio_iva_incluido = true;
-
     public ?float $precio_base = null;
 
     public bool $activo = true;
@@ -658,7 +656,6 @@ class GestionarArticulos extends Component
         $this->resetFormularioArticulo();
         $this->editMode = false;
         $this->activo = true;
-        $this->precio_iva_incluido = true;
         $this->unidad_medida = 'unidad';
         $this->precio_base = null;
         $this->modo_stock = 'ninguno';
@@ -696,7 +693,6 @@ class GestionarArticulos extends Component
         $this->es_materia_prima = $articulo->es_materia_prima ?? false;
         $this->pesable = $articulo->pesable ?? false;
         $this->tipo_iva_id = $articulo->tipo_iva_id;
-        $this->precio_iva_incluido = $articulo->precio_iva_incluido ?? true;
         $this->precio_base = $articulo->precio_base;
         $this->activo = $articulo->activo ?? true;
         $this->imagenPathActual = $articulo->imagen_path;
@@ -970,7 +966,6 @@ class GestionarArticulos extends Component
             'es_materia_prima' => 'boolean',
             'pesable' => 'boolean',
             'tipo_iva_id' => 'required|exists:pymes_tenant.tipos_iva,id',
-            'precio_iva_incluido' => 'boolean',
             'precio_base' => 'required|numeric|min:0',
             'activo' => 'boolean',
             'modo_stock' => 'required|in:ninguno,unitario,receta',
@@ -997,7 +992,9 @@ class GestionarArticulos extends Component
             'es_materia_prima' => $this->es_materia_prima,
             'pesable' => $this->pesable,
             'tipo_iva_id' => $this->tipo_iva_id,
-            'precio_iva_incluido' => $this->precio_iva_incluido,
+            // RF-A1 (hardening-circuito-precios): el precio de venta es SIEMPRE
+            // final con IVA incluido; la columna queda deprecada forzada a true.
+            'precio_iva_incluido' => true,
             'precio_base' => $this->precio_base,
             'activo' => $this->activo,
             // Delivery / Tienda (RF-16/RF-17 pedidos-delivery)
@@ -1240,7 +1237,7 @@ class GestionarArticulos extends Component
         $this->reset([
             'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
             'unidad_medida', 'es_materia_prima', 'pesable', 'tipo_iva_id',
-            'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
+            'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
             'modo_stock', 'precio_sucursal', 'vendible',
             'disponible_delivery', 'disponible_take_away', 'permite_programado',

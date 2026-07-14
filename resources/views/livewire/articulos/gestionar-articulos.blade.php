@@ -1073,24 +1073,10 @@
                                             @error('precio_sucursal') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                         </div>
 
-                                        <!-- IVA incluido en el precio (semántica de PRICING, aclarada) -->
+                                        {{-- RF-A2 (hardening-circuito-precios): el precio es SIEMPRE final con IVA; el toggle se quitó --}}
                                         <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
-                                            <div class="flex items-center justify-between">
-                                                <label for="precio_iva_incluido" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('IVA incluido en el precio') }}</label>
-                                                <button
-                                                    type="button"
-                                                    wire:click="$toggle('precio_iva_incluido')"
-                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_iva_incluido ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
-                                                    role="switch"
-                                                    aria-checked="{{ $precio_iva_incluido ? 'true' : 'false' }}"
-                                                >
-                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_iva_incluido ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                                                </button>
-                                            </div>
-                                            <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                                                {{ $precio_iva_incluido
-                                                    ? __('Precio FINAL: el IVA va adentro y se desglosa al facturar')
-                                                    : __('Precio NETO: el IVA se suma encima al vender') }}
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                {{ __('Precio FINAL: el IVA va adentro y se desglosa al facturar') }}
                                             </p>
                                         </div>
                                     </div>

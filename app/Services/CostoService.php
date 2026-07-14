@@ -317,18 +317,14 @@ class CostoService
      * puerta: nunca leer la alícuota directo en fórmulas de pricing.
      *
      * Devuelve la alícuota del TipoIva del artículo SOLO si el comercio
-     * computa IVA (CUIT emisor RI) Y el precio del artículo incluye IVA.
-     * Para un comercio no-RI el costo es bruto y TODO el precio es ingreso ⇒
-     * la fórmula no debe agregar ni quitar IVA (alícuota 0). Ídem cuando el
-     * precio se almacena neto (precio_iva_incluido=false): el sugerido se
-     * materializa neto y el margen no divide.
+     * computa IVA (CUIT emisor RI). Para un comercio no-RI el costo es bruto
+     * y TODO el precio es ingreso ⇒ la fórmula no debe agregar ni quitar IVA
+     * (alícuota 0). RF-A3 (hardening-circuito-precios): el precio es SIEMPRE
+     * final con IVA incluido, así que la alícuota efectiva queda determinada
+     * solo por comercioComputaIva.
      */
     public function alicuotaEfectiva(Articulo $articulo, ?int $sucursalId = null): float
     {
-        if (! $articulo->precio_iva_incluido) {
-            return 0.0;
-        }
-
         if (! $this->comercioComputaIva($sucursalId)) {
             return 0.0;
         }

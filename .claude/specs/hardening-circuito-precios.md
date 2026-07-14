@@ -1,6 +1,6 @@
 # Hardening del Circuito de Precios e Impuestos - Especificación
 
-## Estado: APROBADO (2026-07-14) — implementación pendiente
+## Estado: EN PROGRESO (2026-07-14) — Fase 1 completa
 
 > Consolidación post-auditoría integral (2026-07-14, 4 revisores paralelos sobre los
 > PRs #153/#154/#155 + sistema impositivo). Tres bloques: (A) precio de venta SIEMPRE
@@ -307,7 +307,7 @@ Claves nuevas (estimadas; definir exactas en implementación, 3 idiomas):
 
 ## Plan de Implementación
 
-### Fase 1: Precio final único (Bloque A) [PENDIENTE]
+### Fase 1: Precio final único (Bloque A) [COMPLETO]
 1. Migración de datos + verificación del default de columna.
 2. Forzados en save/import/alta rápida + quitar toggle del ABM.
 3. Saneo de ramas flag=false (WithCalculoVenta, VentaService) + comentarios en
