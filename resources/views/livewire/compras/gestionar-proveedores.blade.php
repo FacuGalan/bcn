@@ -61,6 +61,7 @@
                     </div>
                     <div class="mt-3 flex gap-2 justify-end">
                         <button wire:click="verExtracto({{ $proveedor->id }})" class="px-3 py-1.5 text-xs rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">{{ __('Cuenta') }}</button>
+                        <button type="button" wire:click="$dispatch('abrir-impuestos-proveedor', { proveedorId: {{ $proveedor->id }} })" class="px-3 py-1.5 text-xs rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200">{{ __('Fiscal') }}</button>
                         <button wire:click="edit({{ $proveedor->id }})" class="px-3 py-1.5 text-xs rounded-md bg-bcn-primary text-white">{{ __('Editar') }}</button>
                     </div>
                 </div>
@@ -105,6 +106,9 @@
                                 <td class="px-4 py-3 text-right whitespace-nowrap">
                                     <button wire:click="verExtracto({{ $proveedor->id }})" class="text-gray-500 hover:text-bcn-primary dark:text-gray-400 mr-2" title="{{ __('Estado de cuenta') }}">
                                         <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                    </button>
+                                    <button type="button" wire:click="$dispatch('abrir-impuestos-proveedor', { proveedorId: {{ $proveedor->id }} })" class="text-gray-500 hover:text-bcn-primary dark:text-gray-400 mr-2" title="{{ __('Perfil fiscal') }}">
+                                        <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m-6 4h6m-6 4h4M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z"/></svg>
                                     </button>
                                     <button wire:click="edit({{ $proveedor->id }})" class="text-gray-500 hover:text-bcn-primary dark:text-gray-400 mr-2" title="{{ __('Editar') }}">
                                         <svg class="w-5 h-5 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -208,33 +212,8 @@
                         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">{{ __('Sus compras se sugieren como "factura de servicio": sin artículos ni stock, con la cuenta de compra como eje del gasto') }}</p>
                     </div>
 
-                    {{-- D24: percepciones habituales --}}
-                    <div class="sm:col-span-2 border-t border-gray-200 dark:border-gray-700 pt-4">
-                        <div class="flex items-center justify-between">
-                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Percepciones habituales') }}</label>
-                            <button type="button" wire:click="agregarPercepcionHabitual" class="text-xs text-bcn-primary hover:underline">{{ __('+ Agregar percepción') }}</button>
-                        </div>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Se precargan como renglones de percepción al elegir el proveedor en una compra (el monto exacto sale de la factura física)') }}</p>
-                        <div class="mt-2 space-y-2">
-                            @foreach($percepciones_habituales as $index => $percepcion)
-                                <div class="flex items-center gap-2" wire:key="percepcion-habitual-{{ $index }}">
-                                    <select wire:model="percepciones_habituales.{{ $index }}.impuesto_id"
-                                        class="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm">
-                                        <option value="">{{ __('Impuesto...') }}</option>
-                                        @foreach($impuestosPercepcion as $impuesto)
-                                            <option value="{{ $impuesto->id }}">{{ $impuesto->nombre }}</option>
-                                        @endforeach
-                                    </select>
-                                    <input type="text" wire:model="percepciones_habituales.{{ $index }}.alicuota" placeholder="{{ __('Alíc. %') }}"
-                                        class="w-20 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring-bcn-primary text-sm">
-                                    <button type="button" wire:click="quitarPercepcionHabitual({{ $index }})" tabindex="-1"
-                                        class="text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="{{ __('Quitar') }}">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
-                                    </button>
-                                </div>
-                            @endforeach
-                        </div>
-                    </div>
+                    {{-- D24: las percepciones habituales viven en el perfil fiscal
+                        (botón en la fila del listado, componente ProveedorImpuestos) --}}
                 </div>
             </x-slot:body>
             <x-slot:footer>
@@ -318,4 +297,7 @@
             </x-slot:footer>
         </x-bcn-modal>
     @endif
+
+    {{-- Perfil fiscal del proveedor (D24): percepciones habituales --}}
+    <livewire:compras.proveedor-impuestos />
 </div>

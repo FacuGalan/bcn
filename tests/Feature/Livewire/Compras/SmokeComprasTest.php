@@ -338,7 +338,7 @@ class SmokeComprasTest extends TestCase
             ->assertOk();
     }
 
-    public function test_gestionar_proveedores_guarda_servicio_y_percepciones_habituales(): void
+    public function test_gestionar_proveedores_guarda_servicio_y_perfil_fiscal_percepciones(): void
     {
         $impuesto = \App\Models\Impuesto::firstOrCreate(
             ['codigo' => 'perc_iibb_smoke'],
@@ -350,19 +350,43 @@ class SmokeComprasTest extends TestCase
             ->call('create')
             ->set('nombre', $nombre)
             ->set('es_servicio', true)
-            ->call('agregarPercepcionHabitual')
-            ->set('percepciones_habituales.0.impuesto_id', $impuesto->id)
-            ->set('percepciones_habituales.0.alicuota', '2.5')
             ->call('save')
             ->assertSet('showModal', false)
             ->assertOk();
 
         $proveedor = Proveedor::where('nombre', $nombre)->first();
         $this->assertTrue((bool) $proveedor->es_servicio);
+
+        // D24: las percepciones habituales se cargan desde el perfil fiscal
+        // del proveedor (componente aparte, espejo de ClienteImpuestos).
+        Livewire::test(\App\Livewire\Compras\ProveedorImpuestos::class)
+            ->call('abrir', $proveedor->id)
+            ->assertSet('mostrarModal', true)
+            ->call('agregarImpuesto', $impuesto->id)
+            ->set('filas.0.alicuota', '2.5')
+            ->call('guardar')
+            ->assertSet('mostrarModal', false)
+            ->assertOk();
+
         $this->assertEquals(
             [['impuesto_id' => $impuesto->id, 'alicuota' => 2.5]],
-            $proveedor->percepciones_habituales,
+            $proveedor->fresh()->percepciones_habituales,
         );
+
+        // Quitar la percepción deja el perfil vacío (JSON null).
+        Livewire::test(\App\Livewire\Compras\ProveedorImpuestos::class)
+            ->call('abrir', $proveedor->id)
+            ->assertSet('filas.0.impuesto_id', $impuesto->id)
+            ->call('quitarImpuesto', $impuesto->id)
+            ->call('guardar')
+            ->assertOk();
+
+        $this->assertNull($proveedor->fresh()->percepciones_habituales);
+    }
+
+    public function test_proveedor_impuestos_monta(): void
+    {
+        Livewire::test(\App\Livewire\Compras\ProveedorImpuestos::class)->assertOk();
     }
 
     /**
