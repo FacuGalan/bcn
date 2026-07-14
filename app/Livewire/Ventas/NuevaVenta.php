@@ -1307,7 +1307,9 @@ class NuevaVenta extends Component
             // pasa al comprobante para que cobrado == facturado. Sin agente/RI → [].
             $tributosVenta = [];
             if ($debeFacturar) {
-                $netoGravado = (float) ($this->resultado['desglose_iva']['total_neto'] ?? 0);
+                // RF-V1: base = neto GRAVADO (alícuotas > 0, con ajuste FP si hay);
+                // total_neto incluía exentos e inflaba la percepción.
+                $netoGravado = $this->netoGravadoDelResultado();
                 $tributosVenta = $this->calcularTributosFiscales($netoGravado, $cajaId);
                 $percepcionTotal = round(array_sum(array_column($tributosVenta, 'monto')), 2);
                 if ($percepcionTotal > 0) {

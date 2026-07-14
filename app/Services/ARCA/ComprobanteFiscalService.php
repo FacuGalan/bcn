@@ -176,45 +176,15 @@ class ComprobanteFiscalService
         if (! $esFacturaC && ! empty($opciones['desglose_iva'])) {
             // Usar el desglose ya calculado por el frontend DIRECTAMENTE
             // El frontend ya calcula valores que cumplen AFIP: iva = neto * porcentaje
-            $desgloseRecibido = $opciones['desglose_iva'];
-            $alicuotasArray = $desgloseRecibido['por_alicuota'] ?? [];
-
-            $detallesIva = [
-                'neto_gravado' => 0,
-                'neto_no_gravado' => 0,
-                'neto_exento' => 0,
-                'iva_total' => 0,
-                'alicuotas' => [],
-            ];
-
-            $netoTotal = 0;
-            $ivaTotal = 0;
-
-            foreach ($alicuotasArray as $alicuota) {
-                $porcentaje = $alicuota['alicuota'] ?? $alicuota['porcentaje'] ?? 21;
-                $baseImponible = round($alicuota['neto'] ?? 0, 2);
-                $importe = round($alicuota['iva'] ?? 0, 2);
-
-                $netoTotal += $baseImponible;
-                $ivaTotal += $importe;
-
-                $detallesIva['alicuotas'][] = [
-                    'codigo_afip' => ARCAService::getAlicuotaIVA($porcentaje),
-                    'porcentaje' => $porcentaje,
-                    'base_imponible' => $baseImponible,
-                    'importe' => $importe,
-                ];
-            }
-
-            $detallesIva['neto_gravado'] = round($netoTotal, 2);
-            $detallesIva['iva_total'] = round($ivaTotal, 2);
+            $detallesIva = $this->clasificarDesgloseFrontend($opciones['desglose_iva']);
 
             Log::info('Usando desglose de IVA del frontend (sin recálculo)', [
                 'venta_id' => $venta->id,
                 'neto_gravado' => $detallesIva['neto_gravado'],
+                'neto_exento' => $detallesIva['neto_exento'],
                 'iva_total' => $detallesIva['iva_total'],
                 'total_a_facturar' => $totalAFacturar,
-                'suma_neto_iva' => $netoTotal + $ivaTotal,
+                'suma_neto_iva' => $detallesIva['neto_gravado'] + $detallesIva['neto_exento'] + $detallesIva['iva_total'],
             ]);
         }
 
@@ -486,6 +456,56 @@ class ComprobanteFiscalService
             'condicion_iva_id' => $condicionIvaId,
             'condicion_iva_codigo_afip' => $condicionIvaCodigoAfip, // RG 5616
         ];
+    }
+
+    /**
+     * Clasifica el desglose de IVA recibido del frontend en la estructura de
+     * detallesIva del comprobante, aplicando la MISMA regla de clasificación que
+     * calcularDetallesIva (RF-V4, hardening fiscal saliente): alícuota 0% es
+     * EXENTO (ImpOpEx) — no integra AlicIva ni el neto gravado. Antes la rama
+     * frontend acumulaba todo en neto_gravado y el mismo ítem 0% quedaba
+     * clasificado distinto según el camino de emisión.
+     */
+    protected function clasificarDesgloseFrontend(array $desgloseRecibido): array
+    {
+        $detallesIva = [
+            'neto_gravado' => 0,
+            'neto_no_gravado' => 0,
+            'neto_exento' => 0,
+            'iva_total' => 0,
+            'alicuotas' => [],
+        ];
+
+        $netoTotal = 0;
+        $ivaTotal = 0;
+
+        foreach ($desgloseRecibido['por_alicuota'] ?? [] as $alicuota) {
+            $porcentaje = $alicuota['alicuota'] ?? $alicuota['porcentaje'] ?? 21;
+            $baseImponible = round($alicuota['neto'] ?? 0, 2);
+            $importe = round($alicuota['iva'] ?? 0, 2);
+
+            if ($porcentaje == 0) {
+                $detallesIva['neto_exento'] += $baseImponible;
+
+                continue;
+            }
+
+            $netoTotal += $baseImponible;
+            $ivaTotal += $importe;
+
+            $detallesIva['alicuotas'][] = [
+                'codigo_afip' => ARCAService::getAlicuotaIVA($porcentaje),
+                'porcentaje' => $porcentaje,
+                'base_imponible' => $baseImponible,
+                'importe' => $importe,
+            ];
+        }
+
+        $detallesIva['neto_gravado'] = round($netoTotal, 2);
+        $detallesIva['neto_exento'] = round($detallesIva['neto_exento'], 2);
+        $detallesIva['iva_total'] = round($ivaTotal, 2);
+
+        return $detallesIva;
     }
 
     /**
