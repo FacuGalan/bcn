@@ -3,10 +3,12 @@
 namespace App\Livewire\Articulos;
 
 use App\Models\Articulo;
+use App\Models\ArticuloCosto;
 use App\Models\CambioPrecioProgramado;
 use App\Models\Categoria;
 use App\Models\GrupoEtiqueta;
 use App\Models\HistorialPrecio;
+use App\Services\CostoService;
 use Illuminate\Support\Facades\DB;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
@@ -42,6 +44,16 @@ class CambioMasivoPrecios extends Component
 
     // RF-B12: vocabulario unificado con PrecioService::aplicarRedondeo
     public string $tipoRedondeo = 'ninguno'; // ninguno, entero, decena, centena
+
+    // Bloque C (hardening-circuito-precios): sobre qué aplica el ajuste.
+    // 'precio' (comportamiento original) | 'costo' | 'ambos' (mismo % a los dos).
+    // Los modos que tocan costo requieren func.costos.editar (RF-C1).
+    public string $objetivoCambio = 'precio';
+
+    // Sub-opción del modo 'costo' (RF-C2): tras actualizar el costo,
+    // 'no' = solo costo | 'automatico' = repricea los artículos opt-in
+    // (precio_administrado_por_utilidad) con la fórmula del sugerido.
+    public string $actualizarPrecioTrasCosto = 'no';
 
     // Preview de artículos
     public array $articulosPreview = [];
@@ -125,6 +137,47 @@ class CambioMasivoPrecios extends Component
         }
     }
 
+    // ==================== Bloque C: objetivo del masivo (RF-C1) ====================
+
+    public function puedeEditarCostos(): bool
+    {
+        return (bool) auth()->user()?->hasPermissionTo('func.costos.editar');
+    }
+
+    public function tocaCosto(): bool
+    {
+        return in_array($this->objetivoCambio, ['costo', 'ambos'], true);
+    }
+
+    public function tocaPrecio(): bool
+    {
+        return $this->objetivoCambio !== 'costo'
+            || $this->actualizarPrecioTrasCosto === 'automatico';
+    }
+
+    public function updatedObjetivoCambio(): void
+    {
+        // Defensa server-side del gate (RF-C1): sin permiso, solo precio.
+        if ($this->tocaCosto() && ! $this->puedeEditarCostos()) {
+            $this->objetivoCambio = 'precio';
+            $this->js("window.notify('".__('No tenés permiso para editar costos')."', 'error')");
+
+            return;
+        }
+
+        $this->actualizarPrecioTrasCosto = 'no';
+
+        // Programar es solo para precio de venta (RF-C1).
+        if ($this->objetivoCambio !== 'precio') {
+            $this->modoAplicacion = 'ahora';
+        }
+
+        if ($this->paso === 2) {
+            $this->preciosEditados = [];
+            $this->procesarPreview();
+        }
+    }
+
     /**
      * Avanza al siguiente paso
      */
@@ -134,6 +187,14 @@ class CambioMasivoPrecios extends Component
             // Validar que haya un ajuste válido
             if ($this->valorAjuste === null || $this->valorAjuste <= 0) {
                 $this->js("window.notify('".__('Ingresa un valor de ajuste válido')."', 'error')");
+
+                return;
+            }
+
+            // RF-C1: los modos que tocan costo requieren func.costos.editar.
+            if ($this->tocaCosto() && ! $this->puedeEditarCostos()) {
+                $this->objetivoCambio = 'precio';
+                $this->js("window.notify('".__('No tenés permiso para editar costos')."', 'error')");
 
                 return;
             }
@@ -173,7 +234,7 @@ class CambioMasivoPrecios extends Component
      */
     protected function getArticulosQuery()
     {
-        $query = Articulo::with(['categoriaModel', 'etiquetas.grupo'])
+        $query = Articulo::with(['categoriaModel', 'etiquetas.grupo', 'tipoIva'])
             ->where('activo', true);
 
         // Filtro tipo de artículo
@@ -230,18 +291,39 @@ class CambioMasivoPrecios extends Component
         // Siempre usar precio efectivo de la sucursal activa
         $sucursalId = sucursal_activa();
 
+        // RF-C2: costos en bloque (fila sucursal con fallback consolidada) y
+        // gate de IVA UNA sola vez para el margen del preview.
+        $costosSucursal = [];
+        $costosConsolidados = [];
+        $computaIva = false;
+
+        if ($this->tocaCosto()) {
+            $ids = $articulos->pluck('id');
+            $costosSucursal = ArticuloCosto::whereIn('articulo_id', $ids)
+                ->where('sucursal_id', $sucursalId)
+                ->pluck('costo_ultimo', 'articulo_id')
+                ->all();
+            $costosConsolidados = ArticuloCosto::whereIn('articulo_id', $ids)
+                ->whereNull('sucursal_id')
+                ->pluck('costo_ultimo', 'articulo_id')
+                ->all();
+            $computaIva = app(CostoService::class)->comercioComputaIva($sucursalId ?: null);
+        }
+
         foreach ($articulos as $articulo) {
             $precioViejo = $sucursalId
                 ? $articulo->obtenerPrecioBaseEfectivo($sucursalId)
                 : (float) $articulo->precio_base;
-            $precioNuevo = $this->calcularNuevoPrecio($precioViejo);
+            $precioNuevo = $this->objetivoCambio === 'costo'
+                ? $precioViejo
+                : $this->calcularNuevoPrecio($precioViejo);
 
             // Si ya hay un precio editado manualmente, usarlo
-            if (isset($this->preciosEditados[$articulo->id])) {
+            if ($this->objetivoCambio !== 'costo' && isset($this->preciosEditados[$articulo->id])) {
                 $precioNuevo = (float) $this->preciosEditados[$articulo->id];
             }
 
-            $this->articulosPreview[$articulo->id] = [
+            $fila = [
                 'id' => $articulo->id,
                 'codigo' => $articulo->codigo,
                 'nombre' => $articulo->nombre,
@@ -252,6 +334,26 @@ class CambioMasivoPrecios extends Component
                 'diferencia' => $precioNuevo - $precioViejo,
                 'diferencia_porcentaje' => $precioViejo > 0 ? round((($precioNuevo - $precioViejo) / $precioViejo) * 100, 2) : 0,
             ];
+
+            if ($this->tocaCosto()) {
+                $base = $costosSucursal[$articulo->id] ?? $costosConsolidados[$articulo->id] ?? null;
+                $costoViejo = $base !== null ? (float) $base : null;
+                $costoNuevo = $costoViejo !== null ? $this->calcularNuevoCosto($costoViejo) : null;
+
+                // Margen resultante (si hay precio): misma división que la venta.
+                $alicuota = $computaIva ? (float) ($articulo->tipoIva?->porcentaje ?? 0) : 0.0;
+                $neto = $precioNuevo / (1 + $alicuota / 100);
+
+                $fila['costo_viejo'] = $costoViejo;
+                $fila['costo_nuevo'] = $costoNuevo;
+                // Sin costo base no hay sobre qué aplicar el %: se saltea (RF-C2).
+                $fila['sin_costo'] = $costoViejo === null;
+                $fila['margen_nuevo'] = ($costoNuevo !== null && $costoNuevo > 0 && $precioNuevo > 0)
+                    ? round(($neto - $costoNuevo) / $costoNuevo * 100, 1)
+                    : null;
+            }
+
+            $this->articulosPreview[$articulo->id] = $fila;
 
             $this->totalArticulos++;
             $this->totalPrecioViejo += $precioViejo;
@@ -293,6 +395,25 @@ class CambioMasivoPrecios extends Component
     protected function aplicarRedondeo(float $precio): float
     {
         return app(\App\Services\PrecioService::class)->aplicarRedondeo($precio, $this->tipoRedondeo);
+    }
+
+    /**
+     * RF-C2: el mismo ajuste aplicado al costo último. SIN el redondeo de
+     * precios (redondear un costo a decena/centena lo distorsiona): 4
+     * decimales, como el resto de la cadena de costos.
+     */
+    protected function calcularNuevoCosto(float $costoActual): float
+    {
+        if ($this->tipoValor === 'porcentual') {
+            $porcentaje = $this->tipoAjuste === 'descuento' ? -$this->valorAjuste : $this->valorAjuste;
+            $nuevo = $costoActual * (1 + ($porcentaje / 100));
+        } else {
+            $nuevo = $this->tipoAjuste === 'descuento'
+                ? $costoActual - $this->valorAjuste
+                : $costoActual + $this->valorAjuste;
+        }
+
+        return round(max(0, $nuevo), 4);
     }
 
     /**
@@ -364,10 +485,19 @@ class CambioMasivoPrecios extends Component
             return;
         }
 
+        // RF-C1: defensa final del gate de costos.
+        if ($this->tocaCosto() && ! $this->puedeEditarCostos()) {
+            $this->js("window.notify('".__('No tenés permiso para editar costos')."', 'error')");
+
+            return;
+        }
+
         try {
             DB::connection('pymes_tenant')->beginTransaction();
 
             $articulosActualizados = 0;
+            $costosActualizados = 0;
+            $repriceados = 0;
             $listasActualizadas = 0;
 
             // Construir detalle del cambio masivo
@@ -376,58 +506,117 @@ class CambioMasivoPrecios extends Component
             $redondeoLabel = ! in_array($this->tipoRedondeo, ['ninguno', 'sin_redondeo'], true) ? ', '.__('redondeo').' '.$this->tipoRedondeo : '';
             $detalleMasivo = "{$tipoAjusteLabel} {$this->valorAjuste}{$tipoValorLabel}{$redondeoLabel}";
 
-            // === Cambio sucursal actual: guardar override en articulos_sucursales ===
             $sucursalId = sucursal_activa();
 
-            foreach ($this->articulosPreview as $articuloData) {
-                $precioNuevo = (float) $articuloData['precio_nuevo'];
+            // === Costos (RF-C2/C3): costo último de la sucursal activa vía la
+            // puerta única (CostoService::actualizarManual, origen 'masivo').
+            $costosAplicadosIds = [];
 
-                $exists = DB::connection('pymes_tenant')
-                    ->table('articulos_sucursales')
-                    ->where('articulo_id', $articuloData['id'])
-                    ->where('sucursal_id', $sucursalId)
-                    ->exists();
+            if ($this->tocaCosto()) {
+                $costoService = app(CostoService::class);
+                $articulos = Articulo::whereIn('id', array_keys($this->articulosPreview))->get()->keyBy('id');
 
-                if ($exists) {
-                    DB::connection('pymes_tenant')
+                foreach ($this->articulosPreview as $articuloData) {
+                    // Sin costo base no hay sobre qué aplicar el % (RF-C2).
+                    if (! empty($articuloData['sin_costo']) || ($articuloData['costo_nuevo'] ?? null) === null) {
+                        continue;
+                    }
+
+                    $articulo = $articulos->get($articuloData['id']);
+
+                    if ($articulo === null) {
+                        continue;
+                    }
+
+                    $costoService->actualizarManual(
+                        $articulo,
+                        $sucursalId,
+                        'ultimo',
+                        (float) $articuloData['costo_nuevo'],
+                        (int) auth()->id(),
+                        origen: 'masivo',
+                    );
+
+                    $costosAplicadosIds[] = $articulo->id;
+                    $costosActualizados++;
+                }
+            }
+
+            // === Precio de venta: override de la sucursal activa (modo
+            // 'precio' y 'ambos'; en 'costo' solo vía repricing automático).
+            if ($this->objetivoCambio !== 'costo') {
+                foreach ($this->articulosPreview as $articuloData) {
+                    $precioNuevo = (float) $articuloData['precio_nuevo'];
+
+                    $exists = DB::connection('pymes_tenant')
                         ->table('articulos_sucursales')
                         ->where('articulo_id', $articuloData['id'])
                         ->where('sucursal_id', $sucursalId)
-                        ->update(['precio_base' => $precioNuevo, 'updated_at' => now()]);
-                } else {
-                    DB::connection('pymes_tenant')
-                        ->table('articulos_sucursales')
-                        ->insert([
-                            'articulo_id' => $articuloData['id'],
-                            'sucursal_id' => $sucursalId,
-                            'activo' => true,
-                            'modo_stock' => 'ninguno',
-                            'vendible' => true,
-                            'precio_base' => $precioNuevo,
-                            'created_at' => now(),
-                            'updated_at' => now(),
-                        ]);
+                        ->exists();
+
+                    if ($exists) {
+                        DB::connection('pymes_tenant')
+                            ->table('articulos_sucursales')
+                            ->where('articulo_id', $articuloData['id'])
+                            ->where('sucursal_id', $sucursalId)
+                            ->update(['precio_base' => $precioNuevo, 'updated_at' => now()]);
+                    } else {
+                        DB::connection('pymes_tenant')
+                            ->table('articulos_sucursales')
+                            ->insert([
+                                'articulo_id' => $articuloData['id'],
+                                'sucursal_id' => $sucursalId,
+                                'activo' => true,
+                                'modo_stock' => 'ninguno',
+                                'vendible' => true,
+                                'precio_base' => $precioNuevo,
+                                'created_at' => now(),
+                                'updated_at' => now(),
+                            ]);
+                    }
+
+                    HistorialPrecio::registrar([
+                        'articulo_id' => $articuloData['id'],
+                        'sucursal_id' => $sucursalId,
+                        'precio_anterior' => (float) $articuloData['precio_viejo'],
+                        'precio_nuevo' => $precioNuevo,
+                        'origen' => 'masivo_sucursal',
+                        'porcentaje_cambio' => $this->tipoValor === 'porcentual' ? (float) $this->valorAjuste * ($this->tipoAjuste === 'descuento' ? -1 : 1) : null,
+                        'detalle' => $detalleMasivo,
+                    ]);
+
+                    $articulosActualizados++;
                 }
+            }
 
-                HistorialPrecio::registrar([
-                    'articulo_id' => $articuloData['id'],
-                    'sucursal_id' => $sucursalId,
-                    'precio_anterior' => (float) $articuloData['precio_viejo'],
-                    'precio_nuevo' => $precioNuevo,
-                    'origen' => 'masivo_sucursal',
-                    'porcentaje_cambio' => $this->tipoValor === 'porcentual' ? (float) $this->valorAjuste * ($this->tipoAjuste === 'descuento' ? -1 : 1) : null,
-                    'detalle' => $detalleMasivo,
-                ]);
-
-                $articulosActualizados++;
+            // === Sub-opción del modo costo (RF-C2): repricing automático de
+            // los opt-in con la fórmula compartida (RF-C4).
+            if ($this->objetivoCambio === 'costo' && $this->actualizarPrecioTrasCosto === 'automatico' && $costosAplicadosIds !== []) {
+                $repriceados = count(app(CostoService::class)->repricearArticulos(
+                    $costosAplicadosIds,
+                    (int) $sucursalId,
+                    (int) auth()->id(),
+                    __('cambio masivo de costos'),
+                ));
             }
 
             DB::connection('pymes_tenant')->commit();
 
-            $mensaje = __('Se actualizaron :count artículos', ['count' => $articulosActualizados]);
-            if ($listasActualizadas > 0) {
-                $mensaje .= ' '.__('y :count precios en listas', ['count' => $listasActualizadas]);
+            $partes = [];
+            if ($articulosActualizados > 0) {
+                $partes[] = __('Se actualizaron :count artículos', ['count' => $articulosActualizados]);
             }
+            if ($costosActualizados > 0) {
+                $partes[] = __('Se actualizaron :count costos', ['count' => $costosActualizados]);
+            }
+            if ($repriceados > 0) {
+                $partes[] = __(':count precios repriceados por utilidad', ['count' => $repriceados]);
+            }
+            if ($listasActualizadas > 0) {
+                $partes[] = __('y :count precios en listas', ['count' => $listasActualizadas]);
+            }
+
+            $mensaje = $partes === [] ? __('No hubo cambios para aplicar') : implode('. ', $partes);
 
             $this->js("window.notify('".addslashes($mensaje)."', 'success')");
             $this->showConfirmModal = false;
@@ -436,6 +625,10 @@ class CambioMasivoPrecios extends Component
 
         } catch (\Exception $e) {
             DB::connection('pymes_tenant')->rollBack();
+            \Illuminate\Support\Facades\Log::error('CambioMasivoPrecios::aplicarCambios', [
+                'objetivo' => $this->objetivoCambio,
+                'error' => $e->getMessage(),
+            ]);
             $this->js("window.notify('".__('Error al aplicar cambios').': '.addslashes($e->getMessage())."', 'error')");
         }
     }
@@ -528,9 +721,11 @@ class CambioMasivoPrecios extends Component
         $precioViejo = $sucursalId
             ? $articulo->obtenerPrecioBaseEfectivo($sucursalId)
             : (float) $articulo->precio_base;
-        $precioNuevo = $this->calcularNuevoPrecio($precioViejo);
+        $precioNuevo = $this->objetivoCambio === 'costo'
+            ? $precioViejo
+            : $this->calcularNuevoPrecio($precioViejo);
 
-        $this->articulosPreview[$articulo->id] = [
+        $fila = [
             'id' => $articulo->id,
             'codigo' => $articulo->codigo,
             'nombre' => $articulo->nombre,
@@ -541,6 +736,28 @@ class CambioMasivoPrecios extends Component
             'diferencia' => $precioNuevo - $precioViejo,
             'diferencia_porcentaje' => $precioViejo > 0 ? round((($precioNuevo - $precioViejo) / $precioViejo) * 100, 2) : 0,
         ];
+
+        if ($this->tocaCosto()) {
+            $base = ArticuloCosto::where('articulo_id', $articulo->id)
+                ->where(fn ($q) => $q->where('sucursal_id', $sucursalId)->orWhereNull('sucursal_id'))
+                ->orderByRaw('sucursal_id IS NULL') // primero la fila de la sucursal
+                ->value('costo_ultimo');
+            $costoViejo = $base !== null ? (float) $base : null;
+            $costoNuevo = $costoViejo !== null ? $this->calcularNuevoCosto($costoViejo) : null;
+
+            $computaIva = app(CostoService::class)->comercioComputaIva($sucursalId ?: null);
+            $alicuota = $computaIva ? (float) ($articulo->tipoIva?->porcentaje ?? 0) : 0.0;
+            $neto = $precioNuevo / (1 + $alicuota / 100);
+
+            $fila['costo_viejo'] = $costoViejo;
+            $fila['costo_nuevo'] = $costoNuevo;
+            $fila['sin_costo'] = $costoViejo === null;
+            $fila['margen_nuevo'] = ($costoNuevo !== null && $costoNuevo > 0 && $precioNuevo > 0)
+                ? round(($neto - $costoNuevo) / $costoNuevo * 100, 1)
+                : null;
+        }
+
+        $this->articulosPreview[$articulo->id] = $fila;
 
         $this->totalArticulos++;
         $this->totalPrecioViejo += $precioViejo;
@@ -555,6 +772,14 @@ class CambioMasivoPrecios extends Component
      */
     public function programarCambios()
     {
+        // RF-C1: la programación sigue siendo SOLO de precios de venta (el
+        // circuito de programados no conoce costos).
+        if ($this->objetivoCambio !== 'precio') {
+            $this->js("window.notify('".__('Programar solo está disponible para el precio de venta')."', 'error')");
+
+            return;
+        }
+
         if (empty($this->articulosPreview)) {
             $this->js("window.notify('".__('No hay artículos para actualizar')."', 'error')");
 

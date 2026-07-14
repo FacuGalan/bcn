@@ -1,6 +1,6 @@
 # Hardening del Circuito de Precios e Impuestos - Especificación
 
-## Estado: EN PROGRESO (2026-07-14) — Fases 1-3 completas
+## Estado: EN PROGRESO (2026-07-14) — Fases 1-4 completas
 
 > Consolidación post-auditoría integral (2026-07-14, 4 revisores paralelos sobre los
 > PRs #153/#154/#155 + sistema impositivo). Tres bloques: (A) precio de venta SIEMPRE
@@ -212,8 +212,10 @@ Ninguna.
 - Sin columnas nuevas. Cambios de DATOS:
   - Migración tenant (todos los comercios, idempotente):
     `UPDATE {prefix}articulos SET precio_iva_incluido = 1 WHERE precio_iva_incluido = 0`.
-- `historial_costos.origen`: nuevo valor `'masivo'` (columna string, sin cambio de
-  schema; documentar el vocabulario en el modelo).
+- `historial_costos.origen`: nuevo valor `'masivo'`. NOTA de implementación
+  (2026-07-14): la columna resultó ser ENUM, no string ⇒ migración
+  `add_masivo_a_historial_costos_origen` (ALTER por comercio) + regenerado
+  `tenant_tables.sql`. Vocabulario documentado en el modelo.
 
 ---
 
@@ -324,7 +326,7 @@ Claves nuevas (estimadas; definir exactas en implementación, 3 idiomas):
 1. B5 vigencia, B6 validación percepción, B7 lock, B8 revisión, B9 ledger,
    B10 NC snapshot, B11 saldo NC, B12 chores — cada una con test puntual donde aplique.
 
-### Fase 4: Masivo a costos (Bloque C) [PENDIENTE]
+### Fase 4: Masivo a costos (Bloque C) [COMPLETO]
 1. RF-C4 extraer repricing compartido (refactor sin cambio de comportamiento + tests
    existentes verdes).
 2. RF-C1/C2/C3 UI + service + permisos.

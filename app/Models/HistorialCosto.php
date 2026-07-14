@@ -9,6 +9,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * Historial append-only de cambios de costo (RF-03), espejo del patrón
  * HistorialPrecio. Solo costo_ultimo y costo_reposicion (el PPP no se
  * historiza: reconstruible desde movimientos_stock.costo).
+ *
+ * Vocabulario de `origen` (ENUM): 'compra' (confirmación), 'manual' (ABM),
+ * 'importacion', 'cancelacion' (reversa) y 'masivo' (cambio masivo de
+ * costos, RF-C2 hardening-circuito-precios).
  */
 class HistorialCosto extends Model
 {

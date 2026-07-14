@@ -10,6 +10,7 @@ use App\Models\CondicionIva;
 use App\Models\ConfiguracionCostos;
 use App\Models\Cuit;
 use App\Models\HistorialCosto;
+use App\Models\HistorialPrecio;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use Exception;
@@ -307,6 +308,77 @@ class CostoService
 
             return $fila->fresh();
         });
+    }
+
+    /**
+     * Repricing por utilidad (RF-C4 hardening-circuito-precios, extraído del
+     * paso 7 de confirmarCompra — UNA sola fórmula para compras y masivo):
+     * de los IDs recibidos, SOLO los artículos con
+     * `precio_administrado_por_utilidad` se repricean con la fórmula del
+     * sugerido (costo rector × utilidad × IVA, D21). Alcance = regla RF-10:
+     * si el artículo tiene override de precio en la sucursal se actualiza ESE
+     * override; si no, el global. Registra HistorialPrecio origen
+     * 'utilidad_automatica' (con detalle opcional). Devuelve los repriceados.
+     *
+     * @return array<int, array{articulo_id:int, nombre:string, precio_anterior:float, precio_nuevo:float, alcance:string}>
+     */
+    public function repricearArticulos(array $articuloIds, int $sucursalId, int $usuarioId, ?string $detalle = null): array
+    {
+        $repriceados = [];
+
+        $articulos = Articulo::whereIn('id', $articuloIds)
+            ->where('precio_administrado_por_utilidad', true)
+            ->get();
+
+        foreach ($articulos as $articulo) {
+            $sugerido = $this->precioSugerido($articulo, $sucursalId);
+
+            if ($sugerido === null || $sugerido <= 0) {
+                continue;
+            }
+
+            $sugerido = round($sugerido, 2);
+
+            $override = DB::connection('pymes_tenant')->table('articulos_sucursales')
+                ->where('articulo_id', $articulo->id)
+                ->where('sucursal_id', $sucursalId)
+                ->value('precio_base');
+
+            $anterior = $override !== null ? (float) $override : (float) $articulo->precio_base;
+
+            if (round($anterior, 2) === $sugerido) {
+                continue;
+            }
+
+            if ($override !== null) {
+                DB::connection('pymes_tenant')->table('articulos_sucursales')
+                    ->where('articulo_id', $articulo->id)
+                    ->where('sucursal_id', $sucursalId)
+                    ->update(['precio_base' => $sugerido]);
+            } else {
+                $articulo->update(['precio_base' => $sugerido]);
+            }
+
+            HistorialPrecio::registrar([
+                'articulo_id' => $articulo->id,
+                'sucursal_id' => $override !== null ? $sucursalId : null,
+                'precio_anterior' => $anterior,
+                'precio_nuevo' => $sugerido,
+                'origen' => 'utilidad_automatica',
+                'usuario_id' => $usuarioId,
+                'detalle' => $detalle,
+            ]);
+
+            $repriceados[] = [
+                'articulo_id' => $articulo->id,
+                'nombre' => $articulo->nombre,
+                'precio_anterior' => round($anterior, 2),
+                'precio_nuevo' => $sugerido,
+                'alcance' => $override !== null ? 'sucursal' : 'global',
+            ];
+        }
+
+        return $repriceados;
     }
 
     // ==================== Lectura: utilidad, margen y precio ====================
@@ -609,8 +681,12 @@ class CostoService
      * de condiciones mixtas, `Cuit::activos()->first()` era orden arbitrario
      * (fix 2026-07-13). Sin CUIT configurado ⇒ NO computa (pricing informal:
      * costo bruto, precio pleno).
+     *
+     * Público desde RF-C2 (hardening-circuito-precios): el preview del masivo
+     * de costos lo consulta UNA vez y deriva la alícuota por artículo con su
+     * TipoIva (espejo de alicuotaEfectiva, que con RF-A3 depende solo de esto).
      */
-    private function comercioComputaIva(?int $sucursalId): bool
+    public function comercioComputaIva(?int $sucursalId): bool
     {
         $sucursal = $sucursalId !== null
             ? Sucursal::find($sucursalId)
