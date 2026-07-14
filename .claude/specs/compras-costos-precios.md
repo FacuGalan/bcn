@@ -1714,16 +1714,19 @@ Precarga de CONVENIENCIA espejo de `articulo_proveedor.descuentos_habituales`:
 
 - Columna `proveedores.percepciones_habituales` JSON nullable:
   `[{impuesto_id, alicuota}]` (cast array).
-- ABM en GestionarProveedores: repetidor impuesto (catálogo
-  `Impuesto::activos()->where('naturaleza_default','percepcion')`) + alícuota
-  típica opcional.
+- ABM: perfil fiscal del proveedor (2026-07-14, componente
+  `Compras\ProveedorImpuestos`, espejo de `Clientes\ClienteImpuestos`): modal
+  propio abierto desde la fila con combobox de alta rápida sobre el catálogo
+  (`Impuesto::activos()->where('naturaleza_default','percepcion')`) + alícuota
+  por percepción. Persiste en el mismo JSON (sin tabla propia: si el perfil
+  crece, migrar a espejo de `cliente_impuesto_configs`).
 - `EditorCompra::seleccionarProveedor` → `precargarPercepcionesHabituales()`:
   precarga renglones de percepción (impuesto + alícuota, monto y base VACÍOS)
   solo si es fiscal y NO pisa percepciones ya cargadas por el usuario.
 - **NO es cálculo**: el monto exacto sale del padrón del PROVEEDOR (imposible
   de predecir) — la factura física sigue siendo la fuente de verdad.
-- La computabilidad de percepciones IIBB por jurisdicción/CM sigue BLOQUEADA
-  por la respuesta del contador (no codear antes).
+- La computabilidad de percepciones IIBB por jurisdicción/CM se DESTRABÓ el
+  2026-07-14 con diseño de coeficiente manual → ver D25.
 
 ### Verificación del incremento
 
@@ -1737,3 +1740,46 @@ Precarga de CONVENIENCIA espejo de `articulo_proveedor.descuentos_habituales`:
   Compra|Proveedor|Costo: 112 verdes.
 - Traducciones: +16 claves ×3 (es/en/pt, 4385 c/u).
 - `npm run build` corrido (clases sky nuevas del badge).
+
+## D25 — Coeficiente de computabilidad de percepciones (PENDIENTE, rama propia post-merge #154)
+
+Aprobado por el usuario el 2026-07-14 (decisiones tomadas vía AskUserQuestion).
+Destraba la computabilidad de percepciones IIBB por jurisdicción/CM con
+configuración MANUAL (respuesta del contador: depende de la inscripción del
+comercio en cada jurisdicción y del convenio multilateral; a veces se computa
+solo una parte; sin inscripción es 100% gasto).
+
+**Fundamento normativo investigado (2026-07-14):** el coeficiente unificado CM
+es del COMERCIO (CM05 anual, por jurisdicción), NO del proveedor. La alícuota
+sí es por proveedor (padrón del agente). El cómputo normal es 100% contra el
+IIBB de la jurisdicción que percibió; el coeficiente manual cubre los casos
+parciales (SIRCREB-style, indicación del contador). Las pautas RG 4/2011 de la
+Comisión Arbitral (percepción solo con coeficiente ≥0,10) fueron dejadas sin
+efecto en dic-2024 → todo queda a criterio de cada jurisdicción = config manual.
+
+**Diseño:**
+
+1. Migración: `cuit_impuesto_configs.coeficiente_computable` DECIMAL(5,4)
+   nullable (default efectivo: 1.00 si `inscripto`, 0.00 si no) +
+   `compra_percepciones.coeficiente` DECIMAL(5,4) (snapshot editable por
+   compra). Regenerar tenant_tables.sql.
+2. Renglón de percepción en EditorCompra, tres campos con roles distintos:
+   - **Alícuota** (default: perfil fiscal del proveedor, editable): sugiere el
+     monto = base neta × alícuota% (auto-calc que el usuario puede pisar; hoy
+     el monto arranca vacío → pasa a sugerirse).
+   - **Monto** (editable, manda siempre): lo que vino en la factura física.
+   - **Coeficiente** (default: config del CUIT por jurisdicción, editable):
+     destino del monto. `monto × coef` = crédito computable (movimiento fiscal
+     IIBB de la jurisdicción), `monto × (1−coef)` = costo.
+3. Al confirmar (CompraService): la parte NO computable se PRORRATEA al costo
+   de los artículos (mismo mecanismo que conceptos que computan costo / IVA no
+   recuperable de factura B). En servicios (D23) va al gasto de la cuenta de
+   compra. La parte computable genera el movimiento fiscal por jurisdicción.
+4. UI config: campo coeficiente en el modal CuitImpuestos (junto a inscripto/
+   alícuota), con hint de qué significa.
+5. Alícuota y monto son independientes del coeficiente: alícuota/monto = cuánto
+   te percibieron (dato de factura); coeficiente = qué hacés con eso.
+
+**Pendiente del contador (no bloquea, refina defaults):** confirmar cómputo
+100% cuando hay inscripción; si los casos parciales son fijos por
+jurisdicción/año; recupero cuando no hay inscripción (asumimos que no).
