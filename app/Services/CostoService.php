@@ -198,6 +198,13 @@ class CostoService
                     continue;
                 }
 
+                // RF-B3 (hardening-circuito-precios): si el costo vigente ya no
+                // es el que esta compra fijó (lo editaron a mano después), la
+                // reversa no lo pisa — solo se restaura lo que la compra creó.
+                if ((float) $fila->costo_ultimo !== (float) $historialCompra->costo_nuevo) {
+                    continue;
+                }
+
                 // Origen anterior (compra/proveedor previos) desde el historial previo.
                 $historialPrevio = HistorialCosto::where('articulo_id', $fila->articulo_id)
                     ->where('tipo_costo', 'ultimo')
@@ -274,7 +281,17 @@ class CostoService
             $columna = $tipo === 'ultimo' ? 'costo_ultimo' : 'costo_reposicion';
             $anterior = $fila->{$columna} !== null ? (float) $fila->{$columna} : null;
 
-            $fila->update([$columna => $valor]);
+            $cambios = [$columna => $valor];
+
+            // RF-B3 (hardening-circuito-precios): el vigente pasó a ser manual,
+            // no de una compra — se limpia la proveniencia para que cancelar
+            // aquella compra no lo pise.
+            if ($tipo === 'ultimo') {
+                $cambios['compra_ultima_id'] = null;
+                $cambios['proveedor_ultimo_id'] = null;
+            }
+
+            $fila->update($cambios);
 
             HistorialCosto::create([
                 'articulo_id' => $articulo->id,

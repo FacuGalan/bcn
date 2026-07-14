@@ -709,12 +709,12 @@ class GestionarArticulos extends Component
             ->first();
 
         $this->modo_stock = $configSucursal?->modo_stock ?? 'ninguno';
-        // Precio de venta ÚNICO del modal (decisión 2026-07-13): en multi-sucursal
-        // muestra el EFECTIVO y SIEMPRE persiste sobre la sucursal activa; el
-        // genérico queda como fallback interno (se administrará desde Manager).
-        $this->precio_sucursal = es_multi_sucursal()
-            ? ($configSucursal?->precio_base ?? $articulo->precio_base)
-            : $configSucursal?->precio_base;
+        // Precio de venta ÚNICO del modal: muestra el EFECTIVO y SIEMPRE
+        // persiste sobre la sucursal activa; el genérico queda como fallback
+        // interno. RF-B4 (hardening-circuito-precios): también en mono-sucursal
+        // — así el ABM siempre edita el precio que la venta cobra (un masivo
+        // pudo haber creado un override que dejaba muerto al precio_base).
+        $this->precio_sucursal = $configSucursal?->precio_base ?? $articulo->precio_base;
         $this->vendible = (bool) ($configSucursal?->vendible ?? true);
         $this->visible_tienda = (bool) ($configSucursal?->visible_tienda ?? true);
 
@@ -876,7 +876,7 @@ class GestionarArticulos extends Component
             return;
         }
 
-        if (es_multi_sucursal() && $this->editMode) {
+        if ($this->editMode) {
             $this->precio_sucursal = $cuenta['sugerido'];
         } else {
             $this->precio_base = $cuenta['sugerido'];
@@ -969,9 +969,9 @@ class GestionarArticulos extends Component
             'precio_base' => 'required|numeric|min:0',
             'activo' => 'boolean',
             'modo_stock' => 'required|in:ninguno,unitario,receta',
-            // El precio de venta del modal es el de la SUCURSAL en multi-sucursal:
-            // vaciarlo no vuelve al genérico (eso será tarea del Manager).
-            'precio_sucursal' => es_multi_sucursal() && $this->editMode
+            // El precio de venta del modal es el de la SUCURSAL en toda edición
+            // (RF-B4): vaciarlo no vuelve al genérico (eso será tarea del Manager).
+            'precio_sucursal' => $this->editMode
                 ? 'required|numeric|min:0'
                 : 'nullable|numeric|min:0',
             'vendible' => 'boolean',

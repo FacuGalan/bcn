@@ -1062,7 +1062,8 @@
                                                 <input
                                                     type="number"
                                                     id="precio_venta"
-                                                    wire:model="{{ $editMode && es_multi_sucursal() ? 'precio_sucursal' : 'precio_base' }}"
+                                                    {{-- RF-B4: en edición SIEMPRE se edita el precio efectivo (sucursal) --}}
+                                                    wire:model="{{ $editMode ? 'precio_sucursal' : 'precio_base' }}"
                                                     step="0.01"
                                                     min="0"
                                                     class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"

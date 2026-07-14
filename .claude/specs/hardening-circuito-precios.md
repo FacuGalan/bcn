@@ -1,6 +1,6 @@
 # Hardening del Circuito de Precios e Impuestos - Especificación
 
-## Estado: EN PROGRESO (2026-07-14) — Fase 1 completa
+## Estado: EN PROGRESO (2026-07-14) — Fases 1-2 completas
 
 > Consolidación post-auditoría integral (2026-07-14, 4 revisores paralelos sobre los
 > PRs #153/#154/#155 + sistema impositivo). Tres bloques: (A) precio de venta SIEMPRE
@@ -314,7 +314,7 @@ Claves nuevas (estimadas; definir exactas en implementación, 3 idiomas):
    conversiones de pedidos.
 4. Tests: venta de ex-false cobra=factura; smoke ABM.
 
-### Fase 2: ALTAs de compras/costos (RF-B1 a B4) [PENDIENTE]
+### Fase 2: ALTAs de compras/costos (RF-B1 a B4) [COMPLETO]
 1. B1 matriz no-RI (service + default editor) + tests matriz.
 2. B2 descuento fantasma + test.
 3. B3 revert vs manual + test.

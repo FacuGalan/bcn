@@ -1333,6 +1333,13 @@ class EditorCompra extends Component
             return '';
         }
 
+        // RF-B1 (hardening-circuito-precios): comprador no-RI ⇒ sin crédito
+        // fiscal posible; el 100% va al costo (incluida la percepción de IVA).
+        if ($this->cuitId
+            && ! (Cuit::with('condicionIva')->find($this->cuitId)?->condicionIva?->esResponsableInscripto() ?? false)) {
+            return '0';
+        }
+
         if (Impuesto::find($impuestoId)?->tipo === Impuesto::TIPO_IVA) {
             return '1';
         }

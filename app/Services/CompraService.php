@@ -539,8 +539,12 @@ class CompraService
         // D25: la parte NO computable de cada percepción sufrida (monto ×
         // (1−coeficiente)) es costo real de la mercadería. Coeficiente NULL =
         // legado/sin dato ⇒ 100% computable, sin efecto en costo.
+        // RF-B1 (hardening-circuito-precios): si el comprador no es RI no hay
+        // crédito fiscal posible ⇒ coeficiente EFECTIVO 0 sin importar lo
+        // cargado — el 100% de la percepción va al costo (nada se evapora).
+        $compradorEsRI = $this->compradorEsRI($compra);
         $percepcionesCosto = (float) $compra->percepciones->sum(
-            fn ($p) => round((float) $p->monto * (1 - (float) ($p->coeficiente ?? 1)), 2)
+            fn ($p) => round((float) $p->monto * (1 - ($compradorEsRI ? (float) ($p->coeficiente ?? 1) : 0)), 2)
         );
 
         $globalPorRenglon = $this->costoService->prorratearPorImporte($importes, $descuentoGlobal);
@@ -610,13 +614,19 @@ class CompraService
         ]);
     }
 
+    /**
+     * RF-B2 (hardening-circuito-precios): descuento_global_monto es SIEMPRE
+     * derivado del porcentaje (nadie lo persiste como entrada). Sin porcentaje
+     * no hay descuento — el fallback al monto guardado reintroducía un
+     * descuento fantasma al editar un borrador y borrarle el porcentaje.
+     */
     private function montoDescuentoGlobal(Compra $compra, float $subtotal): float
     {
-        if ($compra->descuento_global_porcentaje !== null) {
-            return round($subtotal * (float) $compra->descuento_global_porcentaje / 100, 2);
+        if ($compra->descuento_global_porcentaje === null) {
+            return 0.0;
         }
 
-        return (float) $compra->descuento_global_monto;
+        return round($subtotal * (float) $compra->descuento_global_porcentaje / 100, 2);
     }
 
     /**
