@@ -920,8 +920,21 @@ class GestionarArticulos extends Component
         $historial = HistorialCosto::with(['sucursal:id,nombre', 'proveedor:id,nombre'])
             ->where('articulo_id', $this->historialCostosArticuloId)
             ->latest()
-            ->take(50)
+            ->take(100)
             ->get();
+
+        // Cada cambio por compra escribe dos filas (sucursal + consolidado del
+        // comercio). El consolidado idéntico a su gemela de sucursal es ruido
+        // en el modal: se oculta y solo queda cuando difiere (multi-sucursal).
+        $historial = $historial->reject(function ($h) use ($historial) {
+            return $h->sucursal_id === null && $historial->contains(fn ($s) => $s->sucursal_id !== null
+                && $s->tipo_costo === $h->tipo_costo
+                && (string) $s->origen === (string) $h->origen
+                && (int) $s->compra_id === (int) $h->compra_id
+                && (float) $s->costo_anterior === (float) $h->costo_anterior
+                && (float) $s->costo_nuevo === (float) $h->costo_nuevo
+                && $s->created_at?->format('YmdHis') === $h->created_at?->format('YmdHis'));
+        })->take(50)->values();
 
         // Nombres de usuario viven en config.users (cross-connection).
         $usuarios = DB::connection('config')->table('users')
