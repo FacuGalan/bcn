@@ -287,6 +287,7 @@ class CuentaCorrienteProveedorService
     public function obtenerComprasPendientes(int $proveedorId, int $sucursalId): Collection
     {
         return Compra::completadas()
+            ->sinNotasCredito() // RF-B11: el saldo de una NC es "aplicado", no deuda
             ->where('proveedor_id', $proveedorId)
             ->where('sucursal_id', $sucursalId)
             ->where('saldo_pendiente', '>', 0)

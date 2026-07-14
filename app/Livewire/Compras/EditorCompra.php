@@ -353,7 +353,7 @@ class EditorCompra extends Component
      */
     protected function precargarNcDesdeOrigen(int $origenId): void
     {
-        $origen = Compra::with(['detalles.articulo', 'detalles.tipoIva', 'conceptos'])->findOrFail($origenId);
+        $origen = Compra::with(['detalles.articulo', 'detalles.tipoIva', 'conceptos', 'percepciones'])->findOrFail($origenId);
 
         $this->proveedorId = $origen->proveedor_id;
         $this->cuitId = $origen->cuit_id ?? $this->cuitId;
@@ -384,6 +384,21 @@ class EditorCompra extends Component
             )),
             'tipo_iva_id' => $d->tipo_iva_id,
         ])->values()->all() ?: [$this->renglonVacio()];
+
+        // RF-B10 (hardening-circuito-precios): la NC precarga también las
+        // percepciones de la ORIGEN con su COEFICIENTE snapshot (editables) —
+        // tomar el coeficiente de la config actual haría que la reversa no
+        // espeje lo que la origen registró.
+        $this->percepciones = $origen->percepciones->map(fn ($p) => [
+            'impuesto_id' => $p->impuesto_id,
+            'base_imponible' => $this->numAString($p->base_imponible),
+            'alicuota' => $this->numAString($p->alicuota),
+            'monto' => $this->numAString($p->monto),
+            'coeficiente' => $p->coeficiente !== null ? $this->numAString($p->coeficiente) : '',
+            'certificado_numero' => (string) ($p->certificado_numero ?? ''),
+            'con_certificado' => (string) ($p->certificado_numero ?? '') !== '',
+            'auto' => false,
+        ])->values()->all();
 
         // NC de una factura de servicio (D23): el "detalle" a acreditar son
         // los conceptos de la origen — precarga editable, igual que renglones.
@@ -1051,8 +1066,10 @@ class EditorCompra extends Component
         $iva = $this->esFiscalActual() && $this->discriminaActual()
             ? round(collect($this->ivas)->sum(fn ($i) => $this->num($i['importe'] ?? 0)), 2)
             : 0.0;
+        // RF-B6: un renglón sin impuesto no suma al total (coherencia visual
+        // mientras se carga; al guardar, con monto > 0, directamente bloquea).
         $percepciones = $this->esFiscalActual()
-            ? round(collect($this->percepciones)->sum(fn ($p) => $this->num($p['monto'] ?? 0)), 2)
+            ? round(collect($this->percepciones)->sum(fn ($p) => empty($p['impuesto_id']) ? 0 : $this->num($p['monto'] ?? 0)), 2)
             : 0.0;
 
         return [
@@ -1333,6 +1350,13 @@ class EditorCompra extends Component
             return '';
         }
 
+        // RF-B1 (hardening-circuito-precios): comprador no-RI ⇒ sin crédito
+        // fiscal posible; el 100% va al costo (incluida la percepción de IVA).
+        if ($this->cuitId
+            && ! (Cuit::with('condicionIva')->find($this->cuitId)?->condicionIva?->esResponsableInscripto() ?? false)) {
+            return '0';
+        }
+
         if (Impuesto::find($impuestoId)?->tipo === Impuesto::TIPO_IVA) {
             return '1';
         }
@@ -1341,8 +1365,13 @@ class EditorCompra extends Component
             return '0';
         }
 
+        // RF-B5 (hardening-circuito-precios): config VIGENTE a la fecha del
+        // comprobante (misma regla que ImpuestoService::configVigente), no la
+        // primera fila que aparezca.
         $config = CuitImpuestoConfig::where('cuit_id', $this->cuitId)
             ->where('impuesto_id', $impuestoId)
+            ->vigentes($this->fechaComprobante ?: now()->toDateString())
+            ->orderByRaw('vigente_desde IS NULL, vigente_desde DESC')
             ->first();
 
         if (! $config) {
@@ -1387,6 +1416,33 @@ class EditorCompra extends Component
                 'cargado' => number_format($dif['cargado'], 2, ',', '.'),
                 'sugerido' => number_format($dif['sugerido'], 2, ',', '.'),
             ]);
+        }
+
+        // RF-B10 (hardening-circuito-precios): NC cuyo desglose fiscal excede
+        // el de la compra origen — se avisa, no bloquea (puede ser legítimo).
+        if ($this->esNC && $this->ncOrigenId && $this->esFiscalActual()) {
+            $origen = Compra::with('percepciones')->find($this->ncOrigenId);
+
+            if ($origen !== null) {
+                $ivaNc = round(collect($this->ivas)->sum(fn ($i) => $this->num($i['importe'] ?? 0)), 2);
+                $percNc = round(collect($this->percepciones)->sum(fn ($p) => empty($p['impuesto_id']) ? 0 : $this->num($p['monto'] ?? 0)), 2);
+
+                if ($ivaNc > (float) $origen->total_iva + 0.01) {
+                    $avisos[] = __('El IVA de la NC ($:nc) supera el de la compra origen ($:origen)', [
+                        'nc' => number_format($ivaNc, 2, ',', '.'),
+                        'origen' => number_format((float) $origen->total_iva, 2, ',', '.'),
+                    ]);
+                }
+
+                $percOrigen = round((float) $origen->percepciones->sum('monto'), 2);
+
+                if ($percNc > $percOrigen + 0.01) {
+                    $avisos[] = __('Las percepciones de la NC ($:nc) superan las de la compra origen ($:origen)', [
+                        'nc' => number_format($percNc, 2, ',', '.'),
+                        'origen' => number_format($percOrigen, 2, ',', '.'),
+                    ]);
+                }
+            }
         }
 
         return $avisos;
@@ -1450,6 +1506,17 @@ class EditorCompra extends Component
     {
         if (! $this->proveedorId) {
             throw new Exception(__('Seleccioná un proveedor'));
+        }
+
+        // RF-B6 (hardening-circuito-precios): una percepción con monto pero
+        // sin impuesto no pasa silenciosa (el payload la descartaría y el
+        // total guardado no coincidiría con lo que muestra el editor).
+        if ($this->esFiscalActual()) {
+            foreach ($this->percepciones as $p) {
+                if ($this->num($p['monto'] ?? 0) > 0 && empty($p['impuesto_id'])) {
+                    throw new Exception(__('Hay una percepción con monto pero sin impuesto: seleccioná el impuesto o quitá el renglón'));
+                }
+            }
         }
 
         // D23: el servicio valida conceptos + cuenta, no renglones.

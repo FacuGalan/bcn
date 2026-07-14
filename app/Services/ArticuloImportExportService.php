@@ -574,7 +574,9 @@ class ArticuloImportExportService
             'nombre' => $nombre,
             'descripcion' => $get('descripcion') ?: null,
             'unidad_medida' => $get('unidad') ?: 'unidad',
-            'precio_iva_incluido' => $this->parseSiNo($get('precio_iva_incluido'), true),
+            // RF-A1 (hardening-circuito-precios): la columna del archivo se ignora;
+            // el precio de venta es SIEMPRE final con IVA incluido.
+            'precio_iva_incluido' => true,
             'es_materia_prima' => $this->parseSiNo($get('materia_prima'), false),
             'pesable' => $this->parseSiNo($get('pesable'), false),
         ];

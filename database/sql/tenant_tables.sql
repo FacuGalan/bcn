@@ -1420,7 +1420,7 @@ CREATE TABLE `{{PREFIX}}historial_costos` (
   `costo_anterior` decimal(12,4) DEFAULT NULL,
   `costo_nuevo` decimal(12,4) NOT NULL,
   `porcentaje_cambio` decimal(8,2) DEFAULT NULL,
-  `origen` enum('compra','manual','importacion','cancelacion') COLLATE utf8mb4_unicode_ci NOT NULL,
+  `origen` enum('compra','manual','importacion','cancelacion','masivo') COLLATE utf8mb4_unicode_ci NOT NULL,
   `compra_id` bigint unsigned DEFAULT NULL,
   `proveedor_id` bigint unsigned DEFAULT NULL,
   `usuario_id` bigint unsigned DEFAULT NULL,

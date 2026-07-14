@@ -8,7 +8,6 @@ use App\Models\CompraDetalle;
 use App\Models\CompraIva;
 use App\Models\CompraPercepcion;
 use App\Models\CondicionIva;
-use App\Models\HistorialPrecio;
 use App\Models\MovimientoCuentaCorrienteProveedor;
 use App\Models\MovimientoStock;
 use App\Models\PagoProveedorCompra;
@@ -273,6 +272,16 @@ class CompraService
         $compra->load(['detalles', 'proveedor', 'compraOrigen']);
 
         DB::connection('pymes_tenant')->transaction(function () use ($compra, $usuarioId, $motivo, $manejoPagos, $pagosAplicados) {
+            // RF-B7 (hardening-circuito-precios): lock + re-check DENTRO de la
+            // transacción — dos cancelaciones concurrentes no duplican reversas
+            // (mismo patrón que anularMovimientoFiscal). corregirCompra hereda
+            // el guard porque cancela por acá.
+            $vigente = Compra::lockForUpdate()->findOrFail($compra->id);
+
+            if (! $vigente->estaCompletada()) {
+                throw new Exception(__('Solo se puede cancelar una compra completada'));
+            }
+
             $motivoFinal = $motivo ?? __('Cancelación de compra');
 
             // D17: resolver los pagos ANTES de las reversas.
@@ -539,8 +548,12 @@ class CompraService
         // D25: la parte NO computable de cada percepción sufrida (monto ×
         // (1−coeficiente)) es costo real de la mercadería. Coeficiente NULL =
         // legado/sin dato ⇒ 100% computable, sin efecto en costo.
+        // RF-B1 (hardening-circuito-precios): si el comprador no es RI no hay
+        // crédito fiscal posible ⇒ coeficiente EFECTIVO 0 sin importar lo
+        // cargado — el 100% de la percepción va al costo (nada se evapora).
+        $compradorEsRI = $this->compradorEsRI($compra);
         $percepcionesCosto = (float) $compra->percepciones->sum(
-            fn ($p) => round((float) $p->monto * (1 - (float) ($p->coeficiente ?? 1)), 2)
+            fn ($p) => round((float) $p->monto * (1 - ($compradorEsRI ? (float) ($p->coeficiente ?? 1) : 0)), 2)
         );
 
         $globalPorRenglon = $this->costoService->prorratearPorImporte($importes, $descuentoGlobal);
@@ -610,13 +623,19 @@ class CompraService
         ]);
     }
 
+    /**
+     * RF-B2 (hardening-circuito-precios): descuento_global_monto es SIEMPRE
+     * derivado del porcentaje (nadie lo persiste como entrada). Sin porcentaje
+     * no hay descuento — el fallback al monto guardado reintroducía un
+     * descuento fantasma al editar un borrador y borrarle el porcentaje.
+     */
     private function montoDescuentoGlobal(Compra $compra, float $subtotal): float
     {
-        if ($compra->descuento_global_porcentaje !== null) {
-            return round($subtotal * (float) $compra->descuento_global_porcentaje / 100, 2);
+        if ($compra->descuento_global_porcentaje === null) {
+            return 0.0;
         }
 
-        return (float) $compra->descuento_global_monto;
+        return round($subtotal * (float) $compra->descuento_global_porcentaje / 100, 2);
     }
 
     /**
@@ -699,6 +718,11 @@ class CompraService
             $origen->update(['saldo_pendiente' => round((float) $origen->saldo_pendiente - $aplicado, 2)]);
         }
 
+        // RF-B11 (hardening-circuito-precios): persistir lo REALMENTE aplicado
+        // contra la origen (semántica de saldo_pendiente en una NC) — la
+        // cancelación restaura exactamente eso, no el total asumido.
+        $nc->update(['saldo_pendiente' => round($aplicado, 2)]);
+
         $this->ccProveedorService->registrarMovimientosNotaCredito(
             $nc,
             round($aplicado, 2),
@@ -719,10 +743,11 @@ class CompraService
             ->first();
 
         // Con ledger: lo aplicado es el DEBE del movimiento NC. Sin ledger
-        // (proveedor sin CC): estimar por total NC contra saldo actual.
+        // (proveedor sin CC): lo aplicado persistido en la NC (RF-B11) — antes
+        // se asumía el total y una NC parcialmente aplicada inflaba la origen.
         $aplicado = $movimientoNc !== null
             ? (float) $movimientoNc->debe
-            : (float) $nc->total;
+            : (float) $nc->saldo_pendiente;
 
         if ($aplicado <= 0) {
             return;
@@ -787,71 +812,17 @@ class CompraService
     }
 
     /**
-     * Repricing automático (RF-11): artículos con
-     * `precio_administrado_por_utilidad` se repricean con la fórmula del
-     * precio sugerido (costo rector × utilidad × IVA — D21 vía CostoService).
-     * Alcance = regla RF-10: si el artículo tiene override de precio en la
-     * sucursal de la compra se actualiza ESE override; si no, el global
-     * (aceptado que una compra en A repricea el global que también rige en B).
-     * Registra HistorialPrecio origen 'utilidad_automatica'.
+     * Repricing automático (RF-11): los artículos opt-in de la compra se
+     * repricean con la fórmula compartida (RF-C4 hardening-circuito-precios:
+     * extraída a CostoService::repricearArticulos, misma que usa el masivo).
      */
     private function repricearAutomaticos(Compra $compra, int $usuarioId): array
     {
-        $repriceados = [];
-
-        $articulos = $compra->detalles->pluck('articulo')
-            ->filter()
-            ->unique('id')
-            ->filter(fn ($articulo) => (bool) $articulo->precio_administrado_por_utilidad);
-
-        foreach ($articulos as $articulo) {
-            $sugerido = $this->costoService->precioSugerido($articulo, $compra->sucursal_id);
-
-            if ($sugerido === null || $sugerido <= 0) {
-                continue;
-            }
-
-            $sugerido = round($sugerido, 2);
-
-            $override = DB::connection('pymes_tenant')->table('articulos_sucursales')
-                ->where('articulo_id', $articulo->id)
-                ->where('sucursal_id', $compra->sucursal_id)
-                ->value('precio_base');
-
-            $anterior = $override !== null ? (float) $override : (float) $articulo->precio_base;
-
-            if (round($anterior, 2) === $sugerido) {
-                continue;
-            }
-
-            if ($override !== null) {
-                DB::connection('pymes_tenant')->table('articulos_sucursales')
-                    ->where('articulo_id', $articulo->id)
-                    ->where('sucursal_id', $compra->sucursal_id)
-                    ->update(['precio_base' => $sugerido]);
-            } else {
-                $articulo->update(['precio_base' => $sugerido]);
-            }
-
-            HistorialPrecio::registrar([
-                'articulo_id' => $articulo->id,
-                'sucursal_id' => $override !== null ? $compra->sucursal_id : null,
-                'precio_anterior' => $anterior,
-                'precio_nuevo' => $sugerido,
-                'origen' => 'utilidad_automatica',
-                'usuario_id' => $usuarioId,
-            ]);
-
-            $repriceados[] = [
-                'articulo_id' => $articulo->id,
-                'nombre' => $articulo->nombre,
-                'precio_anterior' => round($anterior, 2),
-                'precio_nuevo' => $sugerido,
-                'alcance' => $override !== null ? 'sucursal' : 'global',
-            ];
-        }
-
-        return $repriceados;
+        return $this->costoService->repricearArticulos(
+            $compra->detalles->pluck('articulo_id')->filter()->unique()->values()->all(),
+            (int) $compra->sucursal_id,
+            $usuarioId,
+        );
     }
 
     /**

@@ -17,6 +17,7 @@ use App\Models\Proveedor;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
+use App\Models\TipoIva;
 use App\Services\ArticuloImportExportService;
 use App\Services\CatalogoCache;
 use App\Services\CostoService;
@@ -174,8 +175,6 @@ class GestionarArticulos extends Component
     public float $imagenFocalY = 50.0;
 
     public ?int $tipo_iva_id = null;
-
-    public bool $precio_iva_incluido = true;
 
     public ?float $precio_base = null;
 
@@ -658,7 +657,6 @@ class GestionarArticulos extends Component
         $this->resetFormularioArticulo();
         $this->editMode = false;
         $this->activo = true;
-        $this->precio_iva_incluido = true;
         $this->unidad_medida = 'unidad';
         $this->precio_base = null;
         $this->modo_stock = 'ninguno';
@@ -696,7 +694,6 @@ class GestionarArticulos extends Component
         $this->es_materia_prima = $articulo->es_materia_prima ?? false;
         $this->pesable = $articulo->pesable ?? false;
         $this->tipo_iva_id = $articulo->tipo_iva_id;
-        $this->precio_iva_incluido = $articulo->precio_iva_incluido ?? true;
         $this->precio_base = $articulo->precio_base;
         $this->activo = $articulo->activo ?? true;
         $this->imagenPathActual = $articulo->imagen_path;
@@ -713,12 +710,12 @@ class GestionarArticulos extends Component
             ->first();
 
         $this->modo_stock = $configSucursal?->modo_stock ?? 'ninguno';
-        // Precio de venta ÚNICO del modal (decisión 2026-07-13): en multi-sucursal
-        // muestra el EFECTIVO y SIEMPRE persiste sobre la sucursal activa; el
-        // genérico queda como fallback interno (se administrará desde Manager).
-        $this->precio_sucursal = es_multi_sucursal()
-            ? ($configSucursal?->precio_base ?? $articulo->precio_base)
-            : $configSucursal?->precio_base;
+        // Precio de venta ÚNICO del modal: muestra el EFECTIVO y SIEMPRE
+        // persiste sobre la sucursal activa; el genérico queda como fallback
+        // interno. RF-B4 (hardening-circuito-precios): también en mono-sucursal
+        // — así el ABM siempre edita el precio que la venta cobra (un masivo
+        // pudo haber creado un override que dejaba muerto al precio_base).
+        $this->precio_sucursal = $configSucursal?->precio_base ?? $articulo->precio_base;
         $this->vendible = (bool) ($configSucursal?->vendible ?? true);
         $this->visible_tienda = (bool) ($configSucursal?->visible_tienda ?? true);
 
@@ -840,6 +837,27 @@ class GestionarArticulos extends Component
     }
 
     /**
+     * RF-B12 (hardening-circuito-precios): la cuenta del sugerido usa la
+     * alícuota del tipo de IVA ELEGIDO en el modal — al cambiarlo se refresca
+     * (antes quedaba la del artículo persistido hasta guardar).
+     */
+    public function updatedTipoIvaId($value): void
+    {
+        if (! $this->editMode || $this->costosInfo === []) {
+            return;
+        }
+
+        $articulo = Articulo::find($this->articuloId);
+
+        if ($articulo === null) {
+            return;
+        }
+
+        $articulo->setRelation('tipoIva', $value ? TipoIva::find((int) $value) : null);
+        $this->costosInfo['alicuota'] = app(CostoService::class)->alicuotaEfectiva($articulo, (int) sucursal_activa());
+    }
+
+    /**
      * La CUENTA del precio sugerido, desglosada y reactiva al override que el
      * usuario está tipeando (claridad conceptual obligatoria, Pantallas §3c).
      */
@@ -880,7 +898,7 @@ class GestionarArticulos extends Component
             return;
         }
 
-        if (es_multi_sucursal() && $this->editMode) {
+        if ($this->editMode) {
             $this->precio_sucursal = $cuenta['sugerido'];
         } else {
             $this->precio_base = $cuenta['sugerido'];
@@ -970,13 +988,12 @@ class GestionarArticulos extends Component
             'es_materia_prima' => 'boolean',
             'pesable' => 'boolean',
             'tipo_iva_id' => 'required|exists:pymes_tenant.tipos_iva,id',
-            'precio_iva_incluido' => 'boolean',
             'precio_base' => 'required|numeric|min:0',
             'activo' => 'boolean',
             'modo_stock' => 'required|in:ninguno,unitario,receta',
-            // El precio de venta del modal es el de la SUCURSAL en multi-sucursal:
-            // vaciarlo no vuelve al genérico (eso será tarea del Manager).
-            'precio_sucursal' => es_multi_sucursal() && $this->editMode
+            // El precio de venta del modal es el de la SUCURSAL en toda edición
+            // (RF-B4): vaciarlo no vuelve al genérico (eso será tarea del Manager).
+            'precio_sucursal' => $this->editMode
                 ? 'required|numeric|min:0'
                 : 'nullable|numeric|min:0',
             'vendible' => 'boolean',
@@ -997,7 +1014,9 @@ class GestionarArticulos extends Component
             'es_materia_prima' => $this->es_materia_prima,
             'pesable' => $this->pesable,
             'tipo_iva_id' => $this->tipo_iva_id,
-            'precio_iva_incluido' => $this->precio_iva_incluido,
+            // RF-A1 (hardening-circuito-precios): el precio de venta es SIEMPRE
+            // final con IVA incluido; la columna queda deprecada forzada a true.
+            'precio_iva_incluido' => true,
             'precio_base' => $this->precio_base,
             'activo' => $this->activo,
             // Delivery / Tienda (RF-16/RF-17 pedidos-delivery)
@@ -1093,11 +1112,18 @@ class GestionarArticulos extends Component
                         'visible_tienda' => $this->visible_tienda,
                     ]);
 
-                if ((float) $precioSucursalAnterior !== (float) $this->precio_sucursal) {
+                // RF-B12: comparar contra el precio EFECTIVO anterior (override
+                // o, si no había, el base previo) — crear un override con el
+                // mismo valor (500→500) no es un cambio y no genera historial.
+                $precioEfectivoAnterior = $precioSucursalAnterior !== null
+                    ? (float) $precioSucursalAnterior
+                    : (float) $precioAnterior;
+
+                if (round($precioEfectivoAnterior, 2) !== round((float) $this->precio_sucursal, 2)) {
                     HistorialPrecio::registrar([
                         'articulo_id' => $articulo->id,
                         'sucursal_id' => $sucursalActiva,
-                        'precio_anterior' => $precioSucursalAnterior ?? $articulo->precio_base,
+                        'precio_anterior' => $precioEfectivoAnterior,
                         'precio_nuevo' => $this->precio_sucursal ?? $articulo->precio_base,
                         'origen' => 'override_sucursal',
                     ]);
@@ -1240,7 +1266,7 @@ class GestionarArticulos extends Component
         $this->reset([
             'codigo', 'codigo_barras', 'nombre', 'descripcion', 'categoria_id',
             'unidad_medida', 'es_materia_prima', 'pesable', 'tipo_iva_id',
-            'precio_iva_incluido', 'precio_base', 'activo', 'articuloId',
+            'precio_base', 'activo', 'articuloId',
             'sucursales_seleccionadas', 'etiquetas_seleccionadas', 'busquedaEtiqueta',
             'modo_stock', 'precio_sucursal', 'vendible',
             'disponible_delivery', 'disponible_take_away', 'permite_programado',

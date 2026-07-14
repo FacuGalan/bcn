@@ -417,7 +417,7 @@ Catalogo maestro de articulos/productos del comercio.
 | `es_materia_prima` | boolean | Si es materia prima (para filtrado) |
 | `pesable` | tinyint(1) | Si se vende por peso (abre modal de ingreso por peso/valor en POS) |
 | `tipo_iva_id` | bigint FK nullable | Tipo de IVA aplicable |
-| `precio_iva_incluido` | boolean | Si los precios incluyen IVA (default: true) |
+| `precio_iva_incluido` | boolean | DEPRECADA (hardening-circuito-precios, 2026-07-14): forzada a `true` en toda escritura (alta, edicion, import, alta rapida). El precio de venta es SIEMPRE final con IVA incluido; la columna no se elimina para no romper reads existentes pero ya no se lee para decidir el desglose fiscal |
 | `precio_base` | decimal(12,2) | Precio base del articulo |
 | `utilidad_porcentaje` | decimal(6,2) nullable | Override de utilidad objetivo (markup % sobre costo neto); NULL = hereda de `categorias.utilidad_porcentaje` o, en su defecto, de `configuracion_costos.utilidad_default` (spec compras-costos, RF-08) |
 | `precio_administrado_por_utilidad` | boolean | Default false. RF-11: opt-in de repricing automatico — al confirmar una compra que cambia el costo de este articulo, su precio se recalcula solo con la formula de precio sugerido |
@@ -494,7 +494,7 @@ Categorias para clasificar articulos.
 | F | Categoria | Nombre de la categoria activa. Dropdown de validacion nativo. |
 | G | Unidad | Default: "unidad". |
 | H | Tipo IVA | Nombre del tipo IVA activo. Dropdown de validacion nativo. |
-| I | Precio IVA incluido | "Si"/"No". |
+| I | Precio IVA incluido | Informativa. Se ignora al importar (hardening-circuito-precios: `precio_iva_incluido` se fuerza siempre a `true`); puede seguir saliendo en el export. |
 | J | Materia prima | "Si"/"No". |
 | K | Pesable | "Si"/"No". |
 | L | Activo | "Si"/"No". Afecta `articulos_sucursales.activo` de la sucursal activa. |
@@ -530,7 +530,7 @@ Registro append-only de cambios de precio por articulo y sucursal.
 | `precio_anterior` | decimal(12,2) | Precio efectivo antes del cambio |
 | `precio_nuevo` | decimal(12,2) | Precio efectivo despues del cambio |
 | `usuario_id` | bigint FK | Usuario que realizo el cambio (conexion `config`) |
-| `origen` | varchar libre | Fuente del cambio. Valores conocidos: `manual`, `cambio_masivo`, `importacion` |
+| `origen` | varchar libre | Fuente del cambio. Valores conocidos: `manual`, `cambio_masivo`, `importacion`, `masivo_sucursal` (cambio masivo de precios, sucursal activa), `revision_compra`, `utilidad_automatica`, `articulo_editar`, `override_sucursal` |
 | `porcentaje_cambio` | decimal(5,2) | Variacion porcentual respecto al precio anterior |
 | `detalle` | text nullable | Texto descriptivo adicional (ej: nombre del archivo importado) |
 | `created_at` | timestamp | Fecha del cambio |
@@ -1134,7 +1134,7 @@ Encabezado de cada comprobante de compra (factura, NC de proveedor o compra no f
 | `fecha_vencimiento` | date nullable | Aging de deuda en cta cte (se precarga con `proveedores.dias_pago`) |
 | `subtotal` | decimal(12,2) | Suma de renglones con descuentos aplicados (neto si discrimina IVA, final si no) |
 | `descuento_global_porcentaje` | decimal(6,2) nullable | % de descuento del pie del comprobante |
-| `descuento_global_monto` | decimal(12,2) | Monto del descuento global (se prorratea a los renglones por importe) |
+| `descuento_global_monto` | decimal(12,2) | Monto del descuento global (se prorratea a los renglones por importe). SIEMPRE derivado de `descuento_global_porcentaje` (RF-B2 hardening-circuito-precios): sin porcentaje, el monto recalculado es 0 — no hay camino que persista un monto fijo sin porcentaje (antes borrar el % en un borrador dejaba un descuento "fantasma" via un fallback muerto en `montoDescuentoGlobal()`) |
 | `neto_gravado`, `neto_no_gravado`, `neto_exento` | decimal(12,2) | Netos del encabezado (espejo de `comprobante_fiscal_iva`) |
 | `total_iva` | decimal(12,2) | Total de IVA (suma de `compra_ivas`) |
 | `total` | decimal(12,2) | Total del comprobante |
@@ -1253,7 +1253,7 @@ Append-only, espejo de `historial_precios`. El PPP NO se historiza (reconstruibl
 | `costo_anterior` | decimal(12,4) nullable | |
 | `costo_nuevo` | decimal(12,4) | |
 | `porcentaje_cambio` | decimal(8,2) nullable | |
-| `origen` | enum | `compra`, `manual`, `importacion`, `cancelacion` |
+| `origen` | enum | `compra`, `manual`, `importacion`, `cancelacion`, `masivo` (cambio masivo de costos, agregado por migracion `add_masivo_a_historial_costos_origen`, hardening-circuito-precios) |
 | `compra_id` | bigint FK nullable | |
 | `proveedor_id` | bigint FK nullable | |
 | `usuario_id` | bigint nullable | Sin FK (users vive en `config`) |
@@ -3570,10 +3570,11 @@ El sistema de precios tiene **4 niveles de especificidad** (de mayor a menor):
 - `articulos_sucursales.precio_base` (override por sucursal, si existe y no es NULL)
 - `articulos.precio_base` (precio global del articulo)
 
-**ABM de articulos (`GestionarArticulos`), UI de precio unico (2026-07-13)**: el modal ya no expone ambos campos por separado. Muestra un unico campo "Precio de venta" que:
-- En comercio de **una sola sucursal**: hace `wire:model` directo sobre `precio_base` (el generico).
-- En comercio **multi-sucursal** (edicion de un articulo existente): hace `wire:model` sobre `precio_sucursal` (override de `articulos_sucursales.precio_base` de la sucursal activa) y **siempre** persiste ahi al guardar — nunca vacia el override para "caer" al generico. El precio generico global (`articulos.precio_base`) deja de ser editable desde este modal; queda como dato de fallback interno (se administrara desde Manager a futuro).
+**ABM de articulos (`GestionarArticulos`), UI de precio unico (2026-07-13, extendido RF-B4 hardening-circuito-precios 2026-07-14)**: el modal ya no expone ambos campos por separado. Muestra un unico campo "Precio de venta" que:
+- Al **crear** un articulo: hace `wire:model` directo sobre `precio_base` (el generico), en cualquier comercio.
+- Al **editar** un articulo existente: hace `wire:model` sobre `precio_sucursal` (override de `articulos_sucursales.precio_base` de la sucursal activa) y **siempre** persiste ahi al guardar — nunca vacia el override para "caer" al generico. RF-B4: esto aplica a **todo comercio, incluido mono-sucursal** (antes en mono-sucursal el modal editaba directo `precio_base`, que un cambio masivo previo podia haber dejado "muerto" detras de un override; ahora `edit()` siempre carga el precio EFECTIVO y `save()` siempre persiste sobre `articulos_sucursales`). El precio generico global (`articulos.precio_base`) deja de ser editable desde este modal una vez creado el articulo; queda como dato de fallback interno (se administrara desde Manager a futuro).
 - El listado (`gestionar-articulos.blade.php`) dejo de mostrar el precio generico chico debajo del efectivo cuando hay override de sucursal.
+- El historial de `override_sucursal` compara contra el precio EFECTIVO anterior (override si existia, si no el `precio_base` previo) — crear un override con el mismo valor que ya regia (ej. 500→500) no genera fila de historial (RF-B12).
 
 **Redondeo**: Despues de aplicar el ajuste, se redondea segun la configuracion de la lista:
 - `ninguno` -- 2 decimales
@@ -3603,7 +3604,7 @@ El sistema de precios tiene **4 niveles de especificidad** (de mayor a menor):
 
 **Ajustes por forma de pago**: Cada forma de pago puede tener un `ajuste_porcentaje` (recargo o descuento). Tambien puede tener planes de cuotas con recargo.
 
-**IVA**: Se calcula segun el `tipo_iva_id` del articulo. Si `precio_iva_incluido` es true, el IVA se extrae del precio. Si es false, se agrega.
+**IVA**: Se calcula segun el `tipo_iva_id` del articulo. El precio de venta es SIEMPRE final con IVA incluido (hardening-circuito-precios, RF-A1/A2/A3, 2026-07-14): el IVA siempre se EXTRAE del precio (`neto = precio / (1 + alicuota/100)`), nunca se suma encima. La columna `precio_iva_incluido` quedo deprecada forzada a `true`; los caminos que antes sumaban IVA (rama `else` de `WithCalculoVenta`, `VentaService::crearDetalleVenta`) quedaron inalcanzables o reducidos a la semantica "precio final" con comentario.
 
 ### 3.3 Stock Dual
 
@@ -3764,9 +3765,11 @@ Modulo reescrito por completo (spec `.claude/specs/compras-costos-precios.md`, D
   5. `ImpuestoService::registrarDesdeCompra()` — credito de IVA (si corresponde, ver 3.8.4) + percepciones sufridas al ledger fiscal.
   6. `CuentaCorrienteProveedorService::registrarMovimientosCompra()` — HABER por el total (+ DEBE por lo pagado en el momento).
   7. Pago inicial (si se cargo) via `PagoProveedorService::registrarPago()`.
-  8. Repricing automatico (RF-11) de los articulos con `precio_administrado_por_utilidad = true`.
+  8. Repricing automatico (RF-11) de los articulos con `precio_administrado_por_utilidad = true`, via `CostoService::repricearArticulos()` (RF-C4, formula compartida con el cambio masivo de costos — ver 3.8.9).
   Todo el pipeline es idempotente.
 - **Cancelar** (`cancelarCompra()`): reversas por CONTRAASIENTO de stock, costos (restaura `costo_ultimo` anterior si esta compra lo fijo, con fila nueva de `historial_costos` origen `cancelacion`), fiscal (patron NC cross-periodo: reversa NEGATIVA fechada hoy, el original queda activo) y cta cte de proveedor. Si tiene pagos aplicados, el usuario elige (D17): anular los pagos en cascada (bloqueado si algun renglon salio de una caja con turno cerrado) o dejarlos como saldo a favor del proveedor.
+  - **RF-B3 (hardening-circuito-precios)**: la reversa de costo solo se aplica si el `costo_ultimo` VIGENTE sigue siendo el que esta compra fijo (`CostoService::revertirCostoUltimoSiCorresponde` compara contra `historialCompra->costo_nuevo`); si alguien lo edito a mano despues, la cancelacion NO lo pisa. Complemento: `CostoService::actualizarManual('ultimo')` limpia `compra_ultima_id`/`proveedor_ultimo_id` al editar a mano (el vigente paso a ser manual, no de una compra).
+  - **RF-B7**: `cancelarCompra()` toma `lockForUpdate()` sobre la compra y re-chequea `estaCompletada()` DENTRO de la transaccion (mismo patron que `anularMovimientoFiscal`) — dos cancelaciones concurrentes no duplican reversas. `corregirCompra()` hereda el guard porque cancela llamando a este metodo.
 - **Correccion de una completada** (D7 #12, `corregirCompra()`): una compra `completada` es INMUTABLE (no vuelve a borrador). "Corregir" = `cancelarCompra()` + `crearBorrador()` + `confirmarCompra()` en UNA transaccion (rastro cruzado en `observaciones`). Bloqueada si tiene notas de credito activas vinculadas; requiere permisos de confirmar Y cancelar.
 
 #### 3.8.2 Formula canonica del costo (RF-01, por renglon)
@@ -3800,11 +3803,13 @@ nuevo_ppp = (stock_previo × ppp_previo + cantidad × costo_unitario_computable)
 utilidad objetivo = articulo.utilidad_porcentaje ?? categoria.utilidad_porcentaje ?? config.utilidad_default
 
 alic_efectiva (D21, unica puerta CostoService::alicuotaEfectiva()):
-  CUIT default del comercio es RI (esResponsableInscripto) Y articulo.precio_iva_incluido = true
+  comercioComputaIva(sucursal) = true (CUIT default es RI)
       ⇒ alicuota del TipoIva del articulo
-  comercio que NO computa IVA (monotributo/exento), o precio_iva_incluido = false
+  comercio que NO computa IVA (monotributo/exento)
       ⇒ 0 en AMBAS formulas siguientes (para un no-RI el costo es bruto y TODO el precio es ingreso)
 ```
+
+RF-A3 (hardening-circuito-precios, 2026-07-14): con el precio de venta SIEMPRE final con IVA incluido, `alicuotaEfectiva()` dejo de condicionar por `articulo.precio_iva_incluido` (columna deprecada) — la alicuota efectiva queda determinada SOLO por `comercioComputaIva()`. `comercioComputaIva()` paso de `private` a `public` para que el preview del cambio masivo de costos (Bloque C) la consulte una sola vez por lote.
 
 `CostoService::comercioComputaIva()` — que CUIT determina si "el comercio computa IVA":
 - **Con sucursal** (precio sugerido/margen de esa sucursal): CUIT `es_principal = true` del pivot `sucursal_cuit`, o el primero asignado si no hay marcado principal.
@@ -3824,8 +3829,9 @@ margen_real (formula inversa, misma division que hace la venta):
 El costo rector para pricing es siempre `costo_ultimo` (v1; `configuracion_costos.costo_rector` fijo en `'ultimo'`). Ejemplo de aceptacion: costo neto $100, utilidad 40%, IVA 21% ⇒ precio final sugerido $169.40 (antes de redondeo).
 
 **Revision de precios post-compra** (RF-10, `RevisionPreciosCompra`): al confirmar una compra, lista los articulos cuyo margen real quedo por debajo del objetivo. Es RETOMABLE — calcula siempre contra costo y precio VIGENTES (no una foto del momento de la compra). Aplicar en lote escribe el precio (override de la sucursal de la compra si existe, si no el global) + `HistorialPrecio::registrar()` con `origen = 'revision_compra'`.
+- **RF-B8 (hardening-circuito-precios)**: una fila cuyo `precio_nuevo` queda `<= costo` (margen <= 0, incluido $0) arranca con `seleccionado = false` y el flag `bajo_costo = true` (badge amarillo "bajo costo" en la UI); editar el precio a mano re-evalua el piso en cada cambio (`updated()` del componente). `aplicar()` solo procesa filas marcadas — re-marcar una fila con el badge visible es la confirmacion explicita del usuario para aplicar un precio bajo costo. El parseo de `precio_nuevo` usa `num()` (coma decimal aceptada; mas de un separador decimal ⇒ 0), mismo criterio que `EditorCompra`.
 
-**Repricing automatico** (RF-11): articulos con `precio_administrado_por_utilidad = true` se repriceann solos al confirmar la compra (mismo calculo + redondeo `'ninguno'` en v1), `HistorialPrecio` con `origen = 'utilidad_automatica'`.
+**Repricing automatico** (RF-11): articulos con `precio_administrado_por_utilidad = true` se repricean solos al confirmar la compra (mismo calculo + redondeo `'ninguno'` en v1), `HistorialPrecio` con `origen = 'utilidad_automatica'`. RF-C4 (hardening-circuito-precios): la formula se extrajo de `CompraService::repricearAutomaticos()` a `CostoService::repricearArticulos(array $articuloIds, int $sucursalId, int $usuarioId, ?string $detalle = null): array` — UNA sola implementacion compartida entre el paso 8 de `confirmarCompra()` y el cambio masivo de costos (Bloque C, ver 3.8.9). Filtra internamente a los articulos con el flag activado; el caller solo pasa los IDs candidatos.
 
 **Boton "Usar como precio"** (`GestionarArticulos::aplicarPrecioSugerido()`, ABM de articulos, fix 2026-07-13): copia `cuentaSugerida()['sugerido']` al campo de precio del modal en memoria (sin persistir nada por si solo); el `Guardar` posterior lo escribe por el camino normal de edicion de articulo, con su `HistorialPrecio` estandar (`origen = 'articulo_editar'` u `'override_sucursal'`).
 
@@ -3837,6 +3843,8 @@ El costo rector para pricing es siempre `costo_ultimo` (v1; `configuracion_costo
 - Toggle **compra no fiscal** (D15): desactiva TODO el calculo de impuestos (sin `compra_ivas`, sin percepciones, nada al ledger); el total pagado es directamente el costo.
 - Cancelacion fiscal: patron NC cross-periodo (`anularDesdeCompra`, reversa negativa fechada hoy; el original queda activo y suman cero).
 - **Nota de credito de proveedor** (RF-21, D18): fila de `compras` con `compra_origen_id`. Efectos inversos PARCIALES al confirmar: stock egreso por lo devuelto, fiscal con el desglose PROPIO de la NC (no derivado, solo precargado como sugerencia) en el periodo de la NC, cta cte tipo `nota_credito` que baja el saldo de la compra origen (el excedente genera saldo a favor). Los costos (`costo_ultimo`/PPP) NO se recalculan.
+  - **RF-B10 (hardening-circuito-precios)**: `EditorCompra::precargarNcDesdeOrigen()` tambien precarga las **percepciones** de la compra origen (`impuesto_id`, `base_imponible`, `alicuota`, `monto` y el `coeficiente` SNAPSHOT de la origen — no la config vigente actual, que podria haber cambiado desde entonces), editables. `advertencias()` agrega un aviso NO bloqueante si el IVA o las percepciones cargadas en la NC superan a los de la compra origen (tolerancia $0,01).
+  - **RF-B11**: `aplicarNotaCredito()` persiste en la propia NC (`compras.saldo_pendiente` de la fila NC, re-semantizado como "monto aplicado contra la origen") lo REALMENTE aplicado — no el total de la NC. `restaurarSaldoOrigenPorNcCancelada()` usa ese valor (con ledger: el DEBE del movimiento; sin ledger/proveedor sin CC: `nc.saldo_pendiente`) en vez de asumir `nc.total`, evitando que una NC parcialmente aplicada infle el saldo de la compra origen al cancelarse.
 
 #### 3.8.5 Cuenta corriente de proveedores y pagos (RF-18/RF-19, D12)
 
@@ -3888,14 +3896,29 @@ Incrementos post-merge del spec (D23/D24 acordados 2026-07-13, D25 2026-07-14; f
 - **Default por CUIT+impuesto**: `cuit_impuesto_configs.coeficiente_computable` (0-1). Editable en el modal "Impuestos" del CUIT (Configuracion → Empresa → pestana CUITs). NULL = deriva de `inscripto` (1.00 si inscripto, 0.00 si no).
 - **Snapshot por compra**: `compra_percepciones.coeficiente` (0-1), copiado del default al agregar el renglon y editable por comprobante (la factura real puede diferir del criterio general). NULL en la fila persistida = legado (percepciones cargadas antes de D25) o compra no fiscal ⇒ tratado como 100% computable en todo el pipeline, sin cambiar el comportamiento historico.
 - **`EditorCompra::coeficientePercepcionDefault(?int $impuestoId)`**: unica puerta de calculo del default en el editor.
-  - Impuesto tipo `Impuesto::TIPO_IVA` ⇒ siempre `1` (credito pleno, el coeficiente configurable NO aplica a percepciones de IVA).
+  - **RF-B1 (hardening-circuito-precios)**: si el CUIT comprador cargado NO es Responsable Inscripto (`Cuit::condicionIva->esResponsableInscripto()`), devuelve `'0'` SIEMPRE — incluida la percepcion de IVA. Sin credito fiscal posible, el 100% del monto va al costo. Este chequeo se evalua ANTES que el resto de las reglas.
+  - Impuesto tipo `Impuesto::TIPO_IVA` (con comprador RI) ⇒ siempre `1` (credito pleno, el coeficiente configurable NO aplica a percepciones de IVA).
   - Sin `cuitId` cargado en la compra ⇒ `0`.
-  - Con `cuitId`: busca `CuitImpuestoConfig::where('cuit_id', ...)->where('impuesto_id', ...)`. Sin config ⇒ `0` (no inscripto en la jurisdiccion, todo a costo). Con config: usa `coeficiente_computable` si no es NULL, si no `1` si `inscripto` o `0` si no.
+  - Con `cuitId` RI: busca `CuitImpuestoConfig::where('cuit_id', ...)->where('impuesto_id', ...)` **VIGENTE a la fecha del comprobante** (RF-B5: `->vigentes($fechaComprobante)->orderByRaw('vigente_desde IS NULL, vigente_desde DESC')`, mismo criterio que `ImpuestoService::configVigente()` — ya no toma la primera fila a ciegas). Sin config vigente ⇒ `0` (no inscripto en la jurisdiccion, todo a costo). Con config: usa `coeficiente_computable` si no es NULL, si no `1` si `inscripto` o `0` si no.
   - Se recalcula: al agregar una percepcion nueva, al precargar percepciones habituales del proveedor, al cambiar el `impuesto_id` de un renglon, y para TODOS los renglones que siguen en modo `auto` cuando cambia el `cuitId` de la compra.
 - **Base/monto sugeridos (`auto`)**: cada renglon de percepcion tiene un flag `auto` en memoria (no persiste). Mientras `auto = true`, `sugerirMontosPercepciones()` recalcula `base_imponible = Σ bases gravadas del desglose de IVA (compra_ivas en memoria)` y `monto = base × alicuota / 100` cada vez que cambia el desglose de IVA o la alicuota del renglon. Tipear `base_imponible` o `monto` a mano pone `auto = false` para ESE renglon (los demas siguen auto). Se dispara desde: `sugerirDesgloseFiscal()`, cambios en `ivas.*`/`netoNoGravado`/`netoExento`, y al precargar percepciones habituales.
 - **Persistencia**: `construirPayload()` normaliza el coeficiente tipeado a `[0, 1]` (clamp) y lo manda como `null` si el campo quedo vacio (no como `0`) — la distincion importa: vacio = legado/100% computable, `0` explicito = "no inscripto, todo a costo".
+- **RF-B6 (hardening-circuito-precios)**: `EditorCompra::validarParaGuardar()` bloquea (excepcion) si algun renglon de percepcion tiene `monto > 0` sin `impuesto_id` seleccionado — evita que el payload descarte silenciosamente ese renglon y el total guardado no coincida con lo que muestra el editor. `totales()` tambien excluye del total de percepciones cualquier renglon sin impuesto mientras se esta cargando (coherencia visual antes de guardar).
 - **Efecto en el ledger fiscal** (`ImpuestoService::registrarDesdeCompra()`): por cada `compra_percepciones`, el monto que va a `movimientos_fiscales` (naturaleza `percepcion`, sentido `sufrido`) es `round(abs(monto) × coeficiente_efectivo, 2)` donde `coeficiente_efectivo = coeficiente ?? 1.0`. Si el coeficiente efectivo es 0, no se genera movimiento (monto <= 0 se filtra).
 - **Efecto en el costo** (`CompraService::resolverProrrateosYComputables()` + `CostoService::costoComputableRenglon()`): `percepcionesCosto = Σ round(monto × (1 − coeficiente_efectivo), 2)` de TODAS las percepciones de la compra, prorrateado POR IMPORTE entre los renglones (misma funcion `prorratearPorImporte()` que el descuento global y los conceptos). El renglon recibe esa porcion en la clave transitoria `percepciones_costo_monto`, que `costoComputableRenglon()` suma al importe DESPUES del gross-up de IVA no recuperable (RG 5003) y ANTES de dividir por `factor_conversion` — la percepcion es un tributo sobre la operacion, no una base gravada. Solo aplica a compras con renglones (`detalles->isNotEmpty()`); en factura de servicio el efecto queda implicito en el total imputado a la cuenta de compra (ver D23 arriba).
+- **RF-B1 (hardening-circuito-precios, "nada se evapora")**: `resolverProrrateosYComputables()` calcula `$compradorEsRI = $this->compradorEsRI($compra)` UNA vez; si es `false`, el `coeficiente_efectivo` de TODA percepcion de la compra se fuerza a `0` para el calculo de costo, sin importar lo cargado en el renglon (`$compradorEsRI ? ($p->coeficiente ?? 1) : 0`). La matriz cierra 100% en todas las filas: comprador RI ⇒ `coef` al ledger fiscal + `(1−coef)` al costo; comprador no-RI ⇒ el 100% de cada percepcion pasa al costo, cero al ledger.
+
+#### 3.8.9 Cambio masivo extendido a COSTOS (Bloque C, hardening-circuito-precios)
+
+`App\Livewire\Articulos\CambioMasivoPrecios` gano un selector **`objetivoCambio`** que decide sobre que se aplica el mismo ajuste (%/monto) configurado en el paso 1: `'precio'` (default, comportamiento clasico) | `'costo'` | `'ambos'` (mismo % a los dos, con precio y costo desacoplados en su calculo).
+
+- **Gate de permiso (RF-C1)**: `puedeEditarCostos()` = `hasPermissionTo('func.costos.editar')`. Sin el permiso, el selector "Aplicar sobre" ni se renderiza y `objetivoCambio` no puede salir de `'precio'` — hay defensa server-side en `updatedObjetivoCambio()`, `siguientePaso()` y `aplicarCambios()` (triple chequeo, no confia solo en ocultar la UI).
+- **Modo `'costo'` (RF-C2)**: el ajuste se aplica sobre `costo_ultimo` de la fila de `articulo_costos` de la **sucursal activa** de cada articulo filtrado, via `CostoService::actualizarManual($articulo, $sucursalId, 'ultimo', $costoNuevo, $usuarioId, origen: 'masivo')` — misma puerta unica que la edicion manual del ABM, con `historial_costos.origen = 'masivo'` (ver migracion `add_masivo_a_historial_costos_origen`, el ENUM no traia ese valor). El calculo del costo nuevo (`calcularNuevoCosto()`) usa el mismo % configurado en el paso 1 pero **nunca redondea** (a diferencia del precio): 4 decimales, coherente con el resto de la cadena de costos. Articulo sin costo base (ni en la sucursal ni en el consolidado) ⇒ `sin_costo = true` en el preview, se saltea (no hay base sobre la cual aplicar %).
+  - Sub-opcion `actualizarPrecioTrasCosto`: `'no'` (default, solo costo) | `'automatico'` — tras actualizar los costos, llama a `CostoService::repricearArticulos($idsConCostoActualizado, $sucursalId, $usuarioId, __('cambio masivo de costos'))` (RF-C4, la misma formula que usa `CompraService::repricearAutomaticos()` en el paso 8 de `confirmarCompra`): SOLO los articulos con `precio_administrado_por_utilidad = true` dentro del lote se repricean con la formula del sugerido; los que no tienen el flag no se tocan.
+- **Modo `'ambos'` (RF-C3)**: aplica el mismo % a `costo_ultimo` (via `actualizarManual`, origen `'masivo'`) Y al precio de venta efectivo (override de `articulos_sucursales` de la sucursal activa, mismo camino que el modo `'precio'`) — dos historiales independientes (`historial_costos` + `HistorialPrecio` origen `'masivo_sucursal'`).
+- **Preview** (`procesarPreview()`/`agregarArticuloManual()`): en modos que tocan costo, agrega columnas `costo_viejo`/`costo_nuevo`/`margen_nuevo` por fila. El margen usa la misma alicuota efectiva y division que la venta (`neto = precio_nuevo / (1 + alicuota/100)`), consultando `CostoService::comercioComputaIva()` (publica desde este spec) UNA sola vez para todo el lote.
+- **Programacion**: `programarCambios()` sigue restringida a `objetivoCambio === 'precio'` — el circuito de `CambioPrecioProgramado` no conoce costos; los modos costo/ambos siempre se aplican al instante (`modoAplicacion` se fuerza a `'ahora'` al cambiar de objetivo).
+- **Transaccion unica**: `aplicarCambios()` corre todo (costos + precios + repricing) dentro de un solo `beginTransaction()/commit()` de `pymes_tenant` (rollback en catch); el mensaje de exito resume por separado articulos de precio actualizados, costos actualizados y repriceados por utilidad automatica.
 
 ### 3.9 Facturacion Fiscal
 
@@ -4375,6 +4398,7 @@ Reglas de registro:
 - El `periodo_fiscal` (YYYY-MM) se calcula **al registrar** desde la `fecha` del movimiento. Es inmutable y se usa como clave de particion para consultas; no depende del timezone en el momento de la consulta.
 - La **anulacion** (`anularMovimientoFiscal`) crea un contraasiento: fila nueva con `movimiento_anulado_id` apuntando al original, ambos quedan con `estado = anulado`. La posicion fiscal solo suma `estado = activo`. Este mecanismo es SOLO para correccion de errores de carga (alta manual, RF-08); una nota de credito NO lo usa (ver abajo).
 - No existe un contraasiento parcial en v1: la anulacion (correccion de error) es siempre total del movimiento original.
+- **RF-B9 (hardening-circuito-precios)**: `anularMovimientoFiscal` RECHAZA (lanza `Exception`) movimientos con `origen_tipo !== null` — un movimiento generado por un origen (`Compra`, `ComprobanteFiscal`, `ConciliacionFila`) solo se revierte por el circuito de ESE origen (cancelacion de la compra/venta, o nota de credito); anularlo a mano desbalancearia la reversa espejo del origen. Solo los movimientos con `origen_tipo = NULL` (alta manual, RF-08) admiten anulacion manual. La UI (`MovimientosFiscales`) oculta el boton "Anular" para esos movimientos y muestra un texto "No anulable (lo maneja su origen)" con tooltip.
 
 #### Nota de credito: movimientos propios en su propio periodo (revision Fable 2026-07-01)
 
@@ -4499,8 +4523,8 @@ Permisos de menu: `menu.fiscal`, `menu.fiscal-posicion`, `menu.fiscal-libros`, `
 - Delega a `ImpuestoService::registrarMovimientoFiscal()` con `origen_tipo = NULL` (marca de carga manual).
 
 **Anulacion** (`abrirModalAnulacion` / `confirmarAnulacion`):
-- Solo disponible para movimientos con `estado = activo` y `movimiento_anulado_id = NULL` (no es ya un contraasiento).
-- Delega a `ImpuestoService::anularMovimientoFiscal($movimiento, $usuarioId, $motivo)`.
+- Solo disponible para movimientos con `estado = activo`, `movimiento_anulado_id = NULL` (no es ya un contraasiento) **y `origen_tipo = NULL`** (RF-B9 hardening-circuito-precios: los generados por Compra/ComprobanteFiscal/ConciliacionFila no son anulables a mano — la vista oculta el boton y muestra "No anulable (lo maneja su origen)").
+- Delega a `ImpuestoService::anularMovimientoFiscal($movimiento, $usuarioId, $motivo)`, que ademas rechaza server-side cualquier intento sobre un movimiento con origen (defensa en profundidad).
 - El service crea el contraasiento append-only; el componente no escribe directamente en la tabla.
 
 ---
@@ -4735,6 +4759,9 @@ WHERE proveedor_id = ?
 #### Compras pendientes de un proveedor (aging por vencimiento, FIFO)
 
 ```sql
+-- RF-B11 (hardening-circuito-precios): una NC re-usa saldo_pendiente con OTRA
+-- semantica ("monto aplicado contra la origen", casi siempre > 0) -- toda
+-- consulta de deuda debe excluirla (scope Compra::sinNotasCredito()).
 SELECT id, numero_comprobante, numero_comprobante_proveedor, fecha, fecha_vencimiento,
        total, saldo_pendiente,
        DATEDIFF(CURDATE(), fecha_vencimiento) as dias_vencido
@@ -4742,6 +4769,7 @@ FROM {PREFIX}compras
 WHERE proveedor_id = ?
   AND sucursal_id = ?
   AND estado = 'completada'
+  AND (tipo_comprobante IS NULL OR tipo_comprobante NOT LIKE 'nota_credito%')
   AND saldo_pendiente > 0
 ORDER BY fecha_vencimiento ASC, fecha ASC;
 ```

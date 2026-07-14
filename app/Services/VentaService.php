@@ -306,10 +306,10 @@ class VentaService
         if ($usarDatosProporcionados) {
             // Usar datos proporcionados desde la UI (ya calculados)
             $ivaPorcentaje = $detalle['iva_porcentaje'] ?? ($tipoIva?->porcentaje ?? 21);
-            $precioIvaIncluido = $detalle['precio_iva_incluido'] ?? true;
 
-            // Calcular precio sin IVA
-            if ($ivaPorcentaje > 0 && $precioIvaIncluido) {
+            // RF-A3 (hardening-circuito-precios): el precio es SIEMPRE final con
+            // IVA incluido; el desglose DIVIDE (neto + IVA = total por construcción).
+            if ($ivaPorcentaje > 0) {
                 $precioSinIva = $precioUnitario / (1 + $ivaPorcentaje / 100);
             } else {
                 $precioSinIva = $precioUnitario;
@@ -424,12 +424,9 @@ class VentaService
         $descuento = $detalle['descuento'] ?? 0;
         $precioConDescuento = $precioUnitario - $descuento;
 
-        // Determinar si el precio incluye IVA según configuración del artículo
-        if ($articulo->precio_iva_incluido) {
-            $precioSinIva = $tipoIva->obtenerPrecioSinIva($precioConDescuento, true);
-        } else {
-            $precioSinIva = $precioConDescuento;
-        }
+        // RF-A3 (hardening-circuito-precios): el precio es SIEMPRE final con
+        // IVA incluido; el desglose DIVIDE.
+        $precioSinIva = $tipoIva->obtenerPrecioSinIva($precioConDescuento, true);
 
         // Calcular subtotal e IVA
         $subtotalSinIva = $precioSinIva * $cantidad;

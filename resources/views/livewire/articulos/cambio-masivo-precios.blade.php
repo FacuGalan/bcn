@@ -192,6 +192,49 @@
                         <div class="lg:col-span-3 space-y-3">
                             <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Configuración del ajuste') }}</h3>
 
+                            {{-- RF-C1 (hardening-circuito-precios): objetivo del masivo. Solo con func.costos.editar --}}
+                            @if($this->puedeEditarCostos())
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Aplicar sobre') }}</label>
+                                    <div class="space-y-1.5">
+                                        <label class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $objetivoCambio === 'precio' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                            <input type="radio" wire:model.live="objetivoCambio" value="precio" class="text-bcn-primary focus:ring-bcn-primary">
+                                            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Precio de venta') }}</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $objetivoCambio === 'costo' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                            <input type="radio" wire:model.live="objetivoCambio" value="costo" class="text-bcn-primary focus:ring-bcn-primary">
+                                            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Costo') }}</span>
+                                        </label>
+                                        <label class="flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $objetivoCambio === 'ambos' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                                            <input type="radio" wire:model.live="objetivoCambio" value="ambos" class="text-bcn-primary focus:ring-bcn-primary">
+                                            <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Costo y precio por igual') }}</span>
+                                        </label>
+                                    </div>
+
+                                    {{-- RF-C2: sub-opción solo en modo costo --}}
+                                    @if($objetivoCambio === 'costo')
+                                        <div class="mt-2 pl-2 border-l-2 border-bcn-primary/30">
+                                            <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('¿Actualizar el precio de venta?') }}</label>
+                                            <div class="space-y-1.5">
+                                                <label class="flex items-center gap-2">
+                                                    <input type="radio" wire:model.live="actualizarPrecioTrasCosto" value="no" class="text-bcn-primary focus:ring-bcn-primary">
+                                                    <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Solo costo') }}</span>
+                                                </label>
+                                                <label class="flex items-center gap-2">
+                                                    <input type="radio" wire:model.live="actualizarPrecioTrasCosto" value="automatico" class="text-bcn-primary focus:ring-bcn-primary">
+                                                    <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Automático según configuración del artículo') }}</span>
+                                                </label>
+                                            </div>
+                                            @if($actualizarPrecioTrasCosto === 'automatico')
+                                                <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                                    {{ __('Solo los artículos con precio administrado por utilidad se repricean con la fórmula del sugerido') }}
+                                                </p>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
+
                             <!-- Tipo de ajuste + Tipo de valor -->
                             <div class="grid grid-cols-3 gap-3">
                                 <div class="col-span-2">
@@ -249,7 +292,7 @@
                                         wire:model.live="tipoRedondeo"
                                         class="w-full py-1.5 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                                     >
-                                        <option value="sin_redondeo">{{ __('Sin redondeo') }}</option>
+                                        <option value="ninguno">{{ __('Sin redondeo') }}</option>
                                         <option value="entero">{{ __('Entero') }}</option>
                                         <option value="decena">{{ __('Decena') }}</option>
                                         <option value="centena">{{ __('Centena') }}</option>
@@ -457,7 +500,7 @@
                                 </span>
 
                                 <!-- Redondeo -->
-                                @if($tipoRedondeo !== 'sin_redondeo')
+                                @if(! in_array($tipoRedondeo, ['ninguno', 'sin_redondeo'], true))
                                     <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">
                                         {{ __('Redondeo') }}: {{ match($tipoRedondeo) { 'entero' => __('Entero'), 'decena' => __('Decena'), 'centena' => __('Centena'), default => '' } }}
                                     </span>
@@ -556,21 +599,42 @@
                                         </svg>
                                     </button>
                                 </div>
+                                @if($this->tocaCosto())
+                                    {{-- RF-C2: línea de costos en la card móvil --}}
+                                    <div class="flex items-center justify-between mt-2 gap-3">
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Costo') }}</span>
+                                        @if(!empty($articulo['sin_costo']))
+                                            <span class="text-xs px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">{{ __('sin costo') }}</span>
+                                        @else
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs text-gray-500 dark:text-gray-400 line-through">${{ number_format($articulo['costo_viejo'], 2, ',', '.') }}</span>
+                                                <span class="text-sm font-semibold {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}">${{ number_format($articulo['costo_nuevo'], 2, ',', '.') }}</span>
+                                                @if(($articulo['margen_nuevo'] ?? null) !== null)
+                                                    <span class="text-xs px-1.5 py-0.5 rounded-full {{ $articulo['margen_nuevo'] > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' }}">{{ number_format($articulo['margen_nuevo'], 1) }}%</span>
+                                                @endif
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endif
                                 <div class="flex items-center justify-between mt-2 gap-3">
                                     <div class="flex items-center gap-2">
-                                        <span class="text-xs text-gray-500 dark:text-gray-400 line-through">${{ number_format($articulo['precio_viejo'], 2, ',', '.') }}</span>
-                                        <span class="text-xs {{ $articulo['diferencia'] >= 0 ? 'text-orange-600' : 'text-green-600' }}">
-                                            {{ $articulo['diferencia'] >= 0 ? '+' : '' }}{{ $articulo['diferencia_porcentaje'] }}%
-                                        </span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400 {{ $objetivoCambio === 'costo' ? '' : 'line-through' }}">${{ number_format($articulo['precio_viejo'], 2, ',', '.') }}</span>
+                                        @if($objetivoCambio !== 'costo')
+                                            <span class="text-xs {{ $articulo['diferencia'] >= 0 ? 'text-orange-600' : 'text-green-600' }}">
+                                                {{ $articulo['diferencia'] >= 0 ? '+' : '' }}{{ $articulo['diferencia_porcentaje'] }}%
+                                            </span>
+                                        @endif
                                     </div>
-                                    <input
-                                        type="number"
-                                        step="0.01"
-                                        min="0"
-                                        value="{{ $articulo['precio_nuevo'] }}"
-                                        wire:change="actualizarPrecioManual({{ $articulo['id'] }}, $event.target.value)"
-                                        class="w-28 text-right text-sm font-semibold rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1.5 {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}"
-                                    />
+                                    @if($objetivoCambio !== 'costo')
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value="{{ $articulo['precio_nuevo'] }}"
+                                            wire:change="actualizarPrecioManual({{ $articulo['id'] }}, $event.target.value)"
+                                            class="w-28 text-right text-sm font-semibold rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1.5 {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}"
+                                        />
+                                    @endif
                                 </div>
                             </div>
                         @empty
@@ -597,6 +661,18 @@
                                     <th scope="col" class="px-3 py-2 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
                                         {{ __('Categoría') }}
                                     </th>
+                                    @if($this->tocaCosto())
+                                        {{-- RF-C2: preview de costos --}}
+                                        <th scope="col" class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                            {{ __('Costo actual') }}
+                                        </th>
+                                        <th scope="col" class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                                            {{ __('Costo nuevo') }}
+                                        </th>
+                                        <th scope="col" class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider hidden md:table-cell">
+                                            {{ __('Margen') }}
+                                        </th>
+                                    @endif
                                     <th scope="col" class="px-3 py-2 text-right text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
                                         {{ __('Actual') }}
                                     </th>
@@ -625,18 +701,49 @@
                                                 {{ $articulo['categoria'] }}
                                             </span>
                                         </td>
+                                        @if($this->tocaCosto())
+                                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                                                @if(!empty($articulo['sin_costo']))
+                                                    <span class="text-xs px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                                          title="{{ __('Sin costo cargado: se saltea (no hay base sobre la cual aplicar el ajuste)') }}">{{ __('sin costo') }}</span>
+                                                @else
+                                                    <span class="text-xs text-gray-500 dark:text-gray-400">${{ number_format($articulo['costo_viejo'], 2, ',', '.') }}</span>
+                                                @endif
+                                            </td>
+                                            <td class="px-3 py-2 whitespace-nowrap text-right">
+                                                @if(empty($articulo['sin_costo']))
+                                                    <span class="text-xs font-medium {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}">${{ number_format($articulo['costo_nuevo'], 2, ',', '.') }}</span>
+                                                @else
+                                                    <span class="text-xs text-gray-400 dark:text-gray-600">—</span>
+                                                @endif
+                                            </td>
+                                            <td class="px-3 py-2 whitespace-nowrap text-right hidden md:table-cell">
+                                                @if(($articulo['margen_nuevo'] ?? null) !== null)
+                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {{ $articulo['margen_nuevo'] > 0 ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' : 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' }}">
+                                                        {{ number_format($articulo['margen_nuevo'], 1) }}%
+                                                    </span>
+                                                @else
+                                                    <span class="text-xs text-gray-400 dark:text-gray-600">—</span>
+                                                @endif
+                                            </td>
+                                        @endif
                                         <td class="px-3 py-2 whitespace-nowrap text-right">
                                             <span class="text-xs text-gray-500 dark:text-gray-400">${{ number_format($articulo['precio_viejo'], 2, ',', '.') }}</span>
                                         </td>
                                         <td class="px-3 py-2 whitespace-nowrap text-right">
-                                            <input
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                value="{{ $articulo['precio_nuevo'] }}"
-                                                wire:change="actualizarPrecioManual({{ $articulo['id'] }}, $event.target.value)"
-                                                class="w-24 text-right text-xs font-medium rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1 {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}"
-                                            />
+                                            @if($objetivoCambio === 'costo')
+                                                {{-- El precio no cambia en modo costo (salvo repricing automático al aplicar) --}}
+                                                <span class="text-xs text-gray-500 dark:text-gray-400">${{ number_format($articulo['precio_nuevo'], 2, ',', '.') }}</span>
+                                            @else
+                                                <input
+                                                    type="number"
+                                                    step="0.01"
+                                                    min="0"
+                                                    value="{{ $articulo['precio_nuevo'] }}"
+                                                    wire:change="actualizarPrecioManual({{ $articulo['id'] }}, $event.target.value)"
+                                                    class="w-24 text-right text-xs font-medium rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 py-1 {{ $tipoAjuste === 'descuento' ? 'text-green-600' : 'text-orange-600' }}"
+                                                />
+                                            @endif
                                         </td>
                                         <td class="px-3 py-2 whitespace-nowrap text-right hidden sm:table-cell">
                                             <span class="text-xs {{ $articulo['diferencia'] >= 0 ? 'text-orange-600' : 'text-green-600' }}">
@@ -658,7 +765,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                                        <td colspan="{{ $this->tocaCosto() ? 10 : 7 }}" class="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
                                             <svg class="mx-auto h-10 w-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                                             </svg>
@@ -847,13 +954,24 @@
         >
             <x-slot:body>
                 <p class="text-sm text-gray-500 dark:text-gray-400">
-                    {{ __('Estás a punto de modificar el precio de') }} <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $totalArticulos }} {{ __('artículos') }}</span>.
+                    @if($objetivoCambio === 'costo')
+                        {{ __('Estás a punto de modificar el costo de') }} <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $totalArticulos }} {{ __('artículos') }}</span>.
+                    @elseif($objetivoCambio === 'ambos')
+                        {{ __('Estás a punto de modificar el costo y el precio de') }} <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $totalArticulos }} {{ __('artículos') }}</span>.
+                    @else
+                        {{ __('Estás a punto de modificar el precio de') }} <span class="font-semibold text-gray-700 dark:text-gray-300">{{ $totalArticulos }} {{ __('artículos') }}</span>.
+                    @endif
                 </p>
                 <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
                     {{ __('Los precios se actualizarán en la sucursal activa.') }}
                 </p>
+                @if($objetivoCambio === 'costo' && $actualizarPrecioTrasCosto === 'automatico')
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                        {{ __('Solo los artículos con precio administrado por utilidad se repricean con la fórmula del sugerido') }}.
+                    </p>
+                @endif
 
-                <!-- Modo de aplicación -->
+                <!-- Modo de aplicación (programar: solo para precio de venta, RF-C1) -->
                 <div class="mt-4 space-y-2">
                     <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $modoAplicacion === 'ahora' ? 'border-bcn-primary bg-bcn-primary/5' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
                         <input type="radio" wire:model.live="modoAplicacion" value="ahora" class="text-bcn-primary focus:ring-bcn-primary mt-0.5">
@@ -862,13 +980,15 @@
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Los precios se actualizarán inmediatamente') }}</p>
                         </div>
                     </label>
-                    <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $modoAplicacion === 'programar' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
-                        <input type="radio" wire:model.live="modoAplicacion" value="programar" class="text-blue-500 focus:ring-blue-500 mt-0.5">
-                        <div>
-                            <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Programar para después') }}</span>
-                            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Los precios se actualizarán en la fecha y hora indicada') }}</p>
-                        </div>
-                    </label>
+                    @if($objetivoCambio === 'precio')
+                        <label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors {{ $modoAplicacion === 'programar' ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700' }}">
+                            <input type="radio" wire:model.live="modoAplicacion" value="programar" class="text-blue-500 focus:ring-blue-500 mt-0.5">
+                            <div>
+                                <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Programar para después') }}</span>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Los precios se actualizarán en la fecha y hora indicada') }}</p>
+                            </div>
+                        </label>
+                    @endif
                 </div>
 
                 <!-- Campos de fecha/hora (solo si programar) -->

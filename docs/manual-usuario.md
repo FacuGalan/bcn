@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-14 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal")
+> Version: 0.1.x | Ultima actualizacion: 2026-07-14 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal"; + hardening del circuito de precios e impuestos: el precio de venta es siempre FINAL con IVA incluido (se quita el switch del ABM), el precio de venta en comercios de una sola sucursal tambien edita el efectivo de la sucursal, revision de precios post-compra con piso de costo (badge "bajo costo"), percepciones con comprador no inscripto van 100% al costo, notas de credito de proveedor con precarga de percepciones de la compra origen y aviso si exceden a la origen, movimientos fiscales generados por compras/ventas/conciliacion ya no se anulan a mano, y cambio masivo de precios extendido a costos)
 
 ---
 
@@ -1336,9 +1336,9 @@ En el listado y en el detalle de la compra, una factura de servicio se identific
 - **Desglose de IVA**: se auto-sugiere a partir de los renglones (cascada de descuentos + descuento global prorrateado + conceptos gravados) — o, en una factura de servicio, a partir del detalle del servicio — y es totalmente editable para calzar con la factura fisica; boton **"Recalcular"** para volver a la sugerencia. Si el monto cargado difiere del sugerido por alicuota, aparece una advertencia (no bloqueante).
 - **Neto no gravado** / **Neto exento**.
 - **Conceptos del pie** (colapsable; en una factura de servicio, "Detalle del servicio", ver arriba): flete, impuestos internos, envases u otro, con monto, IVA del concepto (si aplica) y el flag **"Computa costo"** (si esta activo, el importe se prorratea entre los renglones — por ejemplo, impuestos internos de bebidas son costo real).
-- **Percepciones sufridas** (colapsable): impuesto del catalogo, base imponible, alicuota, monto y **Coef.** (coeficiente computable), cada campo con su label y navegables con Enter. El **numero de certificado** arranca oculto (casi nunca se usa: el respaldo habitual es la propia factura) y se agrega por renglon con el boton **"+ certificado"**; si la compra cargada ya trae uno, el campo aparece visible. Si el proveedor tiene **percepciones habituales** cargadas (ver 5.8), se precargan automaticamente como renglones (impuesto + alicuota + coeficiente) al elegirlo en una compra fiscal; la base y el monto se completan solos apenas hay renglones cargados (ver abajo) y siempre se pueden pisar con lo que dice la factura fisica. Si el usuario ya cargo percepciones a mano, la precarga no las pisa.
+- **Percepciones sufridas** (colapsable): impuesto del catalogo, base imponible, alicuota, monto y **Coef.** (coeficiente computable), cada campo con su label y navegables con Enter. El **numero de certificado** arranca oculto (casi nunca se usa: el respaldo habitual es la propia factura) y se agrega por renglon con el boton **"+ certificado"**; si la compra cargada ya trae uno, el campo aparece visible. Si el proveedor tiene **percepciones habituales** cargadas (ver 5.8), se precargan automaticamente como renglones (impuesto + alicuota + coeficiente) al elegirlo en una compra fiscal; la base y el monto se completan solos apenas hay renglones cargados (ver abajo) y siempre se pueden pisar con lo que dice la factura fisica. Si el usuario ya cargo percepciones a mano, la precarga no las pisa. Un renglon con **monto cargado pero sin impuesto seleccionado bloquea el guardado** de la compra, con un mensaje pidiendo elegir el impuesto o quitar el renglon.
   - **Base y monto sugeridos**: mientras el renglon no se edite a mano, la base imponible se sugiere sola como la suma de las bases gravadas del desglose de IVA, y el monto como base × alicuota. Apenas se tipea la base o el monto a mano, ese renglon deja de recalcularse solo (los demas siguen sugiriendose).
-  - **Coef.** (coeficiente computable, 0 a 1): que parte del monto de la percepcion es credito fiscal computable; el resto se suma al costo de los articulos (o al gasto de la cuenta de compra, en una factura de servicio). Se precarga solo segun el impuesto elegido: percepciones de **IVA** siempre 1 (credito pleno); para IIBB u otros impuestos, toma el **"Coef. computable (compras)"** configurado para ese impuesto en el CUIT comprador (ver 12.1 "Impuestos") — si el CUIT no esta inscripto en esa jurisdiccion o no tiene la config cargada, el default es 0 (todo a costo). Es editable a mano por comprobante, igual que la base y el monto.
+  - **Coef.** (coeficiente computable, 0 a 1): que parte del monto de la percepcion es credito fiscal computable; el resto se suma al costo de los articulos (o al gasto de la cuenta de compra, en una factura de servicio). Si el **CUIT comprador no es Responsable Inscripto**, el default es **0 para toda percepcion, incluida la de IVA** (sin credito fiscal posible, el 100% pasa al costo). Con comprador Responsable Inscripto, se precarga segun el impuesto elegido: percepciones de **IVA** siempre 1 (credito pleno); para IIBB u otros impuestos, toma el **"Coef. computable (compras)"** vigente a la fecha del comprobante para ese impuesto en el CUIT comprador (ver 12.1 "Impuestos") — si el CUIT no esta inscripto en esa jurisdiccion o no tiene la config cargada, el default es 0 (todo a costo). Es editable a mano por comprobante, igual que la base y el monto.
 - **Totales del comprobante**: neto/subtotal de renglones, descuento global, conceptos, IVA, percepciones y total — para verificar contra la factura fisica en vivo.
 
 El sistema tambien puede mostrar una advertencia no bloqueante si la combinacion tipo de comprobante × condicion IVA del comprador es atipica (por ejemplo, una factura B a un Responsable Inscripto), o si la fecha del comprobante cae en un periodo fiscal ya cerrado.
@@ -1367,7 +1367,7 @@ Situaciones que la correccion resuelve o bloquea:
 
 Registra una devolucion parcial (o total) de una compra ya confirmada. Dos caminos:
 
-- **Desde el detalle de la compra** ("Cargar NC"): precarga los renglones con las cantidades a devolver, con tope en lo comprado.
+- **Desde el detalle de la compra** ("Cargar NC"): precarga los renglones con las cantidades a devolver, con tope en lo comprado. Tambien precarga las **percepciones sufridas** de la compra origen (impuesto, base, alicuota, monto y coeficiente, tal como quedaron registradas en esa compra), editables por si la NC real trae un desglose distinto. Si el desglose fiscal cargado en la NC (IVA o percepciones) supera al de la compra origen, aparece una advertencia no bloqueante.
 - **"Nueva NC" desde el listado**: NC suelta, sin compra origen (por ejemplo, un descuento financiero posterior).
 
 La NC usa el mismo editor y el mismo flujo borrador → completada → cancelada. Al confirmarla: descuenta stock por las cantidades devueltas, carga su **propio** desglose de IVA (que reduce el credito fiscal en el periodo de la NC, no el de la compra original) y genera un movimiento de cuenta corriente que reduce la deuda de la compra origen (el excedente, o una NC suelta, genera saldo a favor). Los costos (ultimo/promedio) **no** se recalculan.
@@ -1393,7 +1393,7 @@ Si la compra tiene **pagos aplicados**, el usuario elige:
 
 Se abre desde el resumen posterior a confirmar una compra, o en cualquier momento desde el boton **"Revisar precios"** del detalle (requiere `func.costos.ver` para abrirla). Lista los articulos de la compra cuyo **margen real** quedo por debajo de la utilidad objetivo: costo, precio actual, margen real, utilidad objetivo y **precio sugerido** (con un selector de redondeo: sin redondeo, entero, decena o centena).
 
-Cada fila tiene un checkbox y el precio nuevo es editable a mano. El boton **"Aplicar"** (requiere `func.compras.revisar_precios`) actualiza en lote los precios seleccionados y registra el cambio en el historial de precios del articulo.
+Cada fila tiene un checkbox y el precio nuevo es editable a mano. Un precio sugerido (o editado a mano) que queda **igual o por debajo del costo** aparece **desmarcado por defecto** y con el badge amarillo **"bajo costo"** — si el usuario vuelve a marcar la fila con el badge visible, eso cuenta como confirmacion explicita de que quiere aplicarlo igual. El boton **"Aplicar"** (requiere `func.compras.revisar_precios`) actualiza en lote los precios seleccionados y registra el cambio en el historial de precios del articulo.
 
 La revision es **retomable**: siempre calcula contra el costo y el precio **vigentes** (no una foto del momento de la compra) — si otra compra posterior ya cambio el costo, la revision lo refleja; los articulos que ya superaron el objetivo desaparecen de la lista.
 
@@ -2225,8 +2225,7 @@ Sin el permiso `func.costos.editar`, los campos de costo se muestran de solo lec
 
 - **Utilidad objetivo (%)** (requiere `func.costos.ver`): override de este articulo en particular. Si se deja vacio, hereda de la categoria o, si la categoria tampoco define una, del valor por defecto del comercio (configuracion). El campo muestra en el placeholder de quien esta heredando el valor.
 - **Precio administrado por utilidad** (switch, junto a la utilidad objetivo): opt-in — si esta activo, cada vez que una compra confirmada cambia el costo del articulo, su precio de venta se recalcula solo con la formula de utilidad objetivo (sin pasar por la revision manual de precios).
-- **Precio de venta**: campo unico de precio. En un comercio de **una sola sucursal** edita directamente el precio general del articulo. En un comercio **multi-sucursal** muestra el precio efectivo de la sucursal activa y **siempre** se persiste como override de esa sucursal al guardar (el precio generico global de fallback ya no se edita desde aqui; se administrara a futuro desde el componente Manager). Dejar el campo vacio **no** hace que vuelva a usar el generico: es un dato obligatorio.
-- **IVA incluido en el precio** (switch, junto al precio de venta): debajo muestra la aclaracion segun el estado — *"Precio FINAL: el IVA va adentro y se desglosa al facturar"* (activado) o *"Precio NETO: el IVA se suma encima al vender"* (desactivado).
+- **Precio de venta**: campo unico de precio. Al **crear** un articulo nuevo, edita el precio general (`precio_base`). Al **editar** un articulo existente, muestra el precio EFECTIVO de la sucursal activa y **siempre** se persiste como override de esa sucursal al guardar — esto aplica tanto a comercios multi-sucursal como de **una sola sucursal** (el precio generico global de fallback ya no se edita desde aqui una vez que el articulo existe; se administrara a futuro desde el componente Manager). Dejar el campo vacio **no** hace que vuelva a usar el generico: es un dato obligatorio. Debajo del campo, un texto fijo aclara: *"Precio FINAL: el IVA va adentro y se desglosa al facturar"* — el precio de venta es siempre el precio final que paga el cliente, nunca un neto al que se le suma IVA encima.
 - **La cuenta del precio sugerido** (requiere `func.costos.ver`), siempre desglosada y visible (costo × utilidad × IVA si corresponde = precio sugerido), reactiva a lo que se va tipeando en el override de utilidad, junto con el margen real actual del articulo. Junto al sugerido hay un boton **"Usar como precio"**: copia el valor sugerido al campo "Precio de venta" de arriba (no persiste nada por si solo — hay que hacer clic en **"Guardar"** para que quede grabado, con su historial de precios normal).
 
 **Seccion "Configuracion en la sucursal"**:
@@ -2275,7 +2274,7 @@ El archivo descargado es `plantilla_articulos.xlsx` y contiene las siguientes co
 | F | Categoria | No | Nombre de la categoria activa. Dropdown con categorias disponibles. |
 | G | Unidad | No | Unidad de medida (default: "unidad"). |
 | H | Tipo IVA | No | Nombre del tipo de IVA activo. Dropdown con opciones disponibles. |
-| I | Precio IVA incluido | No | "Si" o "No". |
+| I | Precio IVA incluido | No | Columna informativa: el precio de venta es siempre final con IVA incluido, asi que el valor de esta columna se ignora al importar (siempre queda en "Si"). |
 | J | Materia prima | No | "Si" o "No". |
 | K | Pesable | No | "Si" o "No". |
 | L | Activo | No | "Si" o "No". Opera sobre la sucursal activa. |
@@ -2422,16 +2421,23 @@ Permite asignar etiquetas a articulos de forma masiva. Ofrece dos modos de opera
 
 ### 10.5 Cambio Masivo de Precios
 
-Permite modificar los precios de multiples articulos a la vez, con un asistente paso a paso.
+Permite modificar los precios (y, con permiso, los costos) de multiples articulos a la vez, con un asistente paso a paso.
 
 #### Paso 1: Configurar el ajuste
 
+- **Aplicar sobre** (solo visible con el permiso `func.costos.editar`): que se modifica con el ajuste.
+  - **Precio de venta** (default): comportamiento clasico, solo toca el precio.
+  - **Costo**: el ajuste se aplica sobre el **costo ultimo** de la sucursal activa. Aparece una sub-opcion **"¿Actualizar el precio de venta?"**:
+    - **Solo costo** (default): el precio de venta no se toca.
+    - **Automatico segun configuracion del articulo**: despues de actualizar el costo, los articulos del lote que tienen activado **"Precio administrado por utilidad"** (ver 10.2) se repricean solos con la formula del precio sugerido — los que no tienen ese flag activado no se tocan.
+  - **Costo y precio por igual**: aplica el mismo porcentaje (o monto) tanto al costo ultimo como al precio de venta.
+  - Sin el permiso `func.costos.editar` este selector no aparece y el masivo funciona solo sobre precio (comportamiento clasico).
 - **Tipo de ajuste**: Descuento o Recargo.
 - **Tipo de valor**: Porcentual (ej: 10%) o Fijo (ej: $100).
 - **Valor del ajuste**: El porcentaje o monto a aplicar.
-- **Tipo de redondeo**: Sin redondeo, Entero mas cercano, Decena mas cercana, Centena mas cercana.
+- **Tipo de redondeo**: Sin redondeo, Entero mas cercano, Decena mas cercana, Centena mas cercana. El redondeo solo se aplica al precio de venta; el costo nunca se redondea (mantiene 4 decimales, igual que el resto de la cadena de costos).
 - **Alcance**: Se aplica a la sucursal actual.
-- **Modo de aplicacion**: Aplicar ahora o Programar para una fecha y hora futuras.
+- **Modo de aplicacion**: Aplicar ahora o Programar para una fecha y hora futuras. **Programar solo esta disponible cuando "Aplicar sobre" es Precio de venta** — los modos que tocan costo se aplican siempre al instante.
 
 Haga clic en **"Siguiente"** para pasar al paso 2.
 
@@ -2441,18 +2447,19 @@ Haga clic en **"Siguiente"** para pasar al paso 2.
 - **Tabla de preview**: Muestra todos los articulos que seran afectados con:
   - Nombre y codigo.
   - Precio actual.
-  - Precio nuevo (calculado con el ajuste configurado).
+  - Precio nuevo (calculado con el ajuste configurado; en modo "Costo" el precio no cambia salvo la sub-opcion automatica).
   - Diferencia.
-  - Puede editar manualmente el precio nuevo de cualquier articulo individual.
+  - En modo "Costo" o "Costo y precio por igual": columnas de **Costo actual → Costo nuevo** y el **margen resultante**. Un articulo sin costo cargado en la sucursal (ni en el consolidado) muestra el badge **"sin costo"** y se saltea (no hay base sobre la cual aplicar el porcentaje).
+  - Puede editar manualmente el precio nuevo de cualquier articulo individual (no aplica al modo "Costo" puro).
   - Puede agregar articulos adicionales que no estan en los filtros.
 
 - **Totales**: Cantidad de articulos afectados, suma de precios viejos y suma de precios nuevos.
 
-Haga clic en **"Aplicar Cambios"** para confirmar.
+Haga clic en **"Aplicar Cambios"** para confirmar. El modal de confirmacion resume cuantos articulos se van a modificar (precio, costo, o ambos) y, en la sub-opcion automatica, aclara que solo los articulos con precio administrado por utilidad van a repricear.
 
 #### Cambios programados
 
-Si eligio "Programar", los cambios se crearan como pendientes y se ejecutaran automaticamente en la fecha y hora indicadas. Puede ver y gestionar los cambios programados desde un panel dedicado, con la posibilidad de cancelar un cambio antes de que se ejecute.
+Si eligio "Programar" (solo disponible para el precio de venta), los cambios se crearan como pendientes y se ejecutaran automaticamente en la fecha y hora indicadas. Puede ver y gestionar los cambios programados desde un panel dedicado, con la posibilidad de cancelar un cambio antes de que se ejecute.
 
 ---
 
@@ -3583,7 +3590,7 @@ Luego de completar los datos, hacer clic en **Registrar** para guardar. El movim
 
 #### Anulacion de un movimiento
 
-Los movimientos en estado Activo tienen un boton **Anular** (texto en rojo en desktop, link al pie de la tarjeta en movil). Al hacer clic se abre un modal de confirmacion con un campo opcional de motivo. Al confirmar:
+Los movimientos en estado Activo **dados de alta manualmente** tienen un boton **Anular** (texto en rojo en desktop, link al pie de la tarjeta en movil). Al hacer clic se abre un modal de confirmacion con un campo opcional de motivo. Al confirmar:
 
 - Se genera un **contraasiento** inmutable: una nueva fila en el ledger que cancela el movimiento original.
 - Tanto el movimiento original como el contraasiento quedan con estado Anulado.
@@ -3591,7 +3598,7 @@ Los movimientos en estado Activo tienen un boton **Anular** (texto en rojo en de
 
 La anulacion es siempre total (no se puede anular parcialmente un movimiento).
 
-> Los movimientos originados automaticamente desde comprobantes, compras o conciliacion de MercadoPago tambien aparecen en esta pantalla y pueden anularse del mismo modo.
+> Los movimientos originados automaticamente desde comprobantes, compras o conciliacion de MercadoPago **tambien aparecen en esta pantalla pero no se pueden anular a mano**: en su lugar de un boton Anular muestran el texto **"No anulable (lo maneja su origen)"** con un tooltip explicativo. Se revierten cancelando la compra/venta de origen o cargando la nota de credito correspondiente — anularlos manualmente desde aqui desbalancearia la reversa que ya hace ese circuito.
 
 ---
 

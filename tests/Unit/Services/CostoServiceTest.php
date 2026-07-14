@@ -293,7 +293,40 @@ class CostoServiceTest extends TestCase
         $this->assertEquals(130.0, (float) $fila->costo_ultimo);
     }
 
+    public function test_cancelar_no_pisa_un_costo_editado_a_mano(): void
+    {
+        // RF-B3 (hardening-circuito-precios): compra fija 130 → edición manual
+        // a 145 → cancelar la compra ⇒ el 145 manual sobrevive (la reversa solo
+        // restaura lo que la compra creó, y la edición manual limpió la
+        // proveniencia).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 5);
+        $compra = $this->crearCompraConDetalles([['articulo' => $articulo, 'cantidad' => 5, 'costo' => 130.0]]);
+        $this->servicio->registrarDesdeCompra($compra, 1);
+
+        $this->servicio->actualizarManual($articulo, $this->sucursalId, 'ultimo', 145.0, 1);
+
+        $this->servicio->revertirCostoUltimoSiCorresponde($compra, 1);
+
+        $fila = ArticuloCosto::where('articulo_id', $articulo->id)->where('sucursal_id', $this->sucursalId)->first();
+        $this->assertEquals(145.0, (float) $fila->costo_ultimo);
+    }
+
     // ==================== actualizarManual ====================
+
+    public function test_actualizar_ultimo_manual_limpia_proveniencia_de_compra(): void
+    {
+        // RF-B3 (hardening-circuito-precios): al editar el costo último a mano,
+        // el vigente ya no es "de una compra" ⇒ compra/proveedor se limpian.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 5);
+        $compra = $this->crearCompraConDetalles([['articulo' => $articulo, 'cantidad' => 5, 'costo' => 130.0]]);
+        $this->servicio->registrarDesdeCompra($compra, 1);
+
+        $fila = $this->servicio->actualizarManual($articulo, $this->sucursalId, 'ultimo', 145.0, 1);
+
+        $this->assertEquals(145.0, (float) $fila->costo_ultimo);
+        $this->assertNull($fila->compra_ultima_id);
+        $this->assertNull($fila->proveedor_ultimo_id);
+    }
 
     public function test_actualizar_reposicion_manual_registra_historial(): void
     {
@@ -355,12 +388,17 @@ class CostoServiceTest extends TestCase
         $this->assertEquals(0.0, $this->servicio->alicuotaEfectiva($articulo, $this->sucursalId));
     }
 
-    public function test_alicuota_efectiva_precio_neto_es_cero(): void
+    /**
+     * RF-A3 (hardening-circuito-precios): el flag precio_iva_incluido quedó
+     * deprecado (el precio es SIEMPRE final con IVA); un residuo en false no
+     * cambia la alícuota efectiva.
+     */
+    public function test_alicuota_efectiva_ignora_flag_neto_deprecado(): void
     {
         $this->crearCuitParaSucursal(CondicionIva::RESPONSABLE_INSCRIPTO);
         $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', ['precio_iva_incluido' => false]);
 
-        $this->assertEquals(0.0, $this->servicio->alicuotaEfectiva($articulo, $this->sucursalId));
+        $this->assertEquals(21.0, $this->servicio->alicuotaEfectiva($articulo, $this->sucursalId));
     }
 
     public function test_alicuota_efectiva_sin_cuit_es_cero(): void

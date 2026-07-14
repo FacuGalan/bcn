@@ -11,7 +11,7 @@
                         <label class="text-xs text-gray-600 dark:text-gray-400">{{ __('Redondeo') }}</label>
                         <select wire:model.live="tipoRedondeo"
                             class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                            <option value="sin_redondeo">{{ __('Sin redondeo') }}</option>
+                            <option value="ninguno">{{ __('Sin redondeo') }}</option>
                             <option value="entero">{{ __('Entero') }}</option>
                             <option value="decena">{{ __('Decena') }}</option>
                             <option value="centena">{{ __('Centena') }}</option>
@@ -59,6 +59,13 @@
                                                   title="{{ $fila['alcance'] === 'sucursal' ? __('Actualiza el precio de esta sucursal') : __('Actualiza el precio global del artículo') }}">
                                                 {{ $fila['alcance'] === 'sucursal' ? __('sucursal') : __('global') }}
                                             </span>
+                                            @if(!empty($fila['bajo_costo']))
+                                                {{-- RF-B8: sugerido/precio nuevo igual o bajo el costo --}}
+                                                <span class="text-xs px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                                      title="{{ __('El precio nuevo queda igual o por debajo del costo: re-marcá la fila para aplicarlo igual') }}">
+                                                    {{ __('bajo costo') }}
+                                                </span>
+                                            @endif
                                         </td>
                                         <td class="px-3 py-2 text-right text-gray-800 dark:text-gray-200 whitespace-nowrap">$@precio($fila['costo'])</td>
                                         <td class="px-3 py-2 text-right text-gray-800 dark:text-gray-200 whitespace-nowrap">$@precio($fila['precio_actual'])</td>
@@ -72,8 +79,8 @@
                                             {{ $fila['sugerido'] !== null ? '$'.number_format($fila['sugerido'], 2, ',', '.') : '—' }}
                                         </td>
                                         <td class="px-3 py-2 text-right">
-                                            <input type="text" wire:model="filas.{{ $i }}.precio_nuevo"
-                                                class="w-28 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                            <input type="text" wire:model.live.debounce.500ms="filas.{{ $i }}.precio_nuevo"
+                                                class="w-28 text-right rounded-md {{ !empty($fila['bajo_costo']) ? 'border-yellow-400 dark:border-yellow-600' : 'border-gray-300 dark:border-gray-600' }} dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         </td>
                                     </tr>
                                 @endforeach

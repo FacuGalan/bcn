@@ -81,12 +81,54 @@ class SmokeArticulosTest extends TestCase
 
         $editor->call('aplicarPrecioSugerido')->assertOk();
 
-        // Va al campo del modal, no a la BD todavía.
-        $this->assertEquals($sugerido, (float) $editor->get('precio_base'));
-        $this->assertEquals(100.0, (float) $articulo->fresh()->precio_base);
+        // Va al campo del modal (RF-B4: en edición SIEMPRE el precio efectivo
+        // de la sucursal), no a la BD todavía.
+        $this->assertEquals($sugerido, (float) $editor->get('precio_sucursal'));
+        $this->assertNull($this->precioSucursalDe($articulo->id));
 
         $editor->call('save')->assertOk();
-        $this->assertEquals($sugerido, (float) $articulo->fresh()->precio_base);
+        $this->assertEquals($sugerido, (float) $this->precioSucursalDe($articulo->id));
+    }
+
+    /**
+     * RF-B4 (hardening-circuito-precios): en mono-sucursal, si un masivo creó
+     * un override en articulos_sucursales, el ABM muestra y edita ESE precio
+     * (el que la venta cobra), no el precio_base muerto.
+     */
+    public function test_gestionar_articulos_mono_sucursal_edita_precio_efectivo(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', [
+            'precio_base' => 100,
+        ]);
+
+        // Override como el que deja el cambio masivo de precios.
+        \Illuminate\Support\Facades\DB::connection('pymes_tenant')->table('articulos_sucursales')
+            ->where('articulo_id', $articulo->id)
+            ->where('sucursal_id', $this->sucursalId)
+            ->update(['precio_base' => 150]);
+
+        $editor = Livewire::test(GestionarArticulos::class)
+            ->call('edit', $articulo->id);
+
+        // El modal carga el precio EFECTIVO (150, no el base 100).
+        $this->assertEquals(150.0, (float) $editor->get('precio_sucursal'));
+
+        $editor->set('precio_sucursal', 180)->call('save')->assertOk();
+
+        // Se actualizó el override (lo que la venta cobra); el base no revive.
+        $this->assertEquals(180.0, (float) $this->precioSucursalDe($articulo->id));
+        $this->assertEquals(100.0, (float) $articulo->fresh()->precio_base);
+    }
+
+    private function precioSucursalDe(int $articuloId): ?float
+    {
+        $valor = \Illuminate\Support\Facades\DB::connection('pymes_tenant')->table('articulos_sucursales')
+            ->where('articulo_id', $articuloId)
+            ->where('sucursal_id', $this->sucursalId)
+            ->value('precio_base');
+
+        return $valor !== null ? (float) $valor : null;
     }
 
     public function test_asignar_etiquetas_monta(): void

@@ -10,6 +10,7 @@ use App\Models\CondicionIva;
 use App\Models\ConfiguracionCostos;
 use App\Models\Cuit;
 use App\Models\HistorialCosto;
+use App\Models\HistorialPrecio;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use Exception;
@@ -198,6 +199,13 @@ class CostoService
                     continue;
                 }
 
+                // RF-B3 (hardening-circuito-precios): si el costo vigente ya no
+                // es el que esta compra fijó (lo editaron a mano después), la
+                // reversa no lo pisa — solo se restaura lo que la compra creó.
+                if ((float) $fila->costo_ultimo !== (float) $historialCompra->costo_nuevo) {
+                    continue;
+                }
+
                 // Origen anterior (compra/proveedor previos) desde el historial previo.
                 $historialPrevio = HistorialCosto::where('articulo_id', $fila->articulo_id)
                     ->where('tipo_costo', 'ultimo')
@@ -274,7 +282,17 @@ class CostoService
             $columna = $tipo === 'ultimo' ? 'costo_ultimo' : 'costo_reposicion';
             $anterior = $fila->{$columna} !== null ? (float) $fila->{$columna} : null;
 
-            $fila->update([$columna => $valor]);
+            $cambios = [$columna => $valor];
+
+            // RF-B3 (hardening-circuito-precios): el vigente pasó a ser manual,
+            // no de una compra — se limpia la proveniencia para que cancelar
+            // aquella compra no lo pise.
+            if ($tipo === 'ultimo') {
+                $cambios['compra_ultima_id'] = null;
+                $cambios['proveedor_ultimo_id'] = null;
+            }
+
+            $fila->update($cambios);
 
             HistorialCosto::create([
                 'articulo_id' => $articulo->id,
@@ -290,6 +308,77 @@ class CostoService
 
             return $fila->fresh();
         });
+    }
+
+    /**
+     * Repricing por utilidad (RF-C4 hardening-circuito-precios, extraído del
+     * paso 7 de confirmarCompra — UNA sola fórmula para compras y masivo):
+     * de los IDs recibidos, SOLO los artículos con
+     * `precio_administrado_por_utilidad` se repricean con la fórmula del
+     * sugerido (costo rector × utilidad × IVA, D21). Alcance = regla RF-10:
+     * si el artículo tiene override de precio en la sucursal se actualiza ESE
+     * override; si no, el global. Registra HistorialPrecio origen
+     * 'utilidad_automatica' (con detalle opcional). Devuelve los repriceados.
+     *
+     * @return array<int, array{articulo_id:int, nombre:string, precio_anterior:float, precio_nuevo:float, alcance:string}>
+     */
+    public function repricearArticulos(array $articuloIds, int $sucursalId, int $usuarioId, ?string $detalle = null): array
+    {
+        $repriceados = [];
+
+        $articulos = Articulo::whereIn('id', $articuloIds)
+            ->where('precio_administrado_por_utilidad', true)
+            ->get();
+
+        foreach ($articulos as $articulo) {
+            $sugerido = $this->precioSugerido($articulo, $sucursalId);
+
+            if ($sugerido === null || $sugerido <= 0) {
+                continue;
+            }
+
+            $sugerido = round($sugerido, 2);
+
+            $override = DB::connection('pymes_tenant')->table('articulos_sucursales')
+                ->where('articulo_id', $articulo->id)
+                ->where('sucursal_id', $sucursalId)
+                ->value('precio_base');
+
+            $anterior = $override !== null ? (float) $override : (float) $articulo->precio_base;
+
+            if (round($anterior, 2) === $sugerido) {
+                continue;
+            }
+
+            if ($override !== null) {
+                DB::connection('pymes_tenant')->table('articulos_sucursales')
+                    ->where('articulo_id', $articulo->id)
+                    ->where('sucursal_id', $sucursalId)
+                    ->update(['precio_base' => $sugerido]);
+            } else {
+                $articulo->update(['precio_base' => $sugerido]);
+            }
+
+            HistorialPrecio::registrar([
+                'articulo_id' => $articulo->id,
+                'sucursal_id' => $override !== null ? $sucursalId : null,
+                'precio_anterior' => $anterior,
+                'precio_nuevo' => $sugerido,
+                'origen' => 'utilidad_automatica',
+                'usuario_id' => $usuarioId,
+                'detalle' => $detalle,
+            ]);
+
+            $repriceados[] = [
+                'articulo_id' => $articulo->id,
+                'nombre' => $articulo->nombre,
+                'precio_anterior' => round($anterior, 2),
+                'precio_nuevo' => $sugerido,
+                'alcance' => $override !== null ? 'sucursal' : 'global',
+            ];
+        }
+
+        return $repriceados;
     }
 
     // ==================== Lectura: utilidad, margen y precio ====================
@@ -317,18 +406,14 @@ class CostoService
      * puerta: nunca leer la alícuota directo en fórmulas de pricing.
      *
      * Devuelve la alícuota del TipoIva del artículo SOLO si el comercio
-     * computa IVA (CUIT emisor RI) Y el precio del artículo incluye IVA.
-     * Para un comercio no-RI el costo es bruto y TODO el precio es ingreso ⇒
-     * la fórmula no debe agregar ni quitar IVA (alícuota 0). Ídem cuando el
-     * precio se almacena neto (precio_iva_incluido=false): el sugerido se
-     * materializa neto y el margen no divide.
+     * computa IVA (CUIT emisor RI). Para un comercio no-RI el costo es bruto
+     * y TODO el precio es ingreso ⇒ la fórmula no debe agregar ni quitar IVA
+     * (alícuota 0). RF-A3 (hardening-circuito-precios): el precio es SIEMPRE
+     * final con IVA incluido, así que la alícuota efectiva queda determinada
+     * solo por comercioComputaIva.
      */
     public function alicuotaEfectiva(Articulo $articulo, ?int $sucursalId = null): float
     {
-        if (! $articulo->precio_iva_incluido) {
-            return 0.0;
-        }
-
         if (! $this->comercioComputaIva($sucursalId)) {
             return 0.0;
         }
@@ -596,8 +681,12 @@ class CostoService
      * de condiciones mixtas, `Cuit::activos()->first()` era orden arbitrario
      * (fix 2026-07-13). Sin CUIT configurado ⇒ NO computa (pricing informal:
      * costo bruto, precio pleno).
+     *
+     * Público desde RF-C2 (hardening-circuito-precios): el preview del masivo
+     * de costos lo consulta UNA vez y deriva la alícuota por artículo con su
+     * TipoIva (espejo de alicuotaEfectiva, que con RF-A3 depende solo de esto).
      */
-    private function comercioComputaIva(?int $sucursalId): bool
+    public function comercioComputaIva(?int $sucursalId): bool
     {
         $sucursal = $sucursalId !== null
             ? Sucursal::find($sucursalId)

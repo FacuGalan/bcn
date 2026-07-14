@@ -1546,6 +1546,8 @@ class PedidoMostradorService
             'descuento_lista' => (float) $d->descuento_lista,
             'tiene_promocion' => (bool) $d->tiene_promocion,
             'total' => (float) $d->total,
+            // RF-A3 (hardening-circuito-precios): regla global, el precio es
+            // SIEMPRE final con IVA incluido.
             'precio_iva_incluido' => true,
             // Promociones por línea reconstruidas para que VentaService las persista
             // en venta_detalle_promociones (paridad post-conversión).
