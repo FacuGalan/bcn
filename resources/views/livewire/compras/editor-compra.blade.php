@@ -683,12 +683,20 @@
                                                 data-cell @keydown.enter.prevent="avanzar($event)"
                                                 class="mt-0.5 w-full text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         </div>
-                                        <div class="w-28">
-                                            <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400" title="{{ __('N° de constancia que respalda la percepción o retención (opcional; el respaldo habitual es la propia factura)') }}">{{ __('Certificado') }}</label>
-                                            <input type="text" wire:model="percepciones.{{ $index }}.certificado_numero" placeholder="{{ __('Certificado') }}"
-                                                data-cell @keydown.enter.prevent="avanzar($event)"
-                                                class="mt-0.5 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                        </div>
+                                        @if(!empty($percepcion['con_certificado']))
+                                            <div class="w-28">
+                                                <label class="block text-[11px] font-medium text-gray-500 dark:text-gray-400" title="{{ __('N° de constancia que respalda la percepción o retención (opcional; el respaldo habitual es la propia factura)') }}">{{ __('Certificado') }}</label>
+                                                <input type="text" wire:model="percepciones.{{ $index }}.certificado_numero" placeholder="{{ __('Certificado') }}"
+                                                    data-cell @keydown.enter.prevent="avanzar($event)"
+                                                    class="mt-0.5 w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                            </div>
+                                        @else
+                                            <button type="button" wire:click="mostrarCertificadoPercepcion({{ $index }})" tabindex="-1"
+                                                class="pb-2 text-[11px] text-gray-400 hover:text-bcn-primary dark:hover:text-bcn-primary whitespace-nowrap"
+                                                title="{{ __('N° de constancia que respalda la percepción o retención (opcional; el respaldo habitual es la propia factura)') }}">
+                                                + {{ __('certificado') }}
+                                            </button>
+                                        @endif
                                         <button type="button" wire:click="quitarPercepcion({{ $index }})" tabindex="-1"
                                             class="pb-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400" title="{{ __('Quitar') }}">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>

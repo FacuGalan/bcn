@@ -124,7 +124,10 @@ class EditorCompra extends Component
      * prorratea al costo. `auto` = base/monto siguen la sugerencia (Σ bases ×
      * alícuota) hasta que el usuario los pise a mano.
      *
-     * @var array<int, array{impuesto_id: ?int, base_imponible: string, alicuota: string, monto: string, coeficiente: string, certificado_numero: string, auto: bool}>
+     * `con_certificado` muestra el campo certificado del renglón (arranca
+     * oculto: casi nunca se usa en percepciones).
+     *
+     * @var array<int, array{impuesto_id: ?int, base_imponible: string, alicuota: string, monto: string, coeficiente: string, certificado_numero: string, con_certificado: bool, auto: bool}>
      */
     public array $percepciones = [];
 
@@ -337,6 +340,7 @@ class EditorCompra extends Component
             'monto' => $this->numAString($p->monto),
             'coeficiente' => $p->coeficiente !== null ? $this->numAString($p->coeficiente) : '',
             'certificado_numero' => (string) ($p->certificado_numero ?? ''),
+            'con_certificado' => (string) ($p->certificado_numero ?? '') !== '',
             'auto' => false,
         ])->values()->all();
     }
@@ -955,6 +959,7 @@ class EditorCompra extends Component
             'monto' => '',
             'coeficiente' => $this->coeficientePercepcionDefault((int) $p['impuesto_id']),
             'certificado_numero' => '',
+            'con_certificado' => false,
             'auto' => true,
         ])->values()->all();
 
@@ -1253,8 +1258,20 @@ class EditorCompra extends Component
             'monto' => '',
             'coeficiente' => '',
             'certificado_numero' => '',
+            'con_certificado' => false,
             'auto' => true,
         ];
+    }
+
+    /**
+     * El campo certificado arranca oculto (casi nunca se usa en percepciones);
+     * este botón lo muestra en el renglón cuando hace falta.
+     */
+    public function mostrarCertificadoPercepcion(int $index): void
+    {
+        if (isset($this->percepciones[$index])) {
+            $this->percepciones[$index]['con_certificado'] = true;
+        }
     }
 
     public function quitarPercepcion(int $index): void
