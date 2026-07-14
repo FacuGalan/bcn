@@ -587,20 +587,20 @@ class CostoService
     /**
      * D21: el comercio computa IVA si su CUIT emisor es RI. Por sucursal usa
      * el CUIT principal del pivot (fallback: el primero asignado); sin
-     * sucursal (consolidado) usa el primer CUIT activo del comercio. Sin CUIT
-     * configurado ⇒ NO computa (pricing informal: costo bruto, precio pleno).
+     * sucursal (consolidado) usa el CUIT de la SUCURSAL PRINCIPAL — con CUITs
+     * de condiciones mixtas, `Cuit::activos()->first()` era orden arbitrario
+     * (fix 2026-07-13). Sin CUIT configurado ⇒ NO computa (pricing informal:
+     * costo bruto, precio pleno).
      */
     private function comercioComputaIva(?int $sucursalId): bool
     {
-        $cuit = null;
+        $sucursal = $sucursalId !== null
+            ? Sucursal::find($sucursalId)
+            : (Sucursal::principal()->first() ?? Sucursal::orderBy('id')->first());
 
-        if ($sucursalId !== null) {
-            $sucursal = Sucursal::find($sucursalId);
-            $cuit = $sucursal?->cuits()->wherePivot('es_principal', true)->first()
-                ?? $sucursal?->cuits()->first();
-        }
-
-        $cuit ??= Cuit::activos()->first();
+        $cuit = $sucursal?->cuits()->wherePivot('es_principal', true)->first()
+            ?? $sucursal?->cuits()->first()
+            ?? Cuit::activos()->first();
 
         return $cuit?->condicionIva?->codigo === CondicionIva::RESPONSABLE_INSCRIPTO;
     }

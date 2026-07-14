@@ -125,6 +125,9 @@
                                 @if($compra->esNotaCredito())
                                     <span class="ml-1 px-1.5 py-0.5 text-xs rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">NC</span>
                                 @endif
+                                @if($compra->esServicio())
+                                    <span class="ml-1 px-1.5 py-0.5 text-xs rounded bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300">{{ __('Servicio') }}</span>
+                                @endif
                             </p>
                             <p class="text-xs text-gray-500 dark:text-gray-400">{{ $labelTipo($compra->tipo_comprobante) }}
                                 @if($compra->numero_comprobante_proveedor) · {{ $compra->numero_comprobante_proveedor }} @endif
@@ -234,6 +237,9 @@
                                     @endif
                                     @if($compra->esNotaCredito())
                                         <span class="ml-1 px-1.5 py-0.5 text-xs rounded bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300">NC</span>
+                                    @endif
+                                    @if($compra->esServicio())
+                                        <span class="ml-1 px-1.5 py-0.5 text-xs rounded bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300">{{ __('Servicio') }}</span>
                                     @endif
                                 </td>
                                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">

@@ -332,6 +332,21 @@ class ConfiguracionEmpresa extends Component
             ->get();
     }
 
+    /**
+     * ¿Conviven CUITs ACTIVOS con condiciones de IVA distintas? (aviso D21:
+     * el sugerido/margen usa el CUIT principal de cada sucursal, que puede no
+     * ser el CUIT del punto de venta que factura).
+     */
+    public function getCuitsCondicionesMixtasProperty(): bool
+    {
+        return $this->cuits
+            ->where('activo', true)
+            ->pluck('condicion_iva_id')
+            ->filter()
+            ->unique()
+            ->count() > 1;
+    }
+
     public function getSucursalesProperty()
     {
         return CatalogoCache::sucursalesTodas();

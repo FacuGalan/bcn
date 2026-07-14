@@ -434,11 +434,6 @@
                                     <span class="text-sm font-medium text-gray-900 dark:text-white">
                                         ${{ number_format($precioEfectivo, 2) }}
                                     </span>
-                                    @if($articulo->precio_sucursal !== null)
-                                        <div class="text-xs text-gray-400" title="{{ __('Precio base genérico') }}">
-                                            ${{ number_format($articulo->precio_base ?? 0, 2) }}
-                                        </div>
-                                    @endif
                                 </td>
                                 @if($this->puedeVerCostos())
                                     <td class="px-6 py-4 whitespace-nowrap text-right">
@@ -853,29 +848,8 @@
                                         @error('tipo_iva_id') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                     </div>
 
-                                    <!-- Precio Base -->
-                                    <div>
-                                        <label for="precio_base" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                                            {{ __('Precio Base') }} *
-                                            <span class="text-xs text-gray-500 dark:text-gray-400 font-normal ml-1">({{ __('fallback global') }})</span>
-                                        </label>
-                                        <div class="mt-1 relative rounded-md shadow-sm">
-                                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                                <span class="text-gray-500 dark:text-gray-400 sm:text-sm">$</span>
-                                            </div>
-                                            <input
-                                                type="number"
-                                                id="precio_base"
-                                                wire:model="precio_base"
-                                                step="0.01"
-                                                min="0"
-                                                class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"
-                                                placeholder="0.00"
-                                                required
-                                            />
-                                        </div>
-                                        @error('precio_base') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                    </div>
+                                    {{-- El precio de venta vive en "Utilidad y precio"
+                                        (decisión 2026-07-13: un solo precio, el de la sucursal) --}}
                                 </div>
 
                                 <!-- Descripción -->
@@ -904,20 +878,6 @@
                                             aria-checked="{{ $es_materia_prima ? 'true' : 'false' }}"
                                         >
                                             <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $es_materia_prima ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                                        </button>
-                                    </div>
-
-                                    <!-- IVA Incluido -->
-                                    <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between">
-                                        <label for="precio_iva_incluido" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('IVA Incluido') }}</label>
-                                        <button
-                                            type="button"
-                                            wire:click="$toggle('precio_iva_incluido')"
-                                            class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_iva_incluido ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
-                                            role="switch"
-                                            aria-checked="{{ $precio_iva_incluido ? 'true' : 'false' }}"
-                                        >
-                                            <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_iva_incluido ? 'translate-x-5' : 'translate-x-0' }}"></span>
                                         </button>
                                     </div>
 
@@ -950,11 +910,12 @@
                                     </div>
                                 </div>
 
-                                <!-- Costos y utilidad (Fase 7 spec compras-costos, RF-02/08/09) -->
+                                <!-- Costos (Fase 7 spec compras-costos, RF-02/08/09).
+                                    La utilidad objetivo vive en "Utilidad y precio", junto al precio de venta. -->
                                 @if($this->puedeVerCostos())
                                     <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
                                         <div class="flex items-center justify-between mb-1">
-                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Costos y utilidad') }}</label>
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('Costos') }}</label>
                                             @if($editMode)
                                                 <button type="button" wire:click="verHistorialCostos({{ $articuloId }})"
                                                     class="text-xs text-teal-600 dark:text-teal-400 hover:underline">
@@ -1020,50 +981,6 @@
                                                     {{ __('Sin costos propios en esta sucursal: se muestra el consolidado del comercio') }}
                                                 </p>
                                             @endif
-                                        @endif
-
-                                        {{-- Utilidad objetivo + repricing automático --}}
-                                        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            <div>
-                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Utilidad objetivo (%)') }}</label>
-                                                <input type="text" wire:model.live.debounce.400ms="utilidad_porcentaje"
-                                                    @if(! $this->puedeEditarCostos()) disabled @endif
-                                                    placeholder="{{ $editMode && ($costosInfo['utilidad_heredada'] ?? null) !== null
-                                                        ? __('Hereda :valor% de :origen', ['valor' => number_format($costosInfo['utilidad_heredada'], 1), 'origen' => $costosInfo['origen_utilidad'] ?? __('comercio')])
-                                                        : __('Hereda de categoría/comercio') }}"
-                                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-60">
-                                            </div>
-                                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between self-end">
-                                                <label class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer" title="{{ __('Al confirmar una compra que cambia el costo, el precio se recalcula solo con la utilidad objetivo') }}">
-                                                    {{ __('Precio administrado por utilidad') }}
-                                                </label>
-                                                <button type="button"
-                                                    @if($this->puedeEditarCostos()) wire:click="$toggle('precio_administrado_por_utilidad')" @endif
-                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_administrado_por_utilidad ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
-                                                    role="switch" aria-checked="{{ $precio_administrado_por_utilidad ? 'true' : 'false' }}">
-                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_administrado_por_utilidad ? 'translate-x-5' : 'translate-x-0' }}"></span>
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        {{-- La cuenta del precio sugerido, visible y desglosada (§3c) --}}
-                                        @if($editMode)
-                                            @php $cuenta = $this->cuentaSugerida(); @endphp
-                                            @if($cuenta !== null)
-                                                <div class="mt-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
-                                                    {{ __('Precio sugerido') }}:
-                                                    ${{ number_format($cuenta['costo'], 2) }} ({{ __('costo') }})
-                                                    × {{ number_format(1 + $cuenta['utilidad'] / 100, 2) }} ({{ __('utilidad') }} {{ number_format($cuenta['utilidad'], 1) }}%)
-                                                    @if($cuenta['alicuota'] > 0)
-                                                        × {{ number_format(1 + $cuenta['alicuota'] / 100, 2) }} ({{ __('IVA') }} {{ number_format($cuenta['alicuota'], 1) }}%)
-                                                    @endif
-                                                    = <strong>${{ number_format($cuenta['sugerido'], 2) }}</strong>
-                                                    @if(($costosInfo['margen'] ?? null) !== null)
-                                                        · {{ __('Margen real actual') }}: <strong>{{ number_format($costosInfo['margen']['margen_real'], 1) }}%</strong>
-                                                        ({{ __('objetivo') }} {{ number_format($costosInfo['margen']['utilidad_objetivo'], 1) }}%)
-                                                    @endif
-                                                </div>
-                                            @endif
 
                                             {{-- Proveedores del artículo (RF-04) --}}
                                             @if(($costosInfo['proveedores'] ?? []) !== [])
@@ -1099,36 +1016,122 @@
                                     </div>
                                 @endif
 
-                                <!-- Configuración de stock y sucursal -->
+                                <!-- Utilidad y precio: el precio es ÚNICO (decisión 2026-07-13): en multi-sucursal
+                                    muestra el efectivo y persiste SIEMPRE sobre la sucursal activa;
+                                    el genérico global se administrará desde Manager. -->
                                 <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                    @multiSucursal
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
-                                            {{ __('Configuración sucursal activa') }}
-                                        </label>
-                                    @endmultiSucursal
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 {{ es_multi_sucursal() ? 'lg:grid-cols-3' : '' }} gap-4">
-                                        <!-- Precio sucursal (solo multi-sucursal) -->
-                                        @multiSucursal
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                        {{ __('Utilidad y precio') }}
+                                    </label>
+
+                                    @if($this->puedeVerCostos())
+                                        {{-- Utilidad objetivo + repricing automático: operan sobre el precio de la sucursal --}}
+                                        <div class="mb-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Utilidad objetivo (%)') }}</label>
+                                                <input type="text" wire:model.live.debounce.400ms="utilidad_porcentaje"
+                                                    @if(! $this->puedeEditarCostos()) disabled @endif
+                                                    placeholder="{{ $editMode && ($costosInfo['utilidad_heredada'] ?? null) !== null
+                                                        ? __('Hereda :valor% de :origen', ['valor' => number_format($costosInfo['utilidad_heredada'], 1), 'origen' => $costosInfo['origen_utilidad'] ?? __('comercio')])
+                                                        : __('Hereda de categoría/comercio') }}"
+                                                    class="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-60">
+                                            </div>
+                                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3 flex items-center justify-between self-end">
+                                                <label class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer" title="{{ __('Al confirmar una compra que cambia el costo, el precio se recalcula solo con la utilidad objetivo') }}">
+                                                    {{ __('Precio administrado por utilidad') }}
+                                                </label>
+                                                <button type="button"
+                                                    @if($this->puedeEditarCostos()) wire:click="$toggle('precio_administrado_por_utilidad')" @endif
+                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_administrado_por_utilidad ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                                    role="switch" aria-checked="{{ $precio_administrado_por_utilidad ? 'true' : 'false' }}">
+                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_administrado_por_utilidad ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    @endif
+
+                                    {{-- Precio de venta + IVA incluido --}}
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <!-- Precio de venta -->
                                         <div>
-                                            <label for="precio_sucursal" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Precio sucursal') }}</label>
+                                            <label for="precio_venta" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Precio de venta') }} *</label>
                                             <div class="mt-1 relative rounded-md shadow-sm">
                                                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                                     <span class="text-gray-500 dark:text-gray-400 text-xs">$</span>
                                                 </div>
                                                 <input
                                                     type="number"
-                                                    id="precio_sucursal"
-                                                    wire:model="precio_sucursal"
+                                                    id="precio_venta"
+                                                    wire:model="{{ $editMode && es_multi_sucursal() ? 'precio_sucursal' : 'precio_base' }}"
                                                     step="0.01"
                                                     min="0"
                                                     class="block w-full pl-7 pr-3 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
-                                                    placeholder="{{ __('Usar genérico') }}"
+                                                    placeholder="0.00"
                                                 />
                                             </div>
+                                            @error('precio_base') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                             @error('precio_sucursal') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                                         </div>
-                                        @endmultiSucursal
 
+                                        <!-- IVA incluido en el precio (semántica de PRICING, aclarada) -->
+                                        <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-3">
+                                            <div class="flex items-center justify-between">
+                                                <label for="precio_iva_incluido" class="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">{{ __('IVA incluido en el precio') }}</label>
+                                                <button
+                                                    type="button"
+                                                    wire:click="$toggle('precio_iva_incluido')"
+                                                    class="relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-bcn-primary {{ $precio_iva_incluido ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-500' }}"
+                                                    role="switch"
+                                                    aria-checked="{{ $precio_iva_incluido ? 'true' : 'false' }}"
+                                                >
+                                                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 {{ $precio_iva_incluido ? 'translate-x-5' : 'translate-x-0' }}"></span>
+                                                </button>
+                                            </div>
+                                            <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                                {{ $precio_iva_incluido
+                                                    ? __('Precio FINAL: el IVA va adentro y se desglosa al facturar')
+                                                    : __('Precio NETO: el IVA se suma encima al vender') }}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    @if($this->puedeVerCostos())
+                                        {{-- La cuenta del precio sugerido, visible y desglosada (§3c) --}}
+                                        @if($editMode)
+                                            @php $cuenta = $this->cuentaSugerida(); @endphp
+                                            @if($cuenta !== null)
+                                                <div class="mt-3 rounded-md bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
+                                                    {{ __('Precio sugerido') }}:
+                                                    ${{ number_format($cuenta['costo'], 2) }} ({{ __('costo') }})
+                                                    × {{ number_format(1 + $cuenta['utilidad'] / 100, 2) }} ({{ __('utilidad') }} {{ number_format($cuenta['utilidad'], 1) }}%)
+                                                    @if($cuenta['alicuota'] > 0)
+                                                        × {{ number_format(1 + $cuenta['alicuota'] / 100, 2) }} ({{ __('IVA') }} {{ number_format($cuenta['alicuota'], 1) }}%)
+                                                    @endif
+                                                    = <strong>${{ number_format($cuenta['sugerido'], 2) }}</strong>
+                                                    @if(($costosInfo['margen'] ?? null) !== null)
+                                                        · {{ __('Margen real actual') }}: <strong>{{ number_format($costosInfo['margen']['margen_real'], 1) }}%</strong>
+                                                        ({{ __('objetivo') }} {{ number_format($costosInfo['margen']['utilidad_objetivo'], 1) }}%)
+                                                    @endif
+                                                    @if($cuenta['sugerido'] > 0)
+                                                        <button type="button" wire:click="aplicarPrecioSugerido"
+                                                            title="{{ __('Copia el sugerido al precio de venta; se persiste al guardar') }}"
+                                                            class="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded border border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 font-medium">
+                                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                                            {{ __('Usar como precio') }}
+                                                        </button>
+                                                    @endif
+                                                </div>
+                                            @endif
+                                        @endif
+                                    @endif
+                                </div>
+
+                                <!-- Configuración en la sucursal: stock, venta y canales -->
+                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
+                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+                                        {{ __('Configuración en la sucursal') }}
+                                    </label>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <!-- Modo stock -->
                                         <div>
                                             <label for="modo_stock" class="block text-xs font-medium text-gray-600 dark:text-gray-400">{{ __('Modo de stock') }}</label>
@@ -1160,41 +1163,41 @@
                                             </div>
                                         </div>
                                     </div>
-                                </div>
 
-                                <!-- Delivery y Tienda (RF-16/RF-17 pedidos-delivery) -->
-                                <div class="pt-4 border-t border-gray-200 dark:border-gray-700">
-                                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">{{ __('Delivery y Tienda') }}</label>
-                                    <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
-                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
-                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Disponible delivery') }}</span>
-                                            <input type="checkbox" wire:model="disponible_delivery" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
-                                        </label>
-                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
-                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Disponible take-away') }}</span>
-                                            <input type="checkbox" wire:model="disponible_take_away" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
-                                        </label>
-                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
-                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Visible en tienda') }} <span class="text-gray-400">({{ __('sucursal') }})</span></span>
-                                            <input type="checkbox" wire:model="visible_tienda" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
-                                        </label>
-                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
-                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Destacado en tienda') }}</span>
-                                            <input type="checkbox" wire:model="destacado" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
-                                        </label>
-                                        <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
-                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Vender sin stock') }}</span>
-                                            <input type="checkbox" wire:model="permite_venta_sin_stock" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
-                                        </label>
-                                        <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2">
-                                            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Orden en tienda') }}</span>
-                                            <input type="number" min="0" wire:model="tienda_orden"
-                                                class="w-16 rounded-md border-gray-300 dark:border-gray-500 dark:bg-gray-600 dark:text-white shadow-sm text-xs py-1" />
+                                    {{-- Delivery y Tienda (RF-16/RF-17): sub-ítem; a futuro podría mudarse a la configuración de la tienda --}}
+                                    <div class="mt-3">
+                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">{{ __('Delivery y Tienda') }}</label>
+                                        <div class="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                            <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Disponible delivery') }}</span>
+                                                <input type="checkbox" wire:model="disponible_delivery" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                            </label>
+                                            <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Disponible take-away') }}</span>
+                                                <input type="checkbox" wire:model="disponible_take_away" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                            </label>
+                                            <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Visible en tienda') }} <span class="text-gray-400">({{ __('sucursal') }})</span></span>
+                                                <input type="checkbox" wire:model="visible_tienda" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                            </label>
+                                            <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Destacado en tienda') }}</span>
+                                                <input type="checkbox" wire:model="destacado" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                            </label>
+                                            <label class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2 cursor-pointer">
+                                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Vender sin stock') }}</span>
+                                                <input type="checkbox" wire:model="permite_venta_sin_stock" class="rounded border-gray-300 dark:border-gray-500 text-bcn-primary focus:ring-bcn-primary" />
+                                            </label>
+                                            <div class="bg-gray-100 dark:bg-gray-700 rounded-lg p-2.5 flex items-center justify-between gap-2">
+                                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Orden en tienda') }}</span>
+                                                <input type="number" min="0" wire:model="tienda_orden"
+                                                    class="w-16 rounded-md border-gray-300 dark:border-gray-500 dark:bg-gray-600 dark:text-white shadow-sm text-xs py-1" />
+                                            </div>
                                         </div>
+                                        <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                                            {{ __('Un artículo agotado sin "vender sin stock" se muestra en la tienda pero no se puede pedir.') }}
+                                        </p>
                                     </div>
-                                    <p class="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
-                                        {{ __('Un artículo agotado sin "vender sin stock" se muestra en la tienda pero no se puede pedir.') }}
-                                    </p>
                                 </div>
 
                                 <!-- Etiquetas + Imagen lado a lado -->

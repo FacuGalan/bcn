@@ -95,6 +95,7 @@ class Compra extends Model
         'fecha_comprobante',
         'fecha_vencimiento',
         'tipo_comprobante',
+        'es_servicio',
         'subtotal',
         'neto_gravado',
         'neto_no_gravado',
@@ -113,6 +114,7 @@ class Compra extends Model
         'fecha' => 'date',
         'fecha_comprobante' => 'date',
         'fecha_vencimiento' => 'date',
+        'es_servicio' => 'boolean',
         'subtotal' => 'decimal:2',
         'neto_gravado' => 'decimal:2',
         'neto_no_gravado' => 'decimal:2',
@@ -289,6 +291,15 @@ class Compra extends Model
     {
         return $this->tipo_comprobante !== null
             && str_starts_with($this->tipo_comprobante, 'nota_credito');
+    }
+
+    /**
+     * ¿Es una factura de servicio? (D23: sin grilla de artículos ni efectos
+     * de stock/costos/repricing — el detalle son los conceptos)
+     */
+    public function esServicio(): bool
+    {
+        return (bool) $this->es_servicio;
     }
 
     /**

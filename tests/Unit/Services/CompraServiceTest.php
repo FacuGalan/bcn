@@ -5,6 +5,7 @@ namespace Tests\Unit\Services;
 use App\Models\ArticuloCosto;
 use App\Models\Compra;
 use App\Models\CondicionIva;
+use App\Models\CuentaCompra;
 use App\Models\Cuit;
 use App\Models\HistorialCosto;
 use App\Models\Impuesto;
@@ -618,7 +619,99 @@ class CompraServiceTest extends TestCase
         $this->servicio->corregirCompra($borrador, ['usuario_id' => 1], [], []);
     }
 
+    // ==================== Factura de servicio (D23) ====================
+
+    public function test_factura_de_servicio_confirma_sin_stock_ni_costos_y_con_credito(): void
+    {
+        // Criterio D23: sin renglones — el detalle son los conceptos; nada de
+        // stock/costos/repricing; el circuito fiscal y de cta cte es el normal.
+        $cuenta = CuentaCompra::create(['nombre' => 'Servicios', 'orden' => 1, 'activo' => true]);
+
+        $compra = $this->borradorServicio($cuenta->id, [
+            ['tipo' => 'otro', 'descripcion' => 'Energía eléctrica', 'monto' => 1000, 'tipo_iva_id' => $this->tiposIva[5]->id, 'computa_costo' => false],
+        ], [['alicuota' => 21, 'base_imponible' => 1000, 'importe' => 210]]);
+
+        $confirmada = $this->servicio->confirmarCompra($compra, 1);
+
+        // Totales: 0 renglones + 1000 concepto + 210 IVA = 1210.
+        $this->assertEquals(Compra::ESTADO_COMPLETADA, $confirmada->estado);
+        $this->assertEquals(0.0, (float) $confirmada->subtotal);
+        $this->assertEquals(1000.0, (float) $confirmada->neto_gravado);
+        $this->assertEquals(1210.0, (float) $confirmada->total);
+
+        // Sin efectos de stock ni costos.
+        $this->assertEquals(0, MovimientoStock::where('compra_id', $confirmada->id)->count());
+        $this->assertEquals(0, ArticuloCosto::count());
+        $this->assertEquals(0, HistorialCosto::count());
+
+        // Crédito fiscal normal (fiscal + discrimina + comprador RI).
+        $credito = MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', $confirmada->id)
+            ->where('naturaleza', MovimientoFiscal::NATURALEZA_CREDITO_FISCAL)->first();
+        $this->assertEquals(210.0, (float) $credito->monto);
+    }
+
+    public function test_factura_de_servicio_sin_conceptos_no_confirma(): void
+    {
+        $cuenta = CuentaCompra::create(['nombre' => 'Servicios', 'orden' => 1, 'activo' => true]);
+        $compra = $this->borradorServicio($cuenta->id, conceptos: []);
+
+        $this->expectExceptionMessage('renglón de detalle');
+        $this->servicio->confirmarCompra($compra, 1);
+    }
+
+    public function test_factura_de_servicio_exige_cuenta_de_compra(): void
+    {
+        $compra = $this->borradorServicio(null, [
+            ['tipo' => 'otro', 'descripcion' => 'Gas', 'monto' => 500, 'computa_costo' => false],
+        ]);
+
+        $this->expectExceptionMessage('cuenta de compra');
+        $this->servicio->confirmarCompra($compra, 1);
+    }
+
+    public function test_factura_de_servicio_no_admite_renglones_de_articulos(): void
+    {
+        $cuenta = CuentaCompra::create(['nombre' => 'Servicios', 'orden' => 1, 'activo' => true]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+
+        $compra = $this->servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'cuit_id' => $this->crearCuit(CondicionIva::RESPONSABLE_INSCRIPTO)->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_FACTURA_A,
+            'fecha_comprobante' => '2026-07-01',
+            'es_servicio' => true,
+            'cuenta_compra_id' => $cuenta->id,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 1, 'factor_conversion' => 1, 'precio_unitario' => 100, 'tipo_iva_id' => $this->tiposIva[5]->id],
+        ], [
+            'conceptos' => [['tipo' => 'otro', 'descripcion' => 'Abono', 'monto' => 100, 'computa_costo' => false]],
+            'ivas' => [['alicuota' => 21, 'base_imponible' => 200, 'importe' => 42]],
+        ]);
+
+        $this->expectExceptionMessage('no lleva renglones');
+        $this->servicio->confirmarCompra($compra, 1);
+    }
+
     // ==================== Helpers ====================
+
+    private function borradorServicio(?int $cuentaCompraId, array $conceptos, array $ivas = []): Compra
+    {
+        return $this->servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'cuit_id' => $this->crearCuit(CondicionIva::RESPONSABLE_INSCRIPTO)->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_FACTURA_A,
+            'fecha_comprobante' => '2026-07-01',
+            'es_servicio' => true,
+            'cuenta_compra_id' => $cuentaCompraId,
+        ], [], [
+            'conceptos' => $conceptos,
+            'ivas' => $ivas,
+        ]);
+    }
 
     private function borradorFacturaA($articulo, float $cantidad, float $precio, ?int $cuitId = null, ?string $fechaComprobante = '2026-07-01'): Compra
     {

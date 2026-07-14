@@ -18,6 +18,9 @@
                         @if($compra->numero_comprobante_proveedor)
                             · {{ $compra->numero_comprobante_proveedor }}
                         @endif
+                        @if($compra->esServicio())
+                            <span class="ml-1 px-1.5 py-0.5 text-xs rounded bg-sky-100 text-sky-700 dark:bg-sky-900 dark:text-sky-300">{{ __('Servicio') }}</span>
+                        @endif
                     </p>
                 </div>
                 <div>
@@ -69,7 +72,8 @@
                 @endif
             </div>
 
-            {{-- Renglones --}}
+            {{-- Renglones (D23: una factura de servicio no tiene — su detalle son los conceptos) --}}
+            @if(! $compra->esServicio())
             <div>
                 <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ __('Renglones') }}</h4>
                 <div class="overflow-x-auto border border-gray-200 dark:border-gray-700 rounded-md">
@@ -138,6 +142,7 @@
                     </table>
                 </div>
             </div>
+            @endif
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 <div class="space-y-4">
@@ -177,13 +182,17 @@
                     {{-- Conceptos --}}
                     @if($compra->conceptos->isNotEmpty())
                         <div>
-                            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ __('Conceptos del pie') }}</h4>
+                            <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{{ $compra->esServicio() ? __('Detalle del servicio') : __('Conceptos del pie') }}</h4>
                             <ul class="border border-gray-200 dark:border-gray-700 rounded-md divide-y divide-gray-200 dark:divide-gray-700">
                                 @foreach($compra->conceptos as $concepto)
                                     <li class="px-3 py-2 flex justify-between text-sm">
                                         <span class="text-gray-800 dark:text-gray-200">
-                                            {{ __(ucfirst(str_replace('_', ' ', $concepto->tipo))) }}
-                                            @if($concepto->descripcion) — {{ $concepto->descripcion }} @endif
+                                            @if($compra->esServicio())
+                                                {{ $concepto->descripcion ?: __('Otro') }}
+                                            @else
+                                                {{ __(ucfirst(str_replace('_', ' ', $concepto->tipo))) }}
+                                                @if($concepto->descripcion) — {{ $concepto->descripcion }} @endif
+                                            @endif
                                             @if($concepto->computa_costo)
                                                 <span class="text-xs px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300">{{ __('Computa costo') }}</span>
                                             @endif

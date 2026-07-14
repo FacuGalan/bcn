@@ -60,6 +60,9 @@ class GestionarProveedores extends Component
 
     public ?int $dias_pago = null;
 
+    /** D23: proveedor de servicios — sugiere la modalidad "factura de servicio" en el editor. */
+    public bool $es_servicio = false;
+
     public bool $activo = true;
 
     // Modal cuentas de compra (RF-22)
@@ -99,6 +102,7 @@ class GestionarProveedores extends Component
         $this->reset([
             'proveedorId', 'codigo', 'nombre', 'razon_social', 'cuit', 'email', 'telefono',
             'direccion', 'condicion_iva_id', 'cuenta_compra_id', 'tiene_cuenta_corriente', 'dias_pago',
+            'es_servicio',
         ]);
         $this->activo = true;
         $this->editMode = false;
@@ -121,6 +125,7 @@ class GestionarProveedores extends Component
         $this->cuenta_compra_id = $proveedor->cuenta_compra_id;
         $this->tiene_cuenta_corriente = (bool) $proveedor->tiene_cuenta_corriente;
         $this->dias_pago = $proveedor->dias_pago;
+        $this->es_servicio = (bool) $proveedor->es_servicio;
         $this->activo = (bool) $proveedor->activo;
 
         $this->editMode = true;
@@ -154,6 +159,7 @@ class GestionarProveedores extends Component
             'cuenta_compra_id' => $this->cuenta_compra_id,
             'tiene_cuenta_corriente' => $this->tiene_cuenta_corriente,
             'dias_pago' => $this->dias_pago,
+            'es_servicio' => $this->es_servicio,
             'activo' => $this->activo,
         ];
 

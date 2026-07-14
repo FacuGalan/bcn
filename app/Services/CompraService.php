@@ -83,6 +83,7 @@ class CompraService
                 'fecha_comprobante' => $data['fecha_comprobante'] ?? null,
                 'fecha_vencimiento' => $data['fecha_vencimiento'] ?? null,
                 'tipo_comprobante' => $data['tipo_comprobante'],
+                'es_servicio' => (bool) ($data['es_servicio'] ?? false),
                 'descuento_global_porcentaje' => $data['descuento_global_porcentaje'] ?? null,
                 'neto_no_gravado' => $data['neto_no_gravado'] ?? 0,
                 'neto_exento' => $data['neto_exento'] ?? 0,
@@ -126,6 +127,7 @@ class CompraService
                 'fecha_comprobante' => $data['fecha_comprobante'] ?? null,
                 'fecha_vencimiento' => $data['fecha_vencimiento'] ?? null,
                 'tipo_comprobante' => $data['tipo_comprobante'],
+                'es_servicio' => (bool) ($data['es_servicio'] ?? false),
                 'descuento_global_porcentaje' => $data['descuento_global_porcentaje'] ?? null,
                 'neto_no_gravado' => $data['neto_no_gravado'] ?? 0,
                 'neto_exento' => $data['neto_exento'] ?? 0,
@@ -196,8 +198,9 @@ class CompraService
             // 3. Stock (la NC devuelve: egreso).
             $this->moverStock($compra, $usuarioId, reversa: $compra->esNotaCredito());
 
-            // 4. Costos — solo compras (RF-21: una NC parcial NO recalcula costos).
-            if (! $compra->esNotaCredito()) {
+            // 4. Costos — solo compras de artículos (RF-21: una NC parcial NO
+            //    recalcula costos; D23: un servicio no tiene costos de artículo).
+            if (! $compra->esNotaCredito() && ! $compra->esServicio()) {
                 $this->costoService->registrarDesdeCompra($compra->fresh(['detalles']), $usuarioId);
             }
 
@@ -224,7 +227,7 @@ class CompraService
 
             // 7. Repricing automático (RF-11): los artículos opt-in se
             //    repricean con la fórmula del sugerido sobre el costo nuevo.
-            $this->ultimoRepricing = $compra->esNotaCredito()
+            $this->ultimoRepricing = $compra->esNotaCredito() || $compra->esServicio()
                 ? []
                 : $this->repricearAutomaticos($compra, $usuarioId);
         });
@@ -286,7 +289,7 @@ class CompraService
             // Reversa de stock (la cancelación de una NC repone lo devuelto).
             $this->moverStock($compra, $usuarioId, reversa: ! $compra->esNotaCredito(), cancelacion: true);
 
-            if (! $compra->esNotaCredito()) {
+            if (! $compra->esNotaCredito() && ! $compra->esServicio()) {
                 $this->costoService->revertirCostoUltimoSiCorresponde($compra, $usuarioId);
             }
 
@@ -471,8 +474,24 @@ class CompraService
             throw new Exception(__('Ya existe una compra activa de este proveedor con ese tipo y número de comprobante'));
         }
 
-        if (! $compra->esNotaCredito() && $compra->detalles->isEmpty()) {
+        if (! $compra->esNotaCredito() && ! $compra->esServicio() && $compra->detalles->isEmpty()) {
             throw new Exception(__('La compra no tiene renglones'));
+        }
+
+        // D23: una factura de servicio no mueve stock ni costos — su detalle
+        // son los conceptos, y la cuenta de compra es el eje del reporte.
+        if ($compra->esServicio()) {
+            if ($compra->detalles->isNotEmpty()) {
+                throw new Exception(__('Una factura de servicio no lleva renglones de artículos'));
+            }
+
+            if ($compra->conceptos->isEmpty()) {
+                throw new Exception(__('La factura de servicio necesita al menos un renglón de detalle (concepto)'));
+            }
+
+            if ($compra->cuenta_compra_id === null) {
+                throw new Exception(__('La cuenta de compra es obligatoria en una factura de servicio'));
+            }
         }
 
         if ($compra->esNotaCredito() && $compra->compra_origen_id !== null) {

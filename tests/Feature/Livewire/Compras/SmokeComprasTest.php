@@ -286,6 +286,144 @@ class SmokeComprasTest extends TestCase
         $this->assertSame($proveedor->id, $editor->get('proveedorId'));
     }
 
+    // ==================== Incrementos D23/D24 (factura de servicio + percepciones habituales) ====================
+
+    public function test_editor_servicio_guarda_borrador_sin_renglones(): void
+    {
+        $cuenta = \App\Models\CuentaCompra::create(['nombre' => 'Servicios Smoke '.uniqid(), 'orden' => 98, 'activo' => true]);
+        $proveedor = Proveedor::create([
+            'nombre' => 'EDESUR Smoke '.uniqid(),
+            'activo' => true,
+            'es_servicio' => true,
+            'cuenta_compra_id' => $cuenta->id,
+        ]);
+        $this->crearTiposIva();
+
+        $editor = Livewire::test(EditorCompra::class)
+            ->call('seleccionarProveedor', $proveedor->id)
+            // D23: el flag del proveedor sugiere la modalidad + su cuenta default.
+            ->assertSet('esServicio', true)
+            ->assertSet('cuentaCompraId', $cuenta->id)
+            ->call('agregarConcepto')
+            ->set('conceptos.0.descripcion', 'Energía eléctrica')
+            ->set('conceptos.0.monto', '1000')
+            ->set('conceptos.0.tipo_iva_id', $this->tiposIva[5]->id)
+            ->call('guardarBorrador')
+            ->assertOk();
+
+        $compra = Compra::findOrFail($editor->get('compraId'));
+        $this->assertTrue($compra->esServicio());
+        $this->assertCount(0, $compra->detalles);
+        $this->assertCount(1, $compra->conceptos);
+        $this->assertEquals(1000.0, (float) $compra->conceptos->first()->monto);
+    }
+
+    public function test_editor_precarga_percepciones_habituales_del_proveedor(): void
+    {
+        $impuesto = \App\Models\Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_smoke'],
+            ['nombre' => 'Perc IIBB Smoke', 'tipo' => \App\Models\Impuesto::TIPO_IIBB, 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true],
+        );
+        $proveedor = Proveedor::create([
+            'nombre' => 'Prov Percepciones '.uniqid(),
+            'activo' => true,
+            'percepciones_habituales' => [['impuesto_id' => $impuesto->id, 'alicuota' => 3.5]],
+        ]);
+
+        Livewire::test(EditorCompra::class)
+            ->call('seleccionarProveedor', $proveedor->id)
+            ->assertSet('percepciones.0.impuesto_id', $impuesto->id)
+            ->assertSet('percepciones.0.alicuota', '3.5')
+            ->assertSet('percepciones.0.monto', '')
+            ->assertOk();
+    }
+
+    public function test_gestionar_proveedores_guarda_servicio_y_perfil_fiscal_percepciones(): void
+    {
+        $impuesto = \App\Models\Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_smoke'],
+            ['nombre' => 'Perc IIBB Smoke', 'tipo' => \App\Models\Impuesto::TIPO_IIBB, 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true],
+        );
+        $nombre = 'Metrogas Smoke '.uniqid();
+
+        Livewire::test(GestionarProveedores::class)
+            ->call('create')
+            ->set('nombre', $nombre)
+            ->set('es_servicio', true)
+            ->call('save')
+            ->assertSet('showModal', false)
+            ->assertOk();
+
+        $proveedor = Proveedor::where('nombre', $nombre)->first();
+        $this->assertTrue((bool) $proveedor->es_servicio);
+
+        // D24: las percepciones habituales se cargan desde el perfil fiscal
+        // del proveedor (componente aparte, espejo de ClienteImpuestos).
+        Livewire::test(\App\Livewire\Compras\ProveedorImpuestos::class)
+            ->call('abrir', $proveedor->id)
+            ->assertSet('mostrarModal', true)
+            ->call('agregarImpuesto', $impuesto->id)
+            ->set('filas.0.alicuota', '2.5')
+            ->call('guardar')
+            ->assertSet('mostrarModal', false)
+            ->assertOk();
+
+        $this->assertEquals(
+            [['impuesto_id' => $impuesto->id, 'alicuota' => 2.5]],
+            $proveedor->fresh()->percepciones_habituales,
+        );
+
+        // Quitar la percepción deja el perfil vacío (JSON null).
+        Livewire::test(\App\Livewire\Compras\ProveedorImpuestos::class)
+            ->call('abrir', $proveedor->id)
+            ->assertSet('filas.0.impuesto_id', $impuesto->id)
+            ->call('quitarImpuesto', $impuesto->id)
+            ->call('guardar')
+            ->assertOk();
+
+        $this->assertNull($proveedor->fresh()->percepciones_habituales);
+    }
+
+    public function test_proveedor_impuestos_monta(): void
+    {
+        Livewire::test(\App\Livewire\Compras\ProveedorImpuestos::class)->assertOk();
+    }
+
+    /**
+     * Los descuentos del renglón de la ÚLTIMA compra completada al proveedor
+     * PISAN a los habituales del catálogo al precargar el artículo (2026-07-13).
+     */
+    public function test_editor_precarga_descuentos_de_la_ultima_compra_al_proveedor(): void
+    {
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Ult Desc '.uniqid(), 'activo' => true]);
+
+        \App\Models\ArticuloProveedor::create([
+            'articulo_id' => $articulo->id,
+            'proveedor_id' => $proveedor->id,
+            'descuentos_habituales' => [3],
+            'factor_conversion' => 1,
+            'activo' => true,
+        ]);
+
+        $compra = app(CompraService::class)->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NO_FISCAL,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 2, 'factor_conversion' => 1, 'precio_unitario' => 100, 'descuentos' => [10, 5]],
+        ]);
+        app(CompraService::class)->confirmarCompra($compra, 1);
+
+        Livewire::test(EditorCompra::class)
+            ->call('seleccionarProveedor', $proveedor->id)
+            ->call('seleccionarArticuloFila', 0, $articulo->id)
+            ->assertSet('renglones.0.descuentos_texto', '10+5')
+            ->assertOk();
+    }
+
     // ==================== Fase 8: revisión de precios + reportes ====================
 
     public function test_reportes_compras_monta_y_genera(): void

@@ -713,7 +713,12 @@ class GestionarArticulos extends Component
             ->first();
 
         $this->modo_stock = $configSucursal?->modo_stock ?? 'ninguno';
-        $this->precio_sucursal = $configSucursal?->precio_base;
+        // Precio de venta ÚNICO del modal (decisión 2026-07-13): en multi-sucursal
+        // muestra el EFECTIVO y SIEMPRE persiste sobre la sucursal activa; el
+        // genérico queda como fallback interno (se administrará desde Manager).
+        $this->precio_sucursal = es_multi_sucursal()
+            ? ($configSucursal?->precio_base ?? $articulo->precio_base)
+            : $configSucursal?->precio_base;
         $this->vendible = (bool) ($configSucursal?->vendible ?? true);
         $this->visible_tienda = (bool) ($configSucursal?->visible_tienda ?? true);
 
@@ -861,6 +866,27 @@ class GestionarArticulos extends Component
         ];
     }
 
+    /**
+     * Copia el precio sugerido al campo de precio del modal: el usuario VE el
+     * cambio y lo persiste con Guardar por el camino de siempre (historial
+     * 'articulo_editar' / 'override_sucursal'). Respeta el alcance efectivo:
+     * si la sucursal activa tiene override, el sugerido va al override.
+     */
+    public function aplicarPrecioSugerido(): void
+    {
+        $cuenta = $this->cuentaSugerida();
+
+        if ($cuenta === null || $cuenta['sugerido'] <= 0) {
+            return;
+        }
+
+        if (es_multi_sucursal() && $this->editMode) {
+            $this->precio_sucursal = $cuenta['sugerido'];
+        } else {
+            $this->precio_base = $cuenta['sugerido'];
+        }
+    }
+
     /** Margen real para la columna del listado (semáforo vs objetivo, RF-09). */
     public function margenDe(Articulo $articulo): ?array
     {
@@ -894,8 +920,21 @@ class GestionarArticulos extends Component
         $historial = HistorialCosto::with(['sucursal:id,nombre', 'proveedor:id,nombre'])
             ->where('articulo_id', $this->historialCostosArticuloId)
             ->latest()
-            ->take(50)
+            ->take(100)
             ->get();
+
+        // Cada cambio por compra escribe dos filas (sucursal + consolidado del
+        // comercio). El consolidado idéntico a su gemela de sucursal es ruido
+        // en el modal: se oculta y solo queda cuando difiere (multi-sucursal).
+        $historial = $historial->reject(function ($h) use ($historial) {
+            return $h->sucursal_id === null && $historial->contains(fn ($s) => $s->sucursal_id !== null
+                && $s->tipo_costo === $h->tipo_costo
+                && (string) $s->origen === (string) $h->origen
+                && (int) $s->compra_id === (int) $h->compra_id
+                && (float) $s->costo_anterior === (float) $h->costo_anterior
+                && (float) $s->costo_nuevo === (float) $h->costo_nuevo
+                && $s->created_at?->format('YmdHis') === $h->created_at?->format('YmdHis'));
+        })->take(50)->values();
 
         // Nombres de usuario viven en config.users (cross-connection).
         $usuarios = DB::connection('config')->table('users')
@@ -935,7 +974,11 @@ class GestionarArticulos extends Component
             'precio_base' => 'required|numeric|min:0',
             'activo' => 'boolean',
             'modo_stock' => 'required|in:ninguno,unitario,receta',
-            'precio_sucursal' => 'nullable|numeric|min:0',
+            // El precio de venta del modal es el de la SUCURSAL en multi-sucursal:
+            // vaciarlo no vuelve al genérico (eso será tarea del Manager).
+            'precio_sucursal' => es_multi_sucursal() && $this->editMode
+                ? 'required|numeric|min:0'
+                : 'nullable|numeric|min:0',
             'vendible' => 'boolean',
             // Imagen: límite y mimes para que Livewire rechace temprano. El
             // service después valida MIME real con finfo (defensa adicional).
