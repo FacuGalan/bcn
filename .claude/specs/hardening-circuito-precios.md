@@ -1,6 +1,6 @@
 # Hardening del Circuito de Precios e Impuestos - Especificación
 
-## Estado: EN REVISIÓN
+## Estado: APROBADO (2026-07-14) — implementación pendiente
 
 > Consolidación post-auditoría integral (2026-07-14, 4 revisores paralelos sobre los
 > PRs #153/#154/#155 + sistema impositivo). Tres bloques: (A) precio de venta SIEMPRE
@@ -369,3 +369,5 @@ tanda; varios se atenúan con el Bloque A):
   venta / costo + venta por igual.
 - Origen de los informes: auditoría 4 agentes 2026-07-14 (detalle con file:line en
   la sesión; resumen en memoria `auditoria-circuito-precios-impuestos`).
+- 2026-07-14: spec APROBADO por el usuario tal cual; la implementación arranca en la
+  próxima sesión con /sdd-apply, Fase 1.
