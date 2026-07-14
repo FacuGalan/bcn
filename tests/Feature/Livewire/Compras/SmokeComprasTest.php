@@ -690,6 +690,47 @@ class SmokeComprasTest extends TestCase
     }
 
     /**
+     * RF-B8 (hardening-circuito-precios): un precio nuevo igual o bajo el
+     * costo desmarca la fila con badge; aplicar la saltea. Re-marcarla con el
+     * badge visible es la confirmación explícita y ahí sí se aplica.
+     */
+    public function test_revision_precios_piso_de_costo_desmarca_y_no_aplica(): void
+    {
+        $this->actingAs(\App\Models\User::factory()->create(['is_system_admin' => true]));
+        $this->crearTiposIva();
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', [
+            'precio_base' => 100,
+            'utilidad_porcentaje' => 50,
+        ]);
+        $proveedor = Proveedor::create(['nombre' => 'Prov Piso Costo '.uniqid(), 'activo' => true]);
+
+        $borrador = app(CompraService::class)->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NO_FISCAL,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 1, 'factor_conversion' => 1, 'precio_unitario' => 100],
+        ]);
+        app(CompraService::class)->confirmarCompra($borrador, 1);
+
+        // Editar el precio nuevo por DEBAJO del costo (100) ⇒ badge + desmarcada.
+        $revision = Livewire::test(RevisionPreciosCompra::class, ['compraId' => $borrador->id])
+            ->set('filas.0.precio_nuevo', '80')
+            ->assertSet('filas.0.bajo_costo', true)
+            ->assertSet('filas.0.seleccionado', false);
+
+        // Aplicar la saltea: el precio no cambia.
+        $revision->call('aplicar');
+        $this->assertEquals(100.0, (float) $articulo->fresh()->precio_base);
+
+        // Re-marcada por el usuario (badge visible) = confirmación explícita.
+        $revision->set('filas.0.seleccionado', true)->call('aplicar');
+        $this->assertEquals(80.0, (float) $articulo->fresh()->precio_base);
+    }
+
+    /**
      * RF-22: el reporte por cuenta agrupa las completadas del período y las NC
      * RESTAN, tanto en el resumen como en el corte por cuenta.
      */
