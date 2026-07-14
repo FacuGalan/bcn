@@ -1111,7 +1111,7 @@ Indices: KEY (`conciliacion_cuenta_id`, `clasificacion`), KEY (`id_externo`).
 
 ### 2.9 Compras, Costos y Cuenta Corriente de Proveedores
 
-> Modulo reescrito por completo (spec `compras-costos-precios`, D1-D22): compra (fiscal o no) → costo computable neto del renglon → costos del articulo (ultimo/promedio/reposicion, por sucursal + consolidado) → historial → utilidad objetivo → precio de venta sugerido → revision/repricing. Incluye el lado PAGO: cuenta corriente de proveedores espejo de la de clientes. Incrementos post-merge D23 (factura de servicio) y D24 (percepciones habituales por proveedor) — ver 3.8.8.
+> Modulo reescrito por completo (spec `compras-costos-precios`, D1-D22): compra (fiscal o no) → costo computable neto del renglon → costos del articulo (ultimo/promedio/reposicion, por sucursal + consolidado) → historial → utilidad objetivo → precio de venta sugerido → revision/repricing. Incluye el lado PAGO: cuenta corriente de proveedores espejo de la de clientes. Incrementos post-merge D23 (factura de servicio), D24 (percepciones habituales por proveedor) y D25 (coeficiente de computabilidad de percepciones sufridas) — ver 3.8.8.
 
 #### Tabla: `compras`
 Encabezado de cada comprobante de compra (factura, NC de proveedor o compra no fiscal). `estado` es **solo ciclo de vida** (D11); lo impago se deriva SIEMPRE de `saldo_pendiente > 0`, nunca del estado.
@@ -1169,6 +1169,8 @@ Renglones de cada compra. `cantidad` queda SIEMPRE en unidades de STOCK (no camb
 | `subtotal` | decimal(12,2) | Subtotal del renglon |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
+**D25 — `percepciones_costo_monto`**: NO es columna persistida (a diferencia de `conceptos_costo_monto`). Es una clave transitoria del array `$renglon` que `CompraService::resolverProrrateosYComputables()` arma en memoria (porcion prorrateada por importe de la parte no computable de las percepciones sufridas) y que `CostoService::costoComputableRenglon()` consume para sumarla al importe DESPUES del gross-up de IVA no recuperable, antes de dividir por `factor_conversion`. No queda rastro propio en `compras_detalle`; el efecto se ve reflejado en `costo_unitario_computable`.
+
 #### Tabla: `compra_ivas` (espejo de `comprobante_fiscal_iva`)
 **Fuente CANONICA del credito fiscal** (nunca la suma de renglones) y del Libro IVA Compras. Se pre-sugiere desde los renglones + conceptos gravados, y es editable para calzar con la factura fisica.
 
@@ -1196,7 +1198,7 @@ Renglones no-articulo del comprobante (flete, impuestos internos, envases, otros
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
 #### Tabla: `compra_percepciones`
-Percepciones sufridas en la compra (impuesto del catalogo, base/alicuota/monto). Al confirmar se cablean a `ImpuestoService::registrarDesdeCompra()` (credito de IVA + percepciones → ledger fiscal). Con comprador no-RI, se cargan solo informativas (suman a la deuda, sin ledger fiscal en v1).
+Percepciones sufridas en la compra (impuesto del catalogo, base/alicuota/monto/coeficiente). Al confirmar se cablean a `ImpuestoService::registrarDesdeCompra()` (credito de IVA + percepciones → ledger fiscal). Con comprador no-RI, se cargan solo informativas (suman a la deuda, sin ledger fiscal en v1). D25: solo `monto × coeficiente` va al ledger fiscal (sentido `sufrido`); `monto × (1 − coeficiente)` prorratea al costo de los renglones (ver 3.8.2/3.8.8) o, en factura de servicio, queda implicito en el total que se le atribuye a la cuenta de compra.
 
 #### Tabla: `cuentas_compra` (RF-22, D22)
 Catalogo de agrupacion de GESTION (no plan de cuentas contable formal) para responder "¿cuanto gaste en que?" por periodo.
@@ -1293,7 +1295,7 @@ Proveedores del comercio. Un proveedor puede estar vinculado a un cliente (para 
 | `cliente_id` | bigint FK nullable | FK a cliente vinculado |
 | `cuenta_compra_id` | bigint FK nullable | Cuenta de compra default (RF-22), precarga la de la compra |
 | `es_servicio` | boolean default false | D23: proveedor de servicios (ej. EDESUR). Al elegirlo en `EditorCompra::seleccionarProveedor()`, PISA `compras.es_servicio` con este flag (editable despues, igual que la letra sugerida) |
-| `percepciones_habituales` | json nullable, cast array | D24: `[{impuesto_id, alicuota}]` — percepciones tipicas de este proveedor. Al elegirlo en una compra FISCAL, `EditorCompra::precargarPercepcionesHabituales()` las precarga como renglones de percepcion (impuesto + alicuota; monto y base vacios) solo si no hay percepciones ya cargadas por el usuario. No es calculo: el monto exacto sale siempre de la factura fisica |
+| `percepciones_habituales` | json nullable, cast array | D24: `[{impuesto_id, alicuota}]` — percepciones tipicas de este proveedor. Se gestiona desde el componente `Compras\ProveedorImpuestos` (modal propio, combobox de alta rapida sobre el catalogo de percepciones), NO desde un repetidor inline del ABM. Al elegirlo en una compra FISCAL, `EditorCompra::precargarPercepcionesHabituales()` las precarga como renglones de percepcion (impuesto + alicuota; D25: `coeficiente` tambien se precarga con el default del CUIT de la compra, y `sugerirMontosPercepciones()` calcula base/monto en modo auto — ver 3.8.8) solo si no hay percepciones ya cargadas por el usuario. No es calculo del monto: el importe exacto sale siempre de la factura fisica |
 | `tiene_cuenta_corriente` | boolean | Habilita el circuito de cta cte y pagos a plazo (default false) |
 | `dias_pago` | int nullable | Precarga `fecha_vencimiento` de las compras de este proveedor |
 | `saldo_cache` | decimal(12,2) | Cache del saldo consolidado del comercio (patron Cliente, `lockForUpdate`) |
@@ -2929,6 +2931,7 @@ Configuracion impositiva de un CUIT: que impuestos lo alcanzan y con que condici
 | `cuit_id` | bigint FK | CUIT del comercio |
 | `impuesto_id` | bigint FK | Impuesto del catalogo |
 | `inscripto` | boolean | Si el CUIT esta inscripto en este impuesto |
+| `coeficiente_computable` | decimal(5,4) nullable | D25: default de que parte de una percepcion SUFRIDA en compras con este impuesto es credito fiscal computable (0 a 1). NULL = deriva de `inscripto` (1.00 si inscripto, 0.00 si no). Solo aplica a percepciones no-IVA (las de IVA siempre son credito pleno, ver 3.8.8) |
 | `numero_inscripcion` | varchar(30) nullable | N° de inscripcion (ej: N° de IIBB) |
 | `es_agente_percepcion` | boolean | Si actua como agente de percepcion |
 | `es_agente_retencion` | boolean | Si actua como agente de retencion |
@@ -2983,6 +2986,7 @@ Desglose de percepciones y retenciones sufridas en la factura de un proveedor (R
 | `base_imponible` | decimal(14,2) nullable | Base imponible |
 | `alicuota` | decimal(6,4) nullable | Alicuota porcentual |
 | `monto` | decimal(14,2) | Monto de la percepcion/retencion |
+| `coeficiente` | decimal(5,4) nullable | D25: snapshot editable por compra de que parte de `monto` es credito fiscal computable (0 a 1); el resto prorratea al costo. NULL = legado/sin dato ⇒ tratado como 100% computable (ver 3.8.8) |
 | `certificado_numero` | varchar(50) nullable | N° de constancia |
 | `created_at`, `updated_at` | timestamp | Timestamps |
 
@@ -3856,15 +3860,15 @@ Ledger `movimientos_cuenta_corriente_proveedor`, espejo de clientes pero con sem
 
 **Compras internas**: si el proveedor es una sucursal interna (`es_sucursal_interna = true`), la compra representa una transferencia fiscal entre sucursales (modulo propio de transferencias inter-sucursal, fuera de alcance de este spec — ver seccion de fases futuras del spec).
 
-#### 3.8.8 Factura de servicio (D23) y percepciones habituales por proveedor (D24)
+#### 3.8.8 Factura de servicio (D23), percepciones habituales por proveedor (D24) y coeficiente de computabilidad (D25)
 
-Incrementos post-merge del spec (acordados 2026-07-13, fuera del alcance original D1-D22). Misma pantalla y mismo modelo `Compra`, solo agregan una modalidad y una precarga de conveniencia.
+Incrementos post-merge del spec (D23/D24 acordados 2026-07-13, D25 2026-07-14; fuera del alcance original D1-D22). Misma pantalla y mismo modelo `Compra`, solo agregan una modalidad y dos refinamientos de percepciones.
 
 **D23 — Factura de servicio** (`compras.es_servicio`, ej. luz, gas, alquiler, honorarios):
 
 - Sin grilla de articulos: nada de stock, costos ni repricing automatico. El detalle son los `compra_conceptos` (ver tabla arriba).
 - `CompraService::validarConfirmacion()`: si `es_servicio`, exige `detalles->isEmpty()` (rechaza renglones de articulo cargados), `conceptos->isNotEmpty()` (al menos 1 renglon de detalle) y `cuenta_compra_id !== null` (obligatoria, es el eje del reporte D22 RF-22). Sin NC (`esNotaCredito()`), la regla `detalles->isEmpty()` normal (compra sin renglones = error) queda excluida para servicio.
-- `CompraService::confirmarCompra()`: saltea el paso 4 (`CostoService::registrarDesdeCompra()`) y el paso 8 (`repricearAutomaticos()`) cuando `esServicio()` es true (ademas de cuando es NC). `cancelarCompra()` saltea `revertirCostoUltimoSiCorresponde()` en el mismo caso.
+- `CompraService::confirmarCompra()`: saltea el paso 4 (`CostoService::registrarDesdeCompra()`) y el paso 8 (`repricearAutomaticos()`) cuando `esServicio()` es true (ademas de cuando es NC). `cancelarCompra()` saltea `revertirCostoUltimoSiCorresponde()` en el mismo caso. Como `resolverProrrateosYComputables()` retorna temprano si `detalles->isEmpty()` (siempre true en servicio), la parte no computable de las percepciones (D25) nunca se prorratea a un renglon — queda implicita en el `total` de la compra (que SI incluye el `monto` completo de la percepcion, ver `calcularTotales()`), que es lo que se le imputa a la `cuenta_compra` para los reportes de gasto.
 - `EditorCompra`: `totales()` y `calcularSugerenciaFiscal()` ignoran la grilla de renglones si `esServicio`; `construirPayload()` fuerza `renglones = []` y `computa_costo = false` en todos los conceptos. `validarParaGuardar()` valida conceptos+cuenta en vez de renglones.
 - **Precarga desde el proveedor**: `seleccionarProveedor()` pisa `$this->esServicio = $proveedor->es_servicio` (igual criterio que la letra sugerida — editable despues).
 - **NC de un servicio**: `precargarNcDesdeOrigen()` copia `esServicio` de la compra origen y precarga `conceptos` (no `renglones`) desde `origen->conceptos`.
@@ -3873,10 +3877,25 @@ Incrementos post-merge del spec (acordados 2026-07-13, fuera del alcance origina
 
 **D24 — Percepciones habituales por proveedor** (`proveedores.percepciones_habituales`):
 
-- ABM en `GestionarProveedores`: repetidor `{impuesto_id, alicuota}`, catalogo de impuestos filtrado a `naturaleza_default = 'percepcion'`.
-- `EditorCompra::precargarPercepcionesHabituales()` se invoca desde `seleccionarProveedor()`: si el proveedor tiene percepciones habituales Y la compra actual es fiscal Y NO hay percepciones ya cargadas (impuesto o monto > 0 en algun renglon existente), precarga renglones `{impuesto_id, alicuota, monto: '', base_imponible: ''}`. El monto queda vacio a proposito — no es un calculo, sale de la factura fisica de cada compra puntual.
+- UI (fix post-D24, 2026-07-13/14): el repetidor inline que originalmente vivia dentro del form del ABM de `GestionarProveedores` se saco de ahi. Ahora es el componente embebido **`App\Livewire\Compras\ProveedorImpuestos`**, espejo de `Clientes\ClienteImpuestos`: modal propio abierto via evento `abrir-impuestos-proveedor` con `{ proveedorId: N }` (disparado desde la fila del ABM — icono de documento en desktop, boton "Fiscal" en movil). Combobox de alta rapida (`getImpuestosDisponiblesProperty()`, catalogo filtrado a `naturaleza_default = 'percepcion'`, excluye los ya configurados) + alicuota editable por fila; persiste TODO el perfil de una vez en `guardar()`. No es SucursalAware (perfil global al proveedor).
+- `EditorCompra::precargarPercepcionesHabituales()` se invoca desde `seleccionarProveedor()`: si el proveedor tiene percepciones habituales Y la compra actual es fiscal Y NO hay percepciones ya cargadas (impuesto o monto > 0 en algun renglon existente), precarga renglones `{impuesto_id, alicuota, monto: '', base_imponible: '', coeficiente: <default D25>, auto: true}`.
 - No reemplaza percepciones cargadas manualmente por el usuario (chequeo de "cargadas" antes de precargar).
 - Sigue bloqueado (no codeado) el calculo automatico de percepciones IIBB por jurisdiccion/Convenio Multilateral — depende de la respuesta pendiente del contador (ver seccion 3.13 Sistema Impositivo).
+
+**D25 — Coeficiente de computabilidad de percepciones sufridas** (`cuit_impuesto_configs.coeficiente_computable`, `compra_percepciones.coeficiente`):
+
+- Motivacion: una percepcion sufrida (tipicamente IIBB) puede no ser 100% credito fiscal si el CUIT comprador no esta inscripto (o esta parcialmente inscripto) en esa jurisdiccion. La parte no computable no se pierde: es costo real de la mercaderia (o gasto, en factura de servicio).
+- **Default por CUIT+impuesto**: `cuit_impuesto_configs.coeficiente_computable` (0-1). Editable en el modal "Impuestos" del CUIT (Configuracion → Empresa → pestana CUITs). NULL = deriva de `inscripto` (1.00 si inscripto, 0.00 si no).
+- **Snapshot por compra**: `compra_percepciones.coeficiente` (0-1), copiado del default al agregar el renglon y editable por comprobante (la factura real puede diferir del criterio general). NULL en la fila persistida = legado (percepciones cargadas antes de D25) o compra no fiscal ⇒ tratado como 100% computable en todo el pipeline, sin cambiar el comportamiento historico.
+- **`EditorCompra::coeficientePercepcionDefault(?int $impuestoId)`**: unica puerta de calculo del default en el editor.
+  - Impuesto tipo `Impuesto::TIPO_IVA` ⇒ siempre `1` (credito pleno, el coeficiente configurable NO aplica a percepciones de IVA).
+  - Sin `cuitId` cargado en la compra ⇒ `0`.
+  - Con `cuitId`: busca `CuitImpuestoConfig::where('cuit_id', ...)->where('impuesto_id', ...)`. Sin config ⇒ `0` (no inscripto en la jurisdiccion, todo a costo). Con config: usa `coeficiente_computable` si no es NULL, si no `1` si `inscripto` o `0` si no.
+  - Se recalcula: al agregar una percepcion nueva, al precargar percepciones habituales del proveedor, al cambiar el `impuesto_id` de un renglon, y para TODOS los renglones que siguen en modo `auto` cuando cambia el `cuitId` de la compra.
+- **Base/monto sugeridos (`auto`)**: cada renglon de percepcion tiene un flag `auto` en memoria (no persiste). Mientras `auto = true`, `sugerirMontosPercepciones()` recalcula `base_imponible = Σ bases gravadas del desglose de IVA (compra_ivas en memoria)` y `monto = base × alicuota / 100` cada vez que cambia el desglose de IVA o la alicuota del renglon. Tipear `base_imponible` o `monto` a mano pone `auto = false` para ESE renglon (los demas siguen auto). Se dispara desde: `sugerirDesgloseFiscal()`, cambios en `ivas.*`/`netoNoGravado`/`netoExento`, y al precargar percepciones habituales.
+- **Persistencia**: `construirPayload()` normaliza el coeficiente tipeado a `[0, 1]` (clamp) y lo manda como `null` si el campo quedo vacio (no como `0`) — la distincion importa: vacio = legado/100% computable, `0` explicito = "no inscripto, todo a costo".
+- **Efecto en el ledger fiscal** (`ImpuestoService::registrarDesdeCompra()`): por cada `compra_percepciones`, el monto que va a `movimientos_fiscales` (naturaleza `percepcion`, sentido `sufrido`) es `round(abs(monto) × coeficiente_efectivo, 2)` donde `coeficiente_efectivo = coeficiente ?? 1.0`. Si el coeficiente efectivo es 0, no se genera movimiento (monto <= 0 se filtra).
+- **Efecto en el costo** (`CompraService::resolverProrrateosYComputables()` + `CostoService::costoComputableRenglon()`): `percepcionesCosto = Σ round(monto × (1 − coeficiente_efectivo), 2)` de TODAS las percepciones de la compra, prorrateado POR IMPORTE entre los renglones (misma funcion `prorratearPorImporte()` que el descuento global y los conceptos). El renglon recibe esa porcion en la clave transitoria `percepciones_costo_monto`, que `costoComputableRenglon()` suma al importe DESPUES del gross-up de IVA no recuperable (RG 5003) y ANTES de dividir por `factor_conversion` — la percepcion es un tributo sobre la operacion, no una base gravada. Solo aplica a compras con renglones (`detalles->isNotEmpty()`); en factura de servicio el efecto queda implicito en el total imputado a la cuenta de compra (ver D23 arriba).
 
 ### 3.9 Facturacion Fiscal
 
