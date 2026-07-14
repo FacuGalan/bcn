@@ -728,6 +728,29 @@ class ImpuestoServiceTest extends TestCase
         $this->service->anularMovimientoFiscal($original->fresh(), 1);
     }
 
+    public function test_no_se_puede_anular_un_movimiento_con_origen(): void
+    {
+        // RF-B9 (hardening-circuito-precios): un movimiento generado por un
+        // origen (compra/venta/conciliación) se revierte por su circuito
+        // (cancelación/NC), nunca a mano — la reversa espejo se desbalancearía.
+        $emisor = $this->cuit();
+        $imp = $this->impuesto('iva_credito', Impuesto::TIPO_IVA, 'credito_fiscal', 'AR');
+
+        $mov = $this->service->registrarMovimientoFiscal([
+            'cuit_id' => $emisor->id,
+            'impuesto_id' => $imp->id,
+            'sentido' => MovimientoFiscal::SENTIDO_SUFRIDO,
+            'naturaleza' => MovimientoFiscal::NATURALEZA_CREDITO_FISCAL,
+            'fecha' => '2026-03-15',
+            'monto' => 210.0,
+            'origen_tipo' => 'Compra',
+            'origen_id' => 99,
+        ]);
+
+        $this->expectExceptionMessage('se revierte cancelando o acreditando desde su origen');
+        $this->service->anularMovimientoFiscal($mov, 1);
+    }
+
     public function test_no_se_puede_anular_un_contraasiento(): void
     {
         $emisor = $this->cuit();

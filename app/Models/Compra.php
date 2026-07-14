@@ -26,7 +26,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property float $total_iva
  * @property string $forma_pago
  * @property string $estado
- * @property float $saldo_pendiente
+ * @property float $saldo_pendiente En una compra: deuda pendiente de pago.
+ *                                  En una NC (RF-B11 hardening-circuito-precios): monto REALMENTE
+ *                                  aplicado contra el saldo de la compra origen al confirmarla (las
+ *                                  consultas de deuda excluyen NCs vía sinNotasCredito()).
  * @property string|null $observaciones
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
@@ -259,6 +262,16 @@ class Compra extends Model
     public function scopeConSaldoPendiente($query)
     {
         return $query->where('saldo_pendiente', '>', 0);
+    }
+
+    /**
+     * RF-B11: una NC nunca es deuda a pagar (su saldo_pendiente guarda el
+     * monto aplicado contra la origen) — toda consulta de deuda la excluye.
+     */
+    public function scopeSinNotasCredito($query)
+    {
+        return $query->where(fn ($q) => $q->whereNull('tipo_comprobante')
+            ->orWhere('tipo_comprobante', 'not like', 'nota_credito%'));
     }
 
     public function scopeCtaCte($query)

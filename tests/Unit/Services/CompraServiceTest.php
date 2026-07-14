@@ -323,6 +323,65 @@ class CompraServiceTest extends TestCase
         $this->assertEquals(124.0, (float) $costo->costo_ultimo);
     }
 
+    public function test_cancelar_dos_veces_lanza(): void
+    {
+        // RF-B7 (hardening-circuito-precios): re-check dentro de la transacción
+        // — una segunda cancelación no duplica reversas, lanza.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 10);
+        $compra = $this->borrador($articulo, Compra::TIPO_NO_FISCAL, null, 5, 100);
+        $confirmada = $this->servicio->confirmarCompra($compra, 1);
+
+        $this->servicio->cancelarCompra($confirmada->fresh(), 1, 'Primera');
+
+        $this->expectExceptionMessage('Solo se puede cancelar una compra completada');
+        $this->servicio->cancelarCompra($confirmada->fresh(), 1, 'Segunda');
+    }
+
+    public function test_cancelar_nc_parcialmente_aplicada_no_infla_saldo_origen(): void
+    {
+        // RF-B11 (hardening-circuito-precios): proveedor SIN cta cte. La NC2
+        // solo pudo aplicar $400 (la origen ya debía $400); cancelarla debe
+        // restaurar $400, no su total de $500.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 20);
+        $compra = $this->borrador($articulo, Compra::TIPO_NO_FISCAL, null, 10, 100);
+        $compra = $this->servicio->confirmarCompra($compra, 1);
+        $this->assertEquals(1000.0, (float) $compra->saldo_pendiente);
+
+        $nc1 = $this->servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'compra_origen_id' => $compra->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NC_NO_FISCAL,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 6, 'factor_conversion' => 1, 'precio_unitario' => 100],
+        ]);
+        $nc1 = $this->servicio->confirmarCompra($nc1, 1);
+
+        // Lo aplicado quedó persistido en la NC (semántica RF-B11).
+        $this->assertEquals(600.0, (float) $nc1->fresh()->saldo_pendiente);
+        $this->assertEquals(400.0, (float) $compra->fresh()->saldo_pendiente);
+
+        $nc2 = $this->servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'compra_origen_id' => $compra->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_NC_NO_FISCAL,
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 5, 'factor_conversion' => 1, 'precio_unitario' => 100],
+        ]);
+        $nc2 = $this->servicio->confirmarCompra($nc2, 1);
+
+        $this->assertEquals(400.0, (float) $nc2->fresh()->saldo_pendiente); // aplicado real, no 500
+        $this->assertEquals(0.0, (float) $compra->fresh()->saldo_pendiente);
+
+        $this->servicio->cancelarCompra($nc2->fresh(), 1, 'NC mal cargada');
+
+        // Restaura exactamente lo aplicado ($400) — antes asumía el total ($500).
+        $this->assertEquals(400.0, (float) $compra->fresh()->saldo_pendiente);
+    }
+
     public function test_actualizar_borrador_sin_porcentaje_elimina_descuento_global(): void
     {
         // RF-B2 (hardening-circuito-precios): borrador con global 10% al que

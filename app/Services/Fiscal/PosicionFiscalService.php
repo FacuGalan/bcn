@@ -275,9 +275,9 @@ class PosicionFiscalService
      * origen `Compra`) agrupado por compra (RF-09). Cada línea expone el crédito
      * fiscal de IVA y las percepciones/retenciones sufridas de esa compra.
      *
-     * Mientras el módulo de compras esté inconsistente (no cablea su hook), esto
-     * estará vacío en la práctica; cuando se reconcilie, se poblará sin tocar
-     * este método.
+     * El módulo de compras cablea su hook desde el PR #153
+     * (ImpuestoService::registrarDesdeCompra al confirmar): cada compra fiscal
+     * de comprador RI aparece acá con su crédito y percepciones.
      *
      * @return Collection<int, array{origen_id:?int, fecha:?string,
      *   credito_fiscal:float, percepciones:float, retenciones:float,

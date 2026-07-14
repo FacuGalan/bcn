@@ -249,7 +249,7 @@
                                         wire:model.live="tipoRedondeo"
                                         class="w-full py-1.5 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 text-sm"
                                     >
-                                        <option value="sin_redondeo">{{ __('Sin redondeo') }}</option>
+                                        <option value="ninguno">{{ __('Sin redondeo') }}</option>
                                         <option value="entero">{{ __('Entero') }}</option>
                                         <option value="decena">{{ __('Decena') }}</option>
                                         <option value="centena">{{ __('Centena') }}</option>
@@ -457,7 +457,7 @@
                                 </span>
 
                                 <!-- Redondeo -->
-                                @if($tipoRedondeo !== 'sin_redondeo')
+                                @if(! in_array($tipoRedondeo, ['ninguno', 'sin_redondeo'], true))
                                     <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-gray-50 text-gray-600 border border-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:border-gray-600">
                                         {{ __('Redondeo') }}: {{ match($tipoRedondeo) { 'entero' => __('Entero'), 'decena' => __('Decena'), 'centena' => __('Centena'), default => '' } }}
                                     </span>

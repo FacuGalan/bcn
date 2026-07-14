@@ -97,8 +97,14 @@
                     </div>
                     @if($m->estado === 'activo' && ! $m->movimiento_anulado_id)
                         <div class="mt-3">
-                            <button wire:click="abrirModalAnulacion({{ $m->id }})"
-                                class="text-xs font-medium text-red-600 dark:text-red-400 hover:underline">{{ __('Anular') }}</button>
+                            @if($m->origen_tipo === null)
+                                <button wire:click="abrirModalAnulacion({{ $m->id }})"
+                                    class="text-xs font-medium text-red-600 dark:text-red-400 hover:underline">{{ __('Anular') }}</button>
+                            @else
+                                {{-- RF-B9: lo generó su origen — se revierte desde el circuito del origen --}}
+                                <span class="text-xs text-gray-400 dark:text-gray-500"
+                                      title="{{ __('Movimiento generado por su origen: se revierte cancelando o acreditando desde el origen') }}">{{ __('No anulable (lo maneja su origen)') }}</span>
+                            @endif
                         </div>
                     @endif
                 </div>
@@ -146,12 +152,16 @@
                                     @endif
                                 </td>
                                 <td class="px-4 py-3 whitespace-nowrap text-sm text-right">
-                                    @if($m->estado === 'activo' && ! $m->movimiento_anulado_id)
+                                    @if($m->estado === 'activo' && ! $m->movimiento_anulado_id && $m->origen_tipo === null)
                                         <button wire:click="abrirModalAnulacion({{ $m->id }})"
                                             class="inline-flex items-center gap-1 text-red-600 dark:text-red-400 hover:underline">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
                                             {{ __('Anular') }}
                                         </button>
+                                    @elseif($m->estado === 'activo' && ! $m->movimiento_anulado_id)
+                                        {{-- RF-B9: lo generó su origen — se revierte desde el circuito del origen --}}
+                                        <span class="text-gray-400 dark:text-gray-600 cursor-help"
+                                              title="{{ __('Movimiento generado por su origen: se revierte cancelando o acreditando desde el origen') }}">—</span>
                                     @else
                                         <span class="text-gray-400 dark:text-gray-600">—</span>
                                     @endif

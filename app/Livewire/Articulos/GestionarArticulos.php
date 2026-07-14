@@ -17,6 +17,7 @@ use App\Models\Proveedor;
 use App\Models\Receta;
 use App\Models\Stock;
 use App\Models\Sucursal;
+use App\Models\TipoIva;
 use App\Services\ArticuloImportExportService;
 use App\Services\CatalogoCache;
 use App\Services\CostoService;
@@ -836,6 +837,27 @@ class GestionarArticulos extends Component
     }
 
     /**
+     * RF-B12 (hardening-circuito-precios): la cuenta del sugerido usa la
+     * alícuota del tipo de IVA ELEGIDO en el modal — al cambiarlo se refresca
+     * (antes quedaba la del artículo persistido hasta guardar).
+     */
+    public function updatedTipoIvaId($value): void
+    {
+        if (! $this->editMode || $this->costosInfo === []) {
+            return;
+        }
+
+        $articulo = Articulo::find($this->articuloId);
+
+        if ($articulo === null) {
+            return;
+        }
+
+        $articulo->setRelation('tipoIva', $value ? TipoIva::find((int) $value) : null);
+        $this->costosInfo['alicuota'] = app(CostoService::class)->alicuotaEfectiva($articulo, (int) sucursal_activa());
+    }
+
+    /**
      * La CUENTA del precio sugerido, desglosada y reactiva al override que el
      * usuario está tipeando (claridad conceptual obligatoria, Pantallas §3c).
      */
@@ -1090,11 +1112,18 @@ class GestionarArticulos extends Component
                         'visible_tienda' => $this->visible_tienda,
                     ]);
 
-                if ((float) $precioSucursalAnterior !== (float) $this->precio_sucursal) {
+                // RF-B12: comparar contra el precio EFECTIVO anterior (override
+                // o, si no había, el base previo) — crear un override con el
+                // mismo valor (500→500) no es un cambio y no genera historial.
+                $precioEfectivoAnterior = $precioSucursalAnterior !== null
+                    ? (float) $precioSucursalAnterior
+                    : (float) $precioAnterior;
+
+                if (round($precioEfectivoAnterior, 2) !== round((float) $this->precio_sucursal, 2)) {
                     HistorialPrecio::registrar([
                         'articulo_id' => $articulo->id,
                         'sucursal_id' => $sucursalActiva,
-                        'precio_anterior' => $precioSucursalAnterior ?? $articulo->precio_base,
+                        'precio_anterior' => $precioEfectivoAnterior,
                         'precio_nuevo' => $this->precio_sucursal ?? $articulo->precio_base,
                         'origen' => 'override_sucursal',
                     ]);

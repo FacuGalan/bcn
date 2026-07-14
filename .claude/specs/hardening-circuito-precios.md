@@ -1,6 +1,6 @@
 # Hardening del Circuito de Precios e Impuestos - Especificación
 
-## Estado: EN PROGRESO (2026-07-14) — Fases 1-2 completas
+## Estado: EN PROGRESO (2026-07-14) — Fases 1-3 completas
 
 > Consolidación post-auditoría integral (2026-07-14, 4 revisores paralelos sobre los
 > PRs #153/#154/#155 + sistema impositivo). Tres bloques: (A) precio de venta SIEMPRE
@@ -320,7 +320,7 @@ Claves nuevas (estimadas; definir exactas en implementación, 3 idiomas):
 3. B3 revert vs manual + test.
 4. B4 precio mono-sucursal + test.
 
-### Fase 3: MEDIAs tanda 1 (RF-B5 a B12) [PENDIENTE]
+### Fase 3: MEDIAs tanda 1 (RF-B5 a B12) [COMPLETO]
 1. B5 vigencia, B6 validación percepción, B7 lock, B8 revisión, B9 ledger,
    B10 NC snapshot, B11 saldo NC, B12 chores — cada una con test puntual donde aplique.
 

@@ -526,7 +526,8 @@ class Compras extends Component
             ->where('sucursal_id', $this->sucursalActual());
 
         if ($this->filterEstado === 'con_saldo') {
-            $query->completadas()->where('saldo_pendiente', '>', 0);
+            // RF-B11: el saldo de una NC es "aplicado contra la origen", no deuda.
+            $query->completadas()->sinNotasCredito()->where('saldo_pendiente', '>', 0);
         } elseif ($this->filterEstado !== 'all') {
             $query->where('estado', $this->filterEstado);
         }

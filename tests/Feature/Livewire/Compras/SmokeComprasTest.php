@@ -387,6 +387,140 @@ class SmokeComprasTest extends TestCase
             ->assertOk();
     }
 
+    // ==================== Hardening Fase 3 (RF-B1/B5/B6/B10) ====================
+
+    public function test_editor_coeficiente_cero_para_comprador_no_ri(): void
+    {
+        // RF-B1: comprador monotributista ⇒ coeficiente default 0 SIEMPRE,
+        // aunque la config del CUIT diga otra cosa (no hay crédito posible).
+        $mono = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_MONOTRIBUTO], ['nombre' => 'Monotributo']);
+        $cuit = Cuit::create([
+            'numero_cuit' => '20'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT).'1',
+            'razon_social' => 'CUIT Mono Smoke '.uniqid(),
+            'condicion_iva_id' => $mono->id,
+            'activo' => true,
+        ]);
+        $impuesto = \App\Models\Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_smoke'],
+            ['nombre' => 'Perc IIBB Smoke', 'tipo' => \App\Models\Impuesto::TIPO_IIBB, 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true],
+        );
+        \App\Models\CuitImpuestoConfig::firstOrCreate(
+            ['cuit_id' => $cuit->id, 'impuesto_id' => $impuesto->id],
+            ['inscripto' => true, 'coeficiente_computable' => 0.8],
+        );
+        $proveedor = Proveedor::create([
+            'nombre' => 'Prov NoRI '.uniqid(),
+            'activo' => true,
+            'percepciones_habituales' => [['impuesto_id' => $impuesto->id, 'alicuota' => 3]],
+        ]);
+
+        Livewire::test(EditorCompra::class)
+            ->set('cuitId', $cuit->id)
+            ->call('seleccionarProveedor', $proveedor->id)
+            ->assertSet('percepciones.0.coeficiente', '0')
+            ->assertOk();
+    }
+
+    public function test_editor_coeficiente_usa_config_vigente(): void
+    {
+        // RF-B5: dos configs del mismo impuesto — una VENCIDA (0.9, primera
+        // fila) y la vigente (0.5): el default toma la vigente a la fecha.
+        $ri = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'Responsable Inscripto']);
+        $cuit = Cuit::create([
+            'numero_cuit' => '20'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT).'5',
+            'razon_social' => 'CUIT Vigencia Smoke '.uniqid(),
+            'condicion_iva_id' => $ri->id,
+            'activo' => true,
+        ]);
+        $impuesto = \App\Models\Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_smoke'],
+            ['nombre' => 'Perc IIBB Smoke', 'tipo' => \App\Models\Impuesto::TIPO_IIBB, 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true],
+        );
+        \App\Models\CuitImpuestoConfig::create([
+            'cuit_id' => $cuit->id, 'impuesto_id' => $impuesto->id,
+            'inscripto' => true, 'coeficiente_computable' => 0.9,
+            'vigente_hasta' => '2026-01-31',
+        ]);
+        \App\Models\CuitImpuestoConfig::create([
+            'cuit_id' => $cuit->id, 'impuesto_id' => $impuesto->id,
+            'inscripto' => true, 'coeficiente_computable' => 0.5,
+            'vigente_desde' => '2026-02-01',
+        ]);
+        $proveedor = Proveedor::create([
+            'nombre' => 'Prov Vigencia '.uniqid(),
+            'activo' => true,
+            'percepciones_habituales' => [['impuesto_id' => $impuesto->id, 'alicuota' => 3]],
+        ]);
+
+        Livewire::test(EditorCompra::class)
+            ->set('cuitId', $cuit->id)
+            ->call('seleccionarProveedor', $proveedor->id)
+            ->assertSet('percepciones.0.coeficiente', '0.5')
+            ->assertOk();
+    }
+
+    public function test_editor_percepcion_con_monto_sin_impuesto_bloquea_el_guardado(): void
+    {
+        // RF-B6: un renglón de percepción con monto pero sin impuesto no pasa
+        // silencioso — bloquea el guardado con mensaje claro.
+        $this->crearTiposIva();
+        $proveedor = Proveedor::create(['nombre' => 'Prov B6 '.uniqid(), 'activo' => true]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', ['nombre' => 'Art B6 '.uniqid()]);
+
+        $editor = Livewire::test(EditorCompra::class)
+            ->call('seleccionarProveedor', $proveedor->id)
+            ->call('seleccionarArticuloFila', 0, $articulo->id)
+            ->set('renglones.0.precio_unitario', '100')
+            ->call('agregarPercepcion')
+            ->set('percepciones.0.monto', '50')
+            ->call('guardarBorrador')
+            ->assertOk();
+
+        $this->assertNull($editor->get('compraId'));
+    }
+
+    public function test_nc_precarga_percepciones_de_la_origen_con_coeficiente_snapshot(): void
+    {
+        // RF-B10: la NC desde una compra precarga las percepciones de la ORIGEN
+        // con el coeficiente SNAPSHOT (no el de la config actual del CUIT).
+        $this->crearTiposIva();
+        $ri = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'Responsable Inscripto']);
+        $cuit = Cuit::create([
+            'numero_cuit' => '20'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT).'9',
+            'razon_social' => 'CUIT B10 Smoke '.uniqid(),
+            'condicion_iva_id' => $ri->id,
+            'activo' => true,
+        ]);
+        $impuesto = \App\Models\Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_smoke'],
+            ['nombre' => 'Perc IIBB Smoke', 'tipo' => \App\Models\Impuesto::TIPO_IIBB, 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true],
+        );
+        $proveedor = Proveedor::create(['nombre' => 'Prov B10 '.uniqid(), 'activo' => true]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+
+        $servicio = app(CompraService::class);
+        $compra = $servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $proveedor->id,
+            'cuit_id' => $cuit->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_FACTURA_A,
+            'fecha_comprobante' => '2026-07-01',
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 10, 'factor_conversion' => 1, 'precio_unitario' => 100, 'tipo_iva_id' => $this->tiposIva[5]->id],
+        ], [
+            'ivas' => [['alicuota' => 21, 'base_imponible' => 1000, 'importe' => 210]],
+            'percepciones' => [['impuesto_id' => $impuesto->id, 'base_imponible' => 1000, 'alicuota' => 3, 'monto' => 30, 'coeficiente' => 0.6]],
+        ]);
+        $compra = $servicio->confirmarCompra($compra, 1);
+
+        Livewire::test(EditorCompra::class, ['ncOrigenId' => $compra->id])
+            ->assertSet('percepciones.0.impuesto_id', $impuesto->id)
+            ->assertSet('percepciones.0.monto', '30')
+            ->assertSet('percepciones.0.coeficiente', '0.6')
+            ->assertOk();
+    }
+
     public function test_gestionar_proveedores_guarda_servicio_y_perfil_fiscal_percepciones(): void
     {
         $impuesto = \App\Models\Impuesto::firstOrCreate(

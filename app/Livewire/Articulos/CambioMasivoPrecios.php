@@ -40,7 +40,8 @@ class CambioMasivoPrecios extends Component
 
     public ?float $valorAjuste = null;
 
-    public string $tipoRedondeo = 'sin_redondeo'; // sin_redondeo, entero, decena, centena
+    // RF-B12: vocabulario unificado con PrecioService::aplicarRedondeo
+    public string $tipoRedondeo = 'ninguno'; // ninguno, entero, decena, centena
 
     // Preview de artículos
     public array $articulosPreview = [];
@@ -372,7 +373,7 @@ class CambioMasivoPrecios extends Component
             // Construir detalle del cambio masivo
             $tipoAjusteLabel = $this->tipoAjuste === 'recargo' ? __('Recargo') : __('Descuento');
             $tipoValorLabel = $this->tipoValor === 'porcentual' ? '%' : '$';
-            $redondeoLabel = $this->tipoRedondeo !== 'sin_redondeo' ? ', '.__('redondeo').' '.$this->tipoRedondeo : '';
+            $redondeoLabel = ! in_array($this->tipoRedondeo, ['ninguno', 'sin_redondeo'], true) ? ', '.__('redondeo').' '.$this->tipoRedondeo : '';
             $detalleMasivo = "{$tipoAjusteLabel} {$this->valorAjuste}{$tipoValorLabel}{$redondeoLabel}";
 
             // === Cambio sucursal actual: guardar override en articulos_sucursales ===

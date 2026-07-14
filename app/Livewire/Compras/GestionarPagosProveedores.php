@@ -281,7 +281,8 @@ class GestionarPagosProveedores extends Component
             ->where('activo', true)
             ->where(function ($q) use ($sucursalId) {
                 $q->where('tiene_cuenta_corriente', true)
-                    ->orWhereHas('compras', fn ($c) => $c->where('sucursal_id', $sucursalId)->where('saldo_pendiente', '>', 0));
+                    // RF-B11: el saldo de una NC es "aplicado", no deuda.
+                    ->orWhereHas('compras', fn ($c) => $c->sinNotasCredito()->where('sucursal_id', $sucursalId)->where('saldo_pendiente', '>', 0));
             });
 
         if ($this->search) {

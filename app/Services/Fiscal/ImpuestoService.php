@@ -29,8 +29,9 @@ use Illuminate\Support\Facades\Log;
  *  - configVigente (resolución de la config impositiva del CUIT)
  *  - calcularTributos (matriz v1 conservador de percepciones aplicadas)
  *
- * Los hooks que ALIMENTAN el ledger desde comprobantes/compras/conciliación
- * (registrarDesde*) se cablean en fases posteriores (4/5/6).
+ * Los hooks que ALIMENTAN el ledger (registrarDesde*) están cableados:
+ * comprobantes (Fase 5), conciliación MP (Fase 4) y compras (PR #153,
+ * registrarDesdeCompra/anularDesdeCompra al confirmar/cancelar).
  *
  * Convención de alícuota: porcentaje (ej. 3.0000 = 3%), igual que el resto del
  * sistema (ComprobanteFiscalIva) → monto = base * alicuota / 100.
@@ -137,6 +138,17 @@ class ImpuestoService
 
             if ($original->esContraasiento()) {
                 throw new Exception(__('No se puede anular un contraasiento'));
+            }
+
+            // RF-B9 (hardening-circuito-precios): un movimiento generado por un
+            // origen (compra/venta/conciliación) solo se revierte por el
+            // circuito de ese origen (cancelación/NC) — anularlo a mano
+            // desbalancearía la reversa espejo del origen.
+            if ($original->origen_tipo !== null) {
+                throw new Exception(__('Este movimiento lo generó :origen #:id: se revierte cancelando o acreditando desde su origen', [
+                    'origen' => $original->origen_tipo,
+                    'id' => $original->origen_id,
+                ]));
             }
 
             $contraasiento = MovimientoFiscal::create([
@@ -548,8 +560,11 @@ class ImpuestoService
         // el crédito en JUNIO). Fallback a la fecha de la compra.
         $fecha = $compra->fecha_comprobante ?? $compra->fecha ?? now();
         $signo = $esNotaCredito ? -1 : 1;
+        // RF-B12: una NC suelta (sin compra origen) no dice "compra origen #0".
         $observaciones = $esNotaCredito
-            ? __('Nota de crédito de proveedor (compra origen #:id)', ['id' => $compra->compra_origen_id ?? 0])
+            ? ($compra->compra_origen_id !== null
+                ? __('Nota de crédito de proveedor (compra origen #:id)', ['id' => $compra->compra_origen_id])
+                : __('Nota de crédito de proveedor (sin compra origen)'))
             : null;
 
         // IVA crédito fiscal por alícuota (sentido sufrido).

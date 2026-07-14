@@ -25,7 +25,8 @@ class CambioPrecioProgramadoService
             // Construir detalle del cambio masivo
             $tipoAjusteLabel = $cambio->tipo_ajuste === 'recargo' ? __('Recargo') : __('Descuento');
             $tipoValorLabel = $cambio->tipo_valor === 'porcentual' ? '%' : '$';
-            $redondeoLabel = $cambio->tipo_redondeo !== 'sin_redondeo' ? ', '.__('redondeo').' '.$cambio->tipo_redondeo : '';
+            // RF-B12: 'sin_redondeo' es el vocabulario legado (filas viejas en BD).
+            $redondeoLabel = ! in_array($cambio->tipo_redondeo, ['ninguno', 'sin_redondeo'], true) ? ', '.__('redondeo').' '.$cambio->tipo_redondeo : '';
             $detalleMasivo = "{$tipoAjusteLabel} {$cambio->valor_ajuste}{$tipoValorLabel}{$redondeoLabel} (".__('programado').')';
 
             if ($cambio->alcance_precio === 'sucursal_actual' && $cambio->sucursal_id) {

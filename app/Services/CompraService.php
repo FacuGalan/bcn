@@ -273,6 +273,16 @@ class CompraService
         $compra->load(['detalles', 'proveedor', 'compraOrigen']);
 
         DB::connection('pymes_tenant')->transaction(function () use ($compra, $usuarioId, $motivo, $manejoPagos, $pagosAplicados) {
+            // RF-B7 (hardening-circuito-precios): lock + re-check DENTRO de la
+            // transacción — dos cancelaciones concurrentes no duplican reversas
+            // (mismo patrón que anularMovimientoFiscal). corregirCompra hereda
+            // el guard porque cancela por acá.
+            $vigente = Compra::lockForUpdate()->findOrFail($compra->id);
+
+            if (! $vigente->estaCompletada()) {
+                throw new Exception(__('Solo se puede cancelar una compra completada'));
+            }
+
             $motivoFinal = $motivo ?? __('Cancelación de compra');
 
             // D17: resolver los pagos ANTES de las reversas.
@@ -709,6 +719,11 @@ class CompraService
             $origen->update(['saldo_pendiente' => round((float) $origen->saldo_pendiente - $aplicado, 2)]);
         }
 
+        // RF-B11 (hardening-circuito-precios): persistir lo REALMENTE aplicado
+        // contra la origen (semántica de saldo_pendiente en una NC) — la
+        // cancelación restaura exactamente eso, no el total asumido.
+        $nc->update(['saldo_pendiente' => round($aplicado, 2)]);
+
         $this->ccProveedorService->registrarMovimientosNotaCredito(
             $nc,
             round($aplicado, 2),
@@ -729,10 +744,11 @@ class CompraService
             ->first();
 
         // Con ledger: lo aplicado es el DEBE del movimiento NC. Sin ledger
-        // (proveedor sin CC): estimar por total NC contra saldo actual.
+        // (proveedor sin CC): lo aplicado persistido en la NC (RF-B11) — antes
+        // se asumía el total y una NC parcialmente aplicada inflaba la origen.
         $aplicado = $movimientoNc !== null
             ? (float) $movimientoNc->debe
-            : (float) $nc->total;
+            : (float) $nc->saldo_pendiente;
 
         if ($aplicado <= 0) {
             return;

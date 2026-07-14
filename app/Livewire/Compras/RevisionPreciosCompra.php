@@ -31,8 +31,8 @@ class RevisionPreciosCompra extends Component
 
     public int $sucursalId;
 
-    /** sin_redondeo | entero | decena | centena (opciones de PrecioService::aplicarRedondeo) */
-    public string $tipoRedondeo = 'sin_redondeo';
+    /** ninguno | entero | decena | centena (vocabulario de PrecioService::aplicarRedondeo) */
+    public string $tipoRedondeo = 'ninguno';
 
     /**
      * @var array<int, array> filas: {articulo_id, nombre, codigo, costo, precio_actual,
@@ -79,6 +79,13 @@ class RevisionPreciosCompra extends Component
                     ->whereNotNull('precio_base')
                     ->exists();
 
+                // RF-B8 (hardening-circuito-precios): un sugerido en cero o que
+                // no supera el costo arranca DESMARCADO y con badge — aplicarlo
+                // requiere que el usuario lo re-marque viendo la advertencia.
+                $costo = $margen['costo_rector'] !== null ? (float) $margen['costo_rector'] : null;
+                $bajoCosto = $sugerido === null || $sugerido <= 0
+                    || ($costo !== null && round($sugerido, 2) <= round($costo, 2));
+
                 return [
                     'articulo_id' => $articulo->id,
                     'nombre' => $articulo->nombre,
@@ -89,7 +96,8 @@ class RevisionPreciosCompra extends Component
                     'objetivo' => round($margen['utilidad_objetivo'], 1),
                     'sugerido' => $sugerido !== null ? round($sugerido, 2) : null,
                     'precio_nuevo' => $sugerido !== null ? (string) round($sugerido, 2) : '',
-                    'seleccionado' => true,
+                    'seleccionado' => ! $bajoCosto,
+                    'bajo_costo' => $bajoCosto,
                     'alcance' => $tieneOverride ? 'sucursal' : 'global',
                 ];
             })
@@ -104,6 +112,49 @@ class RevisionPreciosCompra extends Component
     public function updatedTipoRedondeo(): void
     {
         $this->recalcular();
+    }
+
+    /**
+     * RF-B8: editar el precio nuevo re-evalúa el piso de costo de la fila; si
+     * queda igual o por debajo, se desmarca (re-marcarla con el badge visible
+     * es la confirmación explícita del usuario).
+     */
+    public function updated(string $name): void
+    {
+        if (! preg_match('/^filas\.(\d+)\.precio_nuevo$/', $name, $m)) {
+            return;
+        }
+
+        $i = (int) $m[1];
+        $nuevo = $this->num($this->filas[$i]['precio_nuevo'] ?? '');
+        $costo = $this->filas[$i]['costo'] !== null ? (float) $this->filas[$i]['costo'] : null;
+
+        $bajoCosto = $nuevo <= 0 || ($costo !== null && round($nuevo, 2) <= round($costo, 2));
+
+        $this->filas[$i]['bajo_costo'] = $bajoCosto;
+
+        if ($bajoCosto) {
+            $this->filas[$i]['seleccionado'] = false;
+        }
+    }
+
+    /**
+     * Parseo del precio editable (RF-B8, mismo criterio que num() del editor):
+     * coma decimal aceptada; más de un separador decimal (miles ambiguo) ⇒ 0.
+     */
+    protected function num(string|float|int|null $valor): float
+    {
+        if ($valor === null || $valor === '') {
+            return 0.0;
+        }
+
+        $texto = str_replace([' ', ','], ['', '.'], trim((string) $valor));
+
+        if (substr_count($texto, '.') > 1 || ! is_numeric($texto)) {
+            return 0.0;
+        }
+
+        return (float) $texto;
     }
 
     public function toggleTodas(bool $valor): void
@@ -130,8 +181,11 @@ class RevisionPreciosCompra extends Component
             return;
         }
 
+        // RF-B8: un precio en cero jamás se aplica; uno bajo el costo solo si
+        // la fila quedó re-marcada por el usuario con el badge visible (el
+        // hook updated() la desmarca ante cualquier edición que caiga al piso).
         $aAplicar = collect($this->filas)->filter(function ($fila) {
-            $nuevo = (float) str_replace(',', '.', (string) $fila['precio_nuevo']);
+            $nuevo = $this->num($fila['precio_nuevo']);
 
             return $fila['seleccionado'] && $nuevo > 0 && round($nuevo, 2) !== round((float) $fila['precio_actual'], 2);
         });
@@ -145,7 +199,7 @@ class RevisionPreciosCompra extends Component
         try {
             DB::connection('pymes_tenant')->transaction(function () use ($aAplicar) {
                 foreach ($aAplicar as $fila) {
-                    $nuevo = round((float) str_replace(',', '.', (string) $fila['precio_nuevo']), 2);
+                    $nuevo = round($this->num($fila['precio_nuevo']), 2);
 
                     if ($fila['alcance'] === 'sucursal') {
                         DB::connection('pymes_tenant')->table('articulos_sucursales')
