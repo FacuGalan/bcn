@@ -446,11 +446,20 @@ class EditorCompra extends Component
         }
 
         // D25: base/monto tipeados a mano sacan al renglón del modo auto; el
-        // impuesto elegido trae su coeficiente default; la alícuota re-sugiere.
-        if (preg_match('/^percepciones\.(\d+)\.(impuesto_id|alicuota|base_imponible|monto)$/', $name, $m)) {
+        // impuesto elegido trae su coeficiente default; la alícuota re-sugiere;
+        // el coeficiente se recorta al rango 0-1.
+        if (preg_match('/^percepciones\.(\d+)\.(impuesto_id|alicuota|base_imponible|monto|coeficiente)$/', $name, $m)) {
             $i = (int) $m[1];
 
             if (isset($this->percepciones[$i])) {
+                if ($m[2] === 'coeficiente') {
+                    if ((string) $value !== '') {
+                        $this->percepciones[$i]['coeficiente'] = $this->numAString(max(0, min(1, $this->num((string) $value))));
+                    }
+
+                    return;
+                }
+
                 if (in_array($m[2], ['base_imponible', 'monto'], true)) {
                     $this->percepciones[$i]['auto'] = false;
                 }
