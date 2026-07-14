@@ -536,8 +536,16 @@ class CompraService
         $descuentoGlobal = $this->montoDescuentoGlobal($compra, array_sum($importes));
         $conceptosCosto = (float) $compra->conceptos->where('computa_costo', true)->sum('monto');
 
+        // D25: la parte NO computable de cada percepción sufrida (monto ×
+        // (1−coeficiente)) es costo real de la mercadería. Coeficiente NULL =
+        // legado/sin dato ⇒ 100% computable, sin efecto en costo.
+        $percepcionesCosto = (float) $compra->percepciones->sum(
+            fn ($p) => round((float) $p->monto * (1 - (float) ($p->coeficiente ?? 1)), 2)
+        );
+
         $globalPorRenglon = $this->costoService->prorratearPorImporte($importes, $descuentoGlobal);
         $conceptosPorRenglon = $this->costoService->prorratearPorImporte($importes, $conceptosCosto);
+        $percepcionesPorRenglon = $this->costoService->prorratearPorImporte($importes, $percepcionesCosto);
 
         // RG 5003: discrimina pero el comprador no computa crédito ⇒ el IVA del
         // renglón integra el costo.
@@ -551,6 +559,7 @@ class CompraService
                 'factor_conversion' => (float) $detalle->factor_conversion,
                 'descuento_global_monto' => $globalPorRenglon[$detalle->id] ?? 0,
                 'conceptos_costo_monto' => $conceptosPorRenglon[$detalle->id] ?? 0,
+                'percepciones_costo_monto' => $percepcionesPorRenglon[$detalle->id] ?? 0,
                 'alicuota_no_recuperable' => $ivaNoRecuperable
                     ? (float) ($detalle->tipoIva?->porcentaje ?? 0)
                     : 0,
@@ -917,6 +926,7 @@ class CompraService
                 'base_imponible' => $percepcion['base_imponible'] ?? null,
                 'alicuota' => $percepcion['alicuota'] ?? null,
                 'monto' => $percepcion['monto'],
+                'coeficiente' => $percepcion['coeficiente'] ?? null,
                 'certificado_numero' => $percepcion['certificado_numero'] ?? null,
             ]);
         }

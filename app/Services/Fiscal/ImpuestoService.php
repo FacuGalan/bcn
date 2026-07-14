@@ -582,9 +582,13 @@ class ImpuestoService
         }
 
         // Percepciones/retenciones sufridas (ya persistidas en compra_percepciones).
+        // D25: al ledger va solo la parte COMPUTABLE (monto × coeficiente); el
+        // resto es costo y lo prorratea CompraService. Coeficiente NULL =
+        // legado/sin dato ⇒ 100% computable (comportamiento histórico).
         foreach ($compra->percepciones as $percepcion) {
             $impuesto = $percepcion->impuesto;
-            $monto = round(abs((float) $percepcion->monto), 2);
+            $coeficiente = $percepcion->coeficiente !== null ? (float) $percepcion->coeficiente : 1.0;
+            $monto = round(abs((float) $percepcion->monto) * $coeficiente, 2);
 
             if ($impuesto === null || $monto <= 0) {
                 continue;

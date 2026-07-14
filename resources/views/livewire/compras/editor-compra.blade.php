@@ -660,6 +660,9 @@
                                             class="w-16 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         <input type="text" wire:model.live.debounce.500ms="percepciones.{{ $index }}.monto" placeholder="{{ __('Monto') }}"
                                             class="w-24 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                        <input type="text" wire:model.live.debounce.500ms="percepciones.{{ $index }}.coeficiente" placeholder="{{ __('Coef.') }}"
+                                            title="{{ __('Parte computable como crédito fiscal (0 a 1): monto × coeficiente va al ledger fiscal, el resto al costo. Default: config del CUIT por jurisdicción.') }}"
+                                            class="w-16 text-right rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         <input type="text" wire:model="percepciones.{{ $index }}.certificado_numero" placeholder="{{ __('Certificado') }}"
                                             class="w-28 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                                         <button type="button" wire:click="quitarPercepcion({{ $index }})" tabindex="-1"

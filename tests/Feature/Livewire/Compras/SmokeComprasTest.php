@@ -338,6 +338,55 @@ class SmokeComprasTest extends TestCase
             ->assertOk();
     }
 
+    public function test_editor_percepcion_coeficiente_default_y_monto_sugerido(): void
+    {
+        // D25: la precarga trae el coeficiente de la config del CUIT y la base
+        // gravada sugiere base/monto hasta que el usuario los pise a mano.
+        $ri = CondicionIva::firstOrCreate(['codigo' => CondicionIva::RESPONSABLE_INSCRIPTO], ['nombre' => 'Responsable Inscripto']);
+        $cuit = Cuit::create([
+            'numero_cuit' => '20'.str_pad((string) random_int(1, 99999999), 8, '0', STR_PAD_LEFT).'3',
+            'razon_social' => 'CUIT D25 Smoke '.uniqid(),
+            'condicion_iva_id' => $ri->id,
+            'activo' => true,
+        ]);
+        $impuesto = \App\Models\Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_smoke'],
+            ['nombre' => 'Perc IIBB Smoke', 'tipo' => \App\Models\Impuesto::TIPO_IIBB, 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true],
+        );
+        \App\Models\CuitImpuestoConfig::firstOrCreate(
+            ['cuit_id' => $cuit->id, 'impuesto_id' => $impuesto->id],
+            ['inscripto' => true, 'coeficiente_computable' => 0.5],
+        );
+        $proveedor = Proveedor::create([
+            'nombre' => 'Prov Coef '.uniqid(),
+            'condicion_iva_id' => $ri->id,
+            'activo' => true,
+            'percepciones_habituales' => [['impuesto_id' => $impuesto->id, 'alicuota' => 3]],
+        ]);
+        $this->crearTiposIva();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0, 'unitario', ['nombre' => 'Perc D25 '.uniqid()]);
+
+        Livewire::test(EditorCompra::class)
+            ->set('cuitId', $cuit->id)
+            ->call('seleccionarProveedor', $proveedor->id)
+            // Precarga D24 + coeficiente D25 desde la config del CUIT.
+            ->assertSet('percepciones.0.coeficiente', '0.5')
+            ->assertSet('percepciones.0.monto', '')
+            // Con un renglón cargado, la base gravada sugiere base y monto.
+            ->set('renglones.0.busqueda', 'Perc D25')
+            ->call('buscarArticuloFila', 0)
+            ->call('seleccionarArticuloFila', 0, $articulo->id)
+            ->set('renglones.0.cantidad_comprada', '10')
+            ->set('renglones.0.precio_unitario', '100')
+            ->assertSet('percepciones.0.base_imponible', '1000')
+            ->assertSet('percepciones.0.monto', '30')
+            // Pisar el monto a mano saca al renglón del modo auto.
+            ->set('percepciones.0.monto', '28')
+            ->set('renglones.0.cantidad_comprada', '20')
+            ->assertSet('percepciones.0.monto', '28')
+            ->assertOk();
+    }
+
     public function test_gestionar_proveedores_guarda_servicio_y_perfil_fiscal_percepciones(): void
     {
         $impuesto = \App\Models\Impuesto::firstOrCreate(

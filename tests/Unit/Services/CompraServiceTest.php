@@ -164,6 +164,84 @@ class CompraServiceTest extends TestCase
         $this->assertEquals(27.0, (float) $percepcion->monto);
     }
 
+    public function test_percepcion_con_coeficiente_parte_credito_parte_costo(): void
+    {
+        // D25: coeficiente 0,6 ⇒ 60% del monto al ledger fiscal como percepción
+        // computable y 40% prorrateado al costo de los artículos.
+        $percIibb = Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_test'],
+            ['nombre' => 'Perc IIBB', 'tipo' => Impuesto::TIPO_IIBB, 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true],
+        );
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $cuit = $this->crearCuit(CondicionIva::RESPONSABLE_INSCRIPTO);
+
+        $compra = $this->servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'cuit_id' => $cuit->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_FACTURA_A,
+            'fecha_comprobante' => '2026-07-01',
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 10, 'factor_conversion' => 1, 'precio_unitario' => 100, 'tipo_iva_id' => $this->tiposIva[5]->id],
+        ], [
+            'ivas' => [['alicuota' => 21, 'base_imponible' => 1000, 'importe' => 210]],
+            'percepciones' => [['impuesto_id' => $percIibb->id, 'base_imponible' => 1000, 'alicuota' => 3, 'monto' => 30, 'coeficiente' => 0.6]],
+        ]);
+
+        $confirmada = $this->servicio->confirmarCompra($compra, 1);
+
+        // Snapshot del coeficiente en la percepción persistida.
+        $this->assertEquals(0.6, (float) $confirmada->percepciones()->first()->coeficiente);
+
+        // Ledger: percepción computable = 30 × 0,6 = 18.
+        $percepcion = MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', $confirmada->id)
+            ->where('naturaleza', MovimientoFiscal::NATURALEZA_PERCEPCION)->first();
+        $this->assertEquals(18.0, (float) $percepcion->monto);
+
+        // Costo: neto 100 + prorrateo de la parte no computable (30 × 0,4 / 10 u) = 101,2.
+        $costo = ArticuloCosto::where('articulo_id', $articulo->id)->where('sucursal_id', $this->sucursalId)->first();
+        $this->assertEquals(101.2, (float) $costo->costo_ultimo);
+    }
+
+    public function test_percepcion_coeficiente_cero_todo_al_costo_sin_ledger(): void
+    {
+        // D25: coeficiente 0 (no inscripto en la jurisdicción) ⇒ ninguna parte
+        // al ledger; todo el monto de la percepción engorda el costo.
+        $percIibb = Impuesto::firstOrCreate(
+            ['codigo' => 'perc_iibb_test'],
+            ['nombre' => 'Perc IIBB', 'tipo' => Impuesto::TIPO_IIBB, 'naturaleza_default' => 'percepcion', 'jurisdiccion' => 'AR-B', 'es_sistema' => true, 'activo' => true],
+        );
+        $articulo = $this->crearArticuloConStock($this->sucursalId, 0);
+        $cuit = $this->crearCuit(CondicionIva::RESPONSABLE_INSCRIPTO);
+
+        $compra = $this->servicio->crearBorrador([
+            'sucursal_id' => $this->sucursalId,
+            'proveedor_id' => $this->proveedor->id,
+            'cuit_id' => $cuit->id,
+            'usuario_id' => 1,
+            'tipo_comprobante' => Compra::TIPO_FACTURA_A,
+            'fecha_comprobante' => '2026-07-01',
+        ], [
+            ['articulo_id' => $articulo->id, 'cantidad_comprada' => 10, 'factor_conversion' => 1, 'precio_unitario' => 100, 'tipo_iva_id' => $this->tiposIva[5]->id],
+        ], [
+            'ivas' => [['alicuota' => 21, 'base_imponible' => 1000, 'importe' => 210]],
+            'percepciones' => [['impuesto_id' => $percIibb->id, 'base_imponible' => 1000, 'alicuota' => 3, 'monto' => 30, 'coeficiente' => 0]],
+        ]);
+
+        $confirmada = $this->servicio->confirmarCompra($compra, 1);
+
+        // Nada de la percepción al ledger (el crédito de IVA sigue normal).
+        $this->assertEquals(0, MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', $confirmada->id)
+            ->where('naturaleza', MovimientoFiscal::NATURALEZA_PERCEPCION)->count());
+        $this->assertEquals(210.0, (float) MovimientoFiscal::where('origen_tipo', 'Compra')->where('origen_id', $confirmada->id)
+            ->where('naturaleza', MovimientoFiscal::NATURALEZA_CREDITO_FISCAL)->first()->monto);
+
+        // Costo: neto 100 + 30/10 = 103.
+        $costo = ArticuloCosto::where('articulo_id', $articulo->id)->where('sucursal_id', $this->sucursalId)->first();
+        $this->assertEquals(103.0, (float) $costo->costo_ultimo);
+    }
+
     public function test_confirmar_factura_b_de_ri_todo_al_costo_sin_credito(): void
     {
         // Criterio del spec: factura B de RI ⇒ costo = total pagado, nada al ledger de IVA.

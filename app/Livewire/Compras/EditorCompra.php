@@ -13,6 +13,7 @@ use App\Models\CondicionIva;
 use App\Models\CuentaCompra;
 use App\Models\CuentaEmpresa;
 use App\Models\Cuit;
+use App\Models\CuitImpuestoConfig;
 use App\Models\FormaPago;
 use App\Models\Impuesto;
 use App\Models\MovimientoCuentaCorrienteProveedor;
@@ -118,7 +119,13 @@ class EditorCompra extends Component
     /** @var array<int, array{tipo: string, descripcion: string, monto: string, tipo_iva_id: ?int, computa_costo: bool}> */
     public array $conceptos = [];
 
-    /** @var array<int, array{impuesto_id: ?int, base_imponible: string, alicuota: string, monto: string, certificado_numero: string}> */
+    /**
+     * D25: `coeficiente` (0-1) = parte computable como crédito fiscal; el resto
+     * prorratea al costo. `auto` = base/monto siguen la sugerencia (Σ bases ×
+     * alícuota) hasta que el usuario los pise a mano.
+     *
+     * @var array<int, array{impuesto_id: ?int, base_imponible: string, alicuota: string, monto: string, coeficiente: string, certificado_numero: string, auto: bool}>
+     */
     public array $percepciones = [];
 
     // ==================== Modal de pago (al confirmar) ====================
@@ -328,7 +335,9 @@ class EditorCompra extends Component
             'base_imponible' => $this->numAString($p->base_imponible),
             'alicuota' => $this->numAString($p->alicuota),
             'monto' => $this->numAString($p->monto),
+            'coeficiente' => $p->coeficiente !== null ? $this->numAString($p->coeficiente) : '',
             'certificado_numero' => (string) ($p->certificado_numero ?? ''),
+            'auto' => false,
         ])->values()->all();
     }
 
@@ -427,9 +436,31 @@ class EditorCompra extends Component
         // La búsqueda por fila NO se rutea acá: el input es deferred y la
         // dispara Alpine con debounce propio (el morph no pisa el tipeo).
 
-        // El usuario editó el desglose a mano: dejar de pisarlo.
+        // El usuario editó el desglose a mano: dejar de pisarlo (pero las
+        // percepciones auto siguen la base que él cargó).
         if (str_starts_with($name, 'ivas.') || in_array($name, ['netoNoGravado', 'netoExento'], true)) {
             $this->fiscalManual = true;
+            $this->sugerirMontosPercepciones();
+
+            return;
+        }
+
+        // D25: base/monto tipeados a mano sacan al renglón del modo auto; el
+        // impuesto elegido trae su coeficiente default; la alícuota re-sugiere.
+        if (preg_match('/^percepciones\.(\d+)\.(impuesto_id|alicuota|base_imponible|monto)$/', $name, $m)) {
+            $i = (int) $m[1];
+
+            if (isset($this->percepciones[$i])) {
+                if (in_array($m[2], ['base_imponible', 'monto'], true)) {
+                    $this->percepciones[$i]['auto'] = false;
+                }
+
+                if ($m[2] === 'impuesto_id') {
+                    $this->percepciones[$i]['coeficiente'] = $this->coeficientePercepcionDefault((int) $value ?: null);
+                }
+
+                $this->sugerirMontosPercepciones();
+            }
 
             return;
         }
@@ -448,6 +479,14 @@ class EditorCompra extends Component
         if ($name === 'cuitId') {
             $this->sugerirTipoComprobante();
             $this->sugerirDesgloseFiscal();
+
+            // El coeficiente default depende del CUIT: refrescar los renglones
+            // de percepción que siguen en modo auto.
+            foreach ($this->percepciones as $i => $p) {
+                if (! empty($p['auto']) && ! empty($p['impuesto_id'])) {
+                    $this->percepciones[$i]['coeficiente'] = $this->coeficientePercepcionDefault((int) $p['impuesto_id']);
+                }
+            }
         }
 
         if ($name === 'proveedorId') {
@@ -905,8 +944,12 @@ class EditorCompra extends Component
             'base_imponible' => '',
             'alicuota' => $this->num($p['alicuota'] ?? 0) > 0 ? $this->numAString($p['alicuota']) : '',
             'monto' => '',
+            'coeficiente' => $this->coeficientePercepcionDefault((int) $p['impuesto_id']),
             'certificado_numero' => '',
+            'auto' => true,
         ])->values()->all();
+
+        $this->sugerirMontosPercepciones();
     }
 
     /**
@@ -1048,6 +1091,8 @@ class EditorCompra extends Component
         $this->ivas = $ivas;
         $this->netoNoGravado = $noGravado > 0 ? (string) $noGravado : '';
         $this->netoExento = $exento > 0 ? (string) $exento : '';
+
+        $this->sugerirMontosPercepciones();
     }
 
     /** Vuelve a la sugerencia automática (botón "Recalcular"). */
@@ -1197,7 +1242,9 @@ class EditorCompra extends Component
             'base_imponible' => '',
             'alicuota' => '',
             'monto' => '',
+            'coeficiente' => '',
             'certificado_numero' => '',
+            'auto' => true,
         ];
     }
 
@@ -1220,6 +1267,67 @@ class EditorCompra extends Component
         if ($base > 0 && $alicuota > 0) {
             $this->percepciones[$index]['monto'] = (string) round($base * $alicuota / 100, 2);
         }
+    }
+
+    /**
+     * D25: sugiere base (Σ bases gravadas del desglose de IVA) y monto
+     * (base × alícuota) de los renglones de percepción que siguen en modo
+     * auto. Se recalcula con cada cambio del desglose; tipear base o monto a
+     * mano saca al renglón del modo auto y esta sugerencia deja de pisarlo.
+     */
+    protected function sugerirMontosPercepciones(): void
+    {
+        $base = round(collect($this->ivas)->sum(fn ($i) => $this->num($i['base_imponible'] ?? 0)), 2);
+
+        foreach ($this->percepciones as $i => $p) {
+            if (empty($p['auto']) || empty($p['impuesto_id'])) {
+                continue;
+            }
+
+            $alicuota = $this->num($p['alicuota'] ?? 0);
+
+            if ($alicuota <= 0) {
+                continue;
+            }
+
+            $this->percepciones[$i]['base_imponible'] = $base > 0 ? (string) $base : '';
+            $this->percepciones[$i]['monto'] = $base > 0 ? (string) round($base * $alicuota / 100, 2) : '';
+        }
+    }
+
+    /**
+     * D25: coeficiente computable default de una percepción para el CUIT de la
+     * compra. Percepción de IVA ⇒ crédito pleno (1). IIBB/otros ⇒ config del
+     * CUIT (coeficiente_computable; si no está definido, 1 si inscripto);
+     * sin config ⇒ 0 (no inscripto en la jurisdicción: todo a costo).
+     */
+    protected function coeficientePercepcionDefault(?int $impuestoId): string
+    {
+        if (! $impuestoId) {
+            return '';
+        }
+
+        if (Impuesto::find($impuestoId)?->tipo === Impuesto::TIPO_IVA) {
+            return '1';
+        }
+
+        if (! $this->cuitId) {
+            return '0';
+        }
+
+        $config = CuitImpuestoConfig::where('cuit_id', $this->cuitId)
+            ->where('impuesto_id', $impuestoId)
+            ->first();
+
+        if (! $config) {
+            return '0';
+        }
+
+        if ($config->coeficiente_computable !== null) {
+            return $this->numAString($config->coeficiente_computable);
+        }
+
+        return $config->inscripto ? '1' : '0';
     }
 
     // ==================== Advertencias (no bloqueantes) ====================
@@ -1419,6 +1527,11 @@ class EditorCompra extends Component
                         'base_imponible' => $this->num($p['base_imponible']) ?: null,
                         'alicuota' => $this->num($p['alicuota']) ?: null,
                         'monto' => $this->num($p['monto']),
+                        // Coeficiente vacío = sin dato ⇒ el service lo trata
+                        // como 100% computable (legado); 0 explícito = todo costo.
+                        'coeficiente' => ($p['coeficiente'] ?? '') !== ''
+                            ? max(0, min(1, $this->num($p['coeficiente'])))
+                            : null,
                         'certificado_numero' => trim($p['certificado_numero']) ?: null,
                     ])
                     ->values()

@@ -43,9 +43,9 @@ class CostoService
      *
      * $renglon: precio_unitario, descuentos (lista de % en cascada),
      * cantidad_comprada (unidades de compra), factor_conversion,
-     * descuento_global_monto y conceptos_costo_monto (importes TOTALES ya
-     * prorrateados al renglón — el prorrateo lo hace el caller con
-     * prorratearPorImporte()).
+     * descuento_global_monto, conceptos_costo_monto y percepciones_costo_monto
+     * (importes TOTALES ya prorrateados al renglón — el prorrateo lo hace el
+     * caller con prorratearPorImporte()).
      *
      * `alicuota_no_recuperable` (caso RG 5003: factura A/M con comprador
      * NO-RI): el renglón viene NETO (así lo imprime la factura) pero el IVA no
@@ -73,6 +73,11 @@ class CostoService
             + (float) ($renglon['conceptos_costo_monto'] ?? 0);
 
         $importeRenglon *= 1 + ((float) ($renglon['alicuota_no_recuperable'] ?? 0)) / 100;
+
+        // D25: parte NO computable de las percepciones sufridas prorrateada al
+        // renglón. Va DESPUÉS del gross-up de IVA: la percepción es un tributo
+        // sobre la operación, no una base gravada.
+        $importeRenglon += (float) ($renglon['percepciones_costo_monto'] ?? 0);
 
         // Por unidad de compra → por unidad de stock (D8).
         return round($importeRenglon / $cantidadComprada / $factor, 4);

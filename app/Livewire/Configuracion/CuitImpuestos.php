@@ -71,6 +71,7 @@ class CuitImpuestos extends Component
     {
         return [
             'filas.*.alicuota' => 'nullable|numeric|min:0|max:100',
+            'filas.*.coeficiente_computable' => 'nullable|numeric|min:0|max:1',
             'filas.*.alicuota_minimo_base' => 'nullable|numeric|min:0',
             'filas.*.monto_minimo_percepcion' => 'nullable|numeric|min:0',
             'filas.*.numero_inscripcion' => 'nullable|string|max:30',
@@ -186,6 +187,7 @@ class CuitImpuestos extends Component
 
                 $config->update([
                     'inscripto' => (bool) $fila['inscripto'],
+                    'coeficiente_computable' => ($fila['coeficiente_computable'] ?? '') !== '' ? $fila['coeficiente_computable'] : null,
                     'es_agente_percepcion' => (bool) $fila['es_agente_percepcion'],
                     'es_agente_retencion' => (bool) $fila['es_agente_retencion'],
                     'percibir_no_empadronados' => (bool) ($fila['percibir_no_empadronados'] ?? false),
@@ -299,6 +301,7 @@ class CuitImpuestos extends Component
                 'tipo' => $c->impuesto?->tipo,
                 'jurisdiccion' => $c->impuesto?->jurisdiccion,
                 'inscripto' => (bool) $c->inscripto,
+                'coeficiente_computable' => $c->coeficiente_computable !== null ? (string) (float) $c->coeficiente_computable : '',
                 'es_agente_percepcion' => (bool) $c->es_agente_percepcion,
                 'es_agente_retencion' => (bool) $c->es_agente_retencion,
                 'percibir_no_empadronados' => (bool) $c->percibir_no_empadronados,
