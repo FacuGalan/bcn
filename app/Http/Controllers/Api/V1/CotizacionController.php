@@ -61,6 +61,7 @@ class CotizacionController extends Controller
             'items.*.opcionales.*.opcional_id' => 'required|integer',
             'items.*.opcionales.*.cantidad' => 'nullable|numeric|min:0.001',
             'cupon_codigo' => 'nullable|string|max:50',
+            'forma_pago_id' => 'nullable|integer',
         ]);
 
         $sucursal = $request->attributes->get('api_sucursal');
@@ -85,6 +86,7 @@ class CotizacionController extends Controller
             $datos['items'],
             $datos['cupon_codigo'] ?? null,
             $clienteId,
+            isset($datos['forma_pago_id']) ? (int) $datos['forma_pago_id'] : null,
         );
 
         return response()->json([
@@ -97,6 +99,11 @@ class CotizacionController extends Controller
                 'promociones_aplicadas' => $resultado['promociones_comunes_aplicadas'] ?? [],
                 'promociones_especiales_aplicadas' => $resultado['promociones_especiales_aplicadas'] ?? [],
                 'cupon' => $resultado['cupon'],
+                // FP declarada (opcional): descuento/recargo con los MISMOS
+                // cálculos del panel. total_a_pagar = total_final + ajuste
+                // (sin envío, que va aparte).
+                'forma_pago' => $resultado['forma_pago'] ?? null,
+                'total_a_pagar' => (float) ($resultado['total_a_pagar'] ?? ($resultado['total_final'] ?? 0)),
                 'desglose_iva' => $resultado['desglose_iva'] ?? null,
                 'nota' => __('El costo de envío se cotiza aparte y se suma al confirmar el pedido'),
             ],

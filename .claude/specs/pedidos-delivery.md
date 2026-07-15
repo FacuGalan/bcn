@@ -127,6 +127,29 @@ caja ⇒ excepción. FP con integración (QR) no se puede confirmar en la vuelta
 - Máquina de estados del seguimiento documentada por tipo en
   `docs/api-v1-delivery.md`.
 
+### E13 — Forma de pago en el precio de la tienda + fix cupón (2026-07-14)
+Decisión del usuario: la FP que declara el consumidor **participa del precio
+con exactamente los mismos cálculos que el panel** (promos y listas
+condicionadas por FP, cupones restringidos a FP, descuento/recargo por FP) —
+sin esto un pedido de tienda editado en el panel cambiaría de total.
+- **Trait `WithAjusteFormaPago`** (Concerns/Carrito): fuente ÚNICA de
+  `calcularAjusteFormaPago`/`actualizarDesgloseIvaConAjusteFormaPago` (antes
+  triplicadas en NuevaVenta/NuevoPedidoDelivery/NuevoPedidoMostrador). Hook
+  `baseAjusteFormaPago()`: delivery excluye el ENVÍO de la base (D17).
+- `carrito/cotizar` acepta `forma_pago_id` (validado con
+  `FormaPago::esDeclarableEnTienda`, regla única) → responde `forma_pago`
+  {ajuste_porcentaje, ajuste_monto} + `total_a_pagar`. `total_final` sigue
+  siendo bienes (contrato aditivo).
+- `POST pedidos`: la FP del `pago` entra a la recotización; el pedido persiste
+  `ajuste_forma_pago` y `total_final` ajustado; el pago planificado se
+  descompone `monto_base + monto_ajuste = monto_final` (paridad panel).
+- `GET /tiendas/{slug}`: `formas_pago[].ajuste_porcentaje` (sucursal > general).
+- Cupón restringido a FP: exige `forma_pago_id` y valida con
+  `validarFormasPagoCupon` (mismo criterio del cobro del POS).
+- **FIX**: `aplicarCuponServerSide` leía `valido`/`mensaje` pero
+  `CuponService::validarCupon` devuelve `valid`/`message` → TODO cupón era
+  rechazado en la API. Corregido + tests de cupón que faltaban.
+
 ### E11 — UI del panel (rev10-18)
 Lista reordenada con **botones inline sobre el dato** (patrón
 /boton-inline-hover): editar en N°, despacho en el repartidor / chip "Para

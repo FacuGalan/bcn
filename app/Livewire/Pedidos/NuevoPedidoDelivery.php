@@ -2,6 +2,7 @@
 
 namespace App\Livewire\Pedidos;
 
+use App\Livewire\Concerns\Carrito\WithAjusteFormaPago;
 use App\Livewire\Concerns\Carrito\WithArticuloRapido;
 use App\Livewire\Concerns\Carrito\WithBusquedaArticulos;
 use App\Livewire\Concerns\Carrito\WithBusquedaClientes;
@@ -20,7 +21,6 @@ use App\Models\Cliente;
 use App\Models\FormaPago;
 use App\Models\FormaPagoCuota;
 use App\Models\FormaPagoCuotaSucursal;
-use App\Models\FormaPagoSucursal;
 use App\Models\ListaPrecio;
 use App\Models\PedidoDelivery;
 use App\Models\PedidoDeliveryDetalle;
@@ -93,6 +93,7 @@ class NuevoPedidoDelivery extends Component
 
     use CajaAware;
     use ManejaDomicilio;
+    use WithAjusteFormaPago;
     use WithArticuloRapido;
     use WithBusquedaArticulos;
     use WithBusquedaClientes;
@@ -2674,169 +2675,22 @@ class NuevoPedidoDelivery extends Component
         ];
     }
 
-    protected function calcularAjusteFormaPago(): void
+    // calcularAjusteFormaPago / actualizarDesgloseIvaConAjusteFormaPago:
+    // provistos por WithAjusteFormaPago. Este componente solo overridea la BASE
+    // del ajuste (excluye el envio, D17) en baseAjusteFormaPago().
+
+    /**
+     * El envio es un valor FIJO: queda fuera del ajuste por forma de pago y del
+     * recargo de cuotas, igual que de descuentos/promos/puntos (D17).
+     * Ej: efectivo -10% sobre $1000 de productos + $500 de envio = $1400.
+     * En cobro rapido el saldo no se puede descomponer -> base completa.
+     */
+    protected function baseAjusteFormaPago(float $totalBase): float
     {
-        $this->ajusteFormaPagoInfo = [
-            'nombre' => '',
-            'porcentaje' => 0,
-            'monto' => 0,
-            'total_con_ajuste' => 0,
-            'es_mixta' => false,
-            'cuotas' => 1,
-            'recargo_cuotas_porcentaje' => 0,
-            'recargo_cuotas_monto' => 0,
-            'valor_cuota' => 0,
-        ];
-
-        if (! $this->formaPagoId || ! $this->resultado) {
-            return;
-        }
-
-        if (empty($this->formasPagoSucursal)) {
-            $this->cargarFormasPagoSucursal();
-        }
-
-        $fp = collect($this->formasPagoSucursal)->firstWhere('id', (int) $this->formaPagoId);
-
-        if (! $fp) {
-            $formaPago = FormaPago::find($this->formaPagoId);
-            if (! $formaPago) {
-                return;
-            }
-            $configSucursal = FormaPagoSucursal::where('forma_pago_id', $this->formaPagoId)
-                ->where('sucursal_id', $this->sucursalId)
-                ->first();
-            $ajuste = $configSucursal && $configSucursal->ajuste_porcentaje !== null
-                ? $configSucursal->ajuste_porcentaje
-                : ($formaPago->ajuste_porcentaje ?? 0);
-            $fp = [
-                'id' => $formaPago->id,
-                'nombre' => $formaPago->nombre,
-                'ajuste_porcentaje' => $ajuste,
-                'es_mixta' => $formaPago->es_mixta ?? false,
-            ];
-        }
-
-        $totalBase = $this->resultado['total_final'] ?? 0;
-        // El envío es un valor FIJO: queda fuera del ajuste por forma de pago
-        // y del recargo de cuotas, igual que de descuentos/promos/puntos (D17).
-        // Ej: efectivo -10% sobre $1000 de productos + $500 de envío = $1400.
-        // En cobro rápido el saldo no se puede descomponer → base completa.
-        $baseAjuste = $this->modoCobroRapido
+        return $this->modoCobroRapido
             ? (float) $totalBase
             : max(0, round((float) $totalBase - $this->montoEnvioVigente(), 2));
-        $ajustePorcentaje = $fp['ajuste_porcentaje'] ?? 0;
-        $montoAjuste = round($baseAjuste * ($ajustePorcentaje / 100), 2) + 0;
-        $totalConAjuste = round($totalBase + $montoAjuste, 2) + 0;
-
-        $cantidadCuotas = 1;
-        $recargoCuotasPorcentaje = 0;
-        $recargoCuotasMonto = 0;
-        $valorCuota = $totalConAjuste;
-
-        if ($this->cuotaSeleccionadaId && ! empty($this->cuotasFormaPagoDisponibles)) {
-            $cuotaInfo = collect($this->cuotasFormaPagoDisponibles)->firstWhere('id', (int) $this->cuotaSeleccionadaId);
-            if ($cuotaInfo) {
-                $cantidadCuotas = $cuotaInfo['cantidad_cuotas'];
-                $recargoCuotasPorcentaje = $cuotaInfo['recargo_porcentaje'];
-                $recargoCuotasMonto = round(($baseAjuste + $montoAjuste) * ($recargoCuotasPorcentaje / 100), 2);
-                $totalConAjuste = round($totalConAjuste + $recargoCuotasMonto, 2);
-                $valorCuota = $cantidadCuotas > 0 ? round($totalConAjuste / $cantidadCuotas, 2) : $totalConAjuste;
-                $this->infoCuotaSeleccionada = [
-                    'cantidad_cuotas' => $cantidadCuotas,
-                    'recargo_porcentaje' => $recargoCuotasPorcentaje,
-                    'recargo_monto' => $recargoCuotasMonto,
-                    'valor_cuota' => $valorCuota,
-                    'total_con_recargo' => $totalConAjuste,
-                    'descripcion' => $this->formatearDescripcionCuota([
-                        'cantidad_cuotas' => $cantidadCuotas,
-                        'recargo_porcentaje' => $recargoCuotasPorcentaje,
-                        'valor_cuota' => $valorCuota,
-                    ]),
-                ];
-            }
-        }
-
-        $this->ajusteFormaPagoInfo = [
-            'nombre' => $fp['nombre'],
-            'porcentaje' => $ajustePorcentaje,
-            'monto' => $montoAjuste,
-            'total_con_ajuste' => $totalConAjuste,
-            'es_mixta' => $fp['es_mixta'] ?? false,
-            'cuotas' => $cantidadCuotas,
-            'recargo_cuotas_porcentaje' => $recargoCuotasPorcentaje,
-            'recargo_cuotas_monto' => $recargoCuotasMonto,
-            'valor_cuota' => $valorCuota,
-        ];
-
-        $this->actualizarDesgloseIvaConAjusteFormaPago($montoAjuste, $recargoCuotasMonto);
     }
-
-    protected function actualizarDesgloseIvaConAjusteFormaPago(float $montoAjusteFormaPago, float $montoRecargoCuotas): void
-    {
-        if (! $this->resultado || ! isset($this->resultado['desglose_iva'])) {
-            return;
-        }
-        $desglose = $this->resultado['desglose_iva'];
-        $totalNetoBase = $desglose['total_neto'];
-
-        if ($totalNetoBase == 0 || ($montoAjusteFormaPago == 0 && $montoRecargoCuotas == 0)) {
-            $this->resultado['desglose_iva']['ajuste_forma_pago'] = 0;
-            $this->resultado['desglose_iva']['recargo_cuotas'] = 0;
-            $this->resultado['desglose_iva']['total_con_ajuste_fp'] = $desglose['total'];
-
-            return;
-        }
-
-        $ajusteTotal = $montoAjusteFormaPago + $montoRecargoCuotas;
-        $totalSubtotalBase = array_sum(array_column($desglose['por_alicuota'], 'subtotal'));
-
-        $nuevoPorAlicuota = [];
-        foreach ($desglose['por_alicuota'] as $alicuota) {
-            $proporcion = $totalSubtotalBase > 0 ? $alicuota['subtotal'] / $totalSubtotalBase : 0;
-            $ajusteAlicuotaConIva = $ajusteTotal * $proporcion;
-            $ajusteNetoAlicuota = $alicuota['porcentaje'] > 0
-                ? $ajusteAlicuotaConIva / (1 + $alicuota['porcentaje'] / 100)
-                : $ajusteAlicuotaConIva;
-            $nuevoNeto = $alicuota['neto'] + $ajusteNetoAlicuota;
-            $nuevoIva = $nuevoNeto * ($alicuota['porcentaje'] / 100);
-
-            $nuevoPorAlicuota[] = [
-                'codigo' => $alicuota['codigo'],
-                'nombre' => $alicuota['nombre'],
-                'porcentaje' => $alicuota['porcentaje'],
-                'neto_sin_descuento' => $alicuota['neto_sin_descuento'],
-                'iva_sin_descuento' => $alicuota['iva_sin_descuento'],
-                'subtotal_sin_descuento' => $alicuota['subtotal_sin_descuento'],
-                'neto' => round($alicuota['neto'], 3),
-                'iva' => round($alicuota['iva'], 3),
-                'subtotal' => round($alicuota['subtotal'], 3),
-                'descuento_aplicado' => $alicuota['descuento_aplicado'],
-                'neto_con_ajuste_fp' => round($nuevoNeto, 3),
-                'iva_con_ajuste_fp' => round($nuevoIva, 3),
-                'subtotal_con_ajuste_fp' => round($nuevoNeto + $nuevoIva, 3),
-                'ajuste_fp_aplicado' => round($ajusteAlicuotaConIva, 3),
-            ];
-        }
-
-        $totalNetoConAjuste = array_sum(array_column($nuevoPorAlicuota, 'neto_con_ajuste_fp'));
-        $totalIvaConAjuste = array_sum(array_column($nuevoPorAlicuota, 'iva_con_ajuste_fp'));
-        $totalConAjuste = array_sum(array_column($nuevoPorAlicuota, 'subtotal_con_ajuste_fp'));
-
-        $this->resultado['desglose_iva'] = [
-            'por_alicuota' => $nuevoPorAlicuota,
-            'total_neto' => $desglose['total_neto'],
-            'total_iva' => $desglose['total_iva'],
-            'total' => $desglose['total'],
-            'descuento_aplicado' => $desglose['descuento_aplicado'],
-            'ajuste_forma_pago' => round($montoAjusteFormaPago, 3),
-            'recargo_cuotas' => round($montoRecargoCuotas, 3),
-            'total_neto_con_ajuste_fp' => round($totalNetoConAjuste, 3),
-            'total_iva_con_ajuste_fp' => round($totalIvaConAjuste, 3),
-            'total_con_ajuste_fp' => round($totalConAjuste, 3),
-        ];
-    }
-
     // ==================== SELECTOR DE CUOTAS (UI) ====================
 
     public function toggleCuotasSelector(): void

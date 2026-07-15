@@ -55,7 +55,8 @@ pago declarables**:
     "usa_franjas": false          // true ⇒ consultar GET /franjas
   },
   "formas_pago": [
-    { "id": 1, "nombre": "Efectivo", "codigo": "efectivo", "permite_vuelto": true }
+    { "id": 1, "nombre": "Efectivo", "codigo": "efectivo", "permite_vuelto": true,
+      "ajuste_porcentaje": -10 }
   ]
 }
 ```
@@ -63,6 +64,9 @@ pago declarables**:
 `formas_pago` son las declarables **contra entrega/retiro** (el pago online
 integrado es otro circuito, pendiente en el spec de integraciones);
 `permite_vuelto: true` habilita el campo `paga_con` del alta de pedido.
+`ajuste_porcentaje` es el descuento (negativo) o recargo (positivo) de esa FP
+— mostrarlo junto a la opción ("Efectivo −10%"); el monto exacto lo calcula
+`carrito/cotizar` con `forma_pago_id`.
 
 ### `GET /v1/tiendas/{slug}/franjas?tipo=delivery|take_away`
 Horarios de entrega/retiro de la JORNADA con lugar (modo `franjas`):
@@ -105,12 +109,22 @@ muestra en el checkout. **Nunca calcular precios localmente.**
     { "articulo_id": 12, "cantidad": 2,
       "opcionales": [{ "opcional_id": 5, "cantidad": 1 }] }
   ],
-  "cupon_codigo": "PROMO10"
+  "cupon_codigo": "PROMO10",
+  "forma_pago_id": 1
 }
 ```
 → items con promociones atribuidas, `subtotal`, `iva`, `descuento`,
-`total_final`, `cupon`, `desglose_iva`. El costo de envío va aparte (endpoint
-anterior) y lo suma el alta del pedido.
+`total_final`, `cupon`, `forma_pago`, `total_a_pagar`, `desglose_iva`. El
+costo de envío va aparte (endpoint anterior) y lo suma el alta del pedido.
+
+`forma_pago_id` (opcional): la FP que el consumidor piensa declarar. Participa
+del precio con los **mismos cálculos del panel**: promociones y listas de
+precios condicionadas por forma de pago, cupones restringidos a FP, y el
+descuento/recargo de la FP (`forma_pago.ajuste_monto`). `total_final` sigue
+siendo el total de bienes; **`total_a_pagar` = total_final + ajuste** es lo que
+el consumidor paga (sin envío). Recomendado: re-cotizar al cambiar la FP en el
+checkout. Un cupón restringido a formas de pago exige `forma_pago_id` (422 si
+falta o no coincide).
 
 ### `POST /v1/tiendas/{slug}/pedidos`
 Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
@@ -137,6 +151,14 @@ Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
 como planificado (no cobra nada): `forma_pago_id` de `GET /tiendas/{slug}` y,
 si `permite_vuelto`, `paga_con` (efectivo con el que paga → el repartidor sale
 con el vuelto). `paga_con` menor al total → 422.
+
+La FP declarada **impacta el precio del pedido** con los mismos cálculos que
+`carrito/cotizar` (promos/listas por FP + ajuste por FP): el `total_final` del
+pedido queda con el ajuste aplicado y el pago planificado se descompone como
+en el panel (`monto_base + monto_ajuste = monto_final`). El **envío queda
+fuera** de la base del ajuste (es un valor fijo): efectivo −10% sobre $1000 de
+productos + $500 de envío = $1400. Checkout con la misma FP y pedido muestran
+el MISMO total.
 
 Reglas:
 - Tienda cerrada (calendario/horarios) → 422.

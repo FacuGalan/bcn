@@ -594,4 +594,211 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.estado_label', 'Para retirar')
             ->assertJsonPath('data.repartidor_en_camino', null);
     }
+
+    // ==================== CUPONES EN LA COTIZACIÓN (fix valid/message) ====================
+
+    protected function crearCuponPorcentaje(float $valor = 10): \App\Models\Cupon
+    {
+        return \App\Models\Cupon::create([
+            'codigo' => 'CUP-'.strtoupper(uniqid()),
+            'tipo' => 'promocional',
+            'descripcion' => 'Cupón test',
+            'modo_descuento' => 'porcentaje',
+            'valor_descuento' => $valor,
+            'aplica_a' => 'total',
+            'uso_maximo' => 100,
+            'activo' => true,
+            'created_by_usuario_id' => 1,
+        ]);
+    }
+
+    public function test_cotizar_carrito_con_cupon_valido_aplica_descuento(): void
+    {
+        // Regresión del bug valido/mensaje vs valid/message: TODO cupón era
+        // rechazado como inválido aunque estuviera vigente.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $cupon = $this->crearCuponPorcentaje(10); // artículo $1000 → $100 off
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'cupon_codigo' => $cupon->codigo,
+        ])->assertOk();
+
+        $this->assertSame($cupon->codigo, $respuesta->json('data.cupon.codigo'));
+        $this->assertEqualsWithDelta(100.0, (float) $respuesta->json('data.cupon.descuento'), 0.01);
+        $this->assertEqualsWithDelta(900.0, (float) $respuesta->json('data.total_final'), 0.01);
+    }
+
+    public function test_cotizar_carrito_con_cupon_inexistente_da_422_con_motivo(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'cupon_codigo' => 'NO-EXISTE',
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', __('Cupón inválido'));
+    }
+
+    public function test_cupon_vencido_devuelve_el_motivo_real(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $cupon = $this->crearCuponPorcentaje();
+        $cupon->update(['fecha_vencimiento' => now()->subDay()->toDateString()]);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'cupon_codigo' => $cupon->codigo,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.message', __('Cupón expirado'));
+    }
+
+    // ==================== FORMA DE PAGO EN COTIZACIÓN/ALTA (paridad panel) ====================
+
+    /** FP efectivo habilitada en sucursal con descuento del 10%. */
+    protected function formaPagoConDescuento(float $ajuste = -10): \App\Models\FormaPago
+    {
+        $fp = $this->formaPagoEfectivoEnSucursal();
+        $fp->update(['ajuste_porcentaje' => $ajuste]);
+
+        return $fp->fresh();
+    }
+
+    public function test_tienda_show_expone_ajuste_porcentaje_de_la_fp(): void
+    {
+        $fp = $this->formaPagoConDescuento(-10);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test')->assertOk();
+
+        $efectivo = collect($respuesta->json('data.formas_pago'))->firstWhere('id', $fp->id);
+        $this->assertSame(-10.0, (float) $efectivo['ajuste_porcentaje']);
+    }
+
+    public function test_cotizar_con_fp_con_descuento_aplica_el_ajuste(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $fp = $this->formaPagoConDescuento(-10);
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'forma_pago_id' => $fp->id,
+        ])->assertOk();
+
+        // Artículo $1000, efectivo -10% → total_a_pagar 900 (total_final sigue
+        // siendo el de bienes, paridad con el resultado del panel).
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.total_final'), 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $respuesta->json('data.forma_pago.ajuste_monto'), 0.01);
+        $this->assertEqualsWithDelta(900.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_cotizar_con_fp_no_habilitada_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        // FP existente pero NO habilitada en la sucursal.
+        $fp = $this->crearFormaPagoEfectivo()['formaPago'];
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'forma_pago_id' => $fp->id,
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'operacion_invalida');
+    }
+
+    public function test_promocion_condicionada_a_fp_solo_aplica_con_esa_fp(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $fp = $this->formaPagoEfectivoEnSucursal();
+
+        $promo = \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Solo efectivo 20%',
+            'tipo' => 'descuento_porcentaje',
+            'valor' => 20,
+            'prioridad' => 1,
+            'combinable' => true,
+            'activo' => true,
+            'usos_actuales' => 0,
+        ]);
+        \App\Models\PromocionCondicion::create([
+            'promocion_id' => $promo->id,
+            'tipo_condicion' => 'por_forma_pago',
+            'forma_pago_id' => $fp->id,
+        ]);
+
+        // Sin FP declarada: la promo NO aplica.
+        $sinFp = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+        ])->assertOk();
+        $this->assertEqualsWithDelta(1000.0, (float) $sinFp->json('data.total_final'), 0.01);
+
+        // Con la FP de la condición: aplica el 20%.
+        $conFp = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'forma_pago_id' => $fp->id,
+        ])->assertOk();
+        $this->assertEqualsWithDelta(800.0, (float) $conFp->json('data.total_final'), 0.01);
+    }
+
+    public function test_pedido_con_fp_con_descuento_cobra_el_total_ajustado(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $fp = $this->formaPagoConDescuento(-10);
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', array_merge(
+            $this->payloadPedido($articulo->id),
+            ['pago' => ['forma_pago_id' => $fp->id]],
+        ))->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        // total_final = 1000 − 10% = 900; el pago planificado se descompone
+        // igual que en el panel (base + ajuste = final).
+        $this->assertEqualsWithDelta(900.0, (float) $pedido->total_final, 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $pedido->ajuste_forma_pago, 0.01);
+
+        $pago = $pedido->pagos()->first();
+        $this->assertEqualsWithDelta(1000.0, (float) $pago->monto_base, 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $pago->monto_ajuste, 0.01);
+        $this->assertEqualsWithDelta(900.0, (float) $pago->monto_final, 0.01);
+    }
+
+    public function test_el_envio_queda_fuera_de_la_base_del_ajuste_fp(): void
+    {
+        // D17: efectivo -10% sobre $1000 de productos + $500 de envío = $1400
+        // (el descuento no toca el envío) — misma regla que el panel delivery.
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'georreferenciar_pedidos' => true,
+                'radio_entrega_km' => 10,
+                'costo_envio_base' => 500,
+            ]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $fp = $this->formaPagoConDescuento(-10);
+
+        $payload = array_merge($this->payloadPedido($articulo->id), [
+            'pago' => ['forma_pago_id' => $fp->id],
+        ]);
+        $payload['direccion']['latitud'] = -34.6100;
+        $payload['direccion']['longitud'] = -58.3850;
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        $this->assertEqualsWithDelta(500.0, (float) $pedido->costo_envio, 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $pedido->ajuste_forma_pago, 0.01, 'El ajuste es -10% de los productos, sin el envío');
+        $this->assertEqualsWithDelta(1400.0, (float) $pedido->total_final, 0.01);
+    }
 }

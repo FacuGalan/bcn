@@ -282,6 +282,23 @@ class FormaPago extends Model
     }
 
     /**
+     * ¿El consumidor de la TIENDA puede declarar esta FP para pagar contra
+     * entrega/retiro? Regla ÚNICA (la usan la cotización y el alta de pedidos
+     * externos): activa, habilitada en la sucursal, no mixta, no interna del
+     * sistema, y no cuenta corriente / puntos (requieren cliente).
+     */
+    public function esDeclarableEnTienda(int $sucursalId): bool
+    {
+        $conceptoCodigo = strtoupper((string) $this->conceptoPago?->codigo);
+
+        return $this->activo
+            && ! $this->solo_sistema
+            && ! $this->es_mixta
+            && ! in_array($conceptoCodigo, ['CTA_CTE', 'CUENTA_CORRIENTE', 'PUNTOS'], true)
+            && $this->estaHabilitadaEnSucursal($sucursalId);
+    }
+
+    /**
      * Obtiene las cuotas disponibles activas
      */
     public function obtenerCuotasDisponibles()
