@@ -84,15 +84,21 @@ class PedidoTiendaService
         }
 
         // Carrito por el MISMO motor (D12). Lanza con mensaje claro ante
-        // artículos no pedibles (RF-16/RF-17).
+        // artículos no pedibles (RF-16/RF-17). La FP declarada participa del
+        // precio (promos/listas por FP + ajuste por FP), igual que en el panel.
         $clienteId = $this->resolverClienteId($sucursal, $consumidor);
+        $formaPagoId = isset($payload['pago']['forma_pago_id'])
+            ? (int) $payload['pago']['forma_pago_id']
+            : null;
         $resultado = $this->cotizador->cotizar(
             $sucursal,
             $tipo,
             $payload['items'],
             $payload['cupon_codigo'] ?? null,
             $clienteId,
+            $formaPagoId ?: null,
         );
+        $ajusteFormaPago = $this->cotizador->ajusteFormaPagoMonto();
 
         $aceptacionManual = ($config['aceptacion_pedidos_externos'] ?? 'manual') !== 'automatica';
 
@@ -121,8 +127,11 @@ class PedidoTiendaService
             'iva' => (float) ($resultado['iva_total'] ?? 0),
             'descuento' => (float) ($resultado['descuento_total'] ?? 0),
             'total' => (float) ($resultado['total_final'] ?? 0),
-            'ajuste_forma_pago' => 0,
-            'total_final' => (float) ($resultado['total_final'] ?? 0),
+            // Ajuste por la FP declarada (descuento/recargo): mismo cálculo que
+            // el panel (WithAjusteFormaPago); el envío queda fuera de la base
+            // por construcción (la cotización del carrito no lo incluye, D17).
+            'ajuste_forma_pago' => $ajusteFormaPago,
+            'total_final' => round((float) ($resultado['total_final'] ?? 0) + $ajusteFormaPago, 2),
             'cupon_id' => $resultado['cupon']['id'] ?? null,
             'cupon_codigo_snapshot' => $resultado['cupon']['codigo'] ?? null,
             'cupon_descripcion_snapshot' => $resultado['cupon']['descripcion'] ?? null,
@@ -152,7 +161,13 @@ class PedidoTiendaService
 
         // Pago declarado contra entrega/retiro (planificado, D14): "pago con
         // efectivo, con $X" queda en el pedido — el panel/vuelta lo confirma.
-        $this->registrarPagoDeclarado($sucursal, $pedido, $payload['pago'] ?? null);
+        $this->registrarPagoDeclarado(
+            $sucursal,
+            $pedido,
+            $payload['pago'] ?? null,
+            $ajusteFormaPago,
+            $this->cotizador->ajusteFormaPagoPorcentaje(),
+        );
 
         // Aceptación automática (D14): comandar solo (marca los renglones y
         // transiciona a en_preparacion; la impresión física sigue el circuito
@@ -238,8 +253,13 @@ class PedidoTiendaService
      * cobra): FP pública de la sucursal + "¿con cuánto pagás?" para efectivo
      * (vuelto planificado, mismo patrón del panel). Sin `pago` es no-op.
      */
-    protected function registrarPagoDeclarado(Sucursal $sucursal, PedidoDelivery $pedido, ?array $pago): void
-    {
+    protected function registrarPagoDeclarado(
+        Sucursal $sucursal,
+        PedidoDelivery $pedido,
+        ?array $pago,
+        float $ajusteFormaPago = 0.0,
+        float $ajustePorcentaje = 0.0,
+    ): void {
         $formaPagoId = (int) ($pago['forma_pago_id'] ?? 0);
         if (! $formaPagoId) {
             return;
@@ -247,18 +267,14 @@ class PedidoTiendaService
 
         $formaPago = \App\Models\FormaPago::find($formaPagoId);
 
-        $conceptoCodigo = strtoupper((string) $formaPago?->conceptoPago?->codigo);
-        $esDeclarable = $formaPago
-            && $formaPago->activo
-            && ! $formaPago->solo_sistema
-            && ! $formaPago->es_mixta
-            && ! in_array($conceptoCodigo, ['CTA_CTE', 'CUENTA_CORRIENTE', 'PUNTOS'], true)
-            && $formaPago->estaHabilitadaEnSucursal((int) $sucursal->id);
-
-        if (! $esDeclarable) {
+        // Regla única (la misma que valida la cotización — FormaPago).
+        if (! $formaPago || ! $formaPago->esDeclarableEnTienda((int) $sucursal->id)) {
             throw new Exception(__('La forma de pago elegida no está disponible en esta tienda'));
         }
 
+        // total_final ya incluye el ajuste por FP (y el envío, que queda fuera
+        // de la base del ajuste). El pago se descompone igual que en el panel:
+        // monto_base (bienes + envío) + monto_ajuste (ajuste FP) = monto_final.
         $total = round((float) $pedido->total_final, 2);
         $pagaCon = isset($pago['paga_con']) ? round((float) $pago['paga_con'], 2) : null;
 
@@ -272,7 +288,9 @@ class PedidoTiendaService
 
         $this->pedidoService->agregarPago($pedido, [
             'forma_pago_id' => $formaPago->id,
-            'monto_base' => $total,
+            'monto_base' => round($total - $ajusteFormaPago, 2),
+            'ajuste_porcentaje' => $ajustePorcentaje,
+            'monto_ajuste' => $ajusteFormaPago,
             'monto_final' => $total,
             'monto_recibido' => $pagaCon && $pagaCon > 0 ? $pagaCon : null,
             'vuelto' => $pagaCon && $pagaCon > $total ? round($pagaCon - $total, 2) : 0,

@@ -2,9 +2,11 @@
 
 namespace App\Services\Pedidos;
 
+use App\Livewire\Concerns\Carrito\WithAjusteFormaPago;
 use App\Livewire\Concerns\Carrito\WithCalculoVenta;
 use App\Models\Articulo;
 use App\Models\CanalVenta;
+use App\Models\FormaPago;
 use App\Models\FormaVenta;
 use App\Models\ListaPrecio;
 use App\Models\Opcional;
@@ -31,11 +33,18 @@ use Exception;
  * `ListaPrecio::buscarListaAplicable` con ese contexto (así aplican las
  * listas condicionadas tipo "Precios Delivery" sin operador que las elija).
  *
+ * Forma de pago: si el consumidor la declara, participa del precio con los
+ * MISMOS cálculos del panel — promociones y listas condicionadas por FP
+ * (contexto del motor) y descuento/recargo por FP (WithAjusteFormaPago, la
+ * fuente única compartida con los componentes). `total_a_pagar` = total_final
+ * + ajuste FP. Cuotas quedan fuera (pago contra entrega, sin financiación).
+ *
  * Puntos: NO participan de la cotización pública v1 (requieren cliente
  * materializado y sesión de consumidor — proyecto tienda).
  */
 class CotizadorCarritoTienda
 {
+    use WithAjusteFormaPago;
     use WithCalculoVenta {
         WithCalculoVenta::calcularVenta as calcularVentaCarrito;
     }
@@ -86,6 +95,18 @@ class CotizadorCarritoTienda
 
     public ?float $descuentoGeneral = null;
 
+    // Propiedades que WithAjusteFormaPago espera (cuotas siempre vacías: la
+    // tienda no financia — el pago declarado es contra entrega/retiro).
+    public array $ajusteFormaPagoInfo = [];
+
+    public ?int $cuotaSeleccionadaId = null;
+
+    public array $cuotasFormaPagoDisponibles = [];
+
+    public array $infoCuotaSeleccionada = [];
+
+    public array $formasPagoSucursal = [];
+
     protected CuponService $cuponService;
 
     public function __construct(CuponService $cuponService)
@@ -101,10 +122,13 @@ class CotizadorCarritoTienda
     /** Stub NuevaVenta: la tienda no factura en la cotización. */
     protected function calcularMontoFacturaFiscal(): void {}
 
-    /** Stub: sin forma de pago elegida no hay ajuste FP en la cotización. */
-    protected function calcularAjusteFormaPago(): void {}
+    /**
+     * Stub: sin cache de FP de sucursal, WithAjusteFormaPago cae a su fallback
+     * de BD (FormaPago + override de FormaPagoSucursal) — el camino headless.
+     */
+    protected function cargarFormasPagoSucursal(): void {}
 
-    /** Stub: ídem cuotas. */
+    /** Stub: la tienda no ofrece cuotas (pago contra entrega). */
     protected function cargarCuotasFormaPago(): void {}
 
     // ==================== API ====================
@@ -127,6 +151,7 @@ class CotizadorCarritoTienda
         array $itemsInput,
         ?string $cuponCodigo = null,
         ?int $clienteId = null,
+        ?int $formaPagoId = null,
     ): array {
         if (! in_array($tipo, [PedidoDelivery::TIPO_DELIVERY, PedidoDelivery::TIPO_TAKE_AWAY], true)) {
             throw new Exception("Tipo de pedido inválido: '{$tipo}'");
@@ -141,13 +166,24 @@ class CotizadorCarritoTienda
         $this->formaVentaId = $this->resolverFormaVentaId($tipo);
         $this->canalVentaId = $this->resolverCanalVentaId();
 
+        // Forma de pago declarada: participa del precio con los MISMOS cálculos
+        // del panel (promos/listas condicionadas por FP + ajuste por FP).
+        if ($formaPagoId !== null) {
+            $formaPago = FormaPago::find($formaPagoId);
+            if (! $formaPago || ! $formaPago->esDeclarableEnTienda((int) $sucursal->id)) {
+                throw new Exception(__('La forma de pago elegida no está disponible en esta tienda'));
+            }
+            $this->formaPagoId = (int) $formaPago->id;
+        }
+
         // Lista de precios: el resolutor automático con el contexto de la
-        // tienda (aplica listas condicionadas por forma de venta / canal).
+        // tienda (aplica listas condicionadas por forma de venta / canal / FP).
         $lista = ListaPrecio::buscarListaAplicable(
             $this->sucursalId,
             [
                 'forma_venta_id' => $this->formaVentaId,
                 'canal_venta_id' => $this->canalVentaId,
+                'forma_pago_id' => $this->formaPagoId,
             ],
             null,
             $clienteId,
@@ -163,11 +199,16 @@ class CotizadorCarritoTienda
             $this->aplicarCuponServerSide(trim($cuponCodigo), $clienteId);
         }
 
+        // calcularVenta invoca calcularAjusteFormaPago() (trait compartido) si
+        // hay formaPagoId → el ajuste y el desglose *_con_ajuste_fp quedan en
+        // el resultado, igual que en el panel.
         $this->calcularVentaCarrito();
 
         if (! $this->resultado) {
             throw new Exception('No se pudo calcular el carrito');
         }
+
+        $ajusteMonto = round((float) ($this->ajusteFormaPagoInfo['monto'] ?? 0), 2);
 
         $resultado = $this->resultado;
         $resultado['lista_precio_id'] = $this->listaPrecioId;
@@ -179,8 +220,30 @@ class CotizadorCarritoTienda
             'descripcion' => $this->cuponAplicado['descripcion'] ?? null,
             'descuento' => $this->cuponMontoDescuento,
         ] : null;
+        // Contrato aditivo: total_final sigue siendo el total de bienes (sin
+        // ajuste FP, paridad con el resultado del panel); total_a_pagar es lo
+        // que el consumidor paga con la FP declarada (sin envío, que va aparte).
+        $resultado['forma_pago'] = $this->formaPagoId ? [
+            'id' => $this->formaPagoId,
+            'nombre' => $this->ajusteFormaPagoInfo['nombre'] ?? null,
+            'ajuste_porcentaje' => (float) ($this->ajusteFormaPagoInfo['porcentaje'] ?? 0),
+            'ajuste_monto' => $ajusteMonto,
+        ] : null;
+        $resultado['total_a_pagar'] = round((float) ($resultado['total_final'] ?? 0) + $ajusteMonto, 2);
 
         return $resultado;
+    }
+
+    /** Monto del ajuste por FP de la última cotización (para el alta del pedido). */
+    public function ajusteFormaPagoMonto(): float
+    {
+        return round((float) ($this->ajusteFormaPagoInfo['monto'] ?? 0), 2);
+    }
+
+    /** Porcentaje del ajuste por FP de la última cotización. */
+    public function ajusteFormaPagoPorcentaje(): float
+    {
+        return (float) ($this->ajusteFormaPagoInfo['porcentaje'] ?? 0);
     }
 
     /**
@@ -306,11 +369,26 @@ class CotizadorCarritoTienda
     {
         $validacion = $this->cuponService->validarCupon($codigo, $clienteId);
 
-        if (empty($validacion['valido'])) {
-            throw new Exception($validacion['mensaje'] ?? __('Cupón inválido'));
+        if (empty($validacion['valid'])) {
+            throw new Exception($validacion['message'] ?? __('Cupón inválido'));
         }
 
         $cupon = $validacion['cupon'];
+
+        // Cupón restringido a formas de pago: con FP declarada se valida acá
+        // (mismo criterio que el cobro del POS); sin FP declarada se rechaza
+        // si el cupón tiene restricción — la tienda pide elegir la FP primero
+        // (no se puede prometer un descuento que después no aplique).
+        if ($cupon->tieneRestriccionFormasPago()) {
+            if (! $this->formaPagoId) {
+                throw new Exception(__('El cupón :code requiere elegir la forma de pago', ['code' => $cupon->codigo]));
+            }
+
+            $validacionFP = $this->cuponService->validarFormasPagoCupon($cupon, [$this->formaPagoId]);
+            if (empty($validacionFP['valid'])) {
+                throw new Exception($validacionFP['message'] ?? __('Cupón inválido para esa forma de pago'));
+            }
+        }
 
         $this->cuponAplicado = [
             'id' => $cupon->id,

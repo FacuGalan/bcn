@@ -133,12 +133,22 @@ class TiendaController extends Controller
             ->orderBy('nombre')
             ->get()
             ->reject(fn ($fp) => in_array(strtoupper((string) $fp->conceptoPago?->codigo), ['CTA_CTE', 'CUENTA_CORRIENTE', 'PUNTOS'], true))
-            ->map(fn ($fp) => [
-                'id' => $fp->id,
-                'nombre' => $fp->nombre,
-                'codigo' => $fp->codigo,
-                'permite_vuelto' => (bool) ($fp->conceptoPago?->permite_vuelto ?? false),
-            ])
+            ->map(function ($fp) use ($sucursal) {
+                // Ajuste efectivo (override de sucursal > general): la tienda
+                // lo muestra junto a la FP ("Efectivo -10%") y la cotización
+                // con forma_pago_id lo aplica con el mismo cálculo del panel.
+                $ajusteSucursal = \App\Models\FormaPagoSucursal::where('forma_pago_id', $fp->id)
+                    ->where('sucursal_id', $sucursal->id)
+                    ->value('ajuste_porcentaje');
+
+                return [
+                    'id' => $fp->id,
+                    'nombre' => $fp->nombre,
+                    'codigo' => $fp->codigo,
+                    'permite_vuelto' => (bool) ($fp->conceptoPago?->permite_vuelto ?? false),
+                    'ajuste_porcentaje' => (float) ($ajusteSucursal ?? $fp->ajuste_porcentaje ?? 0),
+                ];
+            })
             ->values()
             ->all();
     }
