@@ -1,6 +1,6 @@
 # Hardening Fiscal Saliente / Ventas (Tanda 2) - Especificación
 
-## Estado: APROBADO (2026-07-14) — implementación en curso
+## Estado: IMPLEMENTADO (2026-07-14) — sdd-verify APROBADO, suite completa verde (1272 passed / 1 skipped)
 
 > Tanda 2 del hardening post-auditoría integral (2026-07-14). Cubre los 8 hallazgos
 > de fiscal saliente/ventas listados como "Fuera de alcance" en
@@ -247,32 +247,61 @@ agrega algún aviso, alta en los 3 idiomas vía `/traducir`.
 
 ## Criterios de Aceptación
 
-- [ ] V1: venta con ítem gravado $1000 (21%) + ítem exento $500 a cliente
+- [x] V1: venta con ítem gravado $1000 (21%) + ítem exento $500 a cliente
   percibido 3% ⇒ base de percepción = neto gravado de $1000 (≈826,45), NO
   incluye los $500 exentos. Cobrado == facturado. Percepción en `ImpTrib` y
   `comprobante_fiscal_tributos` con esa base.
-- [ ] V2: venta con percepción → cambio de FP / reintento de facturación ⇒ la FC
+- [x] V2: venta con percepción → cambio de FP / reintento de facturación ⇒ la FC
   nueva lleva los MISMOS tributos que la original (ImpTrib > 0, detalle en
   `tributosDetalle`) y su desglose cierra `ImpNeto+ImpOpEx+ImpIVA+ImpTrib=ImpTotal`.
-- [ ] V3: pedido (mostrador y delivery) de cliente percibido convertido en venta ⇒
-  la venta incluye percepción idéntica a la de una venta directa equivalente; el
-  comprobante la lleva en ImpTrib.
-- [ ] V4: mismo carrito con ítem 0% facturado por camino frontend y por camino
+- [x] V3: pedido DELIVERY de cliente percibido convertido en venta ⇒ la venta
+  cobra e incluye percepción idéntica a la de una venta directa equivalente; el
+  comprobante la lleva en ImpTrib. (Mostrador: N/A — no emite FC en ningún punto,
+  ver Notas; sin emisión no hay obligación de percepción.)
+- [x] V4: mismo carrito con ítem 0% facturado por camino frontend y por camino
   service ⇒ misma clasificación (0% en `ImpOpEx`/`neto_exento` en ambos).
-- [ ] V5: conversión con descuento de cabecera que genere residuo de redondeo ⇒
+- [x] V5: conversión con descuento de cabecera que genere residuo de redondeo ⇒
   comprobante cierra exacto (sin 10048).
-- [ ] V6: venta $1000 facturada parcialmente por $400 ⇒
+- [x] V6: venta $1000 facturada parcialmente por $400 ⇒
   `monto_fiscal_cache = 400`, `monto_no_fiscal_cache = 600`; segunda FC por $600 ⇒
   1000/0. Reversas (NC) siguen cerrando.
-- [ ] V7: si la transacción del cobro rollbackea después de la emisión, el ledger
+- [x] V7: si la transacción del cobro rollbackea después de la emisión, el ledger
   fiscal NO queda registrado; en flujo exitoso el ledger se registra tras el
   commit real (test con rollback forzado).
-- [ ] V8: test de reproducción cortesía total + concepto libre por path legacy;
-  resultado documentado (fix aplicado o descartado).
-- [ ] Sin cambios de UX: smokes existentes de NuevaVenta / Pedidos / Fiscal verdes
-  sin modificar interacciones.
-- [ ] Suites Venta|Pedido|Fiscal|Impuesto|Comprobante verdes; Pint verde; suite
-  completa verde.
+- [x] V8: test de reproducción cortesía total + concepto libre por path legacy;
+  resultado documentado (REPRODUCIDO → fix aplicado).
+- [x] Sin cambios de UX: smokes existentes de NuevaVenta / Pedidos / Fiscal verdes
+  sin modificar interacciones (0 vistas Blade tocadas en el diff).
+- [x] Suites Venta|Pedido|Fiscal|Impuesto|Comprobante verdes; Pint verde; suite
+  completa verde: 1272 passed / 1 skipped (2026-07-14).
+
+## Spec Compliance Matrix (sdd-verify 2026-07-14)
+
+| # | Criterio | Test | Resultado |
+|---|----------|------|-----------|
+| V1 | Base de percepción excluye exentos (feature, carrito real) | PercepcionFiscalVentaTest::percepcion_excluye_items_exentos_de_la_base | PASS ✓ |
+| V1 | Helper neto gravado (con ajuste FP, sin exentos) | DesgloseFiscalRedondeoTest::neto_gravado_del_resultado_excluye_exentos | PASS ✓ |
+| V1/V4 | Desglose separa gravado/exento (formatear + recalcular) | DesgloseFiscalRedondeoTest::formatear_separa_gravado_de_exento / recalcular_proporcional_separa_gravado_de_exento | PASS ✓ |
+| V2 | Snapshot de tributos del comprobante original | CambioFormaPagoReemisionTest::reemision_toma_snapshot_de_tributos_del_comprobante_original | PASS ✓ |
+| V2 | Prorrateo del snapshot a porción parcial | CambioFormaPagoReemisionTest::reemision_prorratea_el_snapshot_a_la_porcion_facturada | PASS ✓ |
+| V2 | Recalculo sin comprobante previo (con evidencia de cobro) | CambioFormaPagoReemisionTest::reemision_recalcula_tributos_si_no_hay_comprobante_previo | PASS ✓ |
+| V2 | Guard: sin evidencia de cobro no se inventa ImpTrib | CambioFormaPagoReemisionTest::recalculo_no_inventa_tributos_si_la_venta_no_cobro_percepcion + reemision_sin_percepcion_no_inventa_tributos | PASS ✓ |
+| V2 | Desglose proporcional excluye percepción de la base | CambioFormaPagoReemisionTest::desglose_proporcional_excluye_la_percepcion_de_la_base (+ sin_tributos_no_cambia) | PASS ✓ |
+| V3 | Conversión delivery cobra percepción a cliente RI | PedidoDeliveryServiceTest::convertir_cobra_percepcion_a_cliente_ri_en_pago_planificado | PASS ✓ |
+| V3 | Sin planificado fiscal no se cobra (no facturar lo no cobrado) | PedidoDeliveryServiceTest::convertir_sin_planificado_fiscal_no_cobra_percepcion | PASS ✓ |
+| V4 | Rama frontend clasifica 0% como exento (= calcularDetallesIva) | ComprobanteFiscalClasificacionTest (3 tests) | PASS ✓ |
+| V4 | Residuo nunca a fila exenta (venta directa y conversión) | DesgloseFiscalRedondeoTest::formatear_residuo_va_a_gravada_no_a_exenta / todo_exento_cierra_por_neto + PedidoDeliveryServiceTest::desglose_de_conversion_no_pone_iva_en_fila_exenta | PASS ✓ |
+| V5 | Conversión con descuento de cabecera cierra exacto | PedidoDeliveryServiceTest::desglose_de_conversion_cierra_con_descuento_de_cabecera | PASS ✓ |
+| V6 | Cache = solo lo facturado (parcial) | CambioFormaPagoReemisionTest::monto_fiscal_facturado_suma_solo_lo_facturado | PASS ✓ |
+| V6 | Cache descuenta NC / topea en total_final | CambioFormaPagoReemisionTest::monto_fiscal_facturado_descuenta_notas_de_credito / topea_en_total_final | PASS ✓ |
+| V7 | Sin transacción externa registra inmediato (sin regresión) | ComprobanteFiscalLedgerAfterCommitTest::sin_transaccion_externa_registra_inmediato | PASS ✓ |
+| V7 | Diferido hasta el commit real | ComprobanteFiscalLedgerAfterCommitTest::dentro_de_transaccion_difiere_hasta_el_commit_real | PASS ✓ |
+| V7 | Rollback descarta el registro | ComprobanteFiscalLedgerAfterCommitTest::rollback_de_la_transaccion_externa_descarta_el_registro | PASS ✓ |
+| V8 | Cortesía total con concepto libre (reproductor + fix) | VentaServiceCortesiaConceptoTest (2 tests) | PASS ✓ |
+| UX | Sin cambios de interacción | 0 blades tocadas; smokes NuevaVenta/Pedidos verdes en suite | PASS ✓ |
+| — | Suite completa | Unit 381 + Feature 366 (1 skipped) + Integration 525 = 1272 passed | PASS ✓ |
+
+**Resultado: 21/21 filas con test que PASÓ — APROBADO.**
 
 ---
 
@@ -304,11 +333,12 @@ agrega algún aviso, alta en los 3 idiomas vía `/traducir`.
 2. Test de rollback forzado (ledger no registrado) + flujo exitoso.
 3. Reproducción RF-V8; fix o descarte documentado.
 
-### Fase 5: Verificación y cierre [PENDIENTE]
-1. `/sdd-verify` (matriz de criterios + suite completa).
-2. `@docs-sync` (manual: percepción en pedidos convertidos y base gravada;
-   KB: reglas de clasificación 0%, semántica de `monto_fiscal_cache`).
-3. PR → master.
+### Fase 5: Verificación y cierre [COMPLETO]
+1. `/sdd-verify` ✓ APROBADO (matriz 21/21; suite completa 1272 passed / 1 skipped).
+2. `@docs-sync` ✓ (manual: base gravada, percepción en conversión delivery,
+   reintento conserva tributos, cortesía con concepto; KB: regla 0% única,
+   tributos en re-emisión, cache fiscal, ledger diferido, conversión delivery).
+3. PR → master ✓ (pendiente: CI verde + validación en vivo del usuario + merge).
 
 ---
 
