@@ -176,45 +176,15 @@ class ComprobanteFiscalService
         if (! $esFacturaC && ! empty($opciones['desglose_iva'])) {
             // Usar el desglose ya calculado por el frontend DIRECTAMENTE
             // El frontend ya calcula valores que cumplen AFIP: iva = neto * porcentaje
-            $desgloseRecibido = $opciones['desglose_iva'];
-            $alicuotasArray = $desgloseRecibido['por_alicuota'] ?? [];
-
-            $detallesIva = [
-                'neto_gravado' => 0,
-                'neto_no_gravado' => 0,
-                'neto_exento' => 0,
-                'iva_total' => 0,
-                'alicuotas' => [],
-            ];
-
-            $netoTotal = 0;
-            $ivaTotal = 0;
-
-            foreach ($alicuotasArray as $alicuota) {
-                $porcentaje = $alicuota['alicuota'] ?? $alicuota['porcentaje'] ?? 21;
-                $baseImponible = round($alicuota['neto'] ?? 0, 2);
-                $importe = round($alicuota['iva'] ?? 0, 2);
-
-                $netoTotal += $baseImponible;
-                $ivaTotal += $importe;
-
-                $detallesIva['alicuotas'][] = [
-                    'codigo_afip' => ARCAService::getAlicuotaIVA($porcentaje),
-                    'porcentaje' => $porcentaje,
-                    'base_imponible' => $baseImponible,
-                    'importe' => $importe,
-                ];
-            }
-
-            $detallesIva['neto_gravado'] = round($netoTotal, 2);
-            $detallesIva['iva_total'] = round($ivaTotal, 2);
+            $detallesIva = $this->clasificarDesgloseFrontend($opciones['desglose_iva']);
 
             Log::info('Usando desglose de IVA del frontend (sin recálculo)', [
                 'venta_id' => $venta->id,
                 'neto_gravado' => $detallesIva['neto_gravado'],
+                'neto_exento' => $detallesIva['neto_exento'],
                 'iva_total' => $detallesIva['iva_total'],
                 'total_a_facturar' => $totalAFacturar,
-                'suma_neto_iva' => $netoTotal + $ivaTotal,
+                'suma_neto_iva' => $detallesIva['neto_gravado'] + $detallesIva['neto_exento'] + $detallesIva['iva_total'],
             ]);
         }
 
@@ -338,10 +308,15 @@ class ComprobanteFiscalService
                 'afip_response' => $respuestaCAE['response_raw'],
             ]);
 
-            // Actualizar cache de monto fiscal en la venta
+            // Actualizar cache de monto fiscal en la venta. RF-V6 (hardening fiscal
+            // saliente): refleja lo REALMENTE facturado — antes pisaba con
+            // total_final incondicional y una facturación parcial quedaba cacheada
+            // como si se hubiera facturado todo.
+            $montoFiscal = $this->montoFiscalFacturado($venta);
+
             $venta->update([
-                'monto_fiscal_cache' => $venta->total_final,
-                'monto_no_fiscal_cache' => 0,
+                'monto_fiscal_cache' => $montoFiscal,
+                'monto_no_fiscal_cache' => round(max(0, (float) $venta->total_final - $montoFiscal), 2),
             ]);
 
             // Marcar los pagos como facturados.
@@ -411,12 +386,48 @@ class ComprobanteFiscalService
     }
 
     /**
+     * Monto efectivamente facturado de una venta (RF-V6): saldo fiscal de sus
+     * facturas AUTORIZADAS (total menos NC que las cubren), con tope en
+     * total_final. Es la fuente del cache `monto_fiscal_cache`.
+     */
+    public function montoFiscalFacturado(Venta $venta): float
+    {
+        return min(
+            (float) $venta->total_final,
+            round(
+                $venta->comprobantesFiscales()
+                    ->facturas()
+                    ->autorizados()
+                    ->get()
+                    ->sum(fn ($cf) => $cf->saldoFiscalPendiente()),
+                2
+            )
+        );
+    }
+
+    /**
      * Registra los movimientos fiscales de un comprobante autorizado en el
      * ledger (RF-04, Fase 5a). Best-effort: cualquier fallo se loguea pero NO
      * se propaga — el comprobante ya tiene CAE y está commiteado, y un movimiento
      * faltante se puede backfillear; un CAE perdido no.
+     *
+     * RF-V7 (hardening fiscal saliente): el registro se difiere al commit REAL
+     * de la conexión. Cuando la emisión corre DENTRO de la transacción del cobro
+     * (NuevaVenta), el commit interno de este service es solo un savepoint: sin
+     * el afterCommit, el "post-commit" corría con la transacción externa abierta
+     * (el best-effort no aislaba nada) y un rollback posterior del cobro dejaba
+     * el intento de ledger hecho sobre datos que desaparecían. Con afterCommit,
+     * si no hay transacción externa el callback corre inmediato (comportamiento
+     * previo); si la hay, corre tras su commit y se descarta en rollback.
      */
     private function registrarFiscal(ComprobanteFiscal $comprobante): void
+    {
+        DB::connection('pymes_tenant')->afterCommit(function () use ($comprobante) {
+            $this->registrarFiscalAhora($comprobante);
+        });
+    }
+
+    private function registrarFiscalAhora(ComprobanteFiscal $comprobante): void
     {
         try {
             app(ImpuestoService::class)->registrarDesdeComprobante($comprobante, $comprobante->usuario_id);
@@ -486,6 +497,56 @@ class ComprobanteFiscalService
             'condicion_iva_id' => $condicionIvaId,
             'condicion_iva_codigo_afip' => $condicionIvaCodigoAfip, // RG 5616
         ];
+    }
+
+    /**
+     * Clasifica el desglose de IVA recibido del frontend en la estructura de
+     * detallesIva del comprobante, aplicando la MISMA regla de clasificación que
+     * calcularDetallesIva (RF-V4, hardening fiscal saliente): alícuota 0% es
+     * EXENTO (ImpOpEx) — no integra AlicIva ni el neto gravado. Antes la rama
+     * frontend acumulaba todo en neto_gravado y el mismo ítem 0% quedaba
+     * clasificado distinto según el camino de emisión.
+     */
+    protected function clasificarDesgloseFrontend(array $desgloseRecibido): array
+    {
+        $detallesIva = [
+            'neto_gravado' => 0,
+            'neto_no_gravado' => 0,
+            'neto_exento' => 0,
+            'iva_total' => 0,
+            'alicuotas' => [],
+        ];
+
+        $netoTotal = 0;
+        $ivaTotal = 0;
+
+        foreach ($desgloseRecibido['por_alicuota'] ?? [] as $alicuota) {
+            $porcentaje = $alicuota['alicuota'] ?? $alicuota['porcentaje'] ?? 21;
+            $baseImponible = round($alicuota['neto'] ?? 0, 2);
+            $importe = round($alicuota['iva'] ?? 0, 2);
+
+            if ($porcentaje == 0) {
+                $detallesIva['neto_exento'] += $baseImponible;
+
+                continue;
+            }
+
+            $netoTotal += $baseImponible;
+            $ivaTotal += $importe;
+
+            $detallesIva['alicuotas'][] = [
+                'codigo_afip' => ARCAService::getAlicuotaIVA($porcentaje),
+                'porcentaje' => $porcentaje,
+                'base_imponible' => $baseImponible,
+                'importe' => $importe,
+            ];
+        }
+
+        $detallesIva['neto_gravado'] = round($netoTotal, 2);
+        $detallesIva['neto_exento'] = round($detallesIva['neto_exento'], 2);
+        $detallesIva['iva_total'] = round($ivaTotal, 2);
+
+        return $detallesIva;
     }
 
     /**

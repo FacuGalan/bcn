@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-14 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal"; + hardening del circuito de precios e impuestos: el precio de venta es siempre FINAL con IVA incluido (se quita el switch del ABM), el precio de venta en comercios de una sola sucursal tambien edita el efectivo de la sucursal, revision de precios post-compra con piso de costo (badge "bajo costo"), percepciones con comprador no inscripto van 100% al costo, notas de credito de proveedor con precarga de percepciones de la compra origen y aviso si exceden a la origen, movimientos fiscales generados por compras/ventas/conciliacion ya no se anulan a mano, y cambio masivo de precios extendido a costos)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-14 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal"; + hardening del circuito de precios e impuestos: el precio de venta es siempre FINAL con IVA incluido (se quita el switch del ABM), el precio de venta en comercios de una sola sucursal tambien edita el efectivo de la sucursal, revision de precios post-compra con piso de costo (badge "bajo costo"), percepciones con comprador no inscripto van 100% al costo, notas de credito de proveedor con precarga de percepciones de la compra origen y aviso si exceden a la origen, movimientos fiscales generados por compras/ventas/conciliacion ya no se anulan a mano, y cambio masivo de precios extendido a costos; + hardening fiscal saliente/ventas: la percepcion aplicada en ventas ahora se calcula solo sobre el neto gravado (baja si hay items exentos), los pedidos delivery convertidos en venta cobran la percepcion correspondiente antes de convertir, el reintento de facturacion y el cambio de forma de pago conservan las percepciones del comprobante original, y la cortesia total con concepto libre ya no da error al confirmar)
 
 ---
 
@@ -313,7 +313,7 @@ En la columna derecha, junto al boton "Descuentos", aparece el boton **"Invitar 
 - El motivo de la invitacion es obligatorio. No se puede confirmar sin ingresar texto.
 - Los items invitados quedan **excluidos del motor de beneficios**: no participan en promociones NxM, combos, calculos de monto minimo de cupon ni en el descuento general.
 - El stock se descuenta normalmente (el bien fue consumido aunque no se cobro).
-- Una venta totalmente invitada (`es_invitacion_total=true`) se procesa sin afectar el saldo de caja (no genera movimiento de caja ni se requiere caja abierta para el cobro). El registro de la venta queda en estado "completada" para trazabilidad.
+- Una venta totalmente invitada (`es_invitacion_total=true`) se procesa sin afectar el saldo de caja (no genera movimiento de caja ni se requiere caja abierta para el cobro). El registro de la venta queda en estado "completada" para trazabilidad. Esto incluye ventas de cortesia total que contienen un concepto libre (item sin articulo del catalogo asociado).
 - Las ventas con cortesia aparecen con badge verde "Cortesia" en el listado de ventas.
 
 #### Selector de cliente
@@ -394,6 +394,8 @@ Cuando el CUIT configurado en el punto de venta de la caja actua como **agente d
 - Se registra automaticamente en el ledger fiscal del comercio como percepcion aplicada (deuda a depositar ante el fisco).
 
 Si el cliente no es Responsable Inscripto, o si el CUIT del punto de venta no esta configurado como agente de percepcion, no se calcula ningun adicional y el flujo es el habitual.
+
+**Base de calculo**: la percepcion se calcula unicamente sobre el neto **gravado** de la venta (items con IVA mayor a 0%). Los items exentos o con alicuota 0% (por ejemplo, ciertos alimentos o servicios) quedan afuera de la base: si el carrito combina items gravados y exentos, la percepcion se calcula solo sobre la porcion gravada.
 
 **Reactividad**: la percepcion se recalcula automaticamente al seleccionar o cambiar el cliente, al tildar o destildar el checkbox de factura fiscal, y al modificar el carrito o la forma de pago.
 
@@ -682,7 +684,7 @@ Si el pago incluye una percepcion fiscal (cliente RI, CUIT agente), el detalle d
 
 Badges de estado de facturacion por pago:
 - **Facturado**: el pago tiene comprobante fiscal emitido (con numero de comprobante).
-- **Pendiente de facturar**: la FC nueva no pudo emitirse por un error de ARCA; queda en cola de reintento. Incluye boton "Reintentar" (requiere permiso `func.reintentar_facturacion`).
+- **Pendiente de facturar**: la FC nueva no pudo emitirse por un error de ARCA; queda en cola de reintento. Incluye boton "Reintentar" (requiere permiso `func.reintentar_facturacion`). Si la venta original tenia percepcion fiscal aplicada, la FC que se reintenta o la que resulta de un cambio de forma de pago conserva la misma percepcion (no se pierde en el camino).
 - **Error ARCA**: se intento reintentar pero el usuario decidio sacarlo del circuito automatico.
 - **Sin facturar**: el pago no tiene facturacion asociada.
 
@@ -3842,6 +3844,8 @@ La lista aplica el mismo patron de **botones inline sobre el dato** (ver seccion
 - **Columna Acciones**: Ver detalle, Convertir en venta, Comandar, Cancelar (con permisos, mismo criterio que mostrador).
 
 > Los pedidos **Facturados** no aparecen en el Kanban ni en el flujo operativo del dia a dia: se consultan solo desde la Vista Lista con el filtro de estado correspondiente.
+
+**Percepciones fiscales al convertir**: si el pedido delivery se convierte en venta con facturacion fiscal, el cliente es Responsable Inscripto y el CUIT del punto de venta actua como agente de percepcion (ver seccion 3.3 Percepciones fiscales aplicadas), el sistema calcula la percepcion correspondiente y la suma al pago pendiente de cobro antes de convertir, igual que en una venta directa. Si el pago del pedido ya estaba cobrado en su totalidad (por ejemplo, al recibir la vuelta del repartidor), la percepcion no se aplica: nunca se factura un tributo que el cliente no pago. Los pedidos por Mostrador todavia no emiten factura fiscal al convertirse, por lo que no aplican percepciones.
 
 ### 15.3 Vista Kanban
 

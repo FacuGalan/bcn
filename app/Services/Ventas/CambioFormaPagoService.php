@@ -13,6 +13,7 @@ use App\Models\VentaPagoAjuste;
 use App\Services\ARCA\ComprobanteFiscalService;
 use App\Services\CuentaCorrienteService;
 use App\Services\CuentaEmpresaService;
+use App\Services\Fiscal\ImpuestoService;
 use App\Services\VentaService;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -720,20 +721,247 @@ class CambioFormaPagoService
     }
 
     /**
+     * Tributos (percepciones aplicadas) para una RE-emisión de FC (RF-V2,
+     * hardening fiscal saliente). La venta ya COBRÓ la percepción (está adentro
+     * del monto_final de los pagos): si la FC nueva no la informa, sale con
+     * ImpTrib=0 y el desglose prorratea la percepción como si fuera bienes
+     * (neto/IVA inflados, débito fiscal de más y factura != cobrado).
+     *
+     * Fuente, en orden:
+     *  1. Snapshot del último comprobante AUTORIZADO de la venta con tributos
+     *     (mismo patrón que crearNotaCredito): es lo efectivamente declarado.
+     *  2. Recalculo con ImpuestoService sobre el neto gravado de la venta (FC que
+     *     nunca salió, p.ej. reintento del flujo QR): misma puerta que el cobro.
+     *     Best-effort: si la config del agente cambió entre cobro y reintento el
+     *     desglose puede diferir — se loguea para auditoría.
+     * En ambos casos se prorratea a la porción facturada.
+     *
+     * @return array{tributos: array<int,array<string,mixed>>, imp_trib_porcion: float, imp_trib_venta: float}
+     */
+    private function tributosParaReemision(Venta $venta, float $montoAFacturar): array
+    {
+        $sinTributos = ['tributos' => [], 'imp_trib_porcion' => 0.0, 'imp_trib_venta' => 0.0];
+        $totalVenta = (float) ($venta->total_final ?? $venta->total ?? 0);
+
+        // 1) Snapshot del último comprobante autorizado con tributos (aunque haya
+        // sido anulado luego por NC — p.ej. la NC del propio cambio de FP — sus
+        // tributos reflejan lo que la venta cobró y declaró).
+        $comprobante = $venta->comprobantesFiscales()
+            ->where('tipo', 'like', 'factura%')
+            ->where('estado', 'autorizado')
+            ->where('tributos', '>', 0)
+            ->wherePivot('es_anulacion', false)
+            ->orderByPivot('created_at', 'desc')
+            ->with('tributosDetalle')
+            ->first();
+
+        if ($comprobante && $comprobante->tributosDetalle->isNotEmpty()) {
+            $totalComprobante = (float) $comprobante->total;
+            $proporcion = $totalComprobante > 0 ? $montoAFacturar / $totalComprobante : 1.0;
+            // Percepción de la venta COMPLETA (para la base del desglose): escala
+            // los tributos del comprobante a la venta si aquel fue parcial.
+            $impTribVenta = $totalComprobante > 0
+                ? round((float) $comprobante->tributos * ($totalVenta / $totalComprobante), 2)
+                : 0.0;
+
+            return $this->prorratearTributos(
+                $comprobante->tributosDetalle->map(fn ($t) => [
+                    'impuesto_id' => $t->impuesto_id,
+                    'codigo_arca' => $t->codigo_arca,
+                    'base_imponible' => (float) $t->base_imponible,
+                    'alicuota' => (float) $t->alicuota,
+                    'monto' => (float) $t->monto,
+                ])->all(),
+                $proporcion,
+                $impTribVenta
+            );
+        }
+
+        // 2) Sin comprobante previo: recalcular con la config vigente (misma puerta
+        // que el cobro: ImpuestoService vía el CUIT del PV por defecto de la caja).
+        $venta->loadMissing(['detalles', 'cliente.condicionIva', 'caja', 'pagos']);
+
+        // Guard "no autopercibir": la percepción tiene que estar COBRADA. La
+        // evidencia es la composición de los pagos activos: monto_final = base +
+        // ajuste FP + recargo cuotas (+ percepción) ⇒ el excedente es la
+        // percepción cobrada. Si no hay excedente, informar ImpTrib facturaría
+        // un tributo que el cliente nunca pagó.
+        $percepcionCobrada = $this->percepcionCobradaDeVenta($venta);
+        if ($percepcionCobrada < 0.01) {
+            return $sinTributos;
+        }
+
+        $puntoVenta = $venta->caja?->puntoVentaDefecto();
+        if (! $puntoVenta || ! $puntoVenta->cuit || ! $venta->cliente) {
+            return $sinTributos;
+        }
+
+        // Neto GRAVADO de la venta completa (RF-V1: alícuota > 0, IVA adentro).
+        $netoGravadoVenta = 0.0;
+        foreach ($venta->detalles as $detalle) {
+            $porcentaje = (float) ($detalle->iva_porcentaje ?? 21);
+            $totalDet = (float) ($detalle->total ?? $detalle->subtotal ?? 0);
+            if ($porcentaje > 0 && $totalDet > 0) {
+                $netoGravadoVenta += $totalDet / (1 + $porcentaje / 100);
+            }
+        }
+        $netoGravadoVenta = round($netoGravadoVenta, 2);
+
+        if ($netoGravadoVenta <= 0) {
+            return $sinTributos;
+        }
+
+        $tributosVenta = app(ImpuestoService::class)->calcularPercepcionesComprobante(
+            $puntoVenta->cuit,
+            $venta->cliente,
+            $netoGravadoVenta,
+            $puntoVenta->jurisdiccionFiscal(),
+            now(),
+        );
+
+        if (empty($tributosVenta)) {
+            // Cobró percepción pero la config vigente no genera ninguna (cambió la
+            // config del agente): sin desglose confiable no se puede informar.
+            Log::warning('Venta con percepción cobrada pero la config vigente no genera tributos — FC sin ImpTrib', [
+                'venta_id' => $venta->id,
+                'percepcion_cobrada' => $percepcionCobrada,
+            ]);
+
+            return $sinTributos;
+        }
+
+        // Escalar el recálculo al monto efectivamente COBRADO (cobrado == facturado
+        // manda: la config pudo cambiar entre el cobro y este reintento). El último
+        // tributo absorbe el residuo; la base se rehace desde el monto y la alícuota.
+        $impTribRecalc = round(array_sum(array_column($tributosVenta, 'monto')), 2);
+        $factorCobro = $impTribRecalc > 0 ? $percepcionCobrada / $impTribRecalc : 0;
+        $escalados = [];
+        $acumulado = 0.0;
+        $ultimo = count($tributosVenta) - 1;
+
+        foreach (array_values($tributosVenta) as $i => $tributo) {
+            $monto = $i === $ultimo
+                ? round($percepcionCobrada - $acumulado, 2)
+                : round((float) $tributo['monto'] * $factorCobro, 2);
+            $acumulado += $monto;
+            $alicuota = (float) $tributo['alicuota'];
+
+            // Si el monto no cambió (cobro == recálculo, el caso normal) la base
+            // original es exacta; si cambió, rehacerla desde monto y alícuota.
+            $montoOriginal = round((float) $tributo['monto'], 2);
+            $base = abs($monto - $montoOriginal) < 0.005 || $alicuota <= 0
+                ? (float) $tributo['base_imponible']
+                : round($monto / ($alicuota / 100), 2);
+
+            $escalados[] = array_merge($tributo, [
+                'monto' => $monto,
+                'base_imponible' => $base,
+            ]);
+        }
+
+        $proporcion = $totalVenta > 0 ? $montoAFacturar / $totalVenta : 1.0;
+
+        Log::info('Tributos recalculados para re-emisión de FC (sin comprobante previo)', [
+            'venta_id' => $venta->id,
+            'neto_gravado_venta' => $netoGravadoVenta,
+            'percepcion_cobrada' => $percepcionCobrada,
+            'imp_trib_recalculado' => $impTribRecalc,
+            'proporcion' => $proporcion,
+        ]);
+
+        return $this->prorratearTributos($escalados, $proporcion, $percepcionCobrada);
+    }
+
+    /**
+     * Percepción efectivamente COBRADA por una venta, reconstruida desde la
+     * composición de sus pagos activos: monto_final = monto_base + ajuste FP +
+     * recargo cuotas (+ percepción distribuida). Los pagos por puntos no llevan
+     * percepción. Es la evidencia que habilita informar ImpTrib en una
+     * re-emisión sin comprobante previo (regla "no autopercibir en silencio").
+     */
+    private function percepcionCobradaDeVenta(Venta $venta): float
+    {
+        $percepcion = 0.0;
+
+        foreach ($venta->pagos as $pago) {
+            if ($pago->estado !== 'activo' || $pago->es_pago_puntos) {
+                continue;
+            }
+
+            $excedente = round(
+                (float) $pago->monto_final
+                - (float) $pago->monto_base
+                - (float) $pago->monto_ajuste
+                - (float) ($pago->recargo_cuotas_monto ?? 0),
+                2
+            );
+
+            if ($excedente > 0) {
+                $percepcion += $excedente;
+            }
+        }
+
+        return round($percepcion, 2);
+    }
+
+    /**
+     * Prorratea un set de tributos a la porción facturada (proporción sobre monto
+     * y base imponible; la alícuota no cambia). Descarta montos que redondean a 0.
+     *
+     * @return array{tributos: array<int,array<string,mixed>>, imp_trib_porcion: float, imp_trib_venta: float}
+     */
+    private function prorratearTributos(array $tributosVenta, float $proporcion, float $impTribVenta): array
+    {
+        $tributos = [];
+        $impTribPorcion = 0.0;
+
+        foreach ($tributosVenta as $tributo) {
+            $monto = round((float) $tributo['monto'] * $proporcion, 2);
+            if ($monto <= 0) {
+                continue;
+            }
+
+            $tributos[] = array_merge($tributo, [
+                'base_imponible' => round((float) $tributo['base_imponible'] * $proporcion, 2),
+                'monto' => $monto,
+            ]);
+            $impTribPorcion += $monto;
+        }
+
+        return [
+            'tributos' => $tributos,
+            'imp_trib_porcion' => round($impTribPorcion, 2),
+            'imp_trib_venta' => $impTribVenta,
+        ];
+    }
+
+    /**
      * Construye el desglose de IVA proporcional al monto a facturar parcial.
      * Reproduce la lógica de NuevaVenta::recalcularDesgloseIvaFiscal() para que
      * AFIP no rechace con error 10048 (ImpTotal != ImpNeto + ImpIVA).
+     *
+     * RF-V2: si la porción incluye percepciones ($impTribPorcion), el neto/IVA se
+     * prorratea SOLO sobre los bienes (monto − percepción); antes la percepción se
+     * repartía como si fuera bienes y el débito fiscal quedaba inflado. Para eso la
+     * proporción se toma contra los bienes de la venta (total − $impTribVenta).
      */
-    private function calcularDesgloseIvaProporcional(Venta $venta, float $montoAFacturar): array
-    {
+    private function calcularDesgloseIvaProporcional(
+        Venta $venta,
+        float $montoAFacturar,
+        float $impTribPorcion = 0.0,
+        float $impTribVenta = 0.0
+    ): array {
         $venta->loadMissing('detalles');
 
         $totalVenta = (float) ($venta->total_final ?? $venta->total ?? 0);
-        if ($totalVenta <= 0) {
+        $bienesVenta = round($totalVenta - $impTribVenta, 2);
+        $bienesAFacturar = round($montoAFacturar - $impTribPorcion, 2);
+
+        if ($bienesVenta <= 0 || $bienesAFacturar <= 0) {
             return ['por_alicuota' => []];
         }
 
-        $proporcion = $montoAFacturar / $totalVenta;
+        $proporcion = $bienesAFacturar / $bienesVenta;
 
         // Agrupar detalles por alícuota (neto + iva) sobre total_detalle CON IVA incluido
         $agrupado = [];
@@ -769,13 +997,26 @@ class CambioFormaPagoService
             $sumaCalculada += $netoProp + $ivaProp;
         }
 
-        // Ajustar última alícuota por diferencia de redondeo: el IVA absorbe el
-        // residuo manteniendo el neto, para que ImpNeto + ImpIVA == ImpTotal exacto
-        // (AFIP error 10048). El IVA puede diferir ±0.01 de neto×alícuota, AFIP lo tolera.
-        $diferencia = round($montoAFacturar - $sumaCalculada, 2);
+        // Ajustar por diferencia de redondeo para que ImpNeto + ImpOpEx + ImpIVA ==
+        // bienes exacto (AFIP 10048; con percepción, ImpTotal = bienes + ImpTrib).
+        // RF-V4: el residuo lo absorbe el IVA de la última alícuota GRAVADA (una
+        // fila 0%/exenta no puede llevar IVA); si todo es exento, lo absorbe el
+        // neto. El IVA puede diferir ±0.01 de neto×alícuota, AFIP lo tolera.
+        $diferencia = round($bienesAFacturar - $sumaCalculada, 2);
         if ($diferencia != 0 && ! empty($porAlicuota)) {
-            $last = count($porAlicuota) - 1;
-            $porAlicuota[$last]['iva'] = round($porAlicuota[$last]['iva'] + $diferencia, 2);
+            $ultimaGravada = null;
+            foreach ($porAlicuota as $i => $fila) {
+                if ($fila['alicuota'] > 0) {
+                    $ultimaGravada = $i;
+                }
+            }
+
+            if ($ultimaGravada !== null) {
+                $porAlicuota[$ultimaGravada]['iva'] = round($porAlicuota[$ultimaGravada]['iva'] + $diferencia, 2);
+            } else {
+                $ultima = count($porAlicuota) - 1;
+                $porAlicuota[$ultima]['neto'] = round($porAlicuota[$ultima]['neto'] + $diferencia, 2);
+            }
         }
 
         return ['por_alicuota' => $porAlicuota];
@@ -815,15 +1056,30 @@ class CambioFormaPagoService
 
         $montoAFacturar = array_sum(array_column($pagosFacturar, 'monto_final'));
         $ventaFresh = $venta->fresh(['pagos', 'detalles', 'cliente', 'caja', 'sucursal']);
-        $desgloseIva = $this->calcularDesgloseIvaProporcional($ventaFresh, $montoAFacturar);
+
+        // RF-V2: recuperar los tributos que la venta cobró (snapshot del comprobante
+        // original o recálculo) — sin esto la FC nueva salía con ImpTrib=0 y el
+        // desglose prorrateaba la percepción como bienes.
+        $reemision = $this->tributosParaReemision($ventaFresh, $montoAFacturar);
+        $desgloseIva = $this->calcularDesgloseIvaProporcional(
+            $ventaFresh,
+            $montoAFacturar,
+            $reemision['imp_trib_porcion'],
+            $reemision['imp_trib_venta']
+        );
+
+        $opcionesFiscal = [
+            'pagos_facturar' => $pagosFacturar,
+            'desglose_iva' => $desgloseIva,
+            'total_a_facturar' => $montoAFacturar,
+        ];
+        if (! empty($reemision['tributos'])) {
+            $opcionesFiscal['tributos'] = $reemision['tributos'];
+        }
 
         try {
             $service = new ComprobanteFiscalService;
-            $fc = $service->crearComprobanteFiscal($ventaFresh, [
-                'pagos_facturar' => $pagosFacturar,
-                'desglose_iva' => $desgloseIva,
-                'total_a_facturar' => $montoAFacturar,
-            ]);
+            $fc = $service->crearComprobanteFiscal($ventaFresh, $opcionesFiscal);
 
             // El service ya seteó comprobante_fiscal_id y monto_facturado en los pagos.
             // Solo falta marcar estado_facturacion + comprobante_fiscal_nuevo_id.
@@ -897,10 +1153,19 @@ class CambioFormaPagoService
 
         try {
             $montoAFacturar = (float) $pago->monto_final;
-            $desgloseIva = $this->calcularDesgloseIvaProporcional($pago->venta, $montoAFacturar);
 
-            $service = new ComprobanteFiscalService;
-            $fc = $service->crearComprobanteFiscal($pago->venta, [
+            // RF-V2: el monto del pago incluye la percepción cobrada — recuperarla
+            // (snapshot o recálculo) para informarla como ImpTrib y prorratear el
+            // neto/IVA solo sobre los bienes.
+            $reemision = $this->tributosParaReemision($pago->venta, $montoAFacturar);
+            $desgloseIva = $this->calcularDesgloseIvaProporcional(
+                $pago->venta,
+                $montoAFacturar,
+                $reemision['imp_trib_porcion'],
+                $reemision['imp_trib_venta']
+            );
+
+            $opcionesFiscal = [
                 'pagos_facturar' => [[
                     'id' => $pago->id,
                     'monto_final' => $montoAFacturar,
@@ -908,7 +1173,13 @@ class CambioFormaPagoService
                 ]],
                 'desglose_iva' => $desgloseIva,
                 'total_a_facturar' => $montoAFacturar,
-            ]);
+            ];
+            if (! empty($reemision['tributos'])) {
+                $opcionesFiscal['tributos'] = $reemision['tributos'];
+            }
+
+            $service = new ComprobanteFiscalService;
+            $fc = $service->crearComprobanteFiscal($pago->venta, $opcionesFiscal);
 
             $pago->refresh();
             $pago->update([

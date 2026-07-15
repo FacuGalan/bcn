@@ -352,6 +352,31 @@ trait WithPagosDesglose
     }
 
     /**
+     * Neto GRAVADO del desglose del carrito (`resultado['desglose_iva']`): suma de
+     * las alícuotas > 0, con ajuste FP si existe. Es la base imponible de las
+     * percepciones aplicadas (RF-V1): exento/0% queda afuera. Lo usan los flujos
+     * que calculan tributos ANTES de armar `desgloseIvaFiscal` (path simple de
+     * NuevaVenta, conversión de pedidos).
+     */
+    protected function netoGravadoDelResultado(): float
+    {
+        $neto = 0.0;
+
+        foreach ($this->resultado['desglose_iva']['por_alicuota'] ?? [] as $alicuota) {
+            if (! is_array($alicuota)) {
+                continue;
+            }
+
+            $porcentaje = (float) ($alicuota['alicuota'] ?? $alicuota['porcentaje'] ?? 0);
+            if ($porcentaje > 0) {
+                $neto += (float) ($alicuota['neto_con_ajuste_fp'] ?? $alicuota['neto'] ?? 0);
+            }
+        }
+
+        return round($neto, 2);
+    }
+
+    /**
      * Actualiza el checkbox de factura fiscal según la forma de pago seleccionada
      * Solo aplica si la sucursal NO tiene facturación automática
      */
@@ -469,7 +494,10 @@ trait WithPagosDesglose
             return;
         }
 
-        $netoGravado = (float) ($this->desgloseIvaFiscal['total_neto'] ?? 0);
+        // RF-V1 (hardening fiscal saliente): la base imponible de la percepción es
+        // el neto GRAVADO — los ítems exentos/0% no integran la base. El fallback a
+        // total_neto cubre desgloses armados antes de esta clave (no debería ocurrir).
+        $netoGravado = (float) ($this->desgloseIvaFiscal['neto_gravado'] ?? $this->desgloseIvaFiscal['total_neto'] ?? 0);
         $cajaId = $this->cajaSeleccionada ?? caja_activa();
 
         $this->percepcionTributos = $this->calcularTributosFiscales($netoGravado, $cajaId);
@@ -563,8 +591,6 @@ trait WithPagosDesglose
         // Formatear cada alícuota para AFIP
         // IMPORTANTE: IVA debe ser = neto * porcentaje / 100 exactamente
         $porAlicuota = [];
-        $totalNeto = 0;
-        $totalIva = 0;
 
         foreach ($desgloseOriginal['por_alicuota'] ?? [] as $alicuota) {
             if (! is_array($alicuota)) {
@@ -589,32 +615,65 @@ trait WithPagosDesglose
                 'iva' => $ivaAlicuota,
                 'subtotal' => round($netoAlicuota + $ivaAlicuota, 2),
             ];
-
-            $totalNeto += $netoAlicuota;
-            $totalIva += $ivaAlicuota;
         }
 
-        // Verificar si hay diferencia por redondeo con el total a facturar
-        $sumaCalculada = round($totalNeto + $totalIva, 2);
-        $diferencia = round($this->montoFacturaFiscal - $sumaCalculada, 2);
+        $this->desgloseIvaFiscal = $this->cerrarDesgloseFiscal($porAlicuota, round($this->montoFacturaFiscal, 2));
+    }
 
-        // Forzar Σneto + Σiva == montoFacturaFiscal exacto: el IVA de la última
-        // alícuota absorbe el residuo de redondeo, manteniendo el neto. AFIP tolera
-        // que el IVA difiera ±0.01 de neto×alícuota, pero NO que ImpTotal != ImpNeto + ImpIVA.
+    /**
+     * Cierra el desglose fiscal contra el total a facturar y lo clasifica en
+     * gravado/exento (RF-V1/RF-V4 hardening fiscal saliente).
+     *
+     * - Fuerza Σneto + Σiva == $totalObjetivo exacto: el residuo de redondeo lo
+     *   absorbe el IVA de la última alícuota GRAVADA (una fila 0%/exenta no puede
+     *   llevar IVA; si todo el desglose es exento, lo absorbe el neto de la última
+     *   fila). AFIP tolera que el IVA difiera ±0.01 de neto×alícuota, pero NO que
+     *   ImpTotal != ImpNeto + ImpOpEx + ImpIVA.
+     * - Expone `neto_gravado` (alícuotas > 0) y `neto_exento` (alícuota 0) como
+     *   claves explícitas: el gravado es la base imponible de las percepciones y
+     *   la clasificación que ComprobanteFiscalService replica al emitir.
+     * - `total_neto` se mantiene como gravado + exento (compatibilidad de lectura).
+     */
+    protected function cerrarDesgloseFiscal(array $porAlicuota, float $totalObjetivo): array
+    {
+        $netoGravado = 0.0;
+        $netoExento = 0.0;
+        $totalIva = 0.0;
+        $ultimaGravada = null;
+
+        foreach ($porAlicuota as $i => $fila) {
+            if (($fila['alicuota'] ?? 0) > 0) {
+                $netoGravado += $fila['neto'];
+                $totalIva += $fila['iva'];
+                $ultimaGravada = $i;
+            } else {
+                $netoExento += $fila['neto'];
+            }
+        }
+
+        $diferencia = round($totalObjetivo - round($netoGravado + $netoExento + $totalIva, 2), 2);
+
         if ($diferencia != 0 && ! empty($porAlicuota)) {
-            $lastIndex = count($porAlicuota) - 1;
-            $nuevoIva = round($porAlicuota[$lastIndex]['iva'] + $diferencia, 2);
-
-            $totalIva = round($totalIva - $porAlicuota[$lastIndex]['iva'] + $nuevoIva, 2);
-            $porAlicuota[$lastIndex]['iva'] = $nuevoIva;
-            $porAlicuota[$lastIndex]['subtotal'] = round($porAlicuota[$lastIndex]['neto'] + $nuevoIva, 2);
+            if ($ultimaGravada !== null) {
+                $nuevoIva = round($porAlicuota[$ultimaGravada]['iva'] + $diferencia, 2);
+                $totalIva = round($totalIva + $diferencia, 2);
+                $porAlicuota[$ultimaGravada]['iva'] = $nuevoIva;
+                $porAlicuota[$ultimaGravada]['subtotal'] = round($porAlicuota[$ultimaGravada]['neto'] + $nuevoIva, 2);
+            } else {
+                $ultima = count($porAlicuota) - 1;
+                $porAlicuota[$ultima]['neto'] = round($porAlicuota[$ultima]['neto'] + $diferencia, 2);
+                $porAlicuota[$ultima]['subtotal'] = $porAlicuota[$ultima]['neto'];
+                $netoExento = round($netoExento + $diferencia, 2);
+            }
         }
 
-        $this->desgloseIvaFiscal = [
+        return [
             'por_alicuota' => $porAlicuota,
-            'total_neto' => round($totalNeto, 2),
+            'total_neto' => round($netoGravado + $netoExento, 2),
             'total_iva' => round($totalIva, 2),
-            'total' => round($this->montoFacturaFiscal, 2),
+            'neto_gravado' => round($netoGravado, 2),
+            'neto_exento' => round($netoExento, 2),
+            'total' => round($totalObjetivo, 2),
         ];
     }
 
@@ -647,8 +706,6 @@ trait WithPagosDesglose
         // Recalcular cada alícuota proporcionalmente
         // IMPORTANTE: Para cumplir con AFIP, IVA debe ser = neto * porcentaje / 100
         $porAlicuota = [];
-        $totalNeto = 0;
-        $totalIva = 0;
 
         foreach ($desgloseOriginal['por_alicuota'] ?? [] as $alicuota) {
             // Verificar que el array tenga la estructura esperada
@@ -675,33 +732,9 @@ trait WithPagosDesglose
                 'iva' => $ivaAlicuota,
                 'subtotal' => round($netoAlicuota + $ivaAlicuota, 2),
             ];
-
-            $totalNeto += $netoAlicuota;
-            $totalIva += $ivaAlicuota;
         }
 
-        // Verificar si hay diferencia por redondeo con el total a facturar
-        $sumaCalculada = round($totalNeto + $totalIva, 2);
-        $diferencia = round($this->montoFacturaFiscal - $sumaCalculada, 2);
-
-        // Forzar Σneto + Σiva == montoFacturaFiscal exacto: el IVA de la última
-        // alícuota absorbe el residuo de redondeo, manteniendo el neto. AFIP tolera
-        // que el IVA difiera ±0.01 de neto×alícuota, pero NO que ImpTotal != ImpNeto + ImpIVA.
-        if ($diferencia != 0 && ! empty($porAlicuota)) {
-            $lastIndex = count($porAlicuota) - 1;
-            $nuevoIva = round($porAlicuota[$lastIndex]['iva'] + $diferencia, 2);
-
-            $totalIva = round($totalIva - $porAlicuota[$lastIndex]['iva'] + $nuevoIva, 2);
-            $porAlicuota[$lastIndex]['iva'] = $nuevoIva;
-            $porAlicuota[$lastIndex]['subtotal'] = round($porAlicuota[$lastIndex]['neto'] + $nuevoIva, 2);
-        }
-
-        $this->desgloseIvaFiscal = [
-            'por_alicuota' => $porAlicuota,
-            'total_neto' => round($totalNeto, 2),
-            'total_iva' => round($totalIva, 2),
-            'total' => round($this->montoFacturaFiscal, 2),
-        ];
+        $this->desgloseIvaFiscal = $this->cerrarDesgloseFiscal($porAlicuota, round($this->montoFacturaFiscal, 2));
     }
 
     // =========================================

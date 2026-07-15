@@ -2090,6 +2090,7 @@ Al crear la venta resultante, el service copia las columnas de invitacion:
 - `crearVenta()` persiste las columnas de invitacion de cabecera si estan en `$data`.
 - `crearDetalleVenta()` persiste las columnas de invitacion de linea si estan en el array de detalle.
 - `validarCajaAbierta()` se omite cuando `es_invitacion_total = true`: la venta cortesia no impacta caja, pero igualmente requiere `caja_id` para generar el numero de venta.
+- **Fix cortesia total + concepto libre (hardening fiscal tanda 2, RF-V8)**: `crearDetalleVenta()` tenia dos ramas — "datos proporcionados" (usa los montos que ya vienen calculados desde la UI) y un modo legacy por linea que exigia `_usar_totales_proporcionados=true` para conceptos libres, flag que `NuevaVenta::procesarVenta()` (unico caller del path legacy) no pasaba. Una venta 100% cortesia que incluia un item de concepto libre explotaba con "Concepto libre requiere _usar_totales_proporcionados=true". Fix: un item con `es_concepto=true` siempre usa la rama de datos proporcionados (sus datos ya vienen completos desde la UI), sin depender del flag. El modo legacy por linea solo se ejercita hoy con montos $0 (cortesia).
 
 **Procesamiento de venta/pedido totalmente invitado:**
 
@@ -3948,6 +3949,21 @@ Incrementos post-merge del spec (D23/D24 acordados 2026-07-13, D25 2026-07-14; f
 4. AFIP devuelve CAE y fecha de vencimiento
 5. Se almacena el comprobante con la respuesta completa
 
+#### Clasificacion gravado/exento (regla 0% unica, hardening fiscal tanda 2 RF-V4)
+
+Una sola regla en TODO el sistema: **alicuota 0% = EXENTO** (`ImpOpEx`, `neto_exento`); **alicuota > 0% = GRAVADO** (`AlicIva[]`, `neto_gravado`). Antes de este fix, `ComprobanteFiscalService::calcularDetallesIva()` (rama service) clasificaba 0% como exento, pero la rama que consume el `desglose_iva` armado por el frontend (`clasificarDesgloseFrontend`) acumulaba todo — incluido 0% — en `neto_gravado`: el mismo item 0% quedaba clasificado distinto segun el camino de emision.
+
+- `formatearDesgloseParaAFIP()` y `recalcularDesgloseIvaFiscal()` (`WithPagosDesglose`) exponen explicitamente las claves `neto_gravado` y `neto_exento` (antes solo `total_neto` sumando todas las alicuotas).
+- El residuo de redondeo del desglose fiscal (para que `Σneto + Σiva == montoFacturaFiscal` exacto) se absorbe SIEMPRE en una alicuota GRAVADA, nunca en la fila exenta — tanto en venta directa (`formatearDesgloseParaAFIP`) como en conversion de pedidos (`desgloseIvaProporcional` de `PedidoDeliveryService`).
+- Este cambio estructural es el que habilita la base de percepcion sobre neto gravado (ver mas abajo).
+
+#### Base de percepcion = neto gravado (hardening fiscal tanda 2 RF-V1)
+
+La base imponible de toda percepcion aplicada en ventas es el **neto GRAVADO** (alicuotas > 0%); el neto exento/0% nunca integra la base. Antes de este fix, `WithPagosDesglose::aplicarPercepcionFiscal()` usaba `desgloseIvaFiscal['total_neto']`, que sumaba TODAS las alicuotas incluida 0% — en carritos con items exentos, la percepcion se cobraba de mas.
+
+- Fuentes de verdad: `WithPagosDesglose::netoGravadoDelResultado()` (venta directa, `NuevaVenta`) y `desgloseIvaFiscal['neto_gravado']` en el resto de los caminos.
+- **Cambio de monto esperado**: en ventas con items exentos/0% a clientes percibidos, la percepcion cobrada es MENOR que antes de este fix (correccion, no regresion). Se mantiene el invariante cobrado == facturado.
+
 #### Percepciones aplicadas en ventas (Fase 5b)
 
 Cuando el CUIT del punto de venta actua como **agente de percepcion** (`cuit_impuesto_configs.es_agente_percepcion = true`) y el receptor es **Responsable Inscripto**, el sistema calcula y cobra percepciones (IIBB y/o IVA) que el comercio debe depositar ante el fisco.
@@ -4051,6 +4067,15 @@ Luego del commit de Fase A, se intenta emitir la FC nueva sobre los pagos nuevos
 
 Si ARCA tiene exito → `estado_facturacion = 'facturado'` y `comprobante_fiscal_id` poblado.
 
+#### Tributos en la re-emision (hardening fiscal tanda 2, RF-V2)
+
+`CambioFormaPagoService::tributosParaReemision()` es la puerta unica que arma `opciones['tributos']` para la FC nueva de Fase B, y tambien la usa `reintentarFacturacionPago()` (reintento de una emision que fallo). Antes de este fix ambos caminos llamaban `crearComprobanteFiscal()` sin la clave `tributos` ⇒ `ImpTrib = 0` y la FC re-emitida perdia la percepcion que la venta original habia cobrado.
+
+- **Con comprobante ORIGINAL de la venta**: toma un SNAPSHOT de sus `tributosDetalle` (mismo patron que usa `crearNotaCredito`) y los prorratea a la porcion facturada actual, en la misma proporcion que el resto del comprobante.
+- **Sin comprobante original** (nunca se emitio la FC): RECALCULA con `ImpuestoService::calcularPercepcionesComprobante()`, pero con un guard **"no autopercibir"**: solo recalcula tributos si hay EVIDENCIA de que el cliente efectivamente pago la percepcion, medida como el excedente `monto_final − monto_base − monto_ajuste − recargo_cuotas_monto` (mismo calculo que el accessor `VentaPago::percepcion`) en los pagos activos que se estan facturando. Sin esa evidencia, no se inventan tributos (`ImpTrib` se mantiene en 0).
+- El desglose recalculado se ESCALA al monto efectivamente cobrado (el cobro manda si la configuracion del agente cambio entre la venta original y la re-emision).
+- `calcularDesgloseIvaProporcional()` descuenta el `ImpTrib` de la base a prorratear: el neto+IVA de bienes se calcula sobre `montoAFacturar − impTrib`, prorrateando solo bienes; el residuo de redondeo sigue absorbido por la ultima alicuota, garantizando el cierre AFIP `ImpNeto + ImpOpEx + ImpIVA + ImpTrib = ImpTotal`.
+
 #### Regla fiscal binaria
 
 La decision de emitir documentos fiscales se toma comparando montos:
@@ -4065,6 +4090,13 @@ Esta regla es independiente del flag `facturacion_fiscal_automatica` de la sucur
 Para omitir la NC cuando la diferencia lo permitiria se requiere permiso `func.modificar_pagos_sin_nc`.
 
 **Fix en `ComprobanteFiscalService`**: al emitir una FC donde el `total_a_facturar` coincide con `total_final` de la venta, se prioriza la lista explicita `pagos_facturar`; si no viene, se excluyen pagos anulados del branch masivo.
+
+#### Cache fiscal de la venta: `monto_fiscal_cache` / `monto_no_fiscal_cache` (hardening fiscal tanda 2)
+
+`ComprobanteFiscalService::montoFiscalFacturado(Venta)` es la unica fuente de verdad para `ventas.monto_fiscal_cache`: suma el saldo fiscal de las facturas AUTORIZADAS vigentes de la venta, netas de sus notas de credito, con tope en `total_final` (nunca supera el total de la venta). `monto_no_fiscal_cache = total_final − monto_fiscal_cache`. Antes de este fix, `crearComprobanteFiscal()` pisaba incondicionalmente `monto_fiscal_cache = total_final` / `monto_no_fiscal_cache = 0` aunque la emision fuera PARCIAL (facturacion por `pagos_facturar` o `total_a_facturar` menor al total de la venta), dejando el cache mal calculado.
+
+- Facturacion parcial en dos tramos: venta de $1000 facturada primero por $400 ⇒ `monto_fiscal_cache=400`, `monto_no_fiscal_cache=600`; segunda FC por los $600 restantes ⇒ `1000/0`.
+- Notas de credito y anulaciones descuentan del cache automaticamente (via `montoFiscalFacturado`, que ya resta las NC vigentes) — no hay un paso manual de "revertir cache".
 
 #### Fix en TurnoActual
 
@@ -4412,12 +4444,22 @@ Esto aplica tanto al debito fiscal de IVA como a las percepciones aplicadas (Fas
 
 | Origen | Metodo | Cuando se invoca |
 |---|---|---|
-| `ComprobanteFiscal` | `ImpuestoService::registrarDesdeComprobante()` | Despues de obtener el CAE (post-commit del comprobante). Solo CUIT Responsable Inscripto. Registra IVA debito fiscal por alicuota (sentido `aplicado`, naturaleza `debito_fiscal`) y percepciones aplicadas (Fase 5b). Una NC registra sus PROPIOS movimientos en negativo, imputados a su propio periodo (ver arriba) — ya NO anula los del comprobante original. |
+| `ComprobanteFiscal` | `ImpuestoService::registrarDesdeComprobante()` | Despues de obtener el CAE, diferido al commit REAL de la transaccion (ver debajo). Solo CUIT Responsable Inscripto. Registra IVA debito fiscal por alicuota (sentido `aplicado`, naturaleza `debito_fiscal`) y percepciones aplicadas (Fase 5b). Una NC registra sus PROPIOS movimientos en negativo, imputados a su propio periodo (ver arriba) — ya NO anula los del comprobante original. |
 | `Compra` | `ImpuestoService::registrarDesdeCompra()` | Al cargar una factura de proveedor con `cuit_id` asignado. Registra IVA credito fiscal (sentido `sufrido`, naturaleza `credito_fiscal`) y percepciones/retenciones sufridas (sentido `sufrido`, naturaleza segun el impuesto). |
 | `ConciliacionFila` | `ImpuestoService::registrarDesdeConciliacion()` | Al aplicar una corrida de conciliacion, para filas con `impuesto_id` identificado. Registra sentido `sufrido` con la naturaleza del impuesto. El importe es `abs(monto_neto)`. |
 | Manual | `ImpuestoService::registrarMovimientoFiscal()` | Carga manual por el usuario desde `MovimientosFiscales` (RF-08). `origen_tipo = NULL`. Permite naturalezas `percepcion`, `retencion`, `tributo` en cualquier sentido. Debito/credito fiscal NO se admiten en carga manual para evitar doble conteo con los origenes automaticos. |
 
 Todos los metodos son **idempotentes por origen**: si ya existe un movimiento activo con el mismo `(origen_tipo, origen_id)`, no duplican.
+
+#### Ledger fiscal diferido al commit real (hardening fiscal tanda 2, RF-V7)
+
+`ComprobanteFiscalService::crearComprobanteFiscal()` invocaba `registrarFiscal()` (el paso que llama a `ImpuestoService::registrarDesdeComprobante()`) marcado como "POST-COMMIT best-effort", pero en `NuevaVenta` la emision del comprobante ocurria DENTRO de la transaccion externa del cobro (`beginTransaction` en 1318, `crearComprobanteFiscal()` en 1467): el `beginTransaction/commit` interno del service era un savepoint anidado, asi que `registrarFiscal()` corria con la transaccion externa todavia abierta. Si el cobro rollbackeaba despues de emitido el comprobante, el ledger fiscal ya se habia intentado registrar igual.
+
+- **Fix**: `registrarFiscal()` se difiere via `DB::connection('pymes_tenant')->afterCommit(fn () => ...)`.
+  - Si NO hay transaccion externa abierta (ej. venta simple sin wrapper), el callback corre INMEDIATO — sin regresion respecto al comportamiento previo.
+  - Si hay una transaccion externa abierta (ej. `NuevaVenta::procesarVenta()`), el registro se difiere hasta que esa transaccion haga commit REAL.
+  - Si la transaccion externa hace rollback, el callback `afterCommit` nunca se ejecuta: el ledger queda descartado junto con el resto del cobro.
+- No hizo falta reordenar los callers existentes (cambio de venta/FP, reintento, conversion de pedidos): todos quedan coherentes con el mismo criterio porque el fix vive dentro de `registrarFiscal()`.
 
 #### Calculo de tributos (percepciones aplicadas)
 
@@ -4616,6 +4658,16 @@ El pedido de tienda/API SIEMPRE guarda `consumidor_id` (FK logico a `config.cons
 - `false` (default): el pedido queda solo con `consumidor_id`; la accion "convertir en cliente" del panel (crea cliente + mapping, vincula pedidos previos) queda **diferida al proyecto tienda** (seria UI muerta sin login de consumidores implementado).
 - Puntos, cupones por cliente y cuenta corriente solo aplican cuando el cliente esta materializado.
 - `resolverClienteId` usa el **comercio activo de `TenantService`** (no una columna `sucursal->comercio_id`, que no existe en tenant — bug real corregido en Fase 7/sdd-verify).
+
+#### Percepciones fiscales al convertir en venta (hardening fiscal tanda 2, RF-V3/RF-V5)
+
+Antes de este fix, `convertirEnVenta()` creaba la venta sin calcular tributos: un cliente RI percibido que compraba por pedido delivery no pagaba percepcion, mientras que el mismo cliente en venta directa (`NuevaVenta`) si. Se implemento SOLO en delivery (unico canal de conversion que emite FC hoy — ver nota de mostrador mas abajo).
+
+- **`PedidoDeliveryService::percepcionParaConversion(PedidoDelivery)`**: reusa la MISMA puerta que `NuevaVenta` (`ImpuestoService::calcularPercepcionesComprobante()`) sobre el neto gravado del pedido (base RF-V1), condicionado a cliente RI + CUIT del PV como agente de percepcion.
+- **`cobrarPercepcionEnPlanificado()`**: si corresponde percepcion, la suma al pago PLANIFICADO fiscal de MAYOR monto y ajusta `total`/`total_final` del pedido ANTES de materializar los pagos (espejo de como `NuevaVenta` suma la percepcion al total antes de cobrar). El total mostrado al cliente pasa a incluirla.
+- **Guard "nunca autopercibir"**: si los pagos fiscales del pedido YA estan `activo` (por ejemplo, el pedido se cobro en la vuelta del repartidor antes de convertir), la percepcion NO se aplica — se loguea un warning. Nunca se factura un tributo que el cliente no pago.
+- **Emision con desglose proporcional (`desgloseIvaProporcional`)**: la conversion SIEMPRE emite con el mismo mecanismo de `calcularDesgloseIvaProporcional` (prorratea solo bienes, descuenta `ImpTrib` de la base, absorbe el residuo en la ultima alicuota GRAVADA — nunca en la exenta, RF-V4). Esto tambien resuelve RF-V5: una conversion con descuento de cabecera (`descuento_general_monto` + `_usar_totales_proporcionados`) cierra exacto `ImpNeto+ImpOpEx+ImpIVA+ImpTrib=ImpTotal` (evita el rechazo AFIP 10048 que podia darse antes al facturar sobre los totales finales sin recalcular el desglose).
+- **Pedidos MOSTRADOR no emiten FC en ningun punto de su ciclo hoy** (pendiente PR2.C/D del spec de pedidos-mostrador): sin emision no hay obligacion de percepcion, por eso RF-V3/RF-V5 quedaron acotados a delivery. Cuando mostrador incorpore su propia emision fiscal, debe reusar `percepcionParaConversion`/`desgloseIvaProporcional` extrayendolos a un lugar comun (hoy viven en `PedidoDeliveryService`).
 
 #### Gaps de mostrador que delivery NO hereda (D19)
 

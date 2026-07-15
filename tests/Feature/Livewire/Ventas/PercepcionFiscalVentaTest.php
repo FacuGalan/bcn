@@ -291,6 +291,43 @@ class PercepcionFiscalVentaTest extends TestCase
         }
     }
 
+    /**
+     * RF-V1 (hardening fiscal saliente, tanda 2): la base de la percepción es el
+     * neto GRAVADO. Con un ítem $1000 IVA 21% (neto 826.45) + un ítem $500 exento,
+     * la percepción del 3% se calcula sobre 826.45 (≈24.79) y NO sobre
+     * 826.45 + 500 = 1326.45 (≈39.79, el bug corregido). El desglose fiscal expone
+     * la separación gravado/exento (RF-V4).
+     */
+    public function test_percepcion_excluye_items_exentos_de_la_base(): void
+    {
+        $this->configurarAgentePercepcion(); // 3% IIBB AR-B
+        $cliente = $this->crearClienteRI();
+        $gravado = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $exento = $this->crearArticuloConStock($this->sucursalId, cantidad: 50, overrides: [
+            'tipo_iva_id' => $this->tiposIva[3]->id, // IVA 0%
+            'precio_base' => 500.00,
+        ]);
+
+        $componente = Livewire::test(NuevaVenta::class)
+            ->set('cajaSeleccionada', $this->cajaId)
+            ->call('seleccionarArticulo', $gravado->id)
+            ->call('seleccionarArticulo', $exento->id)
+            ->call('seleccionarCliente', $cliente->id)
+            ->set('emitirFacturaFiscal', true);
+
+        // Base imponible = neto gravado (826.45), el exento queda afuera.
+        $tributos = $componente->get('percepcionTributos');
+        $this->assertNotEmpty($tributos);
+        $this->assertEqualsWithDelta(826.45, (float) $tributos[0]['base_imponible'], 0.02,
+            'La base de la percepción debe ser el neto GRAVADO (sin exentos)');
+        $this->assertEqualsWithDelta(24.79, (float) $componente->get('percepcionMonto'), 0.02);
+
+        // RF-V4: el desglose fiscal separa gravado de exento.
+        $desglose = $componente->get('desgloseIvaFiscal');
+        $this->assertEqualsWithDelta(826.45, (float) ($desglose['neto_gravado'] ?? 0), 0.02);
+        $this->assertEqualsWithDelta(500.0, (float) ($desglose['neto_exento'] ?? 0), 0.02);
+    }
+
     public function test_sin_cliente_consumidor_final_no_percibe(): void
     {
         $this->configurarAgentePercepcion();
