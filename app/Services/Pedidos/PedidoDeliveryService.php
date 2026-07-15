@@ -32,6 +32,7 @@ use App\Models\TipoIva;
 use App\Models\Venta;
 use App\Models\VentaPago;
 use App\Services\ARCA\ComprobanteFiscalService;
+use App\Services\Fiscal\ImpuestoService;
 use App\Services\VentaService;
 use Exception;
 use Illuminate\Support\Carbon;
@@ -1266,7 +1267,28 @@ class PedidoDeliveryService
 
         $pagosFiscales = [];
 
-        $venta = DB::connection('pymes_tenant')->transaction(function () use ($pedido, &$pagosFiscales) {
+        $tributosConversion = [];
+
+        $venta = DB::connection('pymes_tenant')->transaction(function () use ($pedido, &$pagosFiscales, &$tributosConversion) {
+            // RF-V3 (hardening fiscal saliente): percepciones aplicadas — la misma
+            // puerta que la venta directa (ImpuestoService), ANTES de materializar
+            // los pagos planificados para que el cobro las incluya (cobrado ==
+            // facturado). Si no hay un pago planificado fiscal donde cobrarlas
+            // (p.ej. todo ya cobrado en la vuelta del repartidor), se omiten con
+            // warning: nunca se factura un tributo que el cliente no pagó.
+            $percepcion = $this->percepcionParaConversion($pedido);
+            if ($percepcion['monto'] > 0) {
+                if ($this->cobrarPercepcionEnPlanificado($pedido, $percepcion['monto'])) {
+                    $tributosConversion = $percepcion['tributos'];
+                    $pedido->refresh();
+                } else {
+                    Log::warning('Percepción no aplicada en conversión: sin pago planificado fiscal donde cobrarla', [
+                        'pedido_id' => $pedido->id,
+                        'percepcion' => $percepcion['monto'],
+                    ]);
+                }
+            }
+
             $this->materializarPagosPlanificados($pedido);
 
             $pedido->load(['detalles.opcionales', 'detalles.promocionesAplicadas', 'pagos']);
@@ -1360,7 +1382,7 @@ class PedidoDeliveryService
         $this->acreditarPuntosGanados($pedido, $venta);
 
         // Comprobante fiscal POST-commit (una falla no revierte la conversión).
-        $this->emitirComprobanteFiscalDeConversion($venta, $pagosFiscales);
+        $this->emitirComprobanteFiscalDeConversion($venta, $pagosFiscales, $tributosConversion);
 
         Log::info('Pedido delivery convertido en venta', [
             'pedido_id' => $pedido->id,
@@ -1407,13 +1429,145 @@ class PedidoDeliveryService
     }
 
     /**
-     * Emite el comprobante fiscal de la conversión (POST-commit). Si el total
-     * fiscal es PARCIAL (mezcla de FP fiscales y no fiscales) se pasa un
-     * desglose de IVA prorrateado — calcularDetallesIva del service fiscal
-     * trabaja sobre la venta completa y AFIP exige ImpTotal = ImpNeto + ImpIVA.
-     * Ante un fallo, los pagos ya quedaron `pendiente_de_facturar`.
+     * Percepciones aplicadas para la conversión (RF-V3, hardening fiscal
+     * saliente): si la conversión va a emitir factura (hay pagos con FP fiscal)
+     * y el CUIT del PV de la caja es agente frente al cliente del pedido, se
+     * calcula la percepción sobre el neto GRAVADO del pedido (RF-V1) — la MISMA
+     * puerta que la venta directa (ImpuestoService): el agente percibe igual por
+     * todos los canales. Si la porción fiscal es parcial (mixto), la base se
+     * escala en esa proporción (paridad con el desglose de NuevaVenta).
+     *
+     * @return array{tributos: array<int,array<string,mixed>>, monto: float}
      */
-    protected function emitirComprobanteFiscalDeConversion(Venta $venta, array $pagosFiscales): void
+    protected function percepcionParaConversion(PedidoDelivery $pedido): array
+    {
+        $sin = ['tributos' => [], 'monto' => 0.0];
+
+        if (! $pedido->cliente_id || ! $pedido->caja_id) {
+            return $sin;
+        }
+
+        $pedido->loadMissing(['detalles', 'cliente.condicionIva', 'pagos']);
+
+        // Porción fiscal: pagos (activos + planificados) cuya FP factura.
+        $pagosVigentes = $pedido->pagos->whereIn('estado', [
+            PedidoDeliveryPago::ESTADO_ACTIVO,
+            PedidoDeliveryPago::ESTADO_PLANIFICADO,
+        ])->filter(fn ($p) => ! $p->es_pago_puntos);
+
+        $totalFiscal = round((float) $pagosVigentes
+            ->filter(fn ($p) => $this->formaPagoFactura((int) $p->forma_pago_id, (int) $pedido->sucursal_id))
+            ->sum('monto_final'), 2);
+
+        if ($totalFiscal <= 0) {
+            return $sin;
+        }
+
+        $puntoVenta = Caja::find($pedido->caja_id)?->puntoVentaDefecto();
+        if (! $puntoVenta || ! $puntoVenta->cuit) {
+            return $sin;
+        }
+
+        // Neto GRAVADO del pedido (RF-V1: alícuotas > 0, IVA adentro), escalado a
+        // la porción fiscal si el cobro es mixto fiscal/no-fiscal.
+        $netoGravado = 0.0;
+        foreach ($pedido->detalles as $detalle) {
+            $porcentaje = (float) ($detalle->iva_porcentaje ?? 21);
+            $totalDet = (float) ($detalle->total ?? $detalle->subtotal ?? 0);
+            if ($porcentaje > 0 && $totalDet > 0) {
+                $netoGravado += $totalDet / (1 + $porcentaje / 100);
+            }
+        }
+
+        $totalPedido = (float) $pedido->total_final;
+        if ($totalPedido > 0 && $totalFiscal < $totalPedido - 0.01) {
+            $netoGravado *= $totalFiscal / $totalPedido;
+        }
+        $netoGravado = round($netoGravado, 2);
+
+        if ($netoGravado <= 0) {
+            return $sin;
+        }
+
+        $tributos = app(ImpuestoService::class)->calcularPercepcionesComprobante(
+            $puntoVenta->cuit,
+            $pedido->cliente,
+            $netoGravado,
+            $puntoVenta->jurisdiccionFiscal(),
+            now(),
+        );
+
+        return [
+            'tributos' => $tributos,
+            'monto' => round(array_sum(array_column($tributos, 'monto')), 2),
+        ];
+    }
+
+    /**
+     * Cobra la percepción sumándola al monto_final de un pago PLANIFICADO fiscal
+     * (el de mayor monto) y ajusta los totales del pedido. Los pagos activos ya
+     * fueron cobrados y no se tocan: si no hay planificado fiscal, devuelve false
+     * y la percepción no se aplica (no se factura lo que no se cobra).
+     */
+    protected function cobrarPercepcionEnPlanificado(PedidoDelivery $pedido, float $percepcion): bool
+    {
+        $candidato = $pedido->pagos()
+            ->where('estado', PedidoDeliveryPago::ESTADO_PLANIFICADO)
+            ->where('es_pago_puntos', false)
+            ->get()
+            ->filter(fn ($p) => $this->formaPagoFactura((int) $p->forma_pago_id, (int) $pedido->sucursal_id))
+            ->sortByDesc('monto_final')
+            ->first();
+
+        if (! $candidato) {
+            return false;
+        }
+
+        $candidato->update([
+            'monto_final' => round((float) $candidato->monto_final + $percepcion, 2),
+        ]);
+
+        // El total del pedido pasa a incluir la percepción (igual que NuevaVenta
+        // suma la percepción al total que paga el cliente antes de cobrar).
+        $pedido->update([
+            'total' => round((float) $pedido->total + $percepcion, 2),
+            'total_final' => round((float) $pedido->total_final + $percepcion, 2),
+        ]);
+
+        Log::info('Percepción aplicada en conversión de pedido delivery', [
+            'pedido_id' => $pedido->id,
+            'pago_id' => $candidato->id,
+            'percepcion' => $percepcion,
+        ]);
+
+        return true;
+    }
+
+    /**
+     * ¿La forma de pago factura fiscal? Override por sucursal primero, flag
+     * general de la FP después (misma regla que pagosAFacturarDeVenta).
+     */
+    protected function formaPagoFactura(int $formaPagoId, int $sucursalId): bool
+    {
+        $porSucursal = FormaPagoSucursal::where('forma_pago_id', $formaPagoId)
+            ->where('sucursal_id', $sucursalId)
+            ->value('factura_fiscal');
+
+        return $porSucursal !== null
+            ? (bool) $porSucursal
+            : (bool) FormaPago::find($formaPagoId)?->factura_fiscal;
+    }
+
+    /**
+     * Emite el comprobante fiscal de la conversión (POST-commit). Se pasa SIEMPRE
+     * un desglose de IVA que cierra contra los bienes facturados (RF-V5): con
+     * descuento de cabecera (o cupón a total / puntos), calcularDetallesIva del
+     * service fiscal suma los detalles SIN esos descuentos y AFIP rechaza con
+     * 10048 (ImpTotal != ImpNeto + ImpIVA). Los tributos cobrados en la
+     * conversión (RF-V3) viajan como ImpTrib. Ante un fallo, los pagos ya
+     * quedaron `pendiente_de_facturar`.
+     */
+    protected function emitirComprobanteFiscalDeConversion(Venta $venta, array $pagosFiscales, array $tributos = []): void
     {
         if (empty($pagosFiscales)) {
             return;
@@ -1423,11 +1577,15 @@ class PedidoDeliveryService
             $venta = $venta->fresh(['sucursal', 'caja', 'cliente', 'detalles', 'pagos']);
 
             $totalFiscal = round(array_sum(array_column($pagosFiscales, 'monto_final')), 2);
-            $opciones = ['pagos_facturar' => $pagosFiscales];
+            $impTrib = round(array_sum(array_map(fn ($t) => (float) $t['monto'], $tributos)), 2);
 
-            if ($totalFiscal < (float) $venta->total_final - 0.01) {
-                $opciones['total_a_facturar'] = $totalFiscal;
-                $opciones['desglose_iva'] = $this->desgloseIvaProporcional($venta, $totalFiscal);
+            $opciones = [
+                'pagos_facturar' => $pagosFiscales,
+                'total_a_facturar' => $totalFiscal,
+                'desglose_iva' => $this->desgloseIvaProporcional($venta, round($totalFiscal - $impTrib, 2)),
+            ];
+            if (! empty($tributos)) {
+                $opciones['tributos'] = $tributos;
             }
 
             $comprobante = (new ComprobanteFiscalService)->crearComprobanteFiscal($venta, $opciones);
@@ -1446,15 +1604,18 @@ class PedidoDeliveryService
     }
 
     /**
-     * Desglose de IVA de la venta escalado a un total parcial (formato
+     * Desglose de IVA de la venta escalado a los BIENES a facturar (formato
      * `por_alicuota` que consume crearComprobanteFiscal). Agrupa los detalles
-     * por alícuota, escala por la proporción facturada y fuerza
-     * Σ(neto+iva) == total parcial ajustando la última alícuota (paridad con
-     * recalcularDesgloseIvaFiscal del flujo de venta directa).
+     * por alícuota y escala por la proporción sobre bienes propios (Σ detalles +
+     * ajuste FP): así los descuentos de cabecera (descuento general, cupón a
+     * total, puntos) quedan prorrateados entre alícuotas y Σ(neto+iva) cierra
+     * exacto contra $bienesFiscal (RF-V5, AFIP 10048). El residuo lo absorbe la
+     * última alícuota GRAVADA (RF-V4: una fila 0% no puede llevar IVA); si todo
+     * es exento, el neto.
      *
      * @return array{por_alicuota: list<array{porcentaje: float, neto: float, iva: float}>}
      */
-    protected function desgloseIvaProporcional(Venta $venta, float $totalFiscal): array
+    protected function desgloseIvaProporcional(Venta $venta, float $bienesFiscal): array
     {
         $grupos = [];
         foreach ($venta->detalles as $detalle) {
@@ -1466,25 +1627,37 @@ class PedidoDeliveryService
         $ajuste = (float) ($venta->ajuste_forma_pago ?? 0);
         $totalDetalles = array_sum($grupos) ?: 1;
 
-        $factor = $totalFiscal / max(0.01, $totalDetalles + $ajuste);
+        $factor = $bienesFiscal / max(0.01, $totalDetalles + $ajuste);
 
         $porAlicuota = [];
         $sumaAcum = 0.0;
-        $claves = array_keys($grupos);
-        foreach ($claves as $i => $clave) {
+        $ultimaGravada = null;
+        foreach (array_keys($grupos) as $clave) {
             $p = (float) $clave;
             $conIva = ($grupos[$clave] + $ajuste * ($grupos[$clave] / $totalDetalles)) * $factor;
-            $neto = round($conIva / (1 + $p / 100), 2);
-            $iva = round($conIva - $neto, 2);
 
-            // Última alícuota: absorber el residuo de redondeo para que
-            // Σ(neto+iva) == totalFiscal exacto (requisito AFIP).
-            if ($i === count($claves) - 1) {
-                $iva = round($totalFiscal - $sumaAcum - $neto, 2);
+            if ($p > 0) {
+                $neto = round($conIva / (1 + $p / 100), 2);
+                $iva = round($conIva - $neto, 2);
+                $ultimaGravada = count($porAlicuota);
+            } else {
+                $neto = round($conIva, 2);
+                $iva = 0.0;
             }
 
             $sumaAcum += $neto + $iva;
             $porAlicuota[] = ['porcentaje' => $p, 'neto' => $neto, 'iva' => $iva];
+        }
+
+        // Cierre exacto contra los bienes a facturar (AFIP 10048).
+        $residuo = round($bienesFiscal - $sumaAcum, 2);
+        if ($residuo != 0 && ! empty($porAlicuota)) {
+            if ($ultimaGravada !== null) {
+                $porAlicuota[$ultimaGravada]['iva'] = round($porAlicuota[$ultimaGravada]['iva'] + $residuo, 2);
+            } else {
+                $ultima = count($porAlicuota) - 1;
+                $porAlicuota[$ultima]['neto'] = round($porAlicuota[$ultima]['neto'] + $residuo, 2);
+            }
         }
 
         return ['por_alicuota' => $porAlicuota];

@@ -239,13 +239,15 @@ class CambioFormaPagoReemisionTest extends TestCase
             'condicion_iva_id' => $this->condicionRI()->id,
         ]);
 
-        // Venta cobrada con percepción cuya FC nunca salió (p.ej. QR post-commit).
+        // Venta cobrada con percepción cuya FC nunca salió (p.ej. QR post-commit):
+        // el pago activo evidencia la percepción (monto_final = base + 24.79).
         $venta = $this->crearVentaBasica([
             '_caja' => $caja,
             'cliente_id' => $cliente->id,
             'total' => 1024.79,
             'total_final' => 1024.79,
         ]);
+        $this->crearPagoConPercepcion($venta, base: 1000.0, percepcion: 24.79);
 
         $reemision = $this->invocar('tributosParaReemision', $venta->fresh(), 1024.79);
 
@@ -253,6 +255,62 @@ class CambioFormaPagoReemisionTest extends TestCase
         $this->assertCount(1, $reemision['tributos']);
         $this->assertEqualsWithDelta(24.79, $reemision['imp_trib_porcion'], 0.01);
         $this->assertEqualsWithDelta(826.45, (float) $reemision['tributos'][0]['base_imponible'], 0.01);
+    }
+
+    /**
+     * Guard "no autopercibir": aunque el cliente sea RI y el CUIT agente, si los
+     * pagos de la venta NO evidencian percepción cobrada (monto_final == base +
+     * ajustes), el reintento no debe inventar ImpTrib — se facturaría un tributo
+     * que el cliente nunca pagó.
+     */
+    public function test_recalculo_no_inventa_tributos_si_la_venta_no_cobro_percepcion(): void
+    {
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+        $pv = $this->crearPuntoVentaParaCaja($caja->id);
+        $impuesto = $this->crearImpuestoPercepcion();
+
+        CuitImpuestoConfig::create([
+            'cuit_id' => $pv->cuit_id,
+            'impuesto_id' => $impuesto->id,
+            'inscripto' => true,
+            'es_agente_percepcion' => true,
+            'percibir_no_empadronados' => true,
+            'alicuota' => 3.0,
+            'origen_alicuota' => CuitImpuestoConfig::ORIGEN_MANUAL,
+        ]);
+
+        $cliente = Cliente::create([
+            'nombre' => 'Cliente RI '.uniqid(),
+            'activo' => true,
+            'condicion_iva_id' => $this->condicionRI()->id,
+        ]);
+
+        // Venta que NO cobró percepción: pago plano de 1000.
+        $venta = $this->crearVentaBasica(['_caja' => $caja, 'cliente_id' => $cliente->id]);
+        $this->crearPagoConPercepcion($venta, base: 1000.0, percepcion: 0.0);
+
+        $reemision = $this->invocar('tributosParaReemision', $venta->fresh(), 1000.0);
+
+        $this->assertSame([], $reemision['tributos']);
+        $this->assertSame(0.0, $reemision['imp_trib_porcion']);
+    }
+
+    /** Pago activo cuyo monto_final excede la base en $percepcion (evidencia de cobro). */
+    private function crearPagoConPercepcion(Venta $venta, float $base, float $percepcion): void
+    {
+        DB::connection('pymes_tenant')->table('venta_pagos')->insert([
+            'venta_id' => $venta->id,
+            'forma_pago_id' => $this->crearFormaPagoEfectivo()['formaPago']->id,
+            'monto_base' => $base,
+            'ajuste_porcentaje' => 0,
+            'monto_ajuste' => 0,
+            'monto_final' => round($base + $percepcion, 2),
+            'es_cuenta_corriente' => false,
+            'afecta_caja' => false,
+            'estado' => 'activo',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     public function test_reemision_sin_percepcion_no_inventa_tributos(): void

@@ -779,7 +779,17 @@ class CambioFormaPagoService
 
         // 2) Sin comprobante previo: recalcular con la config vigente (misma puerta
         // que el cobro: ImpuestoService vía el CUIT del PV por defecto de la caja).
-        $venta->loadMissing(['detalles', 'cliente.condicionIva', 'caja']);
+        $venta->loadMissing(['detalles', 'cliente.condicionIva', 'caja', 'pagos']);
+
+        // Guard "no autopercibir": la percepción tiene que estar COBRADA. La
+        // evidencia es la composición de los pagos activos: monto_final = base +
+        // ajuste FP + recargo cuotas (+ percepción) ⇒ el excedente es la
+        // percepción cobrada. Si no hay excedente, informar ImpTrib facturaría
+        // un tributo que el cliente nunca pagó.
+        $percepcionCobrada = $this->percepcionCobradaDeVenta($venta);
+        if ($percepcionCobrada < 0.01) {
+            return $sinTributos;
+        }
 
         $puntoVenta = $venta->caja?->puntoVentaDefecto();
         if (! $puntoVenta || ! $puntoVenta->cuit || ! $venta->cliente) {
@@ -810,20 +820,88 @@ class CambioFormaPagoService
         );
 
         if (empty($tributosVenta)) {
+            // Cobró percepción pero la config vigente no genera ninguna (cambió la
+            // config del agente): sin desglose confiable no se puede informar.
+            Log::warning('Venta con percepción cobrada pero la config vigente no genera tributos — FC sin ImpTrib', [
+                'venta_id' => $venta->id,
+                'percepcion_cobrada' => $percepcionCobrada,
+            ]);
+
             return $sinTributos;
         }
 
-        $impTribVenta = round(array_sum(array_column($tributosVenta, 'monto')), 2);
+        // Escalar el recálculo al monto efectivamente COBRADO (cobrado == facturado
+        // manda: la config pudo cambiar entre el cobro y este reintento). El último
+        // tributo absorbe el residuo; la base se rehace desde el monto y la alícuota.
+        $impTribRecalc = round(array_sum(array_column($tributosVenta, 'monto')), 2);
+        $factorCobro = $impTribRecalc > 0 ? $percepcionCobrada / $impTribRecalc : 0;
+        $escalados = [];
+        $acumulado = 0.0;
+        $ultimo = count($tributosVenta) - 1;
+
+        foreach (array_values($tributosVenta) as $i => $tributo) {
+            $monto = $i === $ultimo
+                ? round($percepcionCobrada - $acumulado, 2)
+                : round((float) $tributo['monto'] * $factorCobro, 2);
+            $acumulado += $monto;
+            $alicuota = (float) $tributo['alicuota'];
+
+            // Si el monto no cambió (cobro == recálculo, el caso normal) la base
+            // original es exacta; si cambió, rehacerla desde monto y alícuota.
+            $montoOriginal = round((float) $tributo['monto'], 2);
+            $base = abs($monto - $montoOriginal) < 0.005 || $alicuota <= 0
+                ? (float) $tributo['base_imponible']
+                : round($monto / ($alicuota / 100), 2);
+
+            $escalados[] = array_merge($tributo, [
+                'monto' => $monto,
+                'base_imponible' => $base,
+            ]);
+        }
+
         $proporcion = $totalVenta > 0 ? $montoAFacturar / $totalVenta : 1.0;
 
         Log::info('Tributos recalculados para re-emisión de FC (sin comprobante previo)', [
             'venta_id' => $venta->id,
             'neto_gravado_venta' => $netoGravadoVenta,
-            'imp_trib_venta' => $impTribVenta,
+            'percepcion_cobrada' => $percepcionCobrada,
+            'imp_trib_recalculado' => $impTribRecalc,
             'proporcion' => $proporcion,
         ]);
 
-        return $this->prorratearTributos($tributosVenta, $proporcion, $impTribVenta);
+        return $this->prorratearTributos($escalados, $proporcion, $percepcionCobrada);
+    }
+
+    /**
+     * Percepción efectivamente COBRADA por una venta, reconstruida desde la
+     * composición de sus pagos activos: monto_final = monto_base + ajuste FP +
+     * recargo cuotas (+ percepción distribuida). Los pagos por puntos no llevan
+     * percepción. Es la evidencia que habilita informar ImpTrib en una
+     * re-emisión sin comprobante previo (regla "no autopercibir en silencio").
+     */
+    private function percepcionCobradaDeVenta(Venta $venta): float
+    {
+        $percepcion = 0.0;
+
+        foreach ($venta->pagos as $pago) {
+            if ($pago->estado !== 'activo' || $pago->es_pago_puntos) {
+                continue;
+            }
+
+            $excedente = round(
+                (float) $pago->monto_final
+                - (float) $pago->monto_base
+                - (float) $pago->monto_ajuste
+                - (float) ($pago->recargo_cuotas_monto ?? 0),
+                2
+            );
+
+            if ($excedente > 0) {
+                $percepcion += $excedente;
+            }
+        }
+
+        return round($percepcion, 2);
     }
 
     /**

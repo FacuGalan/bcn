@@ -293,7 +293,7 @@ agrega algún aviso, alta en los 3 idiomas vía `/traducir`.
 2. `monto_fiscal_cache` por suma de comprobantes vigentes + revisión de reversas.
 3. Tests: reintento/cambio FP con percepción; facturación parcial en dos tramos.
 
-### Fase 3: Conversión de pedidos (RF-V3 + RF-V5) [PENDIENTE]
+### Fase 3: Conversión de pedidos (RF-V3 + RF-V5) [COMPLETO]
 1. Percepciones en `convertirEnVenta` (mostrador + delivery) reusando la puerta
    de `NuevaVenta`; definir el punto de cálculo vs pagos planificados.
 2. Desglose que cierra con descuento de cabecera.
@@ -324,6 +324,22 @@ agrega algún aviso, alta en los 3 idiomas vía `/traducir`.
 
 ## Notas y Decisiones
 
+- 2026-07-14 (Fase 3, hallazgo de implementación): **el pedido MOSTRADOR no
+  emite comprobante fiscal en ningún punto de su ciclo** (la emisión de
+  mostrador es el pendiente PR2.C/D del spec de pedidos, fuera de esta tanda).
+  Sin emisión no hay obligación de percepción ⇒ RF-V3/RF-V5 se implementaron en
+  DELIVERY (único canal de conversión que emite FC, rev9). Cuando mostrador
+  incorpore su emisión fiscal, debe reusar `percepcionParaConversion` /
+  `desgloseIvaProporcional` del service de delivery (extraer a un lugar común).
+- 2026-07-14 (Fase 3): la percepción de la conversión se COBRA sumándola al
+  pago PLANIFICADO fiscal de mayor monto antes de materializarlo (el total del
+  pedido pasa a incluirla, espejo de NuevaVenta). Si los pagos fiscales ya están
+  activos (p.ej. cobro en la vuelta del repartidor), la percepción NO se aplica
+  (warning en log): nunca se factura un tributo que el cliente no pagó.
+- 2026-07-14 (Fase 2/3, guard "no autopercibir"): el recálculo de tributos en
+  re-emisiones sin comprobante previo exige EVIDENCIA de cobro (excedente
+  `monto_final − base − ajuste − recargo` en los pagos activos) y escala el
+  desglose recalculado a ese monto (cobrado manda si la config cambió).
 - 2026-07-14: restricción del usuario — esta tanda NO cambia interacción/UX;
   los 2 cambios de monto visibles (RF-V1 percepción menor con exentos, RF-V3
   pedidos que empiezan a percibir) son correcciones esperadas y documentadas.

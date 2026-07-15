@@ -559,4 +559,213 @@ class PedidoDeliveryServiceTest extends TestCase
             0.01,
         );
     }
+
+    // ==================== PERCEPCIONES EN CONVERSIÓN (RF-V3/RF-V5) ====================
+
+    /** CUIT agente de percepción IIBB AR-B 3% en el PV por defecto de la caja del test. */
+    private function configurarAgentePercepcionEnCaja(): void
+    {
+        $condicionRI = \App\Models\CondicionIva::firstOrCreate(
+            ['codigo' => \App\Models\CondicionIva::RESPONSABLE_INSCRIPTO],
+            ['nombre' => 'Responsable Inscripto']
+        );
+
+        $cuit = \App\Models\Cuit::create([
+            'numero_cuit' => (string) random_int(20000000000, 29999999999),
+            'razon_social' => 'Emisor Test',
+            'condicion_iva_id' => $condicionRI->id,
+            'entorno_afip' => 'testing',
+            'activo' => true,
+        ]);
+
+        $domicilio = \App\Models\CuitDomicilio::create([
+            'cuit_id' => $cuit->id,
+            'tipo' => 'fiscal',
+            'provincia' => 'AR-B',
+            'direccion' => 'Calle Falsa 123',
+            'es_principal' => true,
+            'activo' => true,
+        ]);
+
+        $pv = \App\Models\PuntoVenta::create([
+            'cuit_id' => $cuit->id,
+            'cuit_domicilio_id' => $domicilio->id,
+            'numero' => 1,
+            'nombre' => 'PV Test',
+            'activo' => true,
+        ]);
+
+        DB::connection('pymes_tenant')->table('punto_venta_caja')->insert([
+            'punto_venta_id' => $pv->id,
+            'caja_id' => $this->cajaId,
+            'es_defecto' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $impuesto = \App\Models\Impuesto::create([
+            'codigo' => 'perc_iibb_ar_b_'.uniqid(),
+            'nombre' => 'Percepción IIBB AR-B',
+            'tipo' => \App\Models\Impuesto::TIPO_IIBB,
+            'naturaleza_default' => 'percepcion',
+            'jurisdiccion' => 'AR-B',
+            'codigo_arca' => 7,
+            'es_sistema' => true,
+            'activo' => true,
+        ]);
+
+        \App\Models\CuitImpuestoConfig::create([
+            'cuit_id' => $cuit->id,
+            'impuesto_id' => $impuesto->id,
+            'inscripto' => true,
+            'es_agente_percepcion' => true,
+            'percibir_no_empadronados' => true,
+            'alicuota' => 3.0,
+            'origen_alicuota' => \App\Models\CuitImpuestoConfig::ORIGEN_MANUAL,
+        ]);
+    }
+
+    private function crearClienteRIDelivery(): \App\Models\Cliente
+    {
+        $condicionRI = \App\Models\CondicionIva::firstOrCreate(
+            ['codigo' => \App\Models\CondicionIva::RESPONSABLE_INSCRIPTO],
+            ['nombre' => 'Responsable Inscripto']
+        );
+
+        return \App\Models\Cliente::create([
+            'nombre' => 'Cliente RI '.uniqid(),
+            'activo' => true,
+            'condicion_iva_id' => $condicionRI->id,
+        ]);
+    }
+
+    /**
+     * RF-V3: pedido de cliente RI con FP fiscal y agente configurado ⇒ la
+     * conversión cobra la percepción en el pago planificado (3% sobre neto
+     * gravado 826.45 = 24.79) y la venta queda con cobrado == total con
+     * percepción — igual que una venta directa equivalente.
+     */
+    public function test_convertir_cobra_percepcion_a_cliente_ri_en_pago_planificado(): void
+    {
+        $fpId = $this->formaPagoEfectivo();
+        \App\Models\FormaPago::where('id', $fpId)->update(['factura_fiscal' => true]);
+        $this->configurarAgentePercepcionEnCaja();
+        $cliente = $this->crearClienteRIDelivery();
+
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->cajaId, overrides: [
+            'cliente_id' => $cliente->id,
+        ]);
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $fpId,
+            'monto_base' => 1000,
+            'monto_final' => 1000,
+            'planificado' => true,
+        ]);
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+
+        $this->assertEqualsWithDelta(1024.79, (float) $venta->fresh()->total_final, 0.02);
+        $this->assertEqualsWithDelta(1024.79, (float) $venta->pagos()->first()->monto_final, 0.02);
+        $this->assertEqualsWithDelta(1024.79, (float) $pedido->fresh()->total_final, 0.02);
+        // El movimiento de caja del cobro también incluye la percepción.
+        $this->assertEqualsWithDelta(
+            1024.79,
+            (float) MovimientoCaja::where('referencia_tipo', MovimientoCaja::REF_VENTA)
+                ->where('referencia_id', $venta->id)->sum('monto'),
+            0.02,
+        );
+    }
+
+    /**
+     * RF-V3 (guard "no facturar lo que no se cobró"): si el pago fiscal ya está
+     * ACTIVO (cobrado antes, p.ej. vuelta del repartidor), la percepción no se
+     * puede cobrar y NO se aplica — los totales no cambian.
+     */
+    public function test_convertir_sin_planificado_fiscal_no_cobra_percepcion(): void
+    {
+        $fpId = $this->formaPagoEfectivo();
+        \App\Models\FormaPago::where('id', $fpId)->update(['factura_fiscal' => true]);
+        $this->configurarAgentePercepcionEnCaja();
+        $cliente = $this->crearClienteRIDelivery();
+
+        $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, cajaId: $this->cajaId, overrides: [
+            'cliente_id' => $cliente->id,
+        ]);
+        // Pago ACTIVO (cobrado): no hay dónde sumar la percepción.
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $fpId,
+            'monto_base' => 1000,
+            'monto_final' => 1000,
+        ]);
+
+        $venta = $this->service->convertirEnVenta($pedido->fresh());
+
+        $this->assertEqualsWithDelta(1000.0, (float) $venta->fresh()->total_final, 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $venta->pagos()->first()->monto_final, 0.01);
+    }
+
+    /**
+     * RF-V5: el desglose de la conversión cierra exacto contra los bienes aunque
+     * la venta tenga descuento de cabecera (antes calcularDetallesIva sumaba los
+     * detalles sin ese descuento ⇒ AFIP 10048).
+     */
+    public function test_desglose_de_conversion_cierra_con_descuento_de_cabecera(): void
+    {
+        // Detalle de 1000 pero total_final 900 (descuento general de cabecera 100).
+        $venta = $this->crearVentaBasica([
+            'total' => 900,
+            'total_final' => 900,
+            'descuento_general_tipo' => 'monto_fijo',
+            'descuento_general_valor' => 100,
+            'descuento_general_monto' => 100,
+        ]);
+
+        $ref = new \ReflectionMethod(PedidoDeliveryService::class, 'desgloseIvaProporcional');
+        $ref->setAccessible(true);
+        $desglose = $ref->invoke($this->service, $venta->fresh(['detalles']), 900.0);
+
+        $sumaNeto = array_sum(array_column($desglose['por_alicuota'], 'neto'));
+        $sumaIva = array_sum(array_column($desglose['por_alicuota'], 'iva'));
+
+        $this->assertEqualsWithDelta(900.0, round($sumaNeto + $sumaIva, 2), 0.001);
+        // El descuento quedó prorrateado: el IVA sigue siendo ≈ neto × 21% (10051).
+        foreach ($desglose['por_alicuota'] as $fila) {
+            $this->assertEqualsWithDelta(
+                round($fila['neto'] * $fila['porcentaje'] / 100, 2),
+                $fila['iva'],
+                0.02,
+            );
+        }
+    }
+
+    /** RF-V4/RF-V5: una fila 0% nunca absorbe el residuo como IVA. */
+    public function test_desglose_de_conversion_no_pone_iva_en_fila_exenta(): void
+    {
+        $venta = $this->crearVentaBasica(['total' => 1500.01, 'total_final' => 1500.01]);
+        // Segundo detalle exento de 500.01 (el primero es 1000 @ 21%).
+        \App\Models\VentaDetalle::create([
+            'venta_id' => $venta->id,
+            'articulo_id' => $venta->detalles()->first()->articulo_id,
+            'tipo_iva_id' => $venta->detalles()->first()->tipo_iva_id,
+            'cantidad' => 1,
+            'precio_unitario' => 500.01,
+            'iva_porcentaje' => 0,
+            'precio_sin_iva' => 500.01,
+            'descuento' => 0,
+            'iva_monto' => 0,
+            'subtotal' => 500.01,
+            'total' => 500.01,
+        ]);
+
+        $ref = new \ReflectionMethod(PedidoDeliveryService::class, 'desgloseIvaProporcional');
+        $ref->setAccessible(true);
+        $desglose = $ref->invoke($this->service, $venta->fresh(['detalles']), 1500.01);
+
+        $filaExenta = collect($desglose['por_alicuota'])->firstWhere('porcentaje', 0.0);
+        $this->assertSame(0.0, (float) $filaExenta['iva']);
+
+        $suma = array_sum(array_column($desglose['por_alicuota'], 'neto'))
+            + array_sum(array_column($desglose['por_alicuota'], 'iva'));
+        $this->assertEqualsWithDelta(1500.01, round($suma, 2), 0.001);
+    }
 }
