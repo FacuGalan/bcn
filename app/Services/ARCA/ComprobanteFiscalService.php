@@ -410,8 +410,24 @@ class ComprobanteFiscalService
      * ledger (RF-04, Fase 5a). Best-effort: cualquier fallo se loguea pero NO
      * se propaga — el comprobante ya tiene CAE y está commiteado, y un movimiento
      * faltante se puede backfillear; un CAE perdido no.
+     *
+     * RF-V7 (hardening fiscal saliente): el registro se difiere al commit REAL
+     * de la conexión. Cuando la emisión corre DENTRO de la transacción del cobro
+     * (NuevaVenta), el commit interno de este service es solo un savepoint: sin
+     * el afterCommit, el "post-commit" corría con la transacción externa abierta
+     * (el best-effort no aislaba nada) y un rollback posterior del cobro dejaba
+     * el intento de ledger hecho sobre datos que desaparecían. Con afterCommit,
+     * si no hay transacción externa el callback corre inmediato (comportamiento
+     * previo); si la hay, corre tras su commit y se descarta en rollback.
      */
     private function registrarFiscal(ComprobanteFiscal $comprobante): void
+    {
+        DB::connection('pymes_tenant')->afterCommit(function () use ($comprobante) {
+            $this->registrarFiscalAhora($comprobante);
+        });
+    }
+
+    private function registrarFiscalAhora(ComprobanteFiscal $comprobante): void
     {
         try {
             app(ImpuestoService::class)->registrarDesdeComprobante($comprobante, $comprobante->usuario_id);

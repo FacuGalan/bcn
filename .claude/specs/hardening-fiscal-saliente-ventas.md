@@ -299,7 +299,7 @@ agrega algún aviso, alta en los 3 idiomas vía `/traducir`.
 2. Desglose que cierra con descuento de cabecera.
 3. Tests: conversión con cliente percibido (ambos canales) + descuento con residuo.
 
-### Fase 4: Transaccionalidad del ledger (RF-V7) + cortesía legacy (RF-V8) [PENDIENTE]
+### Fase 4: Transaccionalidad del ledger (RF-V7) + cortesía legacy (RF-V8) [COMPLETO]
 1. `registrarFiscal` a after-commit real (patrón two-phase); revisar llamadores.
 2. Test de rollback forzado (ledger no registrado) + flujo exitoso.
 3. Reproducción RF-V8; fix o descarte documentado.
@@ -324,6 +324,18 @@ agrega algún aviso, alta en los 3 idiomas vía `/traducir`.
 
 ## Notas y Decisiones
 
+- 2026-07-14 (Fase 4, RF-V7): fix vía `DB::connection('pymes_tenant')
+  ->afterCommit(...)` en `registrarFiscal` — sin transacción externa corre
+  inmediato (comportamiento previo intacto); con ella, corre tras el commit real
+  y se descarta en rollback. No hizo falta reordenar los callers.
+- 2026-07-14 (Fase 4, RF-V8): **REPRODUCIDO y corregido.** La cortesía total con
+  concepto libre explotaba con "Concepto libre requiere
+  _usar_totales_proporcionados=true" (NuevaVenta::procesarVenta, único caller
+  legacy, no pasa el flag). Fix mínimo: un concepto libre siempre usa la rama de
+  datos proporcionados de crearDetalleVenta (sus datos vienen completos de la
+  UI). Hallazgo colateral documentado: la matemática de cabecera del modo legacy
+  (calcularTotales suma subtotal con IVA + IVA de nuevo) queda fuera de alcance —
+  en la práctica ese path solo se ejercita con cortesías (montos 0).
 - 2026-07-14 (Fase 3, hallazgo de implementación): **el pedido MOSTRADOR no
   emite comprobante fiscal en ningún punto de su ciclo** (la emisión de
   mostrador es el pendiente PR2.C/D del spec de pedidos, fuera de esta tanda).

@@ -292,6 +292,16 @@ class VentaService
         $precioUnitario = $detalle['precio_unitario'];
         $cantidad = $detalle['cantidad'];
 
+        // RF-V8 (hardening fiscal saliente): un concepto libre siempre trae sus
+        // datos completos desde la UI (no hay artículo del cual recalcular), así
+        // que usa la rama de datos proporcionados aunque la venta venga en modo
+        // legacy. Sin esto, la cortesía total con concepto libre (único caller
+        // sin _usar_totales_proporcionados: NuevaVenta::procesarVenta vía
+        // confirmarInvitacionTotal) explotaba al persistir el detalle.
+        if ($esConcepto) {
+            $usarDatosProporcionados = true;
+        }
+
         // Log para debugging
         Log::info('VentaService::crearDetalleVenta', [
             'venta_id' => $venta->id,
