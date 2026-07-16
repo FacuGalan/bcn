@@ -98,6 +98,10 @@ class TiendaController extends Controller
 
     /**
      * GET /v1/tiendas/{slug}/catalogo?tipo=delivery|take_away — catálogo RF-17.
+     *
+     * Cache HTTP (RF-T5): es el endpoint más golpeado de la tienda. ETag +
+     * max-age corto — el cliente revalida con If-None-Match y se ahorra el
+     * payload (304) cuando el catálogo no cambió.
      */
     public function catalogo(Request $request, CatalogoTiendaService $catalogoService): JsonResponse
     {
@@ -108,9 +112,19 @@ class TiendaController extends Controller
             $tipo = PedidoDelivery::TIPO_DELIVERY;
         }
 
-        return response()->json([
-            'data' => $catalogoService->catalogo($sucursal, $tipo),
-        ]);
+        $payload = ['data' => $catalogoService->catalogo($sucursal, $tipo)];
+        $etag = '"'.md5(json_encode($payload)).'"';
+
+        $headers = [
+            'ETag' => $etag,
+            'Cache-Control' => 'public, max-age=60',
+        ];
+
+        if (trim((string) $request->header('If-None-Match')) === $etag) {
+            return response()->json(null, 304, $headers);
+        }
+
+        return response()->json($payload, 200, $headers);
     }
 
     /**

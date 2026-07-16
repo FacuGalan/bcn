@@ -39,4 +39,9 @@ class ConsumidorDireccion extends Model
     {
         return $this->belongsTo(Consumidor::class, 'consumidor_id');
     }
+
+    public function localidad(): BelongsTo
+    {
+        return $this->belongsTo(Localidad::class, 'localidad_id');
+    }
 }

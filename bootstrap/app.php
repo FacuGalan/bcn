@@ -25,6 +25,8 @@ return Application::configure(basePath: dirname(__DIR__))
             // Abilities de los tokens de integración Sanctum (RF-11)
             'abilities' => \Laravel\Sanctum\Http\Middleware\CheckAbilities::class,
             'ability' => \Laravel\Sanctum\Http\Middleware\CheckForAnyAbility::class,
+            // API v1 consumidores (RF-T1): el Bearer debe ser un Consumidor
+            'api.consumidor' => \App\Http\Middleware\EnsureApiConsumidor::class,
         ]);
 
         // IMPORTANTE: Configurar el tenant en TODOS los requests web
@@ -62,7 +64,10 @@ return Application::configure(basePath: dirname(__DIR__))
             [$status, $code] = match (true) {
                 $e instanceof \Illuminate\Validation\ValidationException => [422, 'validacion'],
                 $e instanceof \Illuminate\Auth\AuthenticationException => [401, 'no_autenticado'],
+                // AuthorizationException lanzada en middleware llega acá ya
+                // convertida en AccessDeniedHttpException: mismo código.
                 $e instanceof \Illuminate\Auth\Access\AuthorizationException,
+                $e instanceof \Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException,
                 $e instanceof \Laravel\Sanctum\Exceptions\MissingAbilityException => [403, 'sin_permiso'],
                 $e instanceof \Illuminate\Database\Eloquent\ModelNotFoundException,
                 $e instanceof \Symfony\Component\HttpKernel\Exception\NotFoundHttpException => [404, 'no_encontrado'],

@@ -60,6 +60,46 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 ->middleware('throttle:10,1')->name('tienda.pedidos.cancelar');
         });
 
+    // ── Consumidores (cuenta GLOBAL de la tienda online, RF-T1..T3) ──
+    // Sin api.tenant: el consumidor es cross-comercio (BD config). Throttle
+    // agresivo en los endpoints que mandan emails o prueban credenciales.
+    // GOTCHA: los throttle inline comparten bucket por sha1(user|ip) — el
+    // 3er parámetro (prefijo) separa los contadores; sin él, un throttle de
+    // grupo + uno de ruta doble-incrementan el mismo contador.
+    Route::prefix('consumidores')->name('consumidores.')->group(function () {
+        Route::post('/registro', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'registro'])
+            ->middleware('throttle:5,1,c-registro')->name('registro');
+        Route::post('/login', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'login'])
+            ->middleware('throttle:10,1,c-login')->name('login');
+        Route::post('/verificar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'verificar'])
+            ->middleware('throttle:10,1,c-verificar')->name('verificar');
+        Route::post('/recuperar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'recuperar'])
+            ->middleware('throttle:3,1,c-recuperar')->name('recuperar');
+        Route::post('/restablecer', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'restablecer'])
+            ->middleware('throttle:5,1,c-restablecer')->name('restablecer');
+
+        Route::middleware(['auth:sanctum', 'api.consumidor', 'throttle:60,1,c-auth'])->group(function () {
+            Route::post('/logout', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'logout'])->name('logout');
+            Route::get('/me', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'me'])->name('me');
+            Route::post('/reenviar-verificacion', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'reenviarVerificacion'])
+                ->middleware('throttle:3,1,c-reenviar')->name('reenviar-verificacion');
+
+            Route::get('/direcciones', [\App\Http\Controllers\Api\V1\Consumidores\DireccionesController::class, 'index'])->name('direcciones.index');
+            Route::post('/direcciones', [\App\Http\Controllers\Api\V1\Consumidores\DireccionesController::class, 'store'])->name('direcciones.store');
+            Route::patch('/direcciones/{id}', [\App\Http\Controllers\Api\V1\Consumidores\DireccionesController::class, 'update'])->name('direcciones.update');
+            Route::delete('/direcciones/{id}', [\App\Http\Controllers\Api\V1\Consumidores\DireccionesController::class, 'destroy'])->name('direcciones.destroy');
+
+            Route::get('/pedidos', [\App\Http\Controllers\Api\V1\Consumidores\PedidosController::class, 'index'])
+                ->middleware('throttle:30,1')->name('pedidos.index');
+        });
+    });
+
+    // ── Marketplace público (RF-T4): landing global de tiendas ──
+    Route::middleware('throttle:30,1,marketplace')->group(function () {
+        Route::get('/tiendas', [\App\Http\Controllers\Api\V1\MarketplaceController::class, 'tiendas'])->name('marketplace.tiendas');
+        Route::get('/rubros', [\App\Http\Controllers\Api\V1\MarketplaceController::class, 'rubros'])->name('marketplace.rubros');
+    });
+
     // ── Integración (token Sanctum de comercio con abilities) ──
     Route::middleware(['auth:sanctum', 'api.tenant', 'throttle:120,1'])->group(function () {
         Route::get('/pedidos-delivery', [\App\Http\Controllers\Api\V1\Integracion\PedidosController::class, 'index'])

@@ -1,6 +1,6 @@
 # Tienda Online — Especificación del Proyecto
 
-## Estado: APROBADO (2026-07-16) — Fase 0 EN PROGRESO
+## Estado: APROBADO (2026-07-16) — Fase 0 COMPLETA (2026-07-16)
 
 > Proyecto APARTE (repo nuevo `bcn-tienda`): frontend multi-tenant de la tienda
 > online, un solo deploy para todos los comercios, que consume la API v1 de BCN
@@ -105,7 +105,24 @@ aparte porque su ciclo de vida, deploy, seguridad y audiencia son otros
 
 ---
 
-## Fase 0 — Endpoints nuevos en el CORE (este repo)
+## Fase 0 — Endpoints nuevos en el CORE (este repo) — ✅ COMPLETA
+
+Implementada el 2026-07-16 (rama feat/tienda-fase-0). Notas de implementación:
+- Tokens de verificación/reset STATELESS (HMAC con APP_KEY, sin tablas
+  nuevas): `ConsumidorTokenService`. El de reset embebe un fragmento del hash
+  de password → single-use sin storage.
+- Emails markdown con branding neutro (`app/Mail/Consumidores/*`); los links
+  apuntan a `TIENDA_URL` (`config/tienda.php`) → `/verificar?token=` y
+  `/recuperar?token=`.
+- Middleware `api.consumidor` (el Bearer debe ser Consumidor, no Comercio).
+- Historial: fan-out acotado a tenants con tienda + merge por fecha;
+  requiere email verificado (403).
+- Marketplace: snapshot por tienda cacheado 5 min (coords, zonas, calendario,
+  logo); alcance con la misma semántica de `envios/cotizar`.
+- CORS: `config/cors.php` + `CORS_ALLOWED_ORIGINS` (default `*` hasta
+  configurar el dominio de la tienda).
+- GOTCHA descubierto: los throttle inline de Laravel comparten bucket por
+  `sha1(user|ip)` — throttles apilados necesitan el 3er parámetro (prefijo).
 
 La tienda v1 (fases 1-2) necesita que la API crezca en:
 

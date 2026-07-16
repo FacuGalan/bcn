@@ -273,7 +273,16 @@ class DeliveryEnvioService
      */
     public function estaAbierto(Sucursal $sucursal, ?Carbon $cuando = null): bool
     {
-        $config = $this->configDelivery($sucursal);
+        return $this->estaAbiertoSegunConfig($this->configDelivery($sucursal), $cuando);
+    }
+
+    /**
+     * Variante sobre un array de config ya resuelto: la usa el marketplace
+     * (RF-T4), que evalúa tiendas desde config CACHEADA sin re-abrir la
+     * conexión tenant de cada comercio.
+     */
+    public function estaAbiertoSegunConfig(array $config, ?Carbon $cuando = null): bool
+    {
         $cuando ??= now();
 
         $diasLaborales = array_map('intval', (array) ($config['dias_laborales'] ?? [1, 2, 3, 4, 5, 6, 7]));
@@ -285,7 +294,7 @@ class DeliveryEnvioService
             return false;
         }
 
-        return $this->rangoHorarioActivo($config['horarios_atencion'], $cuando);
+        return $this->rangoHorarioActivo($config['horarios_atencion'] ?? null, $cuando);
     }
 
     /**
