@@ -9,16 +9,28 @@ OPcache / FPM).
 ## Flujo de deploy completo
 
 El hook `post-merge` (`.githooks/post-merge`) solo corre `optimize:clear` (a
-propósito: NO cachea config para no envenenar los tests). Los pasos de
-migración, build y warm de caches **NO están automatizados** — hay que correrlos:
+propósito: NO cachea config para no envenenar los tests). El flujo completo
+está automatizado en **`./deploy.sh`** (raíz del repo) — preferirlo a correr
+los pasos a mano. Paso a paso equivalente:
 
 ```bash
 cd /var/www/html/bcn
 git pull origin master
-composer install --no-dev --optimize-autoloader
+
+# 0) Composer SIN scripts + discover manual (ver Gotcha 4: el hook
+#    post-autoload-dump bootea Laravel ANTES de terminar de instalar y revienta
+#    si un paquete nuevo está referenciado en config/ — caso Sanctum #161)
+COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-scripts
+rm -f bootstrap/cache/packages.php bootstrap/cache/services.php
+COMPOSER_ALLOW_SUPERUSER=1 php artisan package:discover --ansi
 
 # 1) Migraciones (incluye tenant: iteran TODOS los comercios)
 php artisan migrate --force
+
+# 1b) Invalidar caché de permisos/menú (ver Gotcha 5: sin esto los ítems de
+#     menú nuevos no aparecen hasta 5 min después, ni siquiera como admin)
+php artisan permission:cache-reset || true
+php artisan cache:clear
 
 # 2) Build del front (public/build está gitignored → se compila en el server).
 #    Los VITE_* (REVERB, etc.) se hornean acá: el .env debe estar correcto ANTES.
@@ -185,6 +197,54 @@ sudo systemctl reload php*-fpm   # para que OPcache tome el cambio (validate_tim
 un deploy en server nuevo —o tras `icons:clear`— sí lo necesita. Por eso va explícito
 en el flujo. Detector: si `boot` domina el request y DB es bajo, sospechar de un
 provider que escanea FS (icons, Volt) — medir, no asumir.
+
+## Gotcha 4 — `composer install --no-dev` aborta con "Class not found" al agregar un paquete referenciado en `config/`
+
+**Qué pasó (deploy #161, 2026-07-16):** el PR agregó Laravel Sanctum y
+`config/sanctum.php` referencia la clase `Laravel\Sanctum\Sanctum` al cargar.
+El `composer install --no-dev` normal abortó con `Class "Laravel\Sanctum\Sanctum"
+not found`: composer procesa las **remociones de paquetes dev primero** y su hook
+(`pre-package-uninstall` / `post-autoload-dump` → `package:discover`) **bootea
+Laravel y carga toda la config** antes de que Sanctum termine de instalarse
+(huevo-gallina). Puede pasar con CUALQUIER paquete nuevo que quede referenciado
+en un archivo de `config/`.
+
+**Fix (ya en `deploy.sh`, idempotente para cualquier deploy):**
+
+```bash
+COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-scripts
+rm -f bootstrap/cache/packages.php bootstrap/cache/services.php
+COMPOSER_ALLOW_SUPERUSER=1 php artisan package:discover --ansi
+```
+
+`--no-scripts` evita el booteo prematuro; el `rm` + `package:discover` posterior
+reproducen a mano lo que los scripts hacían, ya con el vendor completo.
+
+---
+
+## Gotcha 5 — El menú nuevo no aparece hasta 5 min después de migrar (caché de permisos)
+
+**Qué pasó (deploy #161):** tras migrar los ítems de menú nuevos
+(Compras/Delivery), **no aparecían ni siquiera como admin**. No era un error de
+la migración: los permisos se cachean **por usuario** en el cache store de la
+app (`user_permissions_{userId}_{comercioId}`, TTL 5 min) + la caché de Spatie.
+Ni `deploy:warm` ni `optimize:clear` tocan el cache STORE de la app (eso es
+`cache:clear`). Se auto-sana a los 5 minutos, pero confunde ("la migración no
+contempló el ítem").
+
+**Fix (ya en `deploy.sh`, paso post-migrate):**
+
+```bash
+php artisan permission:cache-reset || true
+php artisan cache:clear
+```
+
+**Detalle de diseño (no es bug):** las migraciones asignan los permisos nuevos
+solo a **Administrador / Super Administrador**; el resto de los roles se asignan
+a mano en *Roles y Permisos*. Si un rol no-admin no ve el ítem nuevo, es
+**esperado** — no lo arregla ningún `cache:clear`.
+
+---
 
 ## Diagnóstico (cuándo "va lento")
 
