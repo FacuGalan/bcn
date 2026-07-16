@@ -3413,10 +3413,10 @@ Conserva TODO el historial de intentos (incluidos re-despachos); `pedidos_delive
 |---|---|---|
 | `tiendas` | `comercio_id` FK, `sucursal_id` (FK logico tenant), `slug` UNIQUE(60), `habilitada`, `dominio_propio` UNIQUE nullable | UNIQUE(`comercio_id`,`sucursal_id`). La tienda es POR SUCURSAL (D15): el slug identifica comercio+sucursal, sin ambiguedad. En v1 se alta por consola/soporte |
 | `rubros` | `nombre`, `slug` UNIQUE, `activo` | Catalogo global (hamburgueseria, pizzeria...). `comercios.rubro_id` (FK nullable) referencia esta tabla — CONVIVE con `comercios.rubro` (string, MCC de Mercado Pago) |
-| `consumidores` | `nombre`, `email` UNIQUE, `password`, `telefono`, `email_verified_at`, `remember_token` | Cuenta GLOBAL cross-comercio (D8), guard `consumidores` + Sanctum. Solo estructura + guard; registro/login los implementa el proyecto tienda |
-| `consumidor_direcciones` | `consumidor_id` FK CASCADE, `alias`, `direccion`, `referencia`, `localidad_id` nullable, `latitud`/`longitud` nullable, `es_default` | Direcciones reutilizables en cualquier comercio |
+| `consumidores` | `nombre`, `email` UNIQUE, `password`, `telefono`, `email_verified_at`, `remember_token` | Cuenta GLOBAL cross-comercio (D8), guard `consumidores` + Sanctum. Auth completa (registro/login/logout/verificacion/reset) implementada en el CORE (RF-T1, Fase 0 de la spec tienda-online) — `App\Http\Controllers\Api\V1\Consumidores\AuthController` |
+| `consumidor_direcciones` | `consumidor_id` FK CASCADE, `alias`, `direccion`, `referencia`, `localidad_id` nullable, `latitud`/`longitud` nullable, `es_default` | Direcciones reutilizables en cualquier comercio. CRUD via `DireccionesController` (RF-T2), maximo 10 por consumidor |
 | `consumidor_comercio` | `consumidor_id` FK, `comercio_id` FK, `cliente_id` (FK logico al `clientes` tenant) | UNIQUE(`consumidor_id`,`comercio_id`). Se crea SOLO segun `comercios.tienda_alta_cliente_automatica` (default OFF, D11) o manualmente ("convertir en cliente", diferido al proyecto tienda) |
-| `personal_access_tokens` | Sanctum estandar (`tokenable_type/id` morph, `token`, `abilities`, `last_used_at`, `expires_at`) | Vive en CONFIG (no en tenant): los tokenables (`Comercio`, futuro `Consumidor`) son cross-tenant. `Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class)` |
+| `personal_access_tokens` | Sanctum estandar (`tokenable_type/id` morph, `token`, `abilities`, `last_used_at`, `expires_at`) | Vive en CONFIG (no en tenant): los tokenables (`Comercio`, `Consumidor`) son cross-tenant. `Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class)` |
 
 `comercios` gana `rubro_id` (FK nullable a `rubros`) y `tienda_alta_cliente_automatica` (boolean, default 0).
 
@@ -4679,7 +4679,7 @@ Corregidos a nivel service (y anotados como mejora pendiente de espejar en mostr
 
 ---
 
-### 3.15 API v1 Pedidos Delivery (Sanctum + tienda)
+### 3.15 API v1 Pedidos Delivery / Tienda (Sanctum + consumidores + marketplace)
 
 Base nueva bajo `/api/v1` (`routes/api.php`), documentada en detalle en `docs/api-v1-delivery.md`. Errores JSON uniformes `{error:{code,message,details}}` (bootstrap/app.php): excepciones "peladas" de los services → 422 con mensaje; el resto → 500 generico logueado.
 
@@ -4687,7 +4687,8 @@ Base nueva bajo `/api/v1` (`routes/api.php`), documentada en detalle en `docs/ap
 
 1. **Publico por tienda** (sin auth, throttle 60/min): rutas `/v1/tiendas/{slug}/...`. El `slug` (tabla `config.tiendas`) identifica comercio+sucursal (D15, la tienda es POR SUCURSAL) — resuelto por `ApiTenantMiddleware` (alias `api.tenant`) sin abrir la BD tenant primero.
 2. **Integracion** (Bearer Sanctum, throttle 120/min): tokens de `personal_access_tokens` (BD config) con **abilities** (`pedidos:read`, `pedidos:write`, `config:read`, `catalogo:read`) emitidos por comercio desde `/configuracion/api-tokens`. Sucursal por header `X-Sucursal-Id` (default: principal). El tokenable es `Comercio` (implementa `Authenticatable` + `HasApiTokens`, `sanctum.guard=null` porque no es un `User`).
-3. **Consumidores** (guard `consumidores`, futuro proyecto tienda): el endpoint publico de pedidos acepta opcionalmente su Bearer.
+3. **Consumidores** (RF-T1..T3, proyecto tienda): cuenta GLOBAL cross-comercio (`config.consumidores`, guard `consumidores` + Sanctum) con Bearer propio (`/v1/consumidores/...`). El token lo guarda la TIENDA en su sesion server-side, nunca en el navegador del consumidor. El endpoint publico de pedidos y `carrito/cotizar` lo aceptan opcionalmente (precios por cliente donde exista mapping, D11). Middleware `api.consumidor` (`EnsureApiConsumidor`) exige que el Bearer autenticado sea instancia de `Consumidor`; si es un token de integracion (tokenable `Comercio`) devuelve `403 sin_permiso`.
+4. **Marketplace** (RF-T4, publico, throttle 30/min): `GET /v1/tiendas`, `GET /v1/rubros` — landing global sin tenant.
 
 **Permisos sin sesion**: `User::loadAllPermissions` cachea por `session('comercio_activo_id')` y devuelve vacio sin sesion — bajo Sanctum, `hasPermissionTo()` de los services denegaria siempre. Se extendio para aceptar el **comercio explicito** que dejo `ApiTenantMiddleware` en `TenantService`, sin romper el camino web. Los tokens de integracion autorizan por abilities (no por permisos de usuario); los services solo chequean permisos cuando hay un usuario actor real.
 
@@ -4695,12 +4696,35 @@ Base nueva bajo `/api/v1` (`routes/api.php`), documentada en detalle en `docs/ap
 
 - `GET /v1/tiendas/{slug}`: datos de la tienda + bloque `entrega` (modo_promesa, acepta_lo_antes_posible, demoras, usa_franjas) + `formas_pago` declarables contra entrega/retiro.
 - `GET /v1/tiendas/{slug}/franjas?tipo=`: slots de la jornada en modo franjas (cupos = Fase 8).
-- `GET /v1/tiendas/{slug}/catalogo?tipo=`: catalogo segun criterio RF-17 (activo + vendible + `visible_tienda` + disponible por tipo); agotados vienen marcados `pedible:false`. Precios FINALES calculados por `PrecioService` (nunca localmente, D12).
+- `GET /v1/tiendas/{slug}/catalogo?tipo=`: catalogo segun criterio RF-17 (activo + vendible + `visible_tienda` + disponible por tipo); agotados vienen marcados `pedible:false`. Precios FINALES calculados por `PrecioService` (nunca localmente, D12). **Cache HTTP (RF-T5)**: responde con `ETag` (md5 del payload) + `Cache-Control: public, max-age=60`; si el cliente manda `If-None-Match` con el mismo ETag devuelve `304` sin body (es el endpoint mas golpeado de la tienda).
 - `POST /v1/tiendas/{slug}/envios/cotizar`: `{latitud, longitud, ?hora_pactada}` → `{alcance, pedible, costo_envio, distancia_km, zona, demora_estimada_min}`.
 - `POST /v1/tiendas/{slug}/carrito/cotizar`: cotizacion server-side del carrito completo (**`CotizadorCarritoTienda`**, harness headless del trait `WithCalculoVenta` — mismo motor de precios/promos/cupones que el panel). Con Bearer de consumidor, cotiza con SU cliente materializado (mismo total que el checkout, D12).
 - `POST /v1/tiendas/{slug}/pedidos` (throttle 15/min, `PedidoTiendaService`): alta de pedido invitado o consumidor. `entrega.{franja|lo_antes_posible}` validados contra la config (franja inventada/vencida → 422); `pago.{forma_pago_id, paga_con}` crea un pago PLANIFICADO (nunca cobra). Bloqueos: fuera de horario/alcance/agotados → 422. Entra "por aceptar" o `confirmado` segun `aceptacion_pedidos_externos`.
 - `GET /v1/tiendas/{slug}/pedidos/{token_seguimiento}`: seguimiento publico. El estado interno `facturado` **NUNCA se expone** (el GET lo mapea a `entregado`, el broadcast no lo emite). Incluye `lo_antes_posible`, `demorado` (timeout vencido), `repartidor_en_camino` (solo delivery).
 - `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`: cancelacion por el consumidor, permitida hasta `confirmado` (antes de `en_preparacion`).
+
+#### Endpoints de consumidores (RF-T1..T3, `App\Http\Controllers\Api\V1\Consumidores\*`)
+
+Base `/v1/consumidores`, sin `api.tenant` (la cuenta es cross-comercio, BD `config`). **Decision RF-T1 (2026-07-16)**: se puede pedir SIN verificar el email; la verificacion desbloquea el historial. Throttle por endpoint via 3er parametro del middleware inline (`throttle:N,1,prefijo`) — ver gotcha de bucket compartido en la seccion 5.
+
+- **Auth** (`AuthController`):
+  - `POST /registro` (throttle 5/min): `{nombre, email, password (min 8), telefono?}` → `201 {data:{token, consumidor}}`, crea el `Consumidor`, dispara el email de verificacion (best-effort: si el mailer falla solo se loguea, el token igual se devuelve) y el Bearer sirve YA.
+  - `POST /login` (throttle 10/min): `{email, password}` → `{data:{token, consumidor}}`; credenciales invalidas → `422 validacion` (mensaje generico, no revela si el email existe).
+  - `POST /logout` *(Bearer)*: `$request->user()->currentAccessToken()->delete()`.
+  - `GET /me` *(Bearer)*: perfil `{id, nombre, email, telefono, email_verificado}`.
+  - `POST /verificar`: `{token}` (el link del email aterriza en la TIENDA, que reenvia el token aca sin sesion) → idempotente, marca `email_verified_at`. Token invalido/vencido → excepcion generica (422).
+  - `POST /reenviar-verificacion` *(Bearer)*: no-op si ya esta verificado.
+  - `POST /recuperar`: `{email}` → SIEMPRE `200 {ok:true}` (no revela existencia); si el consumidor existe manda el link de reset.
+  - `POST /restablecer`: `{token, password}` → cambia el password y **revoca TODOS los tokens** del consumidor (`$consumidor->tokens()->delete()`), fuerza re-login en cualquier sesion abierta.
+  - Un Bearer de **integracion** (tokenable `Comercio`) contra cualquiera de estos endpoints → `403 sin_permiso` (middleware `api.consumidor`).
+  - **`ConsumidorTokenService`** (`app/Services/Consumidores/`): tokens de verificacion/reset **STATELESS** (sin tabla), formato `base64url("{tipo}|{consumidor_id}|{expira_ts}").firma`, firma HMAC-SHA256 con `APP_KEY` + una "sal" que invalida el token cuando pierde sentido: verificacion usa el `email` actual (si cambia, los tokens viejos mueren); reset usa un fragmento (24 chars) del hash de password actual (usar el token para resetear cambia el hash → la firma deja de matchear → **single-use sin storage**). TTLs: verificacion 48h, reset 60min.
+- **Direcciones** (`DireccionesController`, `GET|POST|PATCH|DELETE /direcciones[/{id}]`, Bearer): CRUD sobre `consumidor_direcciones`, tope `MAX_DIRECCIONES = 10`. La primera direccion creada queda `es_default` automaticamente; marcar otra como default desmarca las demas (`update(['es_default' => false])` previo); no se permite des-defaultear la unica default via `PATCH` (se ignora ese campo); al borrar la default, la mas nueva de las restantes se promueve. El checkout de la tienda las precarga — el pedido en si SIGUE copiando snapshot, esta tabla no se referencia desde `pedidos_delivery`.
+- **Historial** (`PedidosController::index`, `GET /pedidos?page=&per_page=`, Bearer, **email verificado obligatorio** → `403 sin_permiso` si no): fan-out CROSS-comercio controlado — recorre los `comercio_id` con tienda (`config.tiendas`) mas los que ya tienen mapping (`consumidor_comercio`), por cada uno hace `TenantService::usarComercioParaProceso()` y consulta `pedidos_delivery.consumidor_id` (indexado), acotado a `CAP_POR_COMERCIO = 500` filas por comercio, mergea todo por fecha desc y pagina en memoria. Un tenant inaccesible se loguea y NO voltea el historial completo (try/catch por comercio). `estado` normaliza con la MISMA verdad publica del seguimiento (`facturado` interno → `entregado`). "Re-pedir" no es un endpoint: la tienda arma el carrito con `GET /pedidos/{token}` (publico) y **re-cotiza** (`carrito/cotizar`), nunca reusa precios historicos.
+
+#### Endpoints de marketplace (RF-T4, `App\Http\Controllers\Api\V1\MarketplaceController`, publico, sin tenant)
+
+- `GET /v1/tiendas?lat=&lng=&rubro_id=`: tiendas de `config.tiendas` con `habilitada=true`, filtradas por `rubro_id` de su `comercio` si se manda. **`MarketplaceTiendasService`** (`app/Services/Pedidos/`) resuelve cada tienda con un **snapshot cacheado** (`Cache::remember("marketplace_tienda_{id}", 300s)`) que abre la conexion tenant UNA vez cada 5 min (sucursal activa + `usa_delivery`, `config_delivery`, zonas dibujadas — solo los vertices de los poligonos) para no reabrir tenants en cada request; `valida:false` tambien se cachea (sucursal inactiva/sin delivery no reintenta). Alcance con la MISMA semantica de `envios/cotizar` (D5): zonas dibujadas > radio general > sin georreferenciar = `alcance: "desconocido"` (nunca se inventa alcance). Con `lat/lng` excluye `alcance=fuera` y ordena por `distancia_km`; sin coordenadas lista todas en orden alfabetico. `DeliveryEnvioService::estaAbiertoSegunConfig()` (variante de `estaAbierto()` que recibe el array de config YA resuelto, en vez de reabrir la sucursal) calcula `abierta_ahora` sobre el snapshot cacheado.
+- `GET /v1/rubros`: catalogo global de `config.rubros` activos, `Cache::remember('marketplace_rubros', 3600s)`.
 
 #### Endpoints de integracion (Bearer + `X-Sucursal-Id`)
 
@@ -4717,6 +4741,11 @@ Base nueva bajo `/api/v1` (`routes/api.php`), documentada en detalle en `docs/ap
 #### Alta de una tienda
 
 `config.tiendas` se crea por consola/soporte en v1 (no hay UI): `Tienda::create(['comercio_id' => ..., 'sucursal_id' => ..., 'slug' => ..., 'habilitada' => true])`.
+
+#### CORS y config del proyecto tienda (RF-T5)
+
+- **`config/cors.php`** (nuevo): `allowed_origins` lee `CORS_ALLOWED_ORIGINS` (env, coma-separado; `*` = abierto, default actual hasta configurar el dominio real del frontend tienda).
+- **`config/tienda.php`** (nuevo): `url` (env `TIENDA_URL`, default `APP_URL`) — dominio del frontend `bcn-tienda` que consumen los Mailables de consumidores (`app/Mail/Consumidores/VerificarEmailConsumidor`, `RecuperarPasswordConsumidor`, vistas markdown en `resources/views/emails/consumidores/`) para armar los links `{TIENDA_URL}/verificar?token=...` y `{TIENDA_URL}/recuperar?token=...`.
 
 ---
 
@@ -5328,3 +5357,9 @@ PHP puede producir `-0.0` al restar floats en ciertas condiciones (ej: distribui
 **Regla general**: si un componente Livewire expone propiedades publicas con floats calculados mediante restas (especialmente desgloses de IVA, descuentos o ajustes prorateados) y el usuario experimenta `CorruptComponentPayloadException` al cobrar o al enviar el formulario, verificar si algun float puede ser `-0.0`. Aplicar normalizacion recursiva con la condicion `is_float($v) && $v == 0.0 ? 0.0 : $v` antes de devolver el estado al frontend.
 
 Componentes que aplican este patron: `NuevaVenta` y `NuevoPedidoMostrador` (ambos usan `WithCalculoVenta`).
+
+### 5.6 Throttle inline de Laravel: bucket compartido por `sha1(user|ip)`
+
+El middleware `throttle:N,1` (sin nombre de limiter) arma la clave del rate limiter como `sha1($ruta_del_middleware.'|'.$user_o_ip)` — **no incluye la ruta HTTP**. Si dos `throttle:N,1` inline distintos se aplican en el mismo request (uno de grupo + uno de ruta especifica, ej. `/v1/consumidores/registro` con throttle de grupo 60/min + throttle propio 5/min), ambos pueden terminar compartiendo el MISMO contador y pisandose entre si.
+
+**Solucion**: pasar un 3er parametro como prefijo, `throttle:N,1,prefijo` (ej. `throttle:5,1,c-registro`), que Laravel concatena a la clave y separa los contadores. Descubierto al implementar los throttles agresivos de `/v1/consumidores/*` (RF-T5, Fase 0 tienda-online) — cada endpoint de auth tiene su propio prefijo (`c-registro`, `c-login`, `c-verificar`, etc.).

@@ -26,8 +26,13 @@ forma uniforme:
 2. **Integración** (Bearer token, throttle 120/min): token emitido por el
    comercio en *Configuración → Tokens de API* con **abilities**. La sucursal
    se indica con el header `X-Sucursal-Id` (default: la principal).
-3. **Consumidores** (futuro, proyecto tienda): guard `consumidores` ya
-   provisto; el endpoint público de pedidos acepta opcionalmente su Bearer.
+3. **Consumidores** (proyecto tienda, RF-T1..T3): cuenta GLOBAL
+   cross-comercio con Bearer Sanctum propio (ver *Endpoints de consumidores*).
+   El endpoint público de pedidos y `carrito/cotizar` aceptan opcionalmente
+   ese Bearer (precios por cliente donde exista mapping). El token vive en la
+   SESIÓN server-side de la tienda, nunca en el navegador del consumidor.
+4. **Marketplace** (público, throttle 30/min): landing global de tiendas
+   (`GET /v1/tiendas`, `GET /v1/rubros`), sin tenant.
 
 ### Abilities de los tokens de integración
 
@@ -84,6 +89,10 @@ disponible para el tipo). Los **agotados vienen marcados** `"agotado": true,
 "pedible": false` — se muestran pero la API bloquea pedirlos. Los precios son
 FINALES (motor de precios del sistema: listas + promociones vigentes); los
 grupos de opcionales vienen con min/max/obligatorio.
+
+**Cache HTTP (RF-T5)**: la respuesta trae `ETag` y `Cache-Control:
+public, max-age=60`. Revalidar con `If-None-Match` → `304` sin payload si el
+catálogo no cambió.
 
 ### `POST /v1/tiendas/{slug}/envios/cotizar`
 ```json
@@ -200,6 +209,67 @@ acumulado, no por secuencia estricta.
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
 entre en preparación). Después, solo el comercio.
+
+## Endpoints de consumidores (RF-T1..T3, cuenta global de la tienda)
+
+Base `/v1/consumidores`. Sin tenant (la cuenta es cross-comercio). Decisión
+RF-T1: **se puede pedir sin verificar el email**; la verificación desbloquea
+el historial. Throttle agresivo por endpoint (registro 5/min, login 10/min,
+emails 3/min).
+
+### Auth
+
+- `POST /registro` — `{nombre, email, password (min 8), telefono?}` → `201`
+  `{data: {token, consumidor}}` + email de verificación. El token sirve YA.
+- `POST /login` — `{email, password}` → `{data: {token, consumidor}}`.
+  Credenciales malas → `422 validacion`.
+- `POST /logout` *(Bearer)* — revoca el token actual.
+- `GET /me` *(Bearer)* — perfil: `{id, nombre, email, telefono,
+  email_verificado}`.
+- `POST /verificar` — `{token}` (del link del email, la tienda lo reenvía
+  desde su página `/verificar`) → marca verificado (idempotente). Token
+  inválido/vencido → `422 operacion_invalida`.
+- `POST /reenviar-verificacion` *(Bearer)* — reenvía si falta verificar.
+- `POST /recuperar` — `{email}` → siempre `200` (no revela existencia);
+  si existe manda el link de reset (vence en 60 min, single-use).
+- `POST /restablecer` — `{token, password}` → cambia el password y **revoca
+  todos los tokens** (la tienda debe re-loguear).
+
+Un Bearer de INTEGRACIÓN (comercio) sobre estos endpoints → `403 sin_permiso`.
+
+### `GET|POST|PATCH|DELETE /v1/consumidores/direcciones[/{id}]` *(Bearer)*
+
+CRUD de direcciones guardadas (máx. 10): `{alias?, direccion, referencia?,
+localidad_id?, latitud?, longitud?, es_default?}`. La primera queda default;
+marcar otra la desplaza; borrar la default promueve a la más nueva. El
+checkout las precarga — el pedido sigue copiando snapshot.
+
+### `GET /v1/consumidores/pedidos?page=&per_page=` *(Bearer, email verificado)*
+
+Historial CROSS-comercio (fan-out a los tenants con tienda, merge por fecha
+desc): `{data: [{fecha, numero, tipo, estado, por_aceptar, total_final,
+token_seguimiento, tienda: {slug, habilitada, nombre}}], meta: {page,
+per_page, total, has_more}}`. `estado` usa la misma verdad pública del
+seguimiento (`facturado` = `entregado`). Sin verificar → `403 sin_permiso`.
+"Re-pedir": la tienda arma el carrito desde `GET /pedidos/{token}` y
+**re-cotiza** (precios de hoy, no históricos).
+
+## Endpoints de marketplace (RF-T4, público)
+
+### `GET /v1/tiendas?lat=&lng=&rubro_id=`
+
+Tiendas habilitadas para la landing global. Con `lat/lng` excluye las que no
+llegan (zonas dibujadas o radio; misma semántica de `envios/cotizar`) y
+ordena por distancia; una tienda sin georreferenciar devuelve
+`alcance: "desconocido"` (no se inventa alcance, D5). Sin coordenadas lista
+todas en orden alfabético. Card: `{slug, nombre, comercio, rubro: {id,
+nombre}, logo_url, direccion, localidad, latitud, longitud, abierta_ahora,
+takeaway_habilitado, alcance, distancia_km}`. Los datos por tienda se
+cachean ~5 min.
+
+### `GET /v1/rubros`
+
+Catálogo global de rubros activos: `[{id, nombre, slug}]` (cache 1 h).
 
 ## Endpoints de integración (Bearer + `X-Sucursal-Id`)
 
