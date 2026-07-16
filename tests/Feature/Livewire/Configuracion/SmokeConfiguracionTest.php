@@ -536,10 +536,16 @@ class SmokeConfiguracionTest extends TestCase
             ['tipo' => 'fiscal', 'provincia' => 'AR-B', 'direccion' => 'Calle 1', 'activo' => true]
         );
 
+        // Assert DINÁMICO: el numero_cuit 20111111113 se comparte con las
+        // suites fiscales (razón social 'Emisor SA') y la tabla cuits PERSISTE
+        // entre corridas (no entra al DELETE selectivo de WithTenant) → el
+        // firstOrCreate devuelve el CUIT que haya quedado en la BD, con
+        // cualquiera de las dos razones sociales. Assertear el literal
+        // 'Test SA' hacía fallar el test según qué suite corrió primero.
         Livewire::test(ConfiguracionEmpresa::class)
             ->set('tabActivo', 'cuits')
             ->assertOk()
-            ->assertSee('Test SA');
+            ->assertSee($cuit->razon_social);
     }
 
     public function test_configuracion_empresa_editar_cuit_monta(): void
