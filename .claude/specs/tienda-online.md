@@ -1,6 +1,6 @@
 # Tienda Online — Especificación del Proyecto
 
-## Estado: EN REVISIÓN
+## Estado: APROBADO (2026-07-16) — Fase 0 EN PROGRESO
 
 > Proyecto APARTE (repo nuevo `bcn-tienda`): frontend multi-tenant de la tienda
 > online, un solo deploy para todos los comercios, que consume la API v1 de BCN
@@ -116,8 +116,8 @@ La tienda v1 (fases 1-2) necesita que la API crezca en:
   tokenable Consumidor — la tabla PAT de config ya lo soporta).
 - `POST /v1/consumidores/logout` — revoca el token.
 - `POST /v1/consumidores/verificar` / `reenviar-verificacion` — flujo de
-  email de verificación (¿pedidos sin verificar? v1: se permite pedir, la
-  verificación desbloquea el historial — decidir en implementación).
+  email de verificación. DECIDIDO (2026-07-16): se permite pedir SIN
+  verificar; la verificación desbloquea el historial/cuenta.
 - `POST /v1/consumidores/recuperar` + `restablecer` — password reset por email.
 - `GET /v1/consumidores/me` — perfil + banderas (verificado).
 - Mailing: los emails salen del CORE (mailer ya configurado) con branding
@@ -211,6 +211,8 @@ Buscador por ubicación + rubro (RF-T4), SEO de tiendas (SSR ya nativo).
 
 - 2026-07-14: decisiones del usuario — stack Laravel+Livewire (proyecto
   aparte), v1 = invitado + login, pago online en fase posterior.
+- 2026-07-16: spec APROBADO por el usuario. Decisión RF-T1: se puede pedir
+  sin verificar el email (la verificación desbloquea historial/cuenta).
 - 2026-07-14: pasada 1 de revisión del armado: bug de cupones corregido y FP
   en el precio con paridad panel (PR #158, E13). La API quedó lista para el
   funnel invitado completo.
