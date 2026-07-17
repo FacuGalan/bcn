@@ -349,6 +349,17 @@ la tienda NO cambia código (garantizado por el Principio 10).
   lado core, no un refactor de vistas. Mientras tanto, fix 2026-07-17:
   `imagen_url` del catálogo pasa a URL absoluta (relativa se rompía por
   cross-origin).
+- 2026-07-17: decisión de deploy — la tienda se sirve en el SUBDOMINIO
+  `tienda.bcnsoft.com.ar` (vhost Apache propio en el mismo server del core),
+  no montada por path en el dominio del core: las rutas globales del
+  consumidor (`/login`, `/registro`, `/mi-cuenta`, ...) y el `/build` de
+  Vite chocarían con el core. `bcn.bcnsoft.com.ar/tienda/*` redirige (301)
+  al subdominio para que los links compartidos sigan vivos. En el `.env`
+  del core: `TIENDA_URL=https://tienda.bcnsoft.com.ar` (links de los
+  emails) y `CORS_ALLOWED_ORIGINS` restringido a ese origen. Ajusta el
+  Principio 3 (la URL canónica pasa al subdominio; el dominio propio por
+  tienda sigue siendo futuro). Playbook completo:
+  `bcn-tienda/.claude/docs/deploy-playbook.md`.
 - 2026-07-14: pasada 1 de revisión del armado: bug de cupones corregido y FP
   en el precio con paridad panel (PR #158, E13). La API quedó lista para el
   funnel invitado completo.
