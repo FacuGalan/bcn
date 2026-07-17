@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\Cliente;
+use App\Models\Consumidor;
 use App\Models\FormaPago;
 use App\Models\PedidoDelivery;
 use App\Services\Pedidos\CatalogoTiendaService;
 use App\Services\Pedidos\DeliveryEnvioService;
+use App\Services\Pedidos\PuntosTiendaService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -60,6 +63,33 @@ class TiendaController extends Controller
                 ],
                 'formas_pago' => $this->formasPagoPublicas($sucursal),
             ],
+        ]);
+    }
+
+    /**
+     * GET /v1/tiendas/{slug}/puntos *(Bearer consumidor)* — saldo y reglas
+     * del programa de puntos para el consumidor logueado (RF-T8, Fase 3).
+     *
+     * Solo-lectura: la resolución consumidor→cliente NUNCA crea el cliente
+     * (eso es del alta de pedido, D11). Sin cliente materializado o programa
+     * inactivo → activo:false con saldo 0 (degradación honesta, no error).
+     */
+    public function puntos(Request $request, PuntosTiendaService $puntosTienda): JsonResponse
+    {
+        $sucursal = $request->attributes->get('api_sucursal');
+        $tienda = $request->attributes->get('api_tienda');
+
+        $clienteId = null;
+        $consumidor = $request->user();
+        if ($consumidor instanceof Consumidor) {
+            $clienteId = $consumidor->clienteIdEn((int) $tienda->comercio_id);
+            if ($clienteId && ! Cliente::find($clienteId)) {
+                $clienteId = null;
+            }
+        }
+
+        return response()->json([
+            'data' => $puntosTienda->info($sucursal, $clienteId),
         ]);
     }
 

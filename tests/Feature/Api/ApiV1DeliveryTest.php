@@ -982,4 +982,210 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertEqualsWithDelta(-100.0, (float) $pedido->ajuste_forma_pago, 0.01, 'El ajuste es -10% de los productos, sin el envío');
         $this->assertEqualsWithDelta(1400.0, (float) $pedido->total_final, 0.01);
     }
+
+    // ==================== PUNTOS (RF-T8/RF-T9, Fase 3 tienda) ====================
+
+    /** Programa de puntos activo: $100 = 1 punto; 1 punto = $50; mínimo 10. */
+    protected function activarProgramaPuntos(): void
+    {
+        \App\Models\ConfiguracionPuntos::updateOrCreate([], [
+            'activo' => true,
+            'modo_acumulacion' => 'global',
+            'monto_por_punto' => 100,
+            'valor_punto_canje' => 50,
+            'minimo_canje' => 10,
+            'redondeo' => 'floor',
+        ]);
+
+        // FP interna del canje (la crea el provisioning real; el comercio de
+        // test es mínimo): el alta registra el pago-puntos bajo esta FP.
+        if (! \App\Models\FormaPago::where('codigo', 'CANJE_PUNTOS')->exists()) {
+            $concepto = \App\Models\ConceptoPago::firstOrCreate(
+                ['codigo' => 'canje_puntos'],
+                ['nombre' => 'Canje de Puntos', 'permite_cuotas' => false, 'permite_vuelto' => false, 'activo' => true, 'orden' => 8],
+            );
+            \App\Models\FormaPago::create([
+                'nombre' => 'Canje Puntos',
+                'codigo' => 'CANJE_PUNTOS',
+                'concepto' => 'otro',
+                'concepto_pago_id' => $concepto->id,
+                'es_mixta' => false,
+                'permite_cuotas' => false,
+                'ajuste_porcentaje' => 0,
+                'activo' => true,
+                'solo_sistema' => true,
+            ]);
+        }
+    }
+
+    /** Consumidor con cliente materializado (mapping D11) y saldo de puntos. */
+    protected function consumidorConClienteYPuntos(int $saldo = 0): array
+    {
+        $consumidor = \App\Models\Consumidor::create([
+            'nombre' => 'Con Puntos',
+            'email' => 'puntos-'.uniqid().'@test.com',
+            'password' => bcrypt('secret123'),
+        ]);
+        $cliente = \App\Models\Cliente::create(['nombre' => 'Cliente Puntos', 'activo' => true]);
+        \App\Models\ConsumidorComercio::create([
+            'consumidor_id' => $consumidor->id,
+            'comercio_id' => $this->comercio->id,
+            'cliente_id' => $cliente->id,
+        ]);
+
+        if ($saldo > 0) {
+            \App\Models\MovimientoPunto::create([
+                'cliente_id' => $cliente->id,
+                'sucursal_id' => $this->sucursalId,
+                'fecha' => now(),
+                'tipo' => 'ajuste_manual',
+                'puntos' => $saldo,
+                'concepto' => 'Saldo inicial de test',
+                'estado' => 'activo',
+                'usuario_id' => 1,
+            ]);
+        }
+
+        return [$consumidor, $cliente, $consumidor->createToken('tienda')->plainTextToken];
+    }
+
+    public function test_puntos_sin_bearer_da_401(): void
+    {
+        $this->getJson('/api/v1/tiendas/tienda-test/puntos')->assertStatus(401);
+    }
+
+    public function test_puntos_devuelve_saldo_y_reglas_del_programa(): void
+    {
+        $this->activarProgramaPuntos();
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 120);
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->getJson('/api/v1/tiendas/tienda-test/puntos')
+            ->assertOk()
+            ->assertJsonPath('data.activo', true)
+            ->assertJsonPath('data.saldo', 120)
+            ->assertJsonPath('data.saldo_en_pesos', 6000)
+            ->assertJsonPath('data.valor_punto_canje', 50)
+            ->assertJsonPath('data.minimo_canje', 10)
+            ->assertJsonPath('data.puede_canjear', true);
+    }
+
+    public function test_puntos_sin_cliente_materializado_es_inactivo_honesto(): void
+    {
+        $this->activarProgramaPuntos();
+        $consumidor = \App\Models\Consumidor::create([
+            'nombre' => 'Sin Cliente',
+            'email' => 'sincliente-'.uniqid().'@test.com',
+            'password' => bcrypt('secret123'),
+        ]);
+        $token = $consumidor->createToken('tienda')->plainTextToken;
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->getJson('/api/v1/tiendas/tienda-test/puntos')
+            ->assertOk()
+            ->assertJsonPath('data.activo', false)
+            ->assertJsonPath('data.saldo', 0);
+    }
+
+    public function test_cotizar_con_usar_puntos_canjea_el_maximo_y_estima_a_ganar(): void
+    {
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 12); // $600 canjeables
+
+        // Sin usar_puntos: el bloque viaja igual (a_ganar como incentivo).
+        $sinCanje = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            ])->assertOk();
+        $this->assertSame(0, $sinCanje->json('data.puntos.usados'));
+        $this->assertSame(10, $sinCanje->json('data.puntos.a_ganar'), '$1000 / $100 por punto');
+        $this->assertEqualsWithDelta(1000.0, (float) $sinCanje->json('data.total_a_pagar'), 0.01);
+
+        // Con usar_puntos: canje MÁXIMO = saldo completo ($600 < $1000).
+        $conCanje = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+                'usar_puntos' => true,
+            ])->assertOk();
+
+        $this->assertSame(12, $conCanje->json('data.puntos.usados'));
+        $this->assertEqualsWithDelta(600.0, (float) $conCanje->json('data.puntos.monto'), 0.01);
+        $this->assertSame(0, $conCanje->json('data.puntos.saldo_restante'));
+        $this->assertEqualsWithDelta(400.0, (float) $conCanje->json('data.total_a_pagar'), 0.01);
+        $this->assertSame(4, $conCanje->json('data.puntos.a_ganar'), 'Acumula sobre lo pagado SIN puntos ($400)');
+        // total_final NO cambia: el canje es un pago, no un descuento de precio.
+        $this->assertEqualsWithDelta(1000.0, (float) $conCanje->json('data.total_final'), 0.01);
+    }
+
+    public function test_cotizar_con_saldo_bajo_el_minimo_no_canjea(): void
+    {
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 5); // < mínimo 10
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+                'usar_puntos' => true,
+            ])->assertOk();
+
+        $this->assertSame(0, $respuesta->json('data.puntos.usados'));
+        $this->assertFalse($respuesta->json('data.puntos.puede_canjear'));
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_pedido_con_usar_puntos_registra_el_pago_puntos_y_el_resto(): void
+    {
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $fp = $this->formaPagoEfectivoEnSucursal();
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 12); // $600
+
+        $payload = $this->payloadPedido($articulo->id);
+        unset($payload['cliente']);
+        $payload['usar_puntos'] = true;
+        $payload['pago'] = ['forma_pago_id' => $fp->id];
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        // Cabecera espejo del panel.
+        $this->assertSame(12, (int) $pedido->puntos_usados);
+        $this->assertEqualsWithDelta(600.0, (float) $pedido->puntos_usados_monto, 0.01);
+
+        // Pago con puntos (FP interna Canje Puntos) + FP declarada por el resto.
+        $pagoPuntos = $pedido->pagos()->where('es_pago_puntos', true)->first();
+        $this->assertNotNull($pagoPuntos, 'El canje queda como pago planificado');
+        $this->assertEqualsWithDelta(600.0, (float) $pagoPuntos->monto_final, 0.01);
+        $this->assertSame(12, (int) $pagoPuntos->puntos_usados);
+
+        $pagoDeclarado = $pedido->pagos()->where('es_pago_puntos', false)->first();
+        $this->assertEqualsWithDelta(400.0, (float) $pagoDeclarado->monto_final, 0.01, 'La FP declarada cubre el resto');
+
+        // El saldo NO se descuenta en el alta (lo hace la conversión a venta).
+        $this->assertSame(12, \App\Models\MovimientoPunto::calcularSaldo($pedido->cliente_id));
+    }
+
+    public function test_pedido_invitado_con_usar_puntos_es_noop(): void
+    {
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['usar_puntos'] = true; // sin Bearer: no hay cliente → no-op
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertSame(0, (int) $pedido->puntos_usados);
+        $this->assertSame(0, $pedido->pagos()->where('es_pago_puntos', true)->count());
+    }
 }

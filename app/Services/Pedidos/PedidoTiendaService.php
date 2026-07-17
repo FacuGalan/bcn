@@ -100,6 +100,20 @@ class PedidoTiendaService
         );
         $ajusteFormaPago = $this->cotizador->ajusteFormaPagoMonto();
 
+        // Canje de puntos (RF-T9, Fase 3): pago por el MÁXIMO sobre el total
+        // de bienes + ajuste FP (SIN envío — los puntos nunca cubren el
+        // envío, mismo alcance que la cotización). Saldo FRESCO del ledger;
+        // el MovimientoPunto se crea recién al convertir (procesarCanjesPuntos).
+        $canjePuntos = null;
+        if (! empty($payload['usar_puntos']) && $clienteId) {
+            $puntosTienda = app(PuntosTiendaService::class);
+            $infoPuntos = $puntosTienda->info($sucursal, $clienteId);
+            $canjePuntos = $puntosTienda->calcularCanjeMaximo(
+                $infoPuntos,
+                round((float) ($resultado['total_final'] ?? 0) + $ajusteFormaPago, 2),
+            );
+        }
+
         $aceptacionManual = ($config['aceptacion_pedidos_externos'] ?? 'manual') !== 'automatica';
 
         // Promesa de entrega elegida por el CONSUMIDOR (RF-15): franja (modo
@@ -136,6 +150,11 @@ class PedidoTiendaService
             'cupon_codigo_snapshot' => $resultado['cupon']['codigo'] ?? null,
             'cupon_descripcion_snapshot' => $resultado['cupon']['descripcion'] ?? null,
             'monto_cupon' => (float) ($resultado['cupon']['descuento'] ?? 0),
+            // Canje de puntos (RF-T9): cabecera espejo del panel; el pago
+            // es_pago_puntos se registra después del alta.
+            'puntos_usados' => $canjePuntos['usados'] ?? 0,
+            'puntos_canjeados_pago' => $canjePuntos['usados'] ?? 0,
+            'puntos_usados_monto' => $canjePuntos['monto'] ?? 0,
             '_promociones_comunes' => $resultado['promociones_comunes_aplicadas'] ?? [],
             '_promociones_especiales' => $resultado['promociones_especiales_aplicadas'] ?? [],
             'observaciones' => $payload['observaciones'] ?? null,
@@ -159,14 +178,21 @@ class PedidoTiendaService
 
         $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $aceptacionManual);
 
+        // Pago con puntos (RF-T9): pago PLANIFICADO bajo la FP interna "Canje
+        // Puntos" (solo_sistema) — la conversión a venta lo copia y ahí
+        // procesarCanjesPuntos crea el MovimientoPunto real.
+        $this->registrarPagoPuntos($pedido, $canjePuntos);
+
         // Pago declarado contra entrega/retiro (planificado, D14): "pago con
         // efectivo, con $X" queda en el pedido — el panel/vuelta lo confirma.
+        // Con canje de puntos, la FP declarada cubre el RESTO del total.
         $this->registrarPagoDeclarado(
             $sucursal,
             $pedido,
             $payload['pago'] ?? null,
             $ajusteFormaPago,
             $this->cotizador->ajusteFormaPagoPorcentaje(),
+            (float) ($canjePuntos['monto'] ?? 0),
         );
 
         // Aceptación automática (D14): comandar solo (marca los renglones y
@@ -249,9 +275,40 @@ class PedidoTiendaService
     }
 
     /**
+     * Registra el pago con PUNTOS como planificado bajo la FP interna
+     * "Canje Puntos" (RF-T9). La conversión a venta copia este pago y
+     * procesarCanjesPuntos crea el MovimientoPunto (descuenta saldo).
+     */
+    protected function registrarPagoPuntos(PedidoDelivery $pedido, ?array $canje): void
+    {
+        if (! $canje || ($canje['monto'] ?? 0) <= 0) {
+            return;
+        }
+
+        $fpCanjeId = \App\Models\FormaPago::where('codigo', 'CANJE_PUNTOS')->value('id');
+        if (! $fpCanjeId) {
+            // Comercio sin la FP interna provisionada: el canje no puede
+            // registrarse con paridad de reportes — se bloquea, no se inventa.
+            throw new Exception(__('El canje de puntos no está disponible en esta tienda'));
+        }
+
+        $this->pedidoService->agregarPago($pedido, [
+            'forma_pago_id' => $fpCanjeId,
+            'monto_base' => $canje['monto'],
+            'ajuste_porcentaje' => 0,
+            'monto_ajuste' => 0,
+            'monto_final' => $canje['monto'],
+            'es_pago_puntos' => true,
+            'puntos_usados' => $canje['usados'],
+            'planificado' => true,
+        ]);
+    }
+
+    /**
      * Registra el pago DECLARADO por el consumidor como planificado (nunca
      * cobra): FP pública de la sucursal + "¿con cuánto pagás?" para efectivo
      * (vuelto planificado, mismo patrón del panel). Sin `pago` es no-op.
+     * `$montoPuntos`: lo ya cubierto con canje — la FP declarada paga el resto.
      */
     protected function registrarPagoDeclarado(
         Sucursal $sucursal,
@@ -259,6 +316,7 @@ class PedidoTiendaService
         ?array $pago,
         float $ajusteFormaPago = 0.0,
         float $ajustePorcentaje = 0.0,
+        float $montoPuntos = 0.0,
     ): void {
         $formaPagoId = (int) ($pago['forma_pago_id'] ?? 0);
         if (! $formaPagoId) {
@@ -275,7 +333,11 @@ class PedidoTiendaService
         // total_final ya incluye el ajuste por FP (y el envío, que queda fuera
         // de la base del ajuste). El pago se descompone igual que en el panel:
         // monto_base (bienes + envío) + monto_ajuste (ajuste FP) = monto_final.
-        $total = round((float) $pedido->total_final, 2);
+        // Con canje de puntos, esta FP cubre el NETO (total − monto en puntos).
+        $total = round((float) $pedido->total_final - $montoPuntos, 2);
+        if ($total <= 0) {
+            return; // los puntos cubrieron todo: no hay pago declarado
+        }
         $pagaCon = isset($pago['paga_con']) ? round((float) $pago['paga_con'], 2) : null;
 
         $permiteVuelto = (bool) ($formaPago->conceptoPago?->permite_vuelto ?? false);
