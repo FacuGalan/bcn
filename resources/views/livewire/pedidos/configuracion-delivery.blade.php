@@ -2,8 +2,8 @@
     {{-- ==================== HEADER ==================== --}}
     <div class="flex flex-wrap items-center justify-between gap-2">
         <div>
-            <h1 class="text-lg font-bold text-bcn-secondary dark:text-white">{{ __('Configuración de Delivery') }}</h1>
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Georreferenciación, costos de envío, zonas, horarios y promesa de entrega de la sucursal.') }}</p>
+            <h1 class="text-lg font-bold text-bcn-secondary dark:text-white">{{ __('Delivery / Take Away') }}</h1>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Georreferenciación, costos de envío, zonas, horarios, promesa de entrega y tienda online de la sucursal.') }}</p>
         </div>
         <button type="button" wire:click="guardarConfig"
             class="h-9 px-4 inline-flex items-center gap-1.5 bg-bcn-primary border border-transparent rounded-md font-semibold text-sm text-white hover:bg-opacity-90 transition-colors">
@@ -138,6 +138,9 @@
     @if($showEnvioZonas)
         <livewire:pedidos.configuracion-delivery-envio />
     @endif
+
+    {{-- ==================== TIENDA ONLINE (RF-T10, config.tiendas) ==================== --}}
+    <livewire:configuracion.configuracion-tienda />
 
     {{-- ==================== PEDIDOS EXTERNOS (D14) ==================== --}}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 space-y-3">

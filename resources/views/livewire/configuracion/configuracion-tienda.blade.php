@@ -1,0 +1,153 @@
+<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 space-y-3">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <div>
+            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Tienda Online') }}</h2>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Tu tienda pública en internet: los clientes ven el catálogo, arman el carrito y piden delivery o take-away.') }}</p>
+        </div>
+        @if($tiendaId)
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $habilitada ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
+                {{ $habilitada ? __('Publicada') : __('No publicada') }}
+            </span>
+        @endif
+    </div>
+
+    @if(! $tiendaId)
+        {{-- ==================== CTA CREAR (RF-T10) ==================== --}}
+        <div class="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center space-y-2">
+            <svg class="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .414.336.75.75.75z" />
+            </svg>
+            <p class="text-sm text-gray-700 dark:text-gray-300">{{ __('Esta sucursal todavía no tiene tienda online.') }}</p>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Al crearla vas a poder elegir su dirección, personalizar los colores y publicarla cuando esté lista. Se crea despublicada.') }}</p>
+            @if($puedeConfigurar)
+                <button type="button" wire:click="crearTienda"
+                    class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    {{ __('Crear mi tienda online') }}
+                </button>
+            @else
+                <p class="text-xs text-gray-400 dark:text-gray-500">{{ __('No tenés permiso para crear la tienda.') }}</p>
+            @endif
+        </div>
+    @else
+        {{-- ==================== ESTADO Y DIRECCIÓN ==================== --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" wire:model="habilitada" @disabled(! $puedeConfigurar)
+                    class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                <span class="text-sm text-gray-700 dark:text-gray-300">
+                    {{ __('Tienda publicada') }}
+                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Despublicada, la URL responde "tienda no disponible" y no entran pedidos.') }}</span>
+                </span>
+            </label>
+            <div>
+                <label for="ct-slug" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Dirección de la tienda (slug)') }}</label>
+                <input id="ct-slug" type="text" wire:model="slug" @disabled(! $puedeConfigurar)
+                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                @error('slug') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                @if($urlPublica)
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400 break-all">
+                        {{ __('URL pública:') }} <a href="{{ $urlPublica }}" target="_blank" rel="noopener" class="text-bcn-primary hover:underline">{{ $urlPublica }}</a>
+                    </p>
+                @endif
+                <p class="mt-1 text-xs text-orange-600 dark:text-orange-400">{{ __('Cambiar la dirección rompe los links ya compartidos y los accesos directos instalados.') }}</p>
+            </div>
+        </div>
+
+        {{-- ==================== ANALYTICS (RF-T7) ==================== --}}
+        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
+            <h3 class="text-xs font-semibold text-gray-900 dark:text-white">{{ __('Métricas (Google Analytics y Meta Pixel)') }}</h3>
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Con los IDs cargados, la tienda mide visitas, carritos y compras en tus propias cuentas. Vacíos, no se inyecta ningún script.') }}</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label for="ct-ga4" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('ID de medición GA4') }}</label>
+                    <input id="ct-ga4" type="text" wire:model="ga4MeasurementId" placeholder="G-XXXXXXXXXX" @disabled(! $puedeConfigurar)
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                    @error('ga4MeasurementId') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                </div>
+                <div>
+                    <label for="ct-pixel" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('ID del Pixel de Meta') }}</label>
+                    <input id="ct-pixel" type="text" wire:model="metaPixelId" placeholder="123456789012345" @disabled(! $puedeConfigurar)
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                    @error('metaPixelId') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                </div>
+            </div>
+        </div>
+
+        {{-- ==================== TEMA VISUAL (RF-T6) ==================== --}}
+        <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+                <div>
+                    <h3 class="text-xs font-semibold text-gray-900 dark:text-white">{{ __('Apariencia de la tienda') }}</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Colores, tipografía y estilo con los que se pinta tu tienda.') }}</p>
+                </div>
+                <button type="button" wire:click="restablecerTema" @disabled(! $puedeConfigurar)
+                    class="text-xs text-bcn-primary hover:underline disabled:opacity-50">{{ __('Restablecer al tema default') }}</button>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                @foreach([
+                    'colorPrimario' => __('Primario (botones)'),
+                    'colorAcento' => __('Acento (ofertas)'),
+                    'colorFondo' => __('Fondo'),
+                    'colorSuperficie' => __('Tarjetas'),
+                    'colorTexto' => __('Texto'),
+                ] as $prop => $label)
+                    <div>
+                        <label for="ct-{{ $prop }}" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ $label }}</label>
+                        <div class="flex items-center gap-1.5">
+                            <input id="ct-{{ $prop }}" type="color" wire:model.live="{{ $prop }}" @disabled(! $puedeConfigurar)
+                                class="h-8 w-9 p-0.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 cursor-pointer" />
+                            <input type="text" wire:model.live="{{ $prop }}" @disabled(! $puedeConfigurar)
+                                class="w-full min-w-0 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                        </div>
+                        @error($prop) <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ __('Color inválido (formato #rrggbb)') }}</p> @enderror
+                    </div>
+                @endforeach
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                    <label for="ct-fuente" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipografía') }}</label>
+                    <select id="ct-fuente" wire:model="fuente" @disabled(! $puedeConfigurar)
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                        <option value="system">{{ __('Del sistema (rápida)') }}</option>
+                        <option value="inter">Inter</option>
+                        <option value="poppins">Poppins</option>
+                        <option value="roboto">Roboto</option>
+                        <option value="montserrat">Montserrat</option>
+                        <option value="lora">Lora</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="ct-radios" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Bordes redondeados') }}</label>
+                    <select id="ct-radios" wire:model="radios" @disabled(! $puedeConfigurar)
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                        <option value="none">{{ __('Rectos') }}</option>
+                        <option value="sm">{{ __('Suaves') }}</option>
+                        <option value="md">{{ __('Medios') }}</option>
+                        <option value="lg">{{ __('Amplios') }}</option>
+                        <option value="full">{{ __('Redondos') }}</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="ct-densidad" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Densidad del contenido') }}</label>
+                    <select id="ct-densidad" wire:model="densidad" @disabled(! $puedeConfigurar)
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                        <option value="compacta">{{ __('Compacta') }}</option>
+                        <option value="normal">{{ __('Normal') }}</option>
+                        <option value="amplia">{{ __('Amplia') }}</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        @if($puedeConfigurar)
+            <div class="flex justify-end">
+                <button type="button" wire:click="guardarTienda"
+                    class="h-9 px-4 inline-flex items-center gap-1.5 bg-bcn-primary border border-transparent rounded-md font-semibold text-sm text-white hover:bg-opacity-90 transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                    {{ __('Guardar tienda') }}
+                </button>
+            </div>
+        @endif
+    @endif
+</div>

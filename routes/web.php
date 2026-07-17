@@ -191,7 +191,8 @@ Route::prefix('app')->group(function () {
          * Panel kanban de delivery + ABM de repartidores y fondos (RF-01/RF-07/RF-09).
          */
         Route::get('pedidos/delivery', \App\Livewire\Pedidos\PedidosDelivery::class)->name('pedidos.delivery');
-        Route::get('pedidos/delivery/configuracion', \App\Livewire\Pedidos\ConfiguracionDelivery::class)->name('pedidos.delivery.configuracion');
+        // RF-T10: la configuración se movió a Configuración → Delivery/Take Away.
+        Route::get('pedidos/delivery/configuracion', fn () => redirect()->route('configuracion.delivery', [], 301));
         Route::get('configuracion/api-tokens', \App\Livewire\Configuracion\ApiTokens::class)->name('configuracion.api-tokens');
         Route::get('pedidos/repartidores', \App\Livewire\Pedidos\Repartidores::class)->name('pedidos.repartidores');
 
@@ -361,6 +362,12 @@ Route::prefix('app')->group(function () {
              * Configuración de datos de empresa, CUITs y sucursales
              */
             Route::get('empresa', ConfiguracionEmpresa::class)->name('empresa');
+
+            /**
+             * Delivery / Take Away (RF-T10)
+             * Configuración de delivery de la sucursal + tienda online
+             */
+            Route::get('delivery', \App\Livewire\Pedidos\ConfiguracionDelivery::class)->name('delivery');
 
             /**
              * Usuarios

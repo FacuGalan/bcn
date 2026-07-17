@@ -205,20 +205,67 @@ La tienda v1 (fases 1-2) necesita que la API crezca en:
   config_delivery por sucursal — cachear agresivo).
 - `GET /v1/rubros` — catálogo global.
 
-### RF-T5: Hardening público
-- CORS para el dominio de la tienda.
-- Throttle por endpoint ya existente: revisar cupos con tráfico real de tienda.
-- `GET /tiendas/{slug}/catalogo`: soporte de cache HTTP (ETag/Last-Modified o
-  TTL corto) — es el endpoint más golpeado.
+### RF-T5: Hardening público — EN CURSO (2026-07-17)
+- CORS para el dominio de la tienda. ✅ (`config/cors.php` +
+  `CORS_ALLOWED_ORIGINS`). Pendiente de esta tanda: `exposed_headers: [ETag]`
+  para que la revalidación funcione cross-origin desde el subdominio.
+- Throttle por endpoint ya existente: revisar cupos con tráfico real de
+  tienda. Estado: grupo público 60/min, alta 15/min, cancelar 10/min — se
+  mantienen hasta tener tráfico real (decisión: no tunear a ciegas).
+- `GET /tiendas/{slug}/catalogo`: cache HTTP ✅ (ETag + `Cache-Control:
+  public, max-age=60` + `If-None-Match`→304, ya en `TiendaController`).
+  Pendiente de esta tanda: (a) cache SERVER-SIDE del payload
+  (`Cache::remember` 60s por sucursal+tipo — hoy cada request re-consulta la
+  BD tenant aunque responda 304), (b) tests de ETag/304/Cache-Control (no
+  existían).
 
-### RFs del CORE posteriores a Fase 0 (pendientes, chicos)
-- **RF-T7: IDs de analytics por tienda** (conviene DURANTE Fase 1, es chico):
-  campos `ga4_measurement_id` + `meta_pixel_id` en la config de tienda por
-  sucursal, editables en el panel (config delivery/tienda), expuestos en
-  `GET /tiendas/{slug}`. La tienda inyecta los scripts solo si están cargados.
-- **RF-T6: persistencia del tema** (para Fase 6): JSON tema+comportamiento
-  por tienda + endpoint de edición + UI/editor en el panel. Hasta entonces
-  `GET /tiendas/{slug}` sirve defaults.
+### RF-T7: IDs de analytics por tienda — EN CURSO (2026-07-17)
+- Columnas `ga4_measurement_id` + `meta_pixel_id` (nullable) en la tabla
+  `tiendas` (BD config — ahí vive la identidad de la tienda, D15).
+- Editables en el panel dentro del apartado Tienda Online del nuevo
+  componente de Configuración (RF-T10).
+- `GET /tiendas/{slug}` los expone en un objeto `analytics`; la tienda
+  inyecta los scripts solo si están cargados (Principio 11):
+  `"analytics": { "ga4_measurement_id": "G-XXXX"|null, "meta_pixel_id": "999"|null }`
+
+### RF-T6: persistencia del tema — ADELANTADO PARCIAL (2026-07-17)
+- Columna `tema` (JSON nullable) en `config.tiendas`. `GET /tiendas/{slug}`
+  pasa a exponer `tema` y `comportamiento` = defaults del core con merge del
+  JSON persistido (la tienda NO cambia código — Principio 10).
+- Schema v1 del `tema` (design tokens, claves estables):
+  `colores` (primario, acento, fondo, superficie, texto), `tipografia`
+  (fuente: catálogo cerrado de fuentes self-hosted de la tienda), `radios`
+  (none|sm|md|lg|full), `densidad` (compacta|normal|amplia).
+  `comportamiento`: v1 sirve defaults (objeto reservado, sin seteos aún).
+- La UI de edición v1 es el apartado Tienda Online de RF-T10 (form de
+  campos, sin preview en vivo). El EDITOR visual con preview y presets sigue
+  siendo Fase 6.
+
+### RF-T10: Configuración → Delivery/Take Away en el panel — EN CURSO (2026-07-17)
+Reestructuración de la configuración en el panel del core (pedido del
+usuario 2026-07-17):
+- **Nuevo ítem de menú** hijo de Configuración: "Delivery / Take Away"
+  (menu_items BD pymes, permiso `menu.*` vía observer). La pantalla de
+  configuración de delivery DEJA de ser solo un link interno de la pantalla
+  de pedidos (el link se mantiene apuntando a la nueva ruta).
+- **Mismo componente `ConfiguracionDelivery`** re-homeado bajo
+  `configuracion/delivery` con TODO lo que ya tiene (operatoria, envío/zonas,
+  calendario de atención/horarios, promesa, numeración display, etc.). La
+  ruta vieja `pedidos/delivery/configuracion` redirige (301) a la nueva.
+- **Apartado nuevo "Tienda Online"** (sub-componente
+  `Configuracion\ConfiguracionTienda`, patrón lazy de
+  `ConfiguracionDeliveryEnvio`): si el comercio no tiene tienda para la
+  sucursal, CTA "Crear mi tienda online" (genera slug sugerido desde
+  comercio+sucursal, editable, unique global); creada la tienda: toggle
+  `habilitada`, slug (editable con warning de que cambia la URL pública),
+  IDs de analytics (RF-T7) y TODAS las opciones estéticas del tema (RF-T6
+  adelantado): colores, tipografía, radios, densidad.
+- Permiso funcional nuevo `func.tienda.config` para el apartado tienda
+  (crear/editar); el resto del componente sigue con
+  `func.pedidos_delivery.config`.
+- Deuda declarada (decisión usuario): qué seteos son "de la tienda" vs "del
+  panel de delivery" se re-evaluará después de usar el componente unificado;
+  por ahora TODO convive en esta pantalla.
 
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
@@ -450,3 +497,11 @@ la tienda NO cambia código (garantizado por el Principio 10).
 - Pendientes conocidos del core que NO bloquean v1: convertir-en-cliente
   (panel), cupos por franja + programados (Fase 8 delivery), webhooks
   salientes, puntos por API, checkout MP.
+- 2026-07-17: pedido del usuario — la configuración de la tienda es un
+  componente del panel con ítem de menú propio Configuración → Delivery/
+  Take Away (RF-T10): concentra la config de delivery existente + horarios
+  de apertura + apartado de creación/config de la tienda online (estética
+  incluida). La separación fina tienda-vs-delivery se evaluará con el
+  componente en uso. Esto adelanta la persistencia del tema (RF-T6) como
+  columna JSON en `config.tiendas` con form simple; el editor visual con
+  preview sigue en Fase 6.

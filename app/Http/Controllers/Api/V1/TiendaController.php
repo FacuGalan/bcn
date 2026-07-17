@@ -62,6 +62,16 @@ class TiendaController extends Controller
                     'usa_franjas' => $modoPromesa === 'franjas',
                 ],
                 'formas_pago' => $this->formasPagoPublicas($sucursal),
+                // RF-T7 (Principio 11): la tienda inyecta los scripts SOLO si
+                // el ID está cargado; null = sin analytics de ese proveedor.
+                'analytics' => [
+                    'ga4_measurement_id' => $tienda->ga4_measurement_id,
+                    'meta_pixel_id' => $tienda->meta_pixel_id,
+                ],
+                // RF-T6 (Principio 10): design tokens efectivos (defaults del
+                // core + JSON persistido) y seteos de conducta (v1: defaults).
+                'tema' => $tienda->temaCompleto(),
+                'comportamiento' => (object) \App\Models\Tienda::COMPORTAMIENTO_DEFAULTS,
             ],
         ]);
     }
@@ -131,18 +141,27 @@ class TiendaController extends Controller
      *
      * Cache HTTP (RF-T5): es el endpoint más golpeado de la tienda. ETag +
      * max-age corto — el cliente revalida con If-None-Match y se ahorra el
-     * payload (304) cuando el catálogo no cambió.
+     * payload (304) cuando el catálogo no cambió. Además cache SERVER-SIDE
+     * del armado (60s, alineado al max-age): sin él, cada revalidación
+     * re-consultaba la BD tenant y el motor de precios aunque respondiera 304.
      */
     public function catalogo(Request $request, CatalogoTiendaService $catalogoService): JsonResponse
     {
         $sucursal = $request->attributes->get('api_sucursal');
+        $comercio = $request->attributes->get('api_comercio');
         $tipo = $request->query('tipo', PedidoDelivery::TIPO_DELIVERY);
 
         if (! in_array($tipo, [PedidoDelivery::TIPO_DELIVERY, PedidoDelivery::TIPO_TAKE_AWAY], true)) {
             $tipo = PedidoDelivery::TIPO_DELIVERY;
         }
 
-        $payload = ['data' => $catalogoService->catalogo($sucursal, $tipo)];
+        // Key por comercio+sucursal+tipo: el store es compartido entre tenants.
+        $cacheKey = "tienda_catalogo:{$comercio->id}:{$sucursal->id}:{$tipo}";
+        $payload = \Illuminate\Support\Facades\Cache::remember(
+            $cacheKey,
+            60,
+            fn () => ['data' => $catalogoService->catalogo($sucursal, $tipo)]
+        );
         $etag = '"'.md5(json_encode($payload)).'"';
 
         $headers = [

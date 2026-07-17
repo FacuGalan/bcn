@@ -98,6 +98,65 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertFalse((bool) $agotadoJson['pedible']);
     }
 
+    public function test_tienda_show_expone_analytics_tema_y_comportamiento(): void
+    {
+        // Sin IDs cargados: null explícito (la tienda NO inyecta scripts) y
+        // tema = defaults del core (RF-T7 + RF-T6, Principios 10/11).
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.analytics.ga4_measurement_id', null)
+            ->assertJsonPath('data.analytics.meta_pixel_id', null)
+            ->assertJsonPath('data.tema.colores.primario', Tienda::TEMA_DEFAULTS['colores']['primario'])
+            ->assertJsonPath('data.tema.tipografia.fuente', 'system')
+            ->assertJsonPath('data.tema.radios', 'md')
+            ->assertJsonPath('data.tema.densidad', 'normal')
+            ->assertJsonPath('data.comportamiento', []);
+
+        // Con IDs + tema PARCIAL persistido: los IDs viajan y el tema mergea
+        // sobre los defaults (solo pisa lo configurado).
+        $this->tienda->update([
+            'ga4_measurement_id' => 'G-TEST123',
+            'meta_pixel_id' => '111222333',
+            'tema' => ['colores' => ['primario' => '#123456']],
+        ]);
+
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.analytics.ga4_measurement_id', 'G-TEST123')
+            ->assertJsonPath('data.analytics.meta_pixel_id', '111222333')
+            ->assertJsonPath('data.tema.colores.primario', '#123456')
+            ->assertJsonPath('data.tema.colores.acento', Tienda::TEMA_DEFAULTS['colores']['acento'])
+            ->assertJsonPath('data.tema.radios', 'md');
+    }
+
+    public function test_catalogo_etag_y_revalidacion_304(): void
+    {
+        // Cache HTTP del catálogo (RF-T5): ETag + max-age, y revalidación
+        // If-None-Match → 304 sin payload.
+        $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $primera = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+        $etag = $primera->headers->get('ETag');
+
+        $this->assertNotEmpty($etag);
+        // Symfony normaliza el orden de las directivas del Cache-Control.
+        $cacheControl = (string) $primera->headers->get('Cache-Control');
+        $this->assertStringContainsString('public', $cacheControl);
+        $this->assertStringContainsString('max-age=60', $cacheControl);
+
+        $revalidacion = $this->withHeaders(['If-None-Match' => $etag])
+            ->getJson('/api/v1/tiendas/tienda-test/catalogo');
+
+        $revalidacion->assertStatus(304);
+        $this->assertSame('', (string) $revalidacion->getContent(), 'El 304 no lleva payload');
+        $this->assertSame($etag, $revalidacion->headers->get('ETag'));
+
+        // ETag distinto ⇒ respuesta completa normal.
+        $this->withHeaders(['If-None-Match' => '"otro-etag"'])
+            ->getJson('/api/v1/tiendas/tienda-test/catalogo')
+            ->assertOk();
+    }
+
     public function test_catalogo_devuelve_imagen_url_absoluta(): void
     {
         // La tienda corre en otro origen: una ruta relativa /storage/... se

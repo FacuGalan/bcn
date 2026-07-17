@@ -109,11 +109,11 @@ abstract class TestCase extends BaseTestCase
                 ['pymes_test', 'menu_items']
             );
 
-            // Centinela adicional: última tabla estructural agregada en CONFIG
-            // (API v1 pedidos-delivery). Si falta, hay migraciones pendientes.
+            // Centinela adicional: último cambio estructural en CONFIG
+            // (tiendas.tema, RF-T6/RF-T7). Si falta, hay migraciones pendientes.
             $existsTiendas = DB::connection('config')->select(
-                'SELECT COUNT(*) as cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
-                ['config_test', 'tiendas']
+                'SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+                ['config_test', 'tiendas', 'tema']
             );
 
             if (($exists[0]->cnt ?? 0) > 0 && ($existsTiendas[0]->cnt ?? 0) > 0) {
