@@ -98,6 +98,21 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertFalse((bool) $agotadoJson['pedible']);
     }
 
+    public function test_catalogo_devuelve_imagen_url_absoluta(): void
+    {
+        // La tienda corre en otro origen: una ruta relativa /storage/... se
+        // rompe contra su host. La API debe devolver URL absoluta.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10, overrides: [
+            'imagen_path' => 'articulos/1/foto-test.webp',
+        ]);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+
+        $json = collect($respuesta->json('data.articulos'))->firstWhere('id', $articulo->id);
+        $this->assertStringStartsWith('http', $json['imagen_url']);
+        $this->assertStringEndsWith('/storage/articulos/1/foto-test.webp', $json['imagen_url']);
+    }
+
     // ==================== PÚBLICO: COTIZACIONES ====================
 
     public function test_cotizar_envio_dentro_del_radio(): void
