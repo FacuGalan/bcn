@@ -55,6 +55,50 @@ aparte porque su ciclo de vida, deploy, seguridad y audiencia son otros
    tienda es el único cliente del token.
 9. **Degradación honesta**: sin Reverb el seguimiento hace polling; sin
    coordenadas la tienda no inventa alcance (mismo principio D5 del core).
+10. **Temable desde el día 1, editor después**: la visión es que cada
+    comercio/sucursal le imprima su personalidad a la tienda (fuentes,
+    tamaños, colores, layout/orientación de componentes, comportamiento).
+    El editor es Fase 6, PERO desde la Fase 1 NINGUNA vista hardcodea
+    estilos: toda la UI se construye sobre design tokens (CSS custom
+    properties: paleta, tipografía, radios, espaciado/densidad) con un tema
+    default moderno, y `GET /tiendas/{slug}` prevé un objeto `tema` en la
+    respuesta (v1: defaults + logo). Así la personalización futura es un
+    problema de DATOS (un JSON por tienda), no un refactor de vistas.
+    Tres reglas concretas para Fase 1 (2026-07-16):
+    - **Tokens**: ningún blade usa colores/fuentes/tamaños directos; solo
+      clases que resuelven a CSS custom properties del tema.
+    - **Layout como datos**: la home se renderiza desde un array de
+      secciones (hero, buscador, categorías, destacados, grilla...) con
+      orden/variante por sección. En v1 el array es el default fijo, pero
+      reordenar o cambiar variantes en el futuro es cambiar datos, no vistas.
+    - **Comportamiento como datos**: la respuesta de `GET /tiendas/{slug}`
+      prevé también un objeto `comportamiento` (seteos de conducta de la
+      tienda; v1: defaults). Tema + comportamiento = un solo JSON por tienda.
+11. **Medible desde el día 1 (GA4 + Meta Pixel por tienda)** (2026-07-16):
+    cada comercio/sucursal saca métricas de SU tienda con sus propios IDs
+    (`ga4_measurement_id`, `meta_pixel_id`), que viajan en
+    `GET /tiendas/{slug}` y se inyectan solo si están cargados (RF-T7).
+    Reglas de arquitectura:
+    - **Capa de tracking única**: helper JS `track(evento, payload)` que
+      despacha a `gtag` Y `fbq`. Los componentes emiten eventos semánticos;
+      NADIE llama a gtag/fbq directo desde una vista.
+    - **Taxonomía estándar, no custom**: GA4 ecommerce (`view_item_list`,
+      `view_item`, `add_to_cart`, `remove_from_cart`, `view_cart`,
+      `begin_checkout`, `add_shipping_info`, `add_payment_info`, `purchase`
+      con `items[]`/`value`/`currency`) y eventos estándar de Meta
+      (`ViewContent`, `AddToCart`, `InitiateCheckout`, `AddPaymentInfo`,
+      `Purchase`) — los nombres estándar habilitan optimización/audiencias.
+    - **Los modales se miden con eventos, no con pageviews falsas**: abrir
+      el detalle en modal dispara `view_item`/`ViewContent` igual que una
+      página. Además, el detalle de artículo hace `pushState` a
+      `/articulo/{id}` (URL real: compartible, pageview, y el back del
+      móvil cierra el modal).
+    - **`purchase` con dedup**: `transaction_id` = pedido, `event_id`
+      compartido Pixel/CAPI (el Conversions API server-side es futuro, pero
+      el event_id se genera desde v1 para no duplicar cuando llegue).
+    - Nombres de rutas/componentes/vistas se eligen alineados a esta
+      taxonomía (ej: la vista del funnel de checkout separa datos → envío →
+      pago para que los pasos mapeen 1:1 a los eventos).
 
 ---
 
@@ -167,6 +211,15 @@ La tienda v1 (fases 1-2) necesita que la API crezca en:
 - `GET /tiendas/{slug}/catalogo`: soporte de cache HTTP (ETag/Last-Modified o
   TTL corto) — es el endpoint más golpeado.
 
+### RFs del CORE posteriores a Fase 0 (pendientes, chicos)
+- **RF-T7: IDs de analytics por tienda** (conviene DURANTE Fase 1, es chico):
+  campos `ga4_measurement_id` + `meta_pixel_id` en la config de tienda por
+  sucursal, editables en el panel (config delivery/tienda), expuestos en
+  `GET /tiendas/{slug}`. La tienda inyecta los scripts solo si están cargados.
+- **RF-T6: persistencia del tema** (para Fase 6): JSON tema+comportamiento
+  por tienda + endpoint de edición + UI/editor en el panel. Hasta entonces
+  `GET /tiendas/{slug}` sirve defaults.
+
 ---
 
 ## Fases del proyecto TIENDA (repo nuevo)
@@ -192,6 +245,16 @@ del pedido ya lo prevé (pagos online no tocan caja, estado "a devolver").
 
 ### Fase 5: Marketplace / landing global [post-v1]
 Buscador por ubicación + rubro (RF-T4), SEO de tiendas (SSR ya nativo).
+
+### Fase 6: Editor de personalización [post-v1]
+Editor visual en el panel del CORE para que cada comercio/sucursal configure
+su tienda: paleta de colores, tipografía (fuentes self-hosted por el criterio
+Lighthouse), tamaños, radios, densidad, orden/variante de las secciones de la
+home y seteos de comportamiento. Con preview en vivo y presets de temas.
+Requiere del CORE (RF-T6, se especificará en su momento): persistencia del
+JSON tema+comportamiento por tienda, endpoint de edición y UI en el panel.
+`GET /tiendas/{slug}` pasa de servir defaults a servir el JSON persistido —
+la tienda NO cambia código (garantizado por el Principio 10).
 
 ---
 
@@ -223,6 +286,14 @@ Buscador por ubicación + rubro (RF-T4), SEO de tiendas (SSR ya nativo).
   en performance/accesibilidad en el catálogo.
 - [ ] Seguridad: token de consumidor solo en sesión server-side; CORS
   restringido; rate limit local; ningún acceso directo a BD del core.
+- [ ] Temabilidad (Principio 10): cambiar el JSON de tema (colores/fuente/
+  radios/densidad) u orden de secciones de la home repinta la tienda SIN
+  tocar código; ningún blade contiene colores/fuentes hardcodeados.
+- [ ] Analytics (Principio 11): con IDs cargados, el funnel completo emite
+  la taxonomía GA4/Meta estándar (view_item_list → view_item [incluso en
+  modal] → add_to_cart → begin_checkout → add_shipping_info →
+  add_payment_info → purchase con transaction_id y event_id); sin IDs
+  cargados, no se inyecta ningún script de terceros.
 
 ## Notas y Decisiones
 
@@ -230,6 +301,15 @@ Buscador por ubicación + rubro (RF-T4), SEO de tiendas (SSR ya nativo).
   aparte), v1 = invitado + login, pago online en fase posterior.
 - 2026-07-16: spec APROBADO por el usuario. Decisión RF-T1: se puede pedir
   sin verificar el email (la verificación desbloquea historial/cuenta).
+- 2026-07-16: decisión de personalización — v1 arma el esqueleto con la
+  ARQUITECTURA temable (tokens + layout/comportamiento como datos, reglas
+  del Principio 10); el editor visual y la persistencia del tema quedan
+  para Fase 6 (+ RF-T6 en el core). Fase 0 ya deployada en producción.
+- 2026-07-16: decisión analytics — GA4 + Meta Pixel por tienda como
+  requisito de arquitectura (Principio 11): capa track() única, taxonomía
+  estándar, modales medidos por eventos + pushState en detalle de artículo,
+  event_id para dedup CAPI futuro. IDs por sucursal = RF-T7 en el core
+  (chico, entra durante Fase 1).
 - 2026-07-14: pasada 1 de revisión del armado: bug de cupones corregido y FP
   en el precio con paridad panel (PR #158, E13). La API quedó lista para el
   funnel invitado completo.

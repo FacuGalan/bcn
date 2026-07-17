@@ -5,11 +5,11 @@ namespace App\Services\Pedidos;
 use App\Livewire\Concerns\Carrito\WithAjusteFormaPago;
 use App\Livewire\Concerns\Carrito\WithCalculoVenta;
 use App\Models\Articulo;
+use App\Models\ArticuloGrupoOpcional;
 use App\Models\CanalVenta;
 use App\Models\FormaPago;
 use App\Models\FormaVenta;
 use App\Models\ListaPrecio;
-use App\Models\Opcional;
 use App\Models\PedidoDelivery;
 use App\Models\Sucursal;
 use App\Services\CuponService;
@@ -320,19 +320,41 @@ class CotizadorCarritoTienda
 
         $opcionales = [];
         $precioOpcionales = 0.0;
-        foreach ($input['opcionales'] ?? [] as $opInput) {
-            $opcional = Opcional::find($opInput['opcional_id'] ?? 0);
-            if (! $opcional || ! $opcional->activo) {
-                throw new Exception('Opcional no disponible: '.($opInput['opcional_id'] ?? '?'));
+        $opcionesInput = $input['opcionales'] ?? [];
+        if ($opcionesInput !== []) {
+            // Paridad con el panel (WithOpcionales/obtenerOpcionalesParaVenta):
+            // solo valen los opcionales ASIGNADOS al artículo en ESTA sucursal
+            // y el precio es el de la asignación (override por artículo), no
+            // el del catálogo global. Es también lo que publica el catálogo.
+            $opcionesValidas = ArticuloGrupoOpcional::query()
+                ->where('articulo_id', $articulo->id)
+                ->where('sucursal_id', $sucursal->id)
+                ->where('activo', true)
+                ->whereHas('grupoOpcional', fn ($q) => $q->where('activo', true))
+                ->with([
+                    'opciones' => fn ($q) => $q->where('activo', true)
+                        ->where('disponible', true)
+                        ->whereHas('opcional', fn ($q2) => $q2->where('activo', true))
+                        ->with('opcional:id,nombre'),
+                ])
+                ->get()
+                ->flatMap->opciones
+                ->keyBy('opcional_id');
+
+            foreach ($opcionesInput as $opInput) {
+                $opcion = $opcionesValidas->get($opInput['opcional_id'] ?? 0);
+                if (! $opcion) {
+                    throw new Exception("Opcional no disponible para '{$articulo->nombre}': ".($opInput['opcional_id'] ?? '?'));
+                }
+                $cantOp = (float) ($opInput['cantidad'] ?? 1);
+                $opcionales[] = [
+                    'opcional_id' => (int) $opcion->opcional_id,
+                    'descripcion' => $opcion->opcional->nombre,
+                    'precio' => (float) $opcion->precio_extra,
+                    'cantidad' => $cantOp,
+                ];
+                $precioOpcionales += (float) $opcion->precio_extra * $cantOp;
             }
-            $cantOp = (float) ($opInput['cantidad'] ?? 1);
-            $opcionales[] = [
-                'opcional_id' => $opcional->id,
-                'descripcion' => $opcional->nombre,
-                'precio' => (float) $opcional->precio_extra,
-                'cantidad' => $cantOp,
-            ];
-            $precioOpcionales += (float) $opcional->precio_extra * $cantOp;
         }
 
         return [
@@ -342,7 +364,9 @@ class CotizadorCarritoTienda
             'categoria_id' => $articulo->categoria_id,
             'categoria_nombre' => $articulo->categoriaModel?->nombre,
             'precio_base' => $precioInfo['precio_base'],
-            'precio' => $precioInfo['precio'],
+            // Paridad panel (WithOpcionales): el precio que consume el motor
+            // INCLUYE los opcionales; precio_opcionales viaja como desglose.
+            'precio' => round((float) $precioInfo['precio'] + $precioOpcionales, 2),
             'tiene_ajuste' => $precioInfo['tiene_ajuste'],
             'cantidad' => $cantidad,
             'iva_codigo' => $tipoIva?->codigo ?? 5,
