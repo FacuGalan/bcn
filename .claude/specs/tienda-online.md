@@ -338,6 +338,17 @@ la tienda NO cambia código (garantizado por el Principio 10).
   conceptos sin artículo. Sin esto la tienda no podía rearmar el carrito
   (ni el historial ni el seguimiento exponían los renglones). Aditivo =
   no rompe consumidores existentes; documentado en api-v1-delivery.md.
+- 2026-07-17: decisión del usuario — imágenes DE TIENDA como feature futura:
+  la imagen que el artículo tiene cargada en el sistema es solo el fallback
+  v1; la visión es un sector aparte de configuración visual de la tienda
+  donde cada comercio define VARIAS fotos por artículo específicas para la
+  tienda (galería), independientes de la imagen operativa del panel.
+  Requiere RF del core (persistencia + endpoint; natural junto al editor de
+  Fase 6 / RF-T6, `tema` ya es el JSON por tienda). La tienda ya renderiza
+  desde `imagen_url` del catálogo, así que el cambio futuro es de DATOS del
+  lado core, no un refactor de vistas. Mientras tanto, fix 2026-07-17:
+  `imagen_url` del catálogo pasa a URL absoluta (relativa se rompía por
+  cross-origin).
 - 2026-07-14: pasada 1 de revisión del armado: bug de cupones corregido y FP
   en el precio con paridad panel (PR #158, E13). La API quedó lista para el
   funnel invitado completo.

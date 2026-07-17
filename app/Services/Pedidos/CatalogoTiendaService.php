@@ -113,7 +113,9 @@ class CatalogoTiendaService
                 'nombre' => $articulo->nombre,
                 'descripcion' => $articulo->descripcion,
                 'categoria_id' => $articulo->categoria_id,
-                'imagen_url' => $articulo->imagenUrl(),
+                // ABSOLUTA con el host del request: la tienda corre en otro
+                // origen y una ruta relativa se rompería contra su propio host.
+                'imagen_url' => $articulo->imagen_path ? url($articulo->imagenUrl()) : null,
                 'destacado' => (bool) $articulo->destacado,
                 'orden' => (int) $articulo->orden,
                 'pesable' => (bool) $articulo->pesable,
@@ -161,7 +163,7 @@ class CatalogoTiendaService
                 'nombre' => $cat->nombre,
                 'orden' => (int) $cat->orden,
                 'imagen_url' => $cat->imagen_path
-                    ? \Illuminate\Support\Facades\Storage::disk('public')->url($cat->imagen_path)
+                    ? url('/storage/'.ltrim($cat->imagen_path, '/'))
                     : null,
             ])
             ->values()

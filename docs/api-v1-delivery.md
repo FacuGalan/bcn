@@ -89,6 +89,10 @@ disponible para el tipo). Los **agotados vienen marcados** `"agotado": true,
 "pedible": false` — se muestran pero la API bloquea pedirlos. Los precios son
 FINALES (motor de precios del sistema: listas + promociones vigentes).
 
+`imagen_url` (de artículos y categorías) es SIEMPRE una URL absoluta con el
+host de la API (fix 2026-07-17): la tienda corre en otro origen y una ruta
+relativa se rompería contra su propio host. `null` si no hay imagen.
+
 Los grupos de opcionales son los ASIGNADOS al artículo en la sucursal de la
 tienda (paridad con el panel), con el precio de la asignación (override por
 artículo, no el del catálogo global). Grupos sin opciones vivas no se
