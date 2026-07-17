@@ -57,7 +57,22 @@ class CatalogoTiendaService
             })
             ->with([
                 'tipoIva:id,porcentaje',
-                'gruposOpcionales.opcionales' => fn ($q) => $q->where('activo', true)->orderBy('orden'),
+                // Asignaciones de grupos opcionales DE ESTA SUCURSAL (el
+                // vínculo es ArticuloGrupoOpcional, por sucursal), con el
+                // mismo criterio del panel (OpcionalService::obtenerOpcionalesParaVenta):
+                // activas + grupo activo; opciones activas con opcional activo
+                // (las no disponibles viajan marcadas, la UI las deshabilita).
+                'gruposOpcionales' => fn ($q) => $q->where('sucursal_id', $sucursal->id)
+                    ->where('activo', true)
+                    ->whereHas('grupoOpcional', fn ($g) => $g->where('activo', true))
+                    ->orderBy('orden')
+                    ->with([
+                        'grupoOpcional',
+                        'opciones' => fn ($o) => $o->where('activo', true)
+                            ->whereHas('opcional', fn ($q2) => $q2->where('activo', true))
+                            ->with('opcional')
+                            ->orderBy('orden'),
+                    ]),
             ])
             ->orderByDesc('destacado')
             ->orderBy('orden')
@@ -110,18 +125,29 @@ class CatalogoTiendaService
                     ->all(),
                 'agotado' => $agotado,
                 'pedible' => ! $agotado,
-                'opcionales' => $articulo->gruposOpcionales->map(fn ($grupo) => [
-                    'grupo_id' => (int) $grupo->id,
-                    'nombre' => $grupo->nombre,
-                    'obligatorio' => (bool) ($grupo->pivot->obligatorio ?? $grupo->obligatorio ?? false),
-                    'min' => (int) ($grupo->pivot->min_selecciones ?? $grupo->min_selecciones ?? 0),
-                    'max' => (int) ($grupo->pivot->max_selecciones ?? $grupo->max_selecciones ?? 0),
-                    'opciones' => $grupo->opcionales->map(fn ($op) => [
-                        'id' => (int) $op->id,
-                        'nombre' => $op->nombre,
-                        'precio_extra' => (float) $op->precio_extra,
-                    ])->values()->all(),
-                ])->values()->all(),
+                'opcionales' => $articulo->gruposOpcionales
+                    ->map(function ($asignacion) {
+                        $grupo = $asignacion->grupoOpcional;
+
+                        return [
+                            'grupo_id' => (int) $grupo->id,
+                            'nombre' => $grupo->nombre,
+                            'tipo' => $grupo->tipo,
+                            'obligatorio' => (bool) $grupo->obligatorio,
+                            'min' => (int) ($grupo->min_seleccion ?? 0),
+                            'max' => (int) ($grupo->max_seleccion ?? 0),
+                            'opciones' => $asignacion->opciones->map(fn ($op) => [
+                                'opcional_id' => (int) $op->opcional_id,
+                                'nombre' => $op->opcional->nombre,
+                                'precio_extra' => (float) $op->precio_extra,
+                                'disponible' => (bool) $op->disponible,
+                            ])->values()->all(),
+                        ];
+                    })
+                    // Un grupo sin opciones vivas no se publica (si fuera
+                    // obligatorio bloquearía el pedido sin nada que elegir).
+                    ->filter(fn ($g) => $g['opciones'] !== [])
+                    ->values()->all(),
             ];
         })->values()->all();
 

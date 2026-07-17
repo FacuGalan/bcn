@@ -87,8 +87,30 @@ vencidos). Los cupos por franja llegan en Fase 8.
 Catálogo visible según RF-17 (activo + vendible + visible en tienda +
 disponible para el tipo). Los **agotados vienen marcados** `"agotado": true,
 "pedible": false` — se muestran pero la API bloquea pedirlos. Los precios son
-FINALES (motor de precios del sistema: listas + promociones vigentes); los
-grupos de opcionales vienen con min/max/obligatorio.
+FINALES (motor de precios del sistema: listas + promociones vigentes).
+
+Los grupos de opcionales son los ASIGNADOS al artículo en la sucursal de la
+tienda (paridad con el panel), con el precio de la asignación (override por
+artículo, no el del catálogo global). Grupos sin opciones vivas no se
+publican. `disponible: false` = mostrar deshabilitada (agotada):
+
+```json
+"opcionales": [
+  { "grupo_id": 1, "nombre": "Extras", "tipo": "seleccionable|cuantitativo",
+    "obligatorio": false, "min": 0, "max": 3,
+    "opciones": [
+      { "opcional_id": 4, "nombre": "Extra cheddar", "precio_extra": 250,
+        "disponible": true }
+    ] }
+]
+```
+
+El `opcional_id` es el que se manda en `items.*.opcionales` de
+`carrito/cotizar` y del alta. La cotización/alta **rechaza (422) opcionales
+no asignados al artículo en esa sucursal o no disponibles**, y suma al total
+el `precio_extra` de la asignación — el mismo cálculo del panel (el precio
+del ítem que ve el motor incluye los opcionales; las promos aplican sobre
+ese precio, igual que en el mostrador).
 
 **Cache HTTP (RF-T5)**: la respuesta trae `ETag` y `Cache-Control:
 public, max-age=60`. Revalidar con `If-None-Match` → `304` sin payload si el
