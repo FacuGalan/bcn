@@ -2,6 +2,11 @@
 
 namespace Tests\Feature\Api;
 
+use App\Models\Articulo;
+use App\Models\ArticuloGrupoOpcional;
+use App\Models\ArticuloGrupoOpcionalOpcion;
+use App\Models\GrupoOpcional;
+use App\Models\Opcional;
 use App\Models\PedidoDelivery;
 use App\Models\Sucursal;
 use App\Models\Tienda;
@@ -137,6 +142,124 @@ class ApiV1DeliveryTest extends TestCase
         $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
             'tipo' => 'delivery',
             'items' => [['articulo_id' => $agotado->id, 'cantidad' => 1]],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'operacion_invalida');
+    }
+
+    // ==================== PÚBLICO: OPCIONALES (paridad panel) ====================
+
+    /**
+     * Arma grupo global + asignación al artículo en la sucursal + opción con
+     * precio OVERRIDE (distinto del global, para detectar cuál se usa).
+     */
+    protected function asignarGrupoOpcional(
+        Articulo $articulo,
+        int $sucursalId,
+        float $precioGlobal = 100,
+        float $precioOverride = 250,
+    ): Opcional {
+        $grupo = GrupoOpcional::create([
+            'nombre' => 'Extras Test',
+            'tipo' => 'seleccionable',
+            'obligatorio' => false,
+            'min_seleccion' => 0,
+            'max_seleccion' => 3,
+            'activo' => true,
+            'orden' => 0,
+        ]);
+        $opcional = Opcional::create([
+            'grupo_opcional_id' => $grupo->id,
+            'nombre' => 'Extra Queso Test',
+            'precio_extra' => $precioGlobal,
+            'activo' => true,
+            'orden' => 0,
+        ]);
+        $asignacion = ArticuloGrupoOpcional::create([
+            'articulo_id' => $articulo->id,
+            'grupo_opcional_id' => $grupo->id,
+            'sucursal_id' => $sucursalId,
+            'activo' => true,
+            'orden' => 0,
+        ]);
+        ArticuloGrupoOpcionalOpcion::create([
+            'articulo_grupo_opcional_id' => $asignacion->id,
+            'opcional_id' => $opcional->id,
+            'precio_extra' => $precioOverride,
+            'activo' => true,
+            'disponible' => true,
+            'orden' => 0,
+        ]);
+
+        return $opcional;
+    }
+
+    public function test_catalogo_publica_opcionales_de_la_sucursal_con_precio_override(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioGlobal: 100, precioOverride: 250);
+
+        // El mismo artículo con grupo en OTRA sucursal no debe contaminar.
+        $otraSucursal = $this->crearSucursalAdicional();
+        $this->asignarGrupoOpcional($articulo, $otraSucursal);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+
+        $item = collect($respuesta->json('data.articulos'))->firstWhere('id', $articulo->id);
+        $this->assertCount(1, $item['opcionales'], 'Solo los grupos asignados en LA sucursal de la tienda');
+
+        $grupo = $item['opcionales'][0];
+        $this->assertSame('Extras Test', $grupo['nombre']);
+        $this->assertFalse((bool) $grupo['obligatorio']);
+        $this->assertSame(0, $grupo['min']);
+        $this->assertSame(3, $grupo['max']);
+        $this->assertSame($opcional->id, $grupo['opciones'][0]['opcional_id']);
+        $this->assertSame(250.0, (float) $grupo['opciones'][0]['precio_extra'], 'Precio de la ASIGNACIÓN (override), no el global');
+    }
+
+    public function test_cotizar_carrito_suma_opcionales_con_precio_de_la_asignacion(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // precio_base 1000
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioGlobal: 100, precioOverride: 250);
+
+        $conOpcional = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [[
+                'articulo_id' => $articulo->id,
+                'cantidad' => 1,
+                'opcionales' => [['opcional_id' => $opcional->id, 'cantidad' => 2]],
+            ]],
+        ])->assertOk();
+
+        $sinOpcional = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+        ])->assertOk();
+
+        // Paridad panel: el total suma el precio de la ASIGNACIÓN (250 × 2),
+        // no el global (100 × 2).
+        $this->assertEqualsWithDelta(
+            (float) $sinOpcional->json('data.total_final') + 500.0,
+            (float) $conOpcional->json('data.total_final'),
+            0.01,
+        );
+    }
+
+    public function test_cotizar_carrito_rechaza_opcional_no_asignado_al_articulo(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Opcional que existe y está activo, pero asignado a OTRO artículo.
+        $otroArticulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcionalAjeno = $this->asignarGrupoOpcional($otroArticulo, $this->sucursalId);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [[
+                'articulo_id' => $articulo->id,
+                'cantidad' => 1,
+                'opcionales' => [['opcional_id' => $opcionalAjeno->id, 'cantidad' => 1]],
+            ]],
         ])
             ->assertStatus(422)
             ->assertJsonPath('error.code', 'operacion_invalida');
