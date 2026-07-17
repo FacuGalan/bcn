@@ -294,7 +294,7 @@ Registro/login/verificación/recuperación (contra RF-T1), direcciones guardadas
 (RF-T2), historial + re-pedir (RF-T3), checkout precargado, cotización con
 Bearer (precios por cliente donde haya mapping — ya soportado por la API).
 
-### Fase 3: Puntos [en curso 2026-07-17]
+### Fase 3: Puntos — ✅ COMPLETA (2026-07-17)
 Saldo y canje desde la tienda contra RF-T8/RF-T9 (canje = pago por el máximo
 vía toggle; solo descuento sobre el total en v1; "puntos a ganar" visible en
 el checkout). Requiere consumidor con cliente materializado (alta automática
@@ -306,8 +306,9 @@ Checkout MP (crear preferencia/QR dinámico + retorno + webhook). Bloqueado por
 el diferido del spec de integraciones (checkout online + refund). El contrato
 del pedido ya lo prevé (pagos online no tocan caja, estado "a devolver").
 
-### Fase 5: Marketplace / landing global [post-v1]
+### Fase 5: Marketplace / landing global — ✅ COMPLETA (2026-07-17, bcn-tienda#9)
 Buscador por ubicación + rubro (RF-T4), SEO de tiendas (SSR ya nativo).
+Lado core: cero cambios (RF-T4 ya existía desde Fase 0).
 
 ### Fase 6: Editor de personalización [post-v1]
 Editor visual en el panel del CORE para que cada comercio/sucursal configure
@@ -430,6 +431,15 @@ la tienda NO cambia código (garantizado por el Principio 10).
   puntos que el pedido va a ganar (estimado del core en la cotización).
   Diseño: RF-T8 (saldo) + RF-T9 (canje como PAGO con paridad de conversión;
   el MovimientoPunto se crea al convertir, ventana de saldo asumida).
+- 2026-07-17: Fase 5 (marketplace) — decisiones del usuario: (a) la
+  geolocalización se pide con BOTÓN EXPLÍCITO en la landing (al entrar se
+  listan todas las tiendas; el permiso del navegador recién se dispara al
+  tocar "Ver tiendas cerca mío"); (b) branding de la landing = "Tiendas BCN"
+  con la paleta/logo del core (#FFAF22/#222036, icono_bcn), aplicado VÍA
+  TOKENS en el layout marketplace (Principio 10 intacto). Sin analytics en
+  la landing (los IDs son por tienda — Principio 11). Cache local en la
+  tienda de las consultas sin ubicación (60s; rubros 1h, espejo de los TTLs
+  del core) + throttle de la ruta `/`. Implementación: bcn-tienda#9.
 - 2026-07-14: pasada 1 de revisión del armado: bug de cupones corregido y FP
   en el precio con paridad panel (PR #158, E13). La API quedó lista para el
   funnel invitado completo.
