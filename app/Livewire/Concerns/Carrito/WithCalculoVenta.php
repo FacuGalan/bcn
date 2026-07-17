@@ -8,7 +8,6 @@ use App\Models\Cupon;
 use App\Models\ListaPrecio;
 use App\Models\Promocion;
 use App\Models\PromocionEspecial;
-use Illuminate\Support\Facades\Log;
 
 /**
  * Calculo de venta con promociones e IVA en NuevaVenta.
@@ -368,14 +367,13 @@ trait WithCalculoVenta
             ];
         }
 
-        // Validar límite máximo de descuento (70% del subtotal)
-        if ($resultado['subtotal'] > 0) {
-            $maxDescuento = $resultado['subtotal'] * 0.70;
-            if ($resultado['total_descuentos'] > $maxDescuento) {
-                Log::warning("Descuento total {$resultado['total_descuentos']} excede 70% del subtotal {$resultado['subtotal']}");
-                $resultado['total_descuentos'] = $maxDescuento;
-            }
-        }
+        // Los descuentos de promociones NO se topean: cada promo está acotada
+        // por construcción (una unidad nunca descuenta más que su precio y el
+        // pool impide descontarla dos veces), y un combo/menú a precio fijo
+        // puede legítimamente superar cualquier umbral (ej: combo a $400 sobre
+        // $2850 = 86%). El tope del 70% que vivió acá recortaba el total en
+        // silencio SIN tocar la atribución por renglón: total inconsistente
+        // con los renglones y precio del combo incumplido (pedido #32).
 
         // Calcular total final (después de descuentos de promociones)
         $resultado['total_final'] = max(0, $resultado['subtotal'] - $resultado['total_descuentos']);
@@ -491,6 +489,16 @@ trait WithCalculoVenta
             $totalDescuentosParaIva,
             $resultado['subtotal']
         );
+
+        // Agregados que los consumidores del resultado leen para cabeceras y
+        // contratos (pedidos delivery/mostrador, cotización de la tienda).
+        // Nunca existieron y todos caían a 0 con `?? 0`: los pedidos grababan
+        // descuento=0/iva=0 en cabecera y la API de cotización respondía
+        // descuento=0 aun con promos aplicadas. Semántica espejo de la venta
+        // (WithPagosDesglose): descuento_total = SOLO promociones (el cupón y
+        // el descuento general viajan en sus propios campos).
+        $resultado['descuento_total'] = round((float) $resultado['total_descuentos'], 2);
+        $resultado['iva_total'] = round((float) ($resultado['desglose_iva']['total_iva'] ?? 0), 2);
 
         $this->resultado = $resultado;
 
