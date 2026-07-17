@@ -220,6 +220,66 @@ La tienda v1 (fases 1-2) necesita que la API crezca en:
   por tienda + endpoint de edición + UI/editor en el panel. Hasta entonces
   `GET /tiendas/{slug}` sirve defaults.
 
+### RF-T8: Saldo de puntos del consumidor (Fase 3)
+
+`GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas
+del programa de puntos DE ESE comercio para el consumidor logueado:
+
+```json
+{ "data": {
+    "activo": true,              // programa activo (comercio + sucursal) Y consumidor con cliente
+    "saldo": 120,                // puntos disponibles (ledger movimientos_puntos)
+    "saldo_en_pesos": 6000,      // saldo × valor_punto_canje (para mostrar)
+    "valor_punto_canje": 50,
+    "minimo_canje": 10,
+    "puede_canjear": true        // saldo >= minimo_canje
+} }
+```
+
+- Resolución: consumidor → `consumidor_comercio.cliente_id` del comercio de la
+  tienda. **Sin cliente materializado, programa inactivo (comercio o
+  sucursal) o cliente con `programa_puntos_activo=false` → `activo: false`
+  con saldo 0** (degradación honesta, sin error).
+- Saldo por sucursal solo si `configuracion_puntos.modo_acumulacion =
+  por_sucursal` (misma semántica del panel).
+
+### RF-T9: Canje de puntos en cotización y alta (Fase 3)
+
+Extensión ADITIVA de `carrito/cotizar` y `POST /pedidos`: campo booleano
+`usar_puntos` (solo tiene efecto con Bearer de consumidor con cliente).
+
+- **El canje es un PAGO, no un descuento de precio** (paridad con el panel:
+  VentaPago `es_pago_puntos` bajo la FP "Canje Puntos"): `total_final` no
+  cambia; la cotización devuelve el bloque `puntos` y el
+  `total_a_pagar` neto:
+
+```json
+"puntos": { "usados": 40, "monto": 2000, "saldo_restante": 80,
+            "a_ganar": 5 },
+"total_a_pagar": 4551.43       // total_a_pagar previo − puntos.monto
+```
+
+- **Monto del canje = MÁXIMO posible** (decisión UX 2026-07-17: toggle, sin
+  input de monto): `min(saldo × valor_punto_canje, total_a_pagar)`,
+  respetando `minimo_canje`. `puntos.usados = ceil(monto /
+  valor_punto_canje)` (misma fórmula del panel).
+- **Alcance v1 de la fase: SOLO canje como descuento sobre el total.** El
+  canje de artículo gratis por puntos (modo del panel) queda para una
+  iteración posterior.
+- `puntos.a_ganar`: estimado de acumulación del pedido (fórmula del panel:
+  monto efectivo × multiplicador de la FP ÷ monto_por_punto, con el redondeo
+  de la config; excluye el monto pagado con puntos). Se muestra SIEMPRE que
+  el programa esté activo (aunque no canjee), como incentivo.
+- **Alta del pedido** con `usar_puntos: true`: el core revalida el saldo
+  FRESCO, registra el pago-puntos del pedido (los campos que
+  `procesarCanjesPuntos()` ya honra al convertir) y responde el pedido con
+  el bloque `puntos`. **El MovimientoPunto se crea recién en la conversión a
+  venta** (mismo diseño del panel: si el saldo se gastó en el medio, la
+  conversión falla la parte de puntos y el comercio lo resuelve — ventana
+  asumida y documentada).
+- Cupones/promos/FP se aplican ANTES (sobre el precio); los puntos pagan al
+  final. Cambió el carrito/cupón/FP → re-cotizar (regla general).
+
 ---
 
 ## Fases del proyecto TIENDA (repo nuevo)
@@ -234,9 +294,12 @@ Registro/login/verificación/recuperación (contra RF-T1), direcciones guardadas
 (RF-T2), historial + re-pedir (RF-T3), checkout precargado, cotización con
 Bearer (precios por cliente donde haya mapping — ya soportado por la API).
 
-### Fase 3: Puntos [post-v1]
-Saldo y canje desde la tienda (requiere endpoints core nuevos de puntos +
-cliente materializado). La ACUMULACIÓN ya ocurre hoy al convertir el pedido.
+### Fase 3: Puntos [en curso 2026-07-17]
+Saldo y canje desde la tienda contra RF-T8/RF-T9 (canje = pago por el máximo
+vía toggle; solo descuento sobre el total en v1; "puntos a ganar" visible en
+el checkout). Requiere consumidor con cliente materializado (alta automática
+del comercio recomendada). La ACUMULACIÓN ya ocurre hoy al convertir el
+pedido; el canje del pedido lo liquida la conversión (`procesarCanjesPuntos`).
 
 ### Fase 4: Pago online [post-v1, depende del core]
 Checkout MP (crear preferencia/QR dinámico + retorno + webhook). Bloqueado por
@@ -360,6 +423,13 @@ la tienda NO cambia código (garantizado por el Principio 10).
   Principio 3 (la URL canónica pasa al subdominio; el dominio propio por
   tienda sigue siendo futuro). Playbook completo:
   `bcn-tienda/.claude/docs/deploy-playbook.md`.
+- 2026-07-17: Fase 3 (puntos) — decisiones del usuario: (a) UX de canje =
+  TOGGLE "usar mis puntos" que aplica el máximo canjeable (sin input de
+  monto); (b) alcance v1 = solo canje como descuento sobre el total (el
+  artículo-gratis del panel queda para después); (c) el checkout muestra los
+  puntos que el pedido va a ganar (estimado del core en la cotización).
+  Diseño: RF-T8 (saldo) + RF-T9 (canje como PAGO con paridad de conversión;
+  el MovimientoPunto se crea al convertir, ventana de saldo asumida).
 - 2026-07-14: pasada 1 de revisión del armado: bug de cupones corregido y FP
   en el precio con paridad panel (PR #158, E13). La API quedó lista para el
   funnel invitado completo.

@@ -60,6 +60,9 @@ class PedidoPublicoController extends Controller
             // GET /tiendas/{slug} y, para efectivo, "¿con cuánto pagás?".
             'pago.forma_pago_id' => 'nullable|integer',
             'pago.paga_con' => 'nullable|numeric|min:0',
+            // Canje de puntos (RF-T9, Fase 3): pago por el máximo canjeable.
+            // Solo tiene efecto con Bearer de consumidor con cliente.
+            'usar_puntos' => 'nullable|boolean',
         ]);
 
         $sucursal = $request->attributes->get('api_sucursal');

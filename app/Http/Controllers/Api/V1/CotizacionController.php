@@ -62,6 +62,7 @@ class CotizacionController extends Controller
             'items.*.opcionales.*.cantidad' => 'nullable|numeric|min:0.001',
             'cupon_codigo' => 'nullable|string|max:50',
             'forma_pago_id' => 'nullable|integer',
+            'usar_puntos' => 'nullable|boolean',
         ]);
 
         $sucursal = $request->attributes->get('api_sucursal');
@@ -74,20 +75,45 @@ class CotizacionController extends Controller
         $clienteId = null;
         $consumidor = $request->user('sanctum');
         if ($consumidor instanceof \App\Models\Consumidor) {
-            $clienteId = $consumidor->clienteIdEn((int) $sucursal->comercio_id);
+            // El comercio sale de la TIENDA (config) — la sucursal es tenant
+            // y no conoce su comercio (fix 2026-07-17: con ->comercio_id de
+            // la sucursal el mapping nunca resolvía y el consumidor cotizaba
+            // sin su cliente, es decir sin sus precios).
+            $tienda = $request->attributes->get('api_tienda');
+            $clienteId = $consumidor->clienteIdEn((int) $tienda->comercio_id);
             if ($clienteId && ! \App\Models\Cliente::find($clienteId)) {
                 $clienteId = null;
             }
         }
 
+        $formaPagoId = isset($datos['forma_pago_id']) ? (int) $datos['forma_pago_id'] : null;
         $resultado = $cotizador->cotizar(
             $sucursal,
             $datos['tipo'],
             $datos['items'],
             $datos['cupon_codigo'] ?? null,
             $clienteId,
-            isset($datos['forma_pago_id']) ? (int) $datos['forma_pago_id'] : null,
+            $formaPagoId,
         );
+
+        $totalAPagar = (float) ($resultado['total_a_pagar'] ?? ($resultado['total_final'] ?? 0));
+
+        // Puntos (RF-T9, Fase 3): el canje es un PAGO por el máximo (toggle)
+        // — no toca precios ni total_final; resta del total_a_pagar. El
+        // bloque viaja siempre que el programa esté activo para el cliente
+        // (con `a_ganar`, aunque no canjee).
+        $puntos = null;
+        if ($clienteId) {
+            $puntosTienda = app(\App\Services\Pedidos\PuntosTiendaService::class);
+            $info = $puntosTienda->info($sucursal, $clienteId);
+            if ($info['activo']) {
+                $canje = ! empty($datos['usar_puntos'])
+                    ? $puntosTienda->calcularCanjeMaximo($info, $totalAPagar)
+                    : null;
+                $puntos = $puntosTienda->bloqueContrato($info, $canje, $sucursal, $formaPagoId, $totalAPagar);
+                $totalAPagar = round($totalAPagar - $puntos['monto'], 2);
+            }
+        }
 
         return response()->json([
             'data' => [
@@ -101,9 +127,10 @@ class CotizacionController extends Controller
                 'cupon' => $resultado['cupon'],
                 // FP declarada (opcional): descuento/recargo con los MISMOS
                 // cálculos del panel. total_a_pagar = total_final + ajuste
-                // (sin envío, que va aparte).
+                // (sin envío, que va aparte) − canje de puntos si lo hay.
                 'forma_pago' => $resultado['forma_pago'] ?? null,
-                'total_a_pagar' => (float) ($resultado['total_a_pagar'] ?? ($resultado['total_final'] ?? 0)),
+                'puntos' => $puntos,
+                'total_a_pagar' => $totalAPagar,
                 'desglose_iva' => $resultado['desglose_iva'] ?? null,
                 'nota' => __('El costo de envío se cotiza aparte y se suma al confirmar el pedido'),
             ],

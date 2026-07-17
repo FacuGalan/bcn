@@ -2812,7 +2812,11 @@ class PedidoDeliveryService
     private function dispatchBroadcast(PedidoDelivery $pedido, string $tipo): void
     {
         try {
-            $comercioId = app(\App\Services\TenantService::class)->getComercioId();
+            // getComercio() (cache del request), NUNCA getComercioId() (lee
+            // la SESIÓN): en la API stateless devolvía null y los pedidos de
+            // la tienda no se broadcasteaban al panel (bug 2026-07-17, misma
+            // familia que el alta automática de cliente).
+            $comercioId = app(\App\Services\TenantService::class)->getComercio()?->id;
             if ($comercioId === null) {
                 return;
             }

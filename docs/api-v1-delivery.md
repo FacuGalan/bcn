@@ -83,6 +83,22 @@ Vacío si la sucursal no trabaja por franjas. El valor `hora` es el que se
 manda en `entrega.franja` del alta (la API rechaza horarios inventados o
 vencidos). Los cupos por franja llegan en Fase 8.
 
+### `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor — RF-T8, Fase 3)*
+
+Saldo y reglas del programa de puntos DEL comercio de la tienda para el
+consumidor logueado:
+
+```json
+{ "data": { "activo": true, "saldo": 120, "saldo_en_pesos": 6000,
+            "valor_punto_canje": 50, "minimo_canje": 10,
+            "puede_canjear": true } }
+```
+
+Sin cliente materializado (mapping D11), programa inactivo (comercio o
+sucursal) o cliente excluido → `activo: false` con saldo 0 (nunca un error).
+La consulta NO crea el cliente. Saldo por sucursal solo si el programa está
+en modo `por_sucursal`.
+
 ### `GET /v1/tiendas/{slug}/catalogo?tipo=delivery|take_away`
 Catálogo visible según RF-17 (activo + vendible + visible en tienda +
 disponible para el tipo). Los **agotados vienen marcados** `"agotado": true,
@@ -161,6 +177,24 @@ el consumidor paga (sin envío). Recomendado: re-cotizar al cambiar la FP en el
 checkout. Un cupón restringido a formas de pago exige `forma_pago_id` (422 si
 falta o no coincide).
 
+`usar_puntos` (opcional bool — RF-T9, Fase 3, requiere Bearer de consumidor
+con cliente): canjea el **MÁXIMO** de puntos posible como PAGO (no toca
+precios ni `total_final`): `monto = min(saldo × valor_punto_canje,
+total_a_pagar)`, `usados = ceil(monto / valor_punto_canje)`. Con programa
+activo (canjee o no) la respuesta suma el bloque `puntos` y el
+`total_a_pagar` queda NETO del canje:
+
+```json
+"puntos": { "usados": 40, "monto": 2000, "saldo": 120, "saldo_restante": 80,
+            "puede_canjear": true, "a_ganar": 5 },
+"total_a_pagar": 4551.43
+```
+
+`a_ganar` es el ESTIMADO de acumulación del pedido (fórmula real del panel:
+monto pagado sin puntos × multiplicador de la FP ÷ monto_por_punto, con el
+redondeo de la config; sin envío). El crédito verdadero lo hace la conversión
+a venta.
+
 ### `POST /v1/tiendas/{slug}/pedidos`
 Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
 ```json
@@ -203,6 +237,12 @@ Reglas:
   (`por_aceptar: true`, sin número — el comercio lo confirma o rechaza) o
   **confirmado** directo (aceptación automática).
 - Respuesta 201 con el pedido, incluido `token_seguimiento`.
+- `usar_puntos: true` (RF-T9, con Bearer de consumidor con cliente): el core
+  recalcula el canje MÁXIMO con saldo FRESCO y registra el pago con puntos
+  como planificado (FP interna "Canje Puntos") + la FP declarada por el
+  RESTO. El descuento de saldo real (MovimientoPunto) ocurre al convertir a
+  venta — si el saldo se gastó en el medio, esa parte del canje falla en la
+  conversión y lo resuelve el comercio (ventana asumida).
 - Consumidor logueado (Bearer del guard consumidores): el pedido guarda su
   identidad; el alta de cliente en el comercio depende de la política del
   comercio. El `carrito/cotizar` con ese mismo Bearer cotiza con su cliente
