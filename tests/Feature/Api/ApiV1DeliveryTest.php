@@ -325,6 +325,49 @@ class ApiV1DeliveryTest extends TestCase
         $this->getJson('/api/v1/tiendas/tienda-test/pedidos/01JZZZZZZZZZZZZZZZZZZZZZZZ')->assertNotFound();
     }
 
+    public function test_seguimiento_incluye_items_para_repedir_sin_costo_de_envio(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $token = $respuesta->json('data.token_seguimiento');
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        // Opcional aplicado a la línea + renglón-concepto del costo de envío
+        // (D17): items debe exponer el opcional y EXCLUIR el costo de envío.
+        $grupo = \App\Models\GrupoOpcional::create(['nombre' => 'Extras', 'tipo' => 'cuantitativo', 'activo' => true]);
+        $opcional = \App\Models\Opcional::create(['grupo_opcional_id' => $grupo->id, 'nombre' => 'Cheddar extra', 'precio_extra' => 500, 'activo' => true]);
+
+        $detalle = $pedido->detalles()->whereNotNull('articulo_id')->first();
+        $detalle->opcionales()->create([
+            'grupo_opcional_id' => $grupo->id,
+            'opcional_id' => $opcional->id,
+            'nombre_grupo' => $grupo->nombre,
+            'nombre_opcional' => $opcional->nombre,
+            'cantidad' => 2,
+            'precio_extra' => 500,
+            'subtotal_extra' => 1000,
+        ]);
+        $pedido->detalles()->create([
+            'es_concepto' => true,
+            'es_costo_envio' => true,
+            'concepto_descripcion' => 'Costo de envío',
+            'cantidad' => 1,
+            'precio_unitario' => 800,
+            'subtotal' => 800,
+            'total' => 800,
+        ]);
+
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.items')
+            ->assertJsonPath('data.items.0.articulo_id', $articulo->id)
+            ->assertJsonPath('data.items.0.nombre', $articulo->nombre)
+            ->assertJsonPath('data.items.0.cantidad', 1)
+            ->assertJsonPath('data.items.0.opcionales.0.opcional_id', $opcional->id)
+            ->assertJsonPath('data.items.0.opcionales.0.nombre', 'Cheddar extra')
+            ->assertJsonPath('data.items.0.opcionales.0.cantidad', 2);
+    }
+
     public function test_consumidor_puede_cancelar_hasta_confirmado(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
