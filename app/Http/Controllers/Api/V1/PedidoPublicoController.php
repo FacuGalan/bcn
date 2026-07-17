@@ -82,7 +82,7 @@ class PedidoPublicoController extends Controller
      */
     public function show(Request $request, string $slug, string $token): JsonResponse
     {
-        $pedido = PedidoDelivery::with(['repartidor:id,nombre'])
+        $pedido = PedidoDelivery::with(['repartidor:id,nombre', 'detalles.opcionales', 'detalles.articulo:id,nombre'])
             ->where('token_seguimiento', $token)
             ->first();
 
@@ -127,6 +127,21 @@ class PedidoPublicoController extends Controller
                     : null,
                 'total_final' => (float) $pedido->total_final,
                 'estado_pago' => $pedido->estado_pago,
+                // Renglones pedibles (sin costo de envío ni conceptos): la
+                // tienda arma "re-pedir" desde acá y RE-COTIZA (RF-T3).
+                'items' => $pedido->detalles
+                    ->filter(fn ($d) => $d->articulo_id && ! $d->es_costo_envio && ! $d->es_concepto)
+                    ->values()
+                    ->map(fn ($d) => [
+                        'articulo_id' => (int) $d->articulo_id,
+                        'nombre' => $d->articulo?->nombre,
+                        'cantidad' => (float) $d->cantidad,
+                        'opcionales' => $d->opcionales->map(fn ($op) => [
+                            'opcional_id' => (int) $op->opcional_id,
+                            'nombre' => $op->nombre_opcional,
+                            'cantidad' => (float) $op->cantidad,
+                        ])->values()->all(),
+                    ])->all(),
                 'timestamps' => [
                     'confirmado_at' => $pedido->confirmado_at?->toIso8601String(),
                     'en_preparacion_at' => $pedido->en_preparacion_at?->toIso8601String(),

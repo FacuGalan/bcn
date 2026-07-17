@@ -230,6 +230,34 @@ Buscador por ubicación + rubro (RF-T4), SEO de tiendas (SSR ya nativo).
   aparte), v1 = invitado + login, pago online en fase posterior.
 - 2026-07-16: spec APROBADO por el usuario. Decisión RF-T1: se puede pedir
   sin verificar el email (la verificación desbloquea historial/cuenta).
+- 2026-07-17: decisión de arquitectura PWA — NO hay una sola PWA con
+  dirección inicial condicional: son DOS apps instalables que conviven en el
+  mismo dominio porque el manifest se declara POR PÁGINA. (a) PWA por tienda
+  (Principio 5): las páginas `/tienda/{slug}/...` declaran un manifest
+  dinámico `/tienda/{slug}/manifest.webmanifest` generado desde el snapshot
+  de `GET /tiendas/{slug}` (nombre, logo, theme_color del tema), con
+  `start_url`/`scope` = `/tienda/{slug}` — quien instala desde el link de un
+  comercio instala LA APP DE ESE COMERCIO. (b) PWA marketplace (Fase 5): la
+  landing `/` declara el manifest global BCN (`start_url`/`scope` = `/`),
+  abre en el buscador de tiendas por ubicación (RF-T4). Los scopes anidados
+  no se pisan. Reglas derivadas: disciplina de scope (nada de una tienda
+  fuera de `/tienda/{slug}/...`, nada global adentro); auth global fuera del
+  scope de tienda (la barra de navegación temporal al salir del scope es el
+  trade-off aceptado, patrón OAuth); `start_url` con `?utm_source=pwa`
+  (analytics); íconos v1 = logo de la API, set maskable por tienda = futuro
+  RF del core; con dominio propio por tienda el mismo manifest dinámico
+  sirve `scope: /` en ese dominio sin cambios. Nota Instagram: los links
+  tocados dentro de IG abren en su navegador embebido, donde NO se puede
+  instalar PWA — el visitante usa la tienda como web normal (el funnel
+  invitado ya lo cubre); un aviso "abrí en tu navegador para instalar" es
+  mejora opcional futura.
+- 2026-07-17: cambio ADITIVO al contrato v1 para habilitar "re-pedir"
+  (RF-T3): `GET /tiendas/{slug}/pedidos/{token}` suma `items[]`
+  (`articulo_id`, `nombre`, `cantidad`, `opcionales[{opcional_id, nombre,
+  cantidad}]`), excluyendo el renglón-concepto del costo de envío y los
+  conceptos sin artículo. Sin esto la tienda no podía rearmar el carrito
+  (ni el historial ni el seguimiento exponían los renglones). Aditivo =
+  no rompe consumidores existentes; documentado en api-v1-delivery.md.
 - 2026-07-14: pasada 1 de revisión del armado: bug de cupones corregido y FP
   en el precio con paridad panel (PR #158, E13). La API quedó lista para el
   funnel invitado completo.

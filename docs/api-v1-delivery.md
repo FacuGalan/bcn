@@ -206,6 +206,23 @@ Cualquier estado puede saltearse (p. ej. aceptación automática con comanda
 directa pasa confirmado→en_preparacion al toque): renderizar por progreso
 acumulado, no por secuencia estricta.
 
+La respuesta incluye `items[]` (agregado ADITIVO 2026-07-17, RF-T3
+"re-pedir"): los renglones pedibles del pedido, EXCLUYENDO el
+renglón-concepto del costo de envío y los conceptos sin artículo:
+
+```json
+"items": [
+  { "articulo_id": 12, "nombre": "Hamburguesa clásica", "cantidad": 2,
+    "opcionales": [
+      { "opcional_id": 5, "nombre": "Cheddar extra", "cantidad": 1 }
+    ] }
+]
+```
+
+Sirve para mostrar qué se pidió en el seguimiento y para que la tienda arme
+"re-pedir": rearma el carrito con `articulo_id`/`opcional_id`/`cantidad` y
+**re-cotiza** (precios de hoy, nunca históricos).
+
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
 entre en preparación). Después, solo el comercio.
