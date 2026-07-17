@@ -735,6 +735,11 @@ class ApiV1DeliveryTest extends TestCase
         $payload = $this->payloadPedido($articulo->id);
         unset($payload['cliente']);
 
+        // La API es STATELESS: sin esto, la sesión que setea el setUp de los
+        // tests enmascaraba que getComercioId() (sesión) devolvía null en
+        // requests reales y el alta automática nunca corría (bug 2026-07-17).
+        \Illuminate\Support\Facades\Session::forget('comercio_activo_id');
+
         $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
             ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
             ->assertCreated();

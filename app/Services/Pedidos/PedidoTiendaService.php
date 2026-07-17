@@ -373,7 +373,12 @@ class PedidoTiendaService
 
         // La sucursal es TENANT (sin comercio_id): el comercio es el activo
         // del proceso, que api.tenant ya configuró en TenantService.
-        $comercioId = (int) (app(\App\Services\TenantService::class)->getComercioId() ?? 0);
+        // OJO: getComercio() (cache en memoria del request), NUNCA
+        // getComercioId() — ese lee de la SESIÓN y la API es stateless, así
+        // que devolvía null y el alta automática de cliente (D11) jamás
+        // corría en un request real (bug 2026-07-17, enmascarado en tests
+        // porque el setUp sí setea la sesión).
+        $comercioId = (int) (app(\App\Services\TenantService::class)->getComercio()?->id ?? 0);
         if (! $comercioId) {
             return null;
         }
