@@ -247,13 +247,10 @@ class PrecioService
             }
         }
 
-        // 4. Validar límite máximo de descuento (70% para descuentos finales)
+        // 4. Porcentaje efectivo de descuento (sin tope: las promos están
+        // acotadas por su propia configuración — espejo de WithCalculoVenta,
+        // que tampoco topea; el tope del 70% recortaba precios legítimos).
         $descuentoPorcentaje = ($subtotal > 0) ? ($descuentoTotal / $subtotal) * 100 : 0;
-        if ($descuentoPorcentaje > 70) {
-            Log::warning("Descuento de {$descuentoPorcentaje}% excede el límite de 70%");
-            $descuentoTotal = $subtotal * 0.70;
-            $descuentoPorcentaje = 70;
-        }
 
         $subtotalConDescuento = $subtotal - $descuentoTotal;
 

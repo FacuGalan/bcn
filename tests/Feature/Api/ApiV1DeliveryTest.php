@@ -150,6 +150,116 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertNotNull($respuesta->json('data.desglose_iva'));
     }
 
+    /**
+     * Combo "Coca + Alfajor a $400" (fixture de regresión del pedido #32):
+     * subtotal $2850 → descuento $2450 (~86%, más que el viejo tope del 70%).
+     *
+     * @return array{0: Articulo, 1: Articulo}
+     */
+    private function crearComboCocaAlfajor(): array
+    {
+        $coca = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
+            'nombre' => 'Coca', 'precio_base' => 2400,
+        ]);
+        $alfajor = $this->crearArticuloConStock($this->sucursalId, 10, 'unitario', [
+            'nombre' => 'Alfajor', 'precio_base' => 450,
+        ]);
+
+        $combo = \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Coca + Alfajor',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_COMBO,
+            'precio_tipo' => 'fijo',
+            'precio_valor' => 400,
+            'prioridad' => 1,
+            'modo_aplicacion' => 'automatica',
+            'activo' => true, 'usos_actuales' => 0,
+        ]);
+        foreach ([$coca, $alfajor] as $articulo) {
+            $grupo = \App\Models\PromocionEspecialGrupo::create([
+                'promocion_especial_id' => $combo->id,
+                'nombre' => $articulo->nombre,
+                'cantidad' => 1,
+                'orden' => 1,
+                'es_trigger' => false,
+                'es_reward' => false,
+            ]);
+            $grupo->articulos()->attach($articulo->id);
+        }
+
+        return [$coca, $alfajor];
+    }
+
+    public function test_cotizar_carrito_combo_fijo_respeta_su_precio_aunque_descuente_mas_del_70(): void
+    {
+        // Regresión pedido #32 (2026-07-17): el tope silencioso del 70% recortaba
+        // total_descuentos (sin tocar la atribución por renglón) y el total
+        // cotizado quedaba en el 30% del subtotal en vez del precio configurado
+        // del combo. Además la respuesta mapeaba claves inexistentes del
+        // resultado del motor (descuento_total/iva_total) → descuento e iva
+        // viajaban siempre en 0 y la tienda no tenía nada que mostrar.
+        [$coca, $alfajor] = $this->crearComboCocaAlfajor();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [
+                ['articulo_id' => $coca->id, 'cantidad' => 1],
+                ['articulo_id' => $alfajor->id, 'cantidad' => 1],
+            ],
+        ])->assertOk();
+
+        $this->assertEqualsWithDelta(2850.0, (float) $respuesta->json('data.subtotal'), 0.01);
+        $this->assertEqualsWithDelta(
+            400.0,
+            (float) $respuesta->json('data.total_final'),
+            0.01,
+            'El total debe ser el precio configurado del combo, aunque el descuento supere el 70% del subtotal',
+        );
+        $this->assertEqualsWithDelta(
+            2450.0,
+            (float) $respuesta->json('data.descuento'),
+            0.01,
+            'El descuento agregado debe viajar en la respuesta (mapeaba una clave inexistente y daba 0)',
+        );
+        $this->assertGreaterThan(0, (float) $respuesta->json('data.iva'), 'El IVA agregado debe viajar en la respuesta');
+
+        $promos = $respuesta->json('data.promociones_especiales_aplicadas');
+        $this->assertCount(1, $promos, 'La promo aplicada viaja con nombre para que la tienda la muestre');
+        $this->assertSame('Coca + Alfajor', $promos[0]['nombre']);
+        $this->assertEqualsWithDelta(2450.0, (float) $promos[0]['descuento'], 0.01);
+    }
+
+    public function test_pedido_externo_con_combo_persiste_descuento_en_cabecera_y_renglones(): void
+    {
+        // Regresión pedido #32: la cabecera quedaba subtotal=2850, descuento=0,
+        // total=855 (30% del subtotal) — inconsistente con los renglones, que
+        // sí llevaban el descuento del combo bien atribuido.
+        [$coca, $alfajor] = $this->crearComboCocaAlfajor();
+
+        $payload = $this->payloadPedido($coca->id);
+        $payload['items'] = [
+            ['articulo_id' => $coca->id, 'cantidad' => 1],
+            ['articulo_id' => $alfajor->id, 'cantidad' => 1],
+        ];
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+
+        $pedido = PedidoDelivery::with('detalles')->find($respuesta->json('data.id'));
+        $this->assertEqualsWithDelta(2850.0, (float) $pedido->subtotal, 0.01);
+        $this->assertEqualsWithDelta(2450.0, (float) $pedido->descuento, 0.01, 'Cabecera con el descuento de promociones');
+        $this->assertEqualsWithDelta(400.0, (float) $pedido->total, 0.01, 'Total = precio del combo');
+        $this->assertEqualsWithDelta(400.0, (float) $pedido->total_final, 0.01);
+        $this->assertGreaterThan(0, (float) $pedido->iva, 'Cabecera con el IVA del desglose');
+
+        // Renglones: precio sin descontar por diseño (paridad panel) + la
+        // atribución de la promo en su columna; la conversión a venta resta.
+        $this->assertEqualsWithDelta(
+            2450.0,
+            (float) $pedido->detalles->sum('descuento_promocion_especial'),
+            0.01,
+            'La suma de la atribución por renglón cierra contra la cabecera',
+        );
+    }
+
     public function test_cotizar_carrito_bloquea_articulo_agotado(): void
     {
         $agotado = $this->crearArticuloConStock($this->sucursalId, cantidad: 0);
