@@ -2,35 +2,36 @@
 
 namespace App\Livewire\Configuracion;
 
-use App\Models\Sucursal;
 use App\Models\Tienda;
+use App\Services\ImagenTiendaService;
 use App\Services\TenantService;
 use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Str;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 /**
- * Tienda Online de la sucursal (RF-T10 + RF-T7 + RF-T6 parcial, spec
- * tienda-online): apartado embebido en ConfiguracionDelivery.
+ * Tienda Online de la sucursal (RF-T10/RF-T11 + RF-T7 + RF-T6 parcial,
+ * spec tienda-online): apartado embebido en ConfiguracionDelivery.
  *
  * Administra el registro GLOBAL `config.tiendas` de la sucursal activa
- * (D15: una tienda = una sucursal = un slug): creación con slug sugerido,
- * habilitada, IDs de analytics (GA4 + Meta Pixel) y el tema visual (design
- * tokens que `GET /tiendas/{slug}` sirve a bcn-tienda).
+ * (D15: una tienda = una sucursal = un slug): slug, IDs de analytics
+ * (GA4 + Meta Pixel) y el tema visual (design tokens que
+ * `GET /tiendas/{slug}` sirve a bcn-tienda).
  *
  * Sub-componente EMBEBIDO: guarda SOLO sobre `config.tiendas` — no toca el
- * JSON config_delivery del padre. Requiere permiso `func.tienda.config`.
+ * JSON config_delivery del padre. La CREACIÓN y `habilitada` (publicada)
+ * son del PADRE (switch maestro RF-T11, único escritor): este componente
+ * se monta solo cuando la tienda ya existe. Permiso `func.tienda.config`.
  */
 class ConfiguracionTienda extends Component
 {
-    use SucursalAware;
+    use SucursalAware, WithFileUploads;
 
     public ?int $tiendaId = null;
 
     public string $slug = '';
-
-    public bool $habilitada = false;
 
     public string $ga4MeasurementId = '';
 
@@ -54,6 +55,21 @@ class ConfiguracionTienda extends Component
 
     public string $densidad = 'normal';
 
+    // ==================== LOGO Y PORTADA (RF-T11) ====================
+
+    /**
+     * Uploads pendientes: nada persiste hasta "Guardar tienda" (coherente
+     * con el resto del form); el preview mientras tanto usa temporaryUrl().
+     * El procesamiento definitivo (re-encode WebP) lo hace ImagenTiendaService.
+     */
+    public $logoUpload = null;
+
+    public $portadaUpload = null;
+
+    public string $logoPathActual = '';
+
+    public string $portadaPathActual = '';
+
     public function mount(): void
     {
         $this->cargar();
@@ -75,9 +91,12 @@ class ConfiguracionTienda extends Component
         if (! $tienda) {
             $this->tiendaId = null;
             $this->slug = '';
-            $this->habilitada = false;
             $this->ga4MeasurementId = '';
             $this->metaPixelId = '';
+            $this->logoUpload = null;
+            $this->portadaUpload = null;
+            $this->logoPathActual = '';
+            $this->portadaPathActual = '';
             $this->aplicarTema(Tienda::TEMA_DEFAULTS);
 
             return;
@@ -85,9 +104,12 @@ class ConfiguracionTienda extends Component
 
         $this->tiendaId = $tienda->id;
         $this->slug = $tienda->slug;
-        $this->habilitada = (bool) $tienda->habilitada;
         $this->ga4MeasurementId = (string) ($tienda->ga4_measurement_id ?? '');
         $this->metaPixelId = (string) ($tienda->meta_pixel_id ?? '');
+        $this->logoUpload = null;
+        $this->portadaUpload = null;
+        $this->logoPathActual = (string) ($tienda->logo_path ?? '');
+        $this->portadaPathActual = (string) ($tienda->portada_path ?? '');
         $this->aplicarTema($tienda->temaCompleto());
     }
 
@@ -128,64 +150,6 @@ class ConfiguracionTienda extends Component
             : Tienda::TEMA_DEFAULTS['densidad'];
     }
 
-    // ==================== CREAR ====================
-
-    public function crearTienda(): void
-    {
-        if (! auth()->user()?->hasPermissionTo('func.tienda.config')) {
-            $this->dispatch('toast-error', message: __('No tenés permiso para configurar la tienda online'));
-
-            return;
-        }
-
-        $comercioId = $this->comercioActualId();
-        $sucursal = Sucursal::find($this->sucursalActual());
-
-        if (! $comercioId || ! $sucursal) {
-            return;
-        }
-
-        if ($this->tiendaActual()) {
-            $this->cargar();
-
-            return;
-        }
-
-        try {
-            Tienda::create([
-                'comercio_id' => $comercioId,
-                'sucursal_id' => (int) $sucursal->id,
-                'slug' => $this->slugSugerido($comercioId, $sucursal),
-                'habilitada' => false,
-            ]);
-
-            $this->cargar();
-            $this->dispatch('toast-success', message: __('Tienda creada. Revisá la configuración y habilitala cuando esté lista.'));
-        } catch (Exception $e) {
-            $this->dispatch('toast-error', message: $e->getMessage());
-        }
-    }
-
-    /**
-     * Slug sugerido: comercio + sucursal slugificados, único global (la URL
-     * pública identifica comercio+sucursal, D15). Ante colisión suma sufijo.
-     */
-    protected function slugSugerido(int $comercioId, Sucursal $sucursal): string
-    {
-        $comercio = app(TenantService::class)->getComercio();
-        $base = Str::slug(trim(($comercio->nombre ?? '').' '.$sucursal->nombre));
-        $base = Str::limit($base ?: 'tienda-'.$comercioId, 55, '');
-
-        $slug = $base;
-        $i = 2;
-        while (Tienda::where('slug', $slug)->exists()) {
-            $slug = $base.'-'.$i;
-            $i++;
-        }
-
-        return $slug;
-    }
-
     // ==================== GUARDAR ====================
 
     public function guardarTienda(): void
@@ -207,6 +171,8 @@ class ConfiguracionTienda extends Component
             'slug' => 'required|string|min:3|max:60',
             'ga4MeasurementId' => ['nullable', 'string', 'max:30', 'regex:/^G-[A-Z0-9]+$/i'],
             'metaPixelId' => ['nullable', 'string', 'max:30', 'regex:/^[0-9]+$/'],
+            'logoUpload' => 'nullable|image|max:5120',
+            'portadaUpload' => 'nullable|image|max:5120',
             'colorPrimario' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
             'colorAcento' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
             'colorFondo' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
@@ -231,13 +197,68 @@ class ConfiguracionTienda extends Component
         try {
             $tienda->update([
                 'slug' => $this->slug,
-                'habilitada' => $this->habilitada,
                 'ga4_measurement_id' => $this->ga4MeasurementId !== '' ? strtoupper($this->ga4MeasurementId) : null,
                 'meta_pixel_id' => $this->metaPixelId !== '' ? $this->metaPixelId : null,
                 'tema' => $this->temaDesdeForm(),
             ]);
 
+            // Logo/portada pendientes: recién acá se procesan (re-encode
+            // WebP + reemplazo del anterior) — nada persiste sin guardar.
+            $imagenes = app(ImagenTiendaService::class);
+            if ($this->logoUpload) {
+                $imagenes->actualizarLogo($tienda, $this->logoUpload);
+                $this->logoUpload = null;
+            }
+            if ($this->portadaUpload) {
+                $imagenes->actualizarPortada($tienda, $this->portadaUpload);
+                $this->portadaUpload = null;
+            }
+            $tienda->refresh();
+            $this->logoPathActual = (string) ($tienda->logo_path ?? '');
+            $this->portadaPathActual = (string) ($tienda->portada_path ?? '');
+
             $this->dispatch('toast-success', message: __('Configuración de la tienda guardada'));
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    // ==================== LOGO Y PORTADA (RF-T11) ====================
+
+    /** Descarta el upload pendiente o borra la imagen ya guardada. */
+    public function eliminarLogo(): void
+    {
+        $this->eliminarImagen('logoUpload', 'logoPathActual', 'eliminarLogo');
+    }
+
+    public function eliminarPortada(): void
+    {
+        $this->eliminarImagen('portadaUpload', 'portadaPathActual', 'eliminarPortada');
+    }
+
+    protected function eliminarImagen(string $propUpload, string $propActual, string $metodoService): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.tienda.config')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para configurar la tienda online'));
+
+            return;
+        }
+
+        // Upload pendiente: descartarlo alcanza (no se persistió nada).
+        if ($this->{$propUpload}) {
+            $this->{$propUpload} = null;
+
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda || $this->{$propActual} === '') {
+            return;
+        }
+
+        try {
+            app(ImagenTiendaService::class)->{$metodoService}($tienda);
+            $this->{$propActual} = '';
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }
@@ -274,6 +295,24 @@ class ConfiguracionTienda extends Component
                 ? config('tienda.url').'/tienda/'.$this->slug
                 : null,
             'puedeConfigurar' => (bool) auth()->user()?->hasPermissionTo('func.tienda.config'),
+            // Para el uploader y el preview en vivo: upload pendiente gana
+            // sobre lo guardado. temporaryUrl() puede fallar si el tmp
+            // expiró — degradar a lo persistido.
+            'logoPreviewUrl' => $this->previewUrl($this->logoUpload, $this->logoPathActual),
+            'portadaPreviewUrl' => $this->previewUrl($this->portadaUpload, $this->portadaPathActual),
         ]);
+    }
+
+    protected function previewUrl($upload, string $pathActual): ?string
+    {
+        if ($upload) {
+            try {
+                return $upload->temporaryUrl();
+            } catch (Exception) {
+                // cae al persistido
+            }
+        }
+
+        return $pathActual !== '' ? asset('storage/'.ltrim($pathActual, '/')) : null;
     }
 }

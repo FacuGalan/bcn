@@ -265,7 +265,41 @@ usuario 2026-07-17):
   `func.pedidos_delivery.config`.
 - Deuda declarada (decisión usuario): qué seteos son "de la tienda" vs "del
   panel de delivery" se re-evaluará después de usar el componente unificado;
-  por ahora TODO convive en esta pantalla.
+  por ahora TODO convive en esta pantalla. **→ Resuelta por RF-T11.**
+
+### RF-T11: Rediseño del panel + identidad visual + preview en vivo — IMPLEMENTADO (2026-07-17, rama feat/tienda-config-redesign-rf-t11)
+
+Rediseño del componente unificado (pedido del usuario 2026-07-17, salda la
+deuda declarada de RF-T10):
+
+- **Full-width**: la pantalla usa todo el ancho (grid 2 col en xl para la
+  zona delivery: General | Promesa; Envío/zonas a lo ancho).
+- **Orden**: primero lo estrictamente del panel/delivery; al final el
+  apartado "Tienda Online" que agrupa TODO lo de la tienda.
+- **Switch maestro** del apartado = `tiendas.habilitada` (decisión usuario):
+  prendido despliega la config y publica al guardar; apagado colapsa y
+  despublica al guardar. Prenderlo sin tienda la CREA al instante
+  (`TiendaService::crearParaSucursal`, siempre despublicada). El PADRE
+  (`ConfiguracionDelivery`) es el ÚNICO escritor de `habilitada`; el hijo
+  `ConfiguracionTienda` pierde el CTA de creación y el checkbox publicada.
+- **Calendario de atención y Pedidos externos** (data del padre,
+  `config_delivery`): viven DENTRO del apartado tienda desplegado; fallback
+  a la zona delivery cuando no hay tienda o está apagada (partials del
+  padre, un solo lugar visible a la vez — la data aplica siempre).
+- **Logo y portada** (`tiendas.logo_path`/`portada_path`, migración config):
+  upload en el panel con `ImagenTiendaService` (patrón ImagenArticulo: MIME
+  real finfo, whitelist jpg/png/webp, re-encode WebP 85, UUID, path
+  `tiendas/{comercio_id}/`; logo ≤800px, portada ≤1600×900). Se procesan AL
+  GUARDAR; preview con temporaryUrl().
+- **Preview en vivo**: drawer lateral derecho con mock del storefront
+  pintado con CSS vars derivadas de los design tokens del form (Alpine
+  x-data estático + entangle .live — reflejo instantáneo).
+- **API (aditivo 2026-07-17)**: `GET /v1/tiendas/{slug}` suma
+  `logo_url`/`portada_url` absolutas; el marketplace `GET /v1/tiendas`
+  respalda el `logo_url` documentado (prima logo de tienda, fallback
+  pantalla-cliente/empresa). Contrato actualizado en api-v1-delivery.md.
+- bcn-tienda consume logo/portada en su fase correspondiente (pendiente del
+  lado tienda).
 
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 

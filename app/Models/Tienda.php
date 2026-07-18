@@ -59,6 +59,8 @@ class Tienda extends Model
         'ga4_measurement_id',
         'meta_pixel_id',
         'tema',
+        'logo_path',
+        'portada_path',
     ];
 
     protected $casts = [
@@ -71,6 +73,21 @@ class Tienda extends Model
     public function temaCompleto(): array
     {
         return array_replace_recursive(self::TEMA_DEFAULTS, $this->tema ?? []);
+    }
+
+    /**
+     * URLs root-relative de logo/portada (mismo criterio que
+     * Articulo::imagenUrl(): no Storage::url() porque arma con APP_URL).
+     * La API las absolutiza con url() para que sirvan cross-origin.
+     */
+    public function logoUrl(): ?string
+    {
+        return $this->logo_path ? '/storage/'.ltrim($this->logo_path, '/') : null;
+    }
+
+    public function portadaUrl(): ?string
+    {
+        return $this->portada_path ? '/storage/'.ltrim($this->portada_path, '/') : null;
     }
 
     public function comercio(): BelongsTo

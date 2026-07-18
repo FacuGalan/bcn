@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-17 (la Configuracion de Delivery se mudo al menu Configuracion como item propio "Delivery / Take Away" en `/configuracion/delivery` -- el link viejo desde el engranaje de Pedidos Delivery sigue funcionando y redirige; nuevo apartado "Tienda Online" en esa misma pantalla para crear y personalizar la tienda publica de la sucursal: slug, publicacion, IDs de analytics de Google Analytics 4 y Meta Pixel, y apariencia (colores, tipografia, bordes, densidad); anteriores: modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal"; + hardening del circuito de precios e impuestos: el precio de venta es siempre FINAL con IVA incluido (se quita el switch del ABM), el precio de venta en comercios de una sola sucursal tambien edita el efectivo de la sucursal, revision de precios post-compra con piso de costo (badge "bajo costo"), percepciones con comprador no inscripto van 100% al costo, notas de credito de proveedor con precarga de percepciones de la compra origen y aviso si exceden a la origen, movimientos fiscales generados por compras/ventas/conciliacion ya no se anulan a mano, y cambio masivo de precios extendido a costos; + hardening fiscal saliente/ventas: la percepcion aplicada en ventas ahora se calcula solo sobre el neto gravado (baja si hay items exentos), los pedidos delivery convertidos en venta cobran la percepcion correspondiente antes de convertir, el reintento de facturacion y el cambio de forma de pago conservan las percepciones del comprobante original, y la cortesia total con concepto libre ya no da error al confirmar)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-17 (rediseno de la pantalla de Configuracion de Delivery / Take Away: layout mas ancho con General y Promesa de entrega lado a lado; el apartado "Tienda Online" se movio al final con un **switch maestro** que la publica/despublica al guardar y la crea al instante -despublicada- si todavia no existia; Calendario de atencion y Pedidos externos ahora aparecen dentro de "Tienda Online" cuando esta desplegada (misma configuracion de siempre); nuevo uploader de **logo y portada** de la tienda y boton **Vista previa** con una simulacion en vivo de la tienda; anteriores: la Configuracion de Delivery se mudo al menu Configuracion como item propio "Delivery / Take Away" en `/configuracion/delivery` -- el link viejo desde el engranaje de Pedidos Delivery sigue funcionando y redirige; nuevo apartado "Tienda Online" en esa misma pantalla para crear y personalizar la tienda publica de la sucursal: slug, publicacion, IDs de analytics de Google Analytics 4 y Meta Pixel, y apariencia (colores, tipografia, bordes, densidad); anteriores: modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal"; + hardening del circuito de precios e impuestos: el precio de venta es siempre FINAL con IVA incluido (se quita el switch del ABM), el precio de venta en comercios de una sola sucursal tambien edita el efectivo de la sucursal, revision de precios post-compra con piso de costo (badge "bajo costo"), percepciones con comprador no inscripto van 100% al costo, notas de credito de proveedor con precarga de percepciones de la compra origen y aviso si exceden a la origen, movimientos fiscales generados por compras/ventas/conciliacion ya no se anulan a mano, y cambio masivo de precios extendido a costos; + hardening fiscal saliente/ventas: la percepcion aplicada en ventas ahora se calcula solo sobre el neto gravado (baja si hay items exentos), los pedidos delivery convertidos en venta cobran la percepcion correspondiente antes de convertir, el reintento de facturacion y el cambio de forma de pago conservan las percepciones del comprobante original, y la cortesia total con concepto libre ya no da error al confirmar)
 
 ---
 
@@ -3929,50 +3929,60 @@ Un **repartidor tercero** no tiene esta eleccion: siempre entrega a la caja lo c
 
 **Ruta**: Menu > Configuracion > **Delivery / Take Away** > `/configuracion/delivery` (permiso `func.pedidos_delivery.config`). Tambien se llega con el engranaje del panel de Pedidos Delivery (seccion 15.1); la URL vieja `/pedidos/delivery/configuracion` redirige automaticamente a la nueva.
 
+La pantalla es a todo el ancho. Arriba se ven, en dos columnas (en pantallas anchas; apiladas en movil), los apartados **General** y **Promesa de entrega**; debajo, a todo el ancho, **Costo de envio y zonas de entrega**. El apartado **Tienda Online** va al final de la pantalla, con su propio boton de guardado interno; el resto de los apartados se guarda con el boton **"Guardar configuracion"** (arriba y abajo de la pantalla).
+
 #### General
 - **Usar Delivery** (activa el modulo para la sucursal).
-- Georreferenciar pedidos (activa el mapa y el calculo automatico de envio).
-- Radio de entrega (km) y costo por km extra, km incluidos en el costo base.
-- Categoria del renglon "Costo de envio" (para que aparezca correctamente en comprobantes y reportes).
-- Exigir repartidor para despachar.
 - Habilitar take-away.
+- Exigir repartidor para despachar.
 - **Usar estado "Listo"**: si se apaga, la columna Listo se oculta del Kanban y la preparacion pasa directo a "En camino / Retiro".
 - Conversion automatica a venta al entregar (propia de delivery, independiente de la de mostrador; emite los comprobantes fiscales de los pagos con forma de pago fiscal).
+- Categoria del renglon "Costo de envio" (para que aparezca correctamente en comprobantes y reportes).
 - Numeracion de pedidos (turno) propia de delivery: modo diario (con horas de reset) o manual.
-
-#### Costo de envio y zonas de entrega
-ABM de **zonas de entrega dibujadas en el mapa** (poligono): nombre, costo de envio propio, **franjas horarias de costo** (por ejemplo, mas caro despues de cierta hora), orden de prioridad y activo/inactivo. Si hay zonas activas, una direccion fuera de todas ellas queda **fuera de alcance** (no hay fallback al calculo por radio/km); sin zonas dibujadas, rige el radio general configurado en "General".
-
-#### Pedidos externos (tienda / API)
-- Aceptacion de pedidos externos: **Manual** (entra "por aceptar") o **Automatica** (entra confirmado directo).
-- Imprimir la comanda automaticamente al aceptar (solo con aceptacion automatica).
-- Tiempo limite de aceptacion (minutos) antes de marcar el pedido "Demorado".
+- Minutos de alerta amarilla/roja por demora (compartidos con mostrador).
 
 #### Promesa de entrega
 - Modo: **Franjas** (horarios definidos a mano, con dias y si aplica a delivery/take-away/ambos), **Automatica** (demora base + minutos por km) o **Manual** (botones de demora configurables, por ejemplo +0, +10, +15... +90).
 - Aceptar "Lo antes posible" (agrega el boton "Ya").
 
-#### Calendario de atencion
-Dias laborales, horarios de atencion (por dia/rango) y feriados. Fuera de horario, la API/tienda publica rechaza el pedido; el panel solo advierte.
+#### Costo de envio y zonas de entrega
+ABM de **zonas de entrega dibujadas en el mapa** (poligono): nombre, costo de envio propio, **franjas horarias de costo** (por ejemplo, mas caro despues de cierta hora), orden de prioridad y activo/inactivo. Si hay zonas activas, una direccion fuera de todas ellas queda **fuera de alcance** (no hay fallback al calculo por radio/km); sin zonas dibujadas, rige el radio general configurado en "General". El mapa se abre a pedido con el boton "Configurar envio y zonas" para no cargarlo siempre.
+
+#### Pedidos externos (tienda / API) y Calendario de atencion
+Estos dos apartados (aceptacion de pedidos externos, tiempo de aviso, impresion automatica de comanda; y dias laborales/horarios/feriados) son la MISMA configuracion de siempre y se guardan igual, con el boton **"Guardar configuracion"**. Solo cambio donde se ven en la pantalla:
+
+- Si la tienda **no existe** o esta **apagada** (switch de "Tienda Online" en off), aparecen en esta zona, debajo de "Costo de envio y zonas de entrega".
+- Si la tienda esta **prendida** (desplegada), se muestran DENTRO del apartado "Tienda Online" al final de la pantalla, porque son datos que tambien usa la tienda publica y la API.
+
+Nunca se muestran duplicados: siempre en un solo lugar a la vez.
+
+- **Pedidos externos**: aceptacion **Manual** (entra "por aceptar") o **Automatica** (entra confirmado directo), imprimir comanda automaticamente al aceptar (solo con aceptacion automatica), tiempo limite de aceptacion (minutos) antes de marcar el pedido "Demorado".
+- **Calendario de atencion**: dias laborales, horarios de atencion (por dia/rango) y feriados. Fuera de horario, la API/tienda publica rechaza el pedido; el panel solo advierte.
 
 #### Tienda Online
 
-Apartado para crear y personalizar la tienda publica de la sucursal (el sitio que consumen los clientes por internet, sobre el mismo catalogo y datos de delivery/take-away configurados arriba). Requiere el permiso `func.tienda.config` (los roles Administrador y Super Administrador lo tienen por defecto); sin ese permiso, el apartado se muestra de solo lectura.
+Apartado, al final de la pantalla, para publicar y personalizar la tienda publica de la sucursal (el sitio que consumen los clientes por internet, sobre el mismo catalogo y datos de delivery/take-away configurados arriba). Requiere el permiso `func.tienda.config` (los roles Administrador y Super Administrador lo tienen por defecto); sin ese permiso, el switch aparece deshabilitado.
 
-**Sin tienda creada**: se muestra un cartel con el boton **"Crear mi tienda online"**. Al crearla, el sistema le asigna un slug (direccion) sugerido automaticamente a partir del nombre del comercio y la sucursal (unico en todo el sistema; si hay colision suma un numero al final) y la deja **despublicada** para que la revise antes de darla a conocer.
+**Switch maestro** ("Tienda Online" con un interruptor a la izquierda del titulo): es lo unico que decide si la tienda esta publicada o no.
 
-**Con tienda creada**, el apartado muestra un badge **"Publicada"** o **"No publicada"** y estos campos:
+- **Prenderlo** despliega todo el apartado (identidad, apariencia, calendario y pedidos externos). Si la sucursal todavia no tenia tienda, **se crea al instante** con un slug (direccion) sugerido a partir del nombre del comercio y la sucursal (unico en todo el sistema; si hay colision suma un numero al final) — se crea **despublicada** hasta guardar.
+- **Apagarlo** colapsa el apartado (deja de mostrar los campos, pero no borra nada).
+- La publicacion efectiva **no ocurre al tocar el switch**: se aplica recien al hacer clic en **"Guardar configuracion"**. Mientras el switch no coincide con lo guardado, aparece un aviso amarillo: **"Se publica al guardar"** o **"Se despublica al guardar"**.
+- Un badge junto al switch muestra el estado YA guardado: **"Publicada"** (verde) o **"No publicada"** (gris). Con la tienda despublicada, su URL publica responde "tienda no disponible" y no entran pedidos por ese canal.
 
-- **Tienda publicada** (checkbox): mientras esta apagado, la URL publica responde "tienda no disponible" y no entran pedidos por ese canal.
+Con el apartado desplegado (switch prendido), ademas del calendario y pedidos externos (arriba), se edita:
+
 - **Direccion de la tienda (slug)**: la parte de la URL que identifica a la tienda (unica en el sistema). Se muestra la URL publica completa como referencia. Cambiarla rompe los links ya compartidos y los accesos directos que los clientes hayan instalado, por lo que el sistema lo advierte antes de guardar.
 - **Metricas (Google Analytics y Meta Pixel)**: ID de medicion de GA4 (formato `G-XXXXXXXXXX`) e ID del Pixel de Meta (numerico). Con el ID cargado, la tienda mide visitas, carritos y compras en la cuenta propia del comercio; vacio, no se inyecta ningun script de ese proveedor.
-- **Apariencia de la tienda**: personalizacion visual de la tienda publica (design tokens que consume el sitio):
+- **Apariencia de la tienda**: identidad visual y personalizacion de la tienda publica (design tokens que consume el sitio):
+  - **Logo** y **Portada** (banner del encabezado): se suben con el boton "Subir logo"/"Subir portada" (arrastrar o elegir archivo — JPG, PNG o WebP, maximo 5MB). Se muestra una vista previa inmediata del archivo elegido y un boton **"Eliminar"** para sacar la imagen actual. Las imagenes no se persisten hasta hacer clic en "Guardar tienda"; al guardar, el sistema las procesa (recorta/re-escala) y las deja optimizadas para la web. El logo se ve chico en el encabezado (ideal cuadrado); la portada es panoramica (ideal 1600x900 o mas ancha).
   - 5 colores (con selector visual y campo hexadecimal): Primario (botones), Acento (ofertas), Fondo, Tarjetas y Texto.
   - Tipografia: Del sistema (rapida) / Inter / Poppins / Roboto / Montserrat / Lora.
   - Bordes redondeados: Rectos / Suaves / Medios / Amplios / Redondos.
   - Densidad del contenido: Compacta / Normal / Amplia.
+  - Boton **"Vista previa"**: abre un panel lateral con una simulacion de como se ve la tienda (encabezado con logo y portada, chips de categorias, tarjetas de producto, barra de carrito) que se actualiza al instante a medida que se cambian los colores, la tipografia, los bordes redondeados y la densidad — util para probar combinaciones antes de guardar.
   - Boton **"Restablecer al tema default"**: vuelve los 5 colores, la tipografia, los bordes y la densidad a los valores de fabrica del sistema (no requiere guardar aparte, pero los cambios quedan pendientes hasta hacer clic en "Guardar tienda").
-- Boton **"Guardar tienda"**: confirma slug, publicacion, analytics y apariencia en un solo paso.
+- Boton **"Guardar tienda"**: confirma slug, analytics, apariencia, logo y portada en un solo paso (NO toca la publicacion: eso lo maneja el switch + "Guardar configuracion", arriba).
 
 ### 15.7 Tokens de API
 
@@ -4041,7 +4051,7 @@ Permite emitir y revocar **tokens de integracion** para que aplicaciones externa
 | **Retencion** | Descuento que retiene un agente de retencion del pago a un proveedor, a cuenta de un impuesto. |
 | **Percepcion** | Importe adicional que cobra un agente de percepcion sobre una operacion, a cuenta de un impuesto. |
 | **Ticket** | Comprobante no fiscal de una venta. |
-| **Tienda Online** | Sitio publico (una tienda = una sucursal) donde los clientes ven el catalogo, arman el carrito y piden delivery o take-away sin pasar por el panel. Se crea y personaliza (publicacion, slug, analytics, apariencia) desde Configuracion > Delivery / Take Away, seccion 15.6. |
+| **Tienda Online** | Sitio publico (una tienda = una sucursal) donde los clientes ven el catalogo, arman el carrito y piden delivery o take-away sin pasar por el panel. Se crea, publica y personaliza (switch maestro, slug, analytics, logo, portada, apariencia, vista previa) desde Configuracion > Delivery / Take Away, seccion 15.6. |
 | **Tipo de cambio** | Cotizacion de una moneda respecto a otra (tasa de compra y tasa de venta). |
 | **Token de API** | Credencial emitida por el comercio para que una aplicacion externa opere sobre pedidos delivery via la API REST. |
 | **Turno** | Periodo operativo de una caja, desde su apertura hasta su cierre con arqueo. |

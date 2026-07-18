@@ -72,6 +72,11 @@ class TiendaController extends Controller
                 // core + JSON persistido) y seteos de conducta (v1: defaults).
                 'tema' => $tienda->temaCompleto(),
                 'comportamiento' => (object) \App\Models\Tienda::COMPORTAMIENTO_DEFAULTS,
+                // RF-T11 (aditivo 2026-07-17): identidad visual. url() y no
+                // Storage::url(): la tienda corre en otro origen y necesita
+                // absoluta con el host real del request.
+                'logo_url' => $tienda->logoUrl() ? url($tienda->logoUrl()) : null,
+                'portada_url' => $tienda->portadaUrl() ? url($tienda->portadaUrl()) : null,
             ],
         ]);
     }

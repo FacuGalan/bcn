@@ -71,6 +71,20 @@ class ApiV1MarketplaceTest extends TestCase
         $this->assertArrayHasKey('logo_url', $card);
     }
 
+    public function test_logo_de_tienda_prima_sobre_pantalla_cliente(): void
+    {
+        // RF-T11: con logo propio configurado, la card lo usa (absoluto);
+        // el snapshot se cachea ~5 min → flush para verlo ya.
+        $this->tienda->update(['logo_path' => 'tiendas/1/logo-market.webp']);
+        Cache::flush();
+
+        $card = collect($this->getJson('/api/v1/tiendas')->json('data'))
+            ->firstWhere('slug', 'tienda-test');
+
+        $this->assertNotNull($card);
+        $this->assertStringEndsWith('/storage/tiendas/1/logo-market.webp', (string) $card['logo_url']);
+    }
+
     public function test_con_ubicacion_dentro_del_radio_devuelve_ok_y_distancia(): void
     {
         // habilitarDelivery deja la sucursal en el Obelisco; punto a ~1 km.
