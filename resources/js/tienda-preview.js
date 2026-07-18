@@ -3,9 +3,13 @@
  * la tienda (iframe real embebido + mock fallback + drawer móvil) dentro de
  * ConfiguracionTienda.
  *
- * - Los 8 design tokens se entanglan con el componente Livewire; cada cambio
- *   se portea al iframe por postMessage (debounce 150ms) con el MISMO shape
- *   del bloque `tema` del contrato (docs/api-v1-delivery.md; el canal
+ * - Los 8 design tokens se copian del componente Livewire y se observan con
+ *   $wire.$watch (NUNCA $wire.entangle acá: entangle devuelve un interceptor
+ *   Alpine que solo se inicializa al construir el objeto x-data — asignado
+ *   dentro de init() queda el objeto crudo, los watchers no disparan y
+ *   postMessage lanza DataCloneError por las funciones que contiene). Cada
+ *   cambio se portea al iframe por postMessage (debounce 150ms) con el MISMO
+ *   shape del bloque `tema` del contrato (docs/api-v1-delivery.md; el canal
  *   preview es frontend-only, no toca la API v1).
  * - Logo/portada llegan por eventos Livewire (`tienda-preview-imagenes`)
  *   porque son URLs server-rendered (temporaryUrl del upload pendiente).
@@ -27,14 +31,17 @@ document.addEventListener('alpine:init', () => {
             this.portadaUrl = this.$el.dataset.portadaUrl || null;
             this._timerEnvio = null;
 
-            // Entangles .live: reflejan cada cambio del form al instante.
+            // Copia reactiva de los tokens: wire:model actualiza $wire al
+            // instante en el cliente, $wire.$watch refleja acá cada cambio
+            // (también los server-side, ej. restablecerTema).
             const props = ['colorPrimario', 'colorAcento', 'colorFondo', 'colorSuperficie',
                 'colorTexto', 'fuente', 'radios', 'densidad'];
             props.forEach((prop) => {
-                this[prop] = this.$wire.entangle(prop).live;
-            });
-            props.forEach((prop) => {
-                this.$watch(prop, () => this.enviarEstadoDebounced());
+                this[prop] = this.$wire.get(prop);
+                this.$wire.$watch(prop, (valor) => {
+                    this[prop] = valor;
+                    this.enviarEstadoDebounced();
+                });
             });
 
             // El iframe avisa que está listo (al cargar y en cada navegación
