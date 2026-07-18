@@ -48,6 +48,14 @@ abstract class TestCase extends BaseTestCase
         // Evitar que Vite busque manifest.json (no se compila en CI)
         $this->withoutVite();
 
+        // Polución estática cross-test: cualquier test que renderizó un
+        // componente Livewire deja $disableBackButtonCache=true (static PHP,
+        // sobrevive entre tests del mismo proceso) y su middleware global pisa
+        // el Cache-Control de TODAS las respuestas siguientes — rompe los
+        // asserts de cache HTTP de la API (RF-T5) según el orden de la suite.
+        // En prod no pasa: un request de API nunca bootea Livewire.
+        \Livewire\Features\SupportDisablingBackButtonCache\SupportDisablingBackButtonCache::$disableBackButtonCache = false;
+
         // Asegurar que las BDs de testing existen
         if (! static::$migrationsRun) {
             $this->ensureTestDatabases();

@@ -39,13 +39,6 @@ class ApiV1MarketplaceTest extends TestCase
 
         Cache::flush();
 
-        // Polución estática cross-test: cualquier test que renderizó un
-        // componente Livewire deja $disableBackButtonCache=true y su
-        // middleware pisa el Cache-Control de TODAS las respuestas del
-        // proceso (rompe el assert del ETag). En prod no pasa (un request
-        // de API nunca bootea Livewire).
-        \Livewire\Features\SupportDisablingBackButtonCache\SupportDisablingBackButtonCache::$disableBackButtonCache = false;
-
         $this->tienda = Tienda::updateOrCreate(
             ['comercio_id' => $this->comercio->id, 'sucursal_id' => $this->sucursalId],
             ['slug' => 'tienda-test', 'habilitada' => true],
@@ -155,7 +148,11 @@ class ApiV1MarketplaceTest extends TestCase
             ->assertStatus(304);
 
         // Cambia el catálogo → el ETag cambia y vuelve el 200 con data.
+        // El armado del catálogo tiene cache server-side de 60s (diseño de
+        // RF-T5: staleness ≤ TTL es aceptable); acá simulamos la expiración
+        // del TTL para ver el catálogo nuevo sin esperar los 60s reales.
         $this->crearArticuloConStock($this->sucursalId, cantidad: 5);
+        Cache::flush();
         $segunda = $this->withHeaders(['If-None-Match' => $etag])
             ->getJson('/api/v1/tiendas/tienda-test/catalogo')
             ->assertOk();
