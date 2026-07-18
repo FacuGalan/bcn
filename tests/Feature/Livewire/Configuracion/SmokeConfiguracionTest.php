@@ -748,26 +748,21 @@ class SmokeConfiguracionTest extends TestCase
         Livewire::test(ConfiguracionTienda::class)->assertOk();
     }
 
-    public function test_configuracion_tienda_crear_y_guardar(): void
+    public function test_configuracion_tienda_guardar(): void
     {
         // La tabla config.tiendas persiste entre corridas: limpiar lo del
-        // comercio fixture para que el estado inicial sea "sin tienda".
+        // comercio fixture. La CREACIÓN y `habilitada` son del PADRE
+        // (RF-T11, ConfiguracionDeliveryTiendaTest); acá se crea directo.
         \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+        $tienda = \App\Models\Tienda::create([
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId,
+            'slug' => 'tienda-smoke-test',
+            'habilitada' => false,
+        ]);
 
-        $component = Livewire::test(ConfiguracionTienda::class)
-            ->assertSet('tiendaId', null)
-            ->call('crearTienda')
-            ->assertOk();
-
-        $tienda = \App\Models\Tienda::where('comercio_id', $this->comercio->id)
-            ->where('sucursal_id', $this->sucursalId)
-            ->first();
-        $this->assertNotNull($tienda);
-        $this->assertFalse((bool) $tienda->habilitada, 'La tienda se crea despublicada');
-        $this->assertNotSame('', $tienda->slug);
-
-        $component->assertSet('tiendaId', $tienda->id)
-            ->set('habilitada', true)
+        Livewire::test(ConfiguracionTienda::class)
+            ->assertSet('tiendaId', $tienda->id)
             ->set('ga4MeasurementId', 'g-abc123')
             ->set('metaPixelId', '123456789012345')
             ->set('colorPrimario', '#FF0000')
@@ -778,7 +773,7 @@ class SmokeConfiguracionTest extends TestCase
             ->assertHasNoErrors();
 
         $tienda->refresh();
-        $this->assertTrue((bool) $tienda->habilitada);
+        $this->assertFalse((bool) $tienda->habilitada, 'El hijo NO toca habilitada (único escritor: el padre, RF-T11)');
         $this->assertSame('G-ABC123', $tienda->ga4_measurement_id, 'GA4 se normaliza a mayúsculas');
         $this->assertSame('123456789012345', $tienda->meta_pixel_id);
         $this->assertSame('#ff0000', $tienda->tema['colores']['primario']);
@@ -801,8 +796,14 @@ class SmokeConfiguracionTest extends TestCase
             'habilitada' => true,
         ]);
 
+        \App\Models\Tienda::create([
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId,
+            'slug' => 'tienda-valida-test',
+            'habilitada' => false,
+        ]);
+
         Livewire::test(ConfiguracionTienda::class)
-            ->call('crearTienda')
             ->set('slug', 'slug-ocupado-test')
             ->call('guardarTienda')
             ->assertHasErrors(['slug'])

@@ -2,7 +2,6 @@
 
 namespace App\Livewire\Configuracion;
 
-use App\Models\Sucursal;
 use App\Models\Tienda;
 use App\Services\TenantService;
 use App\Traits\SucursalAware;
@@ -11,16 +10,18 @@ use Illuminate\Support\Str;
 use Livewire\Component;
 
 /**
- * Tienda Online de la sucursal (RF-T10 + RF-T7 + RF-T6 parcial, spec
- * tienda-online): apartado embebido en ConfiguracionDelivery.
+ * Tienda Online de la sucursal (RF-T10/RF-T11 + RF-T7 + RF-T6 parcial,
+ * spec tienda-online): apartado embebido en ConfiguracionDelivery.
  *
  * Administra el registro GLOBAL `config.tiendas` de la sucursal activa
- * (D15: una tienda = una sucursal = un slug): creación con slug sugerido,
- * habilitada, IDs de analytics (GA4 + Meta Pixel) y el tema visual (design
- * tokens que `GET /tiendas/{slug}` sirve a bcn-tienda).
+ * (D15: una tienda = una sucursal = un slug): slug, IDs de analytics
+ * (GA4 + Meta Pixel) y el tema visual (design tokens que
+ * `GET /tiendas/{slug}` sirve a bcn-tienda).
  *
  * Sub-componente EMBEBIDO: guarda SOLO sobre `config.tiendas` — no toca el
- * JSON config_delivery del padre. Requiere permiso `func.tienda.config`.
+ * JSON config_delivery del padre. La CREACIÓN y `habilitada` (publicada)
+ * son del PADRE (switch maestro RF-T11, único escritor): este componente
+ * se monta solo cuando la tienda ya existe. Permiso `func.tienda.config`.
  */
 class ConfiguracionTienda extends Component
 {
@@ -29,8 +30,6 @@ class ConfiguracionTienda extends Component
     public ?int $tiendaId = null;
 
     public string $slug = '';
-
-    public bool $habilitada = false;
 
     public string $ga4MeasurementId = '';
 
@@ -75,7 +74,6 @@ class ConfiguracionTienda extends Component
         if (! $tienda) {
             $this->tiendaId = null;
             $this->slug = '';
-            $this->habilitada = false;
             $this->ga4MeasurementId = '';
             $this->metaPixelId = '';
             $this->aplicarTema(Tienda::TEMA_DEFAULTS);
@@ -85,7 +83,6 @@ class ConfiguracionTienda extends Component
 
         $this->tiendaId = $tienda->id;
         $this->slug = $tienda->slug;
-        $this->habilitada = (bool) $tienda->habilitada;
         $this->ga4MeasurementId = (string) ($tienda->ga4_measurement_id ?? '');
         $this->metaPixelId = (string) ($tienda->meta_pixel_id ?? '');
         $this->aplicarTema($tienda->temaCompleto());
@@ -126,64 +123,6 @@ class ConfiguracionTienda extends Component
         $this->densidad = in_array($tema['densidad'] ?? '', Tienda::DENSIDADES_DISPONIBLES, true)
             ? $tema['densidad']
             : Tienda::TEMA_DEFAULTS['densidad'];
-    }
-
-    // ==================== CREAR ====================
-
-    public function crearTienda(): void
-    {
-        if (! auth()->user()?->hasPermissionTo('func.tienda.config')) {
-            $this->dispatch('toast-error', message: __('No tenés permiso para configurar la tienda online'));
-
-            return;
-        }
-
-        $comercioId = $this->comercioActualId();
-        $sucursal = Sucursal::find($this->sucursalActual());
-
-        if (! $comercioId || ! $sucursal) {
-            return;
-        }
-
-        if ($this->tiendaActual()) {
-            $this->cargar();
-
-            return;
-        }
-
-        try {
-            Tienda::create([
-                'comercio_id' => $comercioId,
-                'sucursal_id' => (int) $sucursal->id,
-                'slug' => $this->slugSugerido($comercioId, $sucursal),
-                'habilitada' => false,
-            ]);
-
-            $this->cargar();
-            $this->dispatch('toast-success', message: __('Tienda creada. Revisá la configuración y habilitala cuando esté lista.'));
-        } catch (Exception $e) {
-            $this->dispatch('toast-error', message: $e->getMessage());
-        }
-    }
-
-    /**
-     * Slug sugerido: comercio + sucursal slugificados, único global (la URL
-     * pública identifica comercio+sucursal, D15). Ante colisión suma sufijo.
-     */
-    protected function slugSugerido(int $comercioId, Sucursal $sucursal): string
-    {
-        $comercio = app(TenantService::class)->getComercio();
-        $base = Str::slug(trim(($comercio->nombre ?? '').' '.$sucursal->nombre));
-        $base = Str::limit($base ?: 'tienda-'.$comercioId, 55, '');
-
-        $slug = $base;
-        $i = 2;
-        while (Tienda::where('slug', $slug)->exists()) {
-            $slug = $base.'-'.$i;
-            $i++;
-        }
-
-        return $slug;
     }
 
     // ==================== GUARDAR ====================
@@ -231,7 +170,6 @@ class ConfiguracionTienda extends Component
         try {
             $tienda->update([
                 'slug' => $this->slug,
-                'habilitada' => $this->habilitada,
                 'ga4_measurement_id' => $this->ga4MeasurementId !== '' ? strtoupper($this->ga4MeasurementId) : null,
                 'meta_pixel_id' => $this->metaPixelId !== '' ? $this->metaPixelId : null,
                 'tema' => $this->temaDesdeForm(),

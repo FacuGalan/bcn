@@ -4,6 +4,9 @@ namespace App\Livewire\Pedidos;
 
 use App\Models\Categoria;
 use App\Models\Sucursal;
+use App\Models\Tienda;
+use App\Services\TenantService;
+use App\Services\TiendaService;
 use App\Traits\SucursalAware;
 use Exception;
 use Livewire\Attributes\Layout;
@@ -112,6 +115,22 @@ class ConfiguracionDelivery extends Component
 
     public string $alertaRojaMin = '30';
 
+    // ==================== APARTADO TIENDA ONLINE (RF-T11) ====================
+
+    /**
+     * Switch maestro del apartado Tienda Online. El PADRE es el ÚNICO
+     * escritor de `tiendas.habilitada` (el hijo ConfiguracionTienda edita el
+     * resto del registro): prendido despliega el apartado y publica al
+     * guardar; apagado lo colapsa y despublica al guardar. Prenderlo sin
+     * tienda creada la CREA al instante (despublicada hasta guardar).
+     */
+    public bool $tiendaExiste = false;
+
+    public bool $tiendaPublicada = false;
+
+    /** Estado persistido de `habilitada`, para el hint "(sin guardar)". */
+    public bool $tiendaPublicadaPersistida = false;
+
     public function placeholder()
     {
         return <<<'HTML'
@@ -135,6 +154,63 @@ class ConfiguracionDelivery extends Component
         $this->showEnvioZonas = ! $this->showEnvioZonas;
     }
 
+    // ==================== TIENDA ONLINE (switch maestro, RF-T11) ====================
+
+    /**
+     * Switch del apartado: crea la tienda si no existe (al prender por
+     * primera vez) y despliega/colapsa. La publicación efectiva
+     * (`habilitada`) se persiste recién en guardarConfig().
+     */
+    public function toggleTiendaOnline(TiendaService $service): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.tienda.config')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para configurar la tienda online'));
+
+            return;
+        }
+
+        if ($this->tiendaPublicada) {
+            $this->tiendaPublicada = false;
+
+            return;
+        }
+
+        if (! $this->tiendaExiste) {
+            $sucursal = Sucursal::find($this->sucursalActual());
+            $comercio = app(TenantService::class)->getComercio();
+
+            if (! $sucursal || ! $comercio) {
+                return;
+            }
+
+            try {
+                $service->crearParaSucursal((int) $comercio->id, $sucursal, (string) ($comercio->nombre ?? ''));
+                $this->tiendaExiste = true;
+                $this->dispatch('toast-success', message: __('Tienda creada. Revisá la configuración y guardá para publicarla.'));
+            } catch (Exception $e) {
+                $this->dispatch('toast-error', message: $e->getMessage());
+
+                return;
+            }
+        }
+
+        $this->tiendaPublicada = true;
+    }
+
+    protected function tiendaActual(): ?Tienda
+    {
+        $comercioId = (int) (app(TenantService::class)->getComercio()?->id ?? 0);
+        $sucursalId = (int) $this->sucursalActual();
+
+        if (! $comercioId || ! $sucursalId) {
+            return null;
+        }
+
+        return Tienda::where('comercio_id', $comercioId)
+            ->where('sucursal_id', $sucursalId)
+            ->first();
+    }
+
     // ==================== CARGA / GUARDADO CONFIG ====================
 
     protected function cargarConfig(): void
@@ -145,6 +221,11 @@ class ConfiguracionDelivery extends Component
         }
 
         $config = $sucursal->getConfigDelivery();
+
+        $tienda = $this->tiendaActual();
+        $this->tiendaExiste = $tienda !== null;
+        $this->tiendaPublicada = (bool) ($tienda?->habilitada ?? false);
+        $this->tiendaPublicadaPersistida = $this->tiendaPublicada;
 
         $this->usaDelivery = (bool) $sucursal->usa_delivery;
         $this->convertirVentaAlEntregar = (bool) ($config['conversion_automatica_al_entregar'] ?? false);
@@ -253,6 +334,17 @@ class ConfiguracionDelivery extends Component
                 'pedido_alerta_roja_min' => max(0, (int) $this->alertaRojaMin),
                 'config_delivery' => $config,
             ]);
+
+            // Publicar/despublicar la tienda (RF-T11): único escritor de
+            // `habilitada`. Sin permiso tienda, el switch va disabled y acá
+            // no se toca nada.
+            $tienda = $this->tiendaActual();
+            if ($tienda
+                && auth()->user()?->hasPermissionTo('func.tienda.config')
+                && (bool) $tienda->habilitada !== $this->tiendaPublicada) {
+                $tienda->update(['habilitada' => $this->tiendaPublicada]);
+            }
+            $this->tiendaPublicadaPersistida = $this->tiendaPublicada;
 
             $this->dispatch('toast-success', message: __('Configuración de delivery guardada'));
         } catch (Exception $e) {
@@ -401,6 +493,7 @@ class ConfiguracionDelivery extends Component
         return view('livewire.pedidos.configuracion-delivery', [
             'categorias' => Categoria::where('activo', true)->orderBy('nombre')->get(['id', 'nombre']),
             'diasSemana' => [1 => __('Lu'), 2 => __('Ma'), 3 => __('Mi'), 4 => __('Ju'), 5 => __('Vi'), 6 => __('Sá'), 7 => __('Do')],
+            'puedeConfigurarTienda' => (bool) auth()->user()?->hasPermissionTo('func.tienda.config'),
         ]);
     }
 }

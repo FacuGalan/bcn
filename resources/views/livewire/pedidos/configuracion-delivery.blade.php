@@ -223,19 +223,22 @@
             </div>
         @endif
 
-        {{-- Pedidos externos y calendario: en Fase 2 (RF-T11) se mudan al
-             apartado Tienda Online cuando está desplegado; acá quedan como
-             ubicación delivery/panel. --}}
-        <div wire:key="pedidos-externos-delivery">
-            @include('livewire.pedidos.partials.config-pedidos-externos')
-        </div>
+        {{-- Pedidos externos y calendario (data del padre, config_delivery):
+             viven DENTRO del apartado Tienda Online cuando está desplegado;
+             acá quedan como fallback cuando no hay tienda o está apagada
+             (aplican igual a franjas, panel y API). Un solo lugar a la vez. --}}
+        @unless($tiendaExiste && $tiendaPublicada)
+            <div wire:key="pedidos-externos-delivery">
+                @include('livewire.pedidos.partials.config-pedidos-externos')
+            </div>
 
-        <div wire:key="calendario-delivery">
-            @include('livewire.pedidos.partials.config-calendario')
-        </div>
+            <div wire:key="calendario-delivery">
+                @include('livewire.pedidos.partials.config-calendario')
+            </div>
+        @endunless
     </div>
 
-    {{-- Guardar (repetido abajo para no scrollear) --}}
+    {{-- Guardar (repetido para no scrollear) --}}
     <div class="flex justify-end">
         <button type="button" wire:click="guardarConfig"
             class="h-9 px-4 inline-flex items-center gap-1.5 bg-bcn-primary border border-transparent rounded-md font-semibold text-sm text-white hover:bg-opacity-90 transition-colors">
@@ -243,7 +246,56 @@
         </button>
     </div>
 
-    {{-- ==================== TIENDA ONLINE (RF-T10, config.tiendas) ==================== --}}
-    <livewire:configuracion.configuracion-tienda />
+    {{-- ==================== TIENDA ONLINE (RF-T11: switch maestro del padre) ==================== --}}
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 space-y-4">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-3">
+                <button type="button" wire:click="toggleTiendaOnline" role="switch" aria-checked="{{ $tiendaPublicada ? 'true' : 'false' }}"
+                    @disabled(! $puedeConfigurarTienda)
+                    title="{{ $tiendaPublicada ? __('Apagar la tienda online') : __('Prender la tienda online') }}"
+                    class="relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed {{ $tiendaPublicada ? 'bg-bcn-primary' : 'bg-gray-300 dark:bg-gray-600' }}">
+                    <span class="pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform transition-transform duration-200 {{ $tiendaPublicada ? 'translate-x-[22px]' : 'translate-x-0.5' }}"></span>
+                </button>
+                <div>
+                    <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Tienda Online') }}</h2>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Tu tienda pública en internet: catálogo, carrito y pedidos delivery o take-away. Acá se configura todo lo que la tienda muestra y cómo entran sus pedidos.') }}</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                @if($tiendaExiste)
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $tiendaPublicadaPersistida ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
+                        {{ $tiendaPublicadaPersistida ? __('Publicada') : __('No publicada') }}
+                    </span>
+                    @if($tiendaPublicada !== $tiendaPublicadaPersistida)
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                            {{ $tiendaPublicada ? __('Se publica al guardar') : __('Se despublica al guardar') }}
+                        </span>
+                    @endif
+                @else
+                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Prendé el switch para crear tu tienda') }}</span>
+                @endif
+            </div>
+        </div>
+
+        @if($tiendaExiste)
+            <div @class(['space-y-4', 'hidden' => ! $tiendaPublicada])>
+                {{-- Bloques del PADRE (se guardan con "Guardar configuración") --}}
+                @if($tiendaPublicada)
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+                        <div wire:key="pedidos-externos-tienda">
+                            @include('livewire.pedidos.partials.config-pedidos-externos')
+                        </div>
+                        <div wire:key="calendario-tienda">
+                            @include('livewire.pedidos.partials.config-calendario')
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('El calendario y los pedidos externos se guardan con el botón "Guardar configuración" y aplican también al panel y a la API, tengas o no la tienda publicada.') }}</p>
+                @endif
+
+                {{-- Registro config.tiendas (guardado propio del sub-componente) --}}
+                <livewire:configuracion.configuracion-tienda />
+            </div>
+        @endif
+    </div>
 
 </div>

@@ -1,45 +1,15 @@
-<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 space-y-3">
-    <div class="flex flex-wrap items-center justify-between gap-2">
-        <div>
-            <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Tienda Online') }}</h2>
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Tu tienda pública en internet: los clientes ven el catálogo, arman el carrito y piden delivery o take-away.') }}</p>
-        </div>
-        @if($tiendaId)
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $habilitada ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
-                {{ $habilitada ? __('Publicada') : __('No publicada') }}
-            </span>
-        @endif
+<div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
+    <div>
+        <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Identidad y apariencia de la tienda') }}</h2>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Dirección pública, métricas y estética. Se guardan con el botón "Guardar tienda".') }}</p>
     </div>
 
     @if(! $tiendaId)
-        {{-- ==================== CTA CREAR (RF-T10) ==================== --}}
-        <div class="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6 text-center space-y-2">
-            <svg class="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13.5 21v-7.5a.75.75 0 01.75-.75h3a.75.75 0 01.75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349m-16.5 11.65V9.35m0 0a3.001 3.001 0 003.75-.615A2.993 2.993 0 009.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 002.25 1.016c.896 0 1.7-.393 2.25-1.016a3.001 3.001 0 003.75.614m-16.5 0a3.004 3.004 0 01-.621-4.72L4.318 3.44A1.5 1.5 0 015.378 3h13.243a1.5 1.5 0 011.06.44l1.19 1.189a3 3 0 01-.621 4.72m-13.5 8.65h3.75a.75.75 0 00.75-.75V13.5a.75.75 0 00-.75-.75H6.75a.75.75 0 00-.75.75v3.75c0 .414.336.75.75.75z" />
-            </svg>
-            <p class="text-sm text-gray-700 dark:text-gray-300">{{ __('Esta sucursal todavía no tiene tienda online.') }}</p>
-            <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Al crearla vas a poder elegir su dirección, personalizar los colores y publicarla cuando esté lista. Se crea despublicada.') }}</p>
-            @if($puedeConfigurar)
-                <button type="button" wire:click="crearTienda"
-                    class="inline-flex items-center justify-center px-4 py-2 bg-bcn-primary border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-opacity-90 focus:outline-none focus:ring-2 focus:ring-bcn-primary focus:ring-offset-2 transition ease-in-out duration-150">
-                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    {{ __('Crear mi tienda online') }}
-                </button>
-            @else
-                <p class="text-xs text-gray-400 dark:text-gray-500">{{ __('No tenés permiso para crear la tienda.') }}</p>
-            @endif
-        </div>
+        {{-- Defensivo: el padre solo monta este componente con tienda creada. --}}
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Esta sucursal todavía no tiene tienda online.') }}</p>
     @else
-        {{-- ==================== ESTADO Y DIRECCIÓN ==================== --}}
+        {{-- ==================== DIRECCIÓN ==================== --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <label class="flex items-start gap-2 cursor-pointer">
-                <input type="checkbox" wire:model="habilitada" @disabled(! $puedeConfigurar)
-                    class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
-                <span class="text-sm text-gray-700 dark:text-gray-300">
-                    {{ __('Tienda publicada') }}
-                    <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Despublicada, la URL responde "tienda no disponible" y no entran pedidos.') }}</span>
-                </span>
-            </label>
             <div>
                 <label for="ct-slug" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Dirección de la tienda (slug)') }}</label>
                 <input id="ct-slug" type="text" wire:model="slug" @disabled(! $puedeConfigurar)
