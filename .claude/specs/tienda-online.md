@@ -299,7 +299,40 @@ deuda declarada de RF-T10):
   respalda el `logo_url` documentado (prima logo de tienda, fallback
   pantalla-cliente/empresa). Contrato actualizado en api-v1-delivery.md.
 - bcn-tienda consume logo/portada en su fase correspondiente (pendiente del
-  lado tienda).
+  lado tienda). **→ Hecho en RF-T12 (portada; logo ya estaba).**
+
+### RF-T12: Visor en vivo de la tienda REAL en el panel — IMPLEMENTADO (2026-07-18, cross-repo)
+
+Reemplaza el mock del drawer de RF-T11 por la TIENDA REAL embebida
+(decisiones usuario: mock solo como fallback de despublicada; visor dentro
+del apartado Tienda Online, 2 columnas en xl).
+
+- **Core** (rama feat/tienda-visor-preview-rf-t12, apilada sobre RF-T11):
+  apartado en 2 columnas (config | visor sticky). Publicada persistida →
+  iframe `{tienda.url}/tienda/{slug}?preview=1`; despublicada → mock
+  compartido (partial tienda-preview-mock; drawer queda para <xl).
+  `Alpine.data('tiendaPreview')` (resources/js/tienda-preview.js): entangle
+  de los 8 tokens + $watch con debounce 150ms → postMessage al iframe con
+  targetOrigin = origen de config('tienda.url') (nunca '*'). Logo/portada
+  por eventos Livewire `tienda-preview-imagenes` (URLs server-rendered,
+  temporaryUrl del upload pendiente); `tienda-guardada` recarga el iframe.
+- **bcn-tienda** (rama feat/preview-portada-rf-t12): (1) portada_url en el
+  hero (banner + overlay); (2) modo preview con `?preview=1` (query, NUNCA
+  sesión: cookies SameSite no viajan en iframe cross-site): whitelist
+  `core.panel_origins` (env PANEL_ORIGINS), snapshot FRESCO con Cache::put,
+  analytics anulados (no ensuciar métricas), `preview.js` con el port
+  DIFF-vs-default de TiendaActual::temaCssVars (comentarios espejo — volver
+  al default remueve las vars y la tienda recupera su paleta oklch + dark
+  auto); (3) CSP `frame-ancestors 'self' {panel_origins}` GLOBAL
+  (hardening anti-clickjacking).
+- **Protocolo** (canal frontend-only, la API v1 NO cambia): tienda→panel
+  `{tipo:'tienda-preview-ready', slug, path}` al cargar y en cada
+  livewire:navigated; panel→tienda `{tipo:'tienda-preview-estado',
+  tema:{...shape del contrato}, logoUrl, portadaUrl}`. Validación de origen
+  en ambos sentidos + hex re-validados antes de setProperty.
+- Limitación documentada: en prod con dominios de distinto site, el
+  carrito dentro del iframe no tiene sesión (SameSite) — el visor valida
+  estética; la operatoria completa se prueba en la pestaña real.
 
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
