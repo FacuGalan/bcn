@@ -110,6 +110,18 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.tema.tipografia.fuente', 'system')
             ->assertJsonPath('data.tema.radios', 'md')
             ->assertJsonPath('data.tema.densidad', 'normal')
+            // RF-T13: los sub-objetos nuevos viajan con defaults que replican
+            // el comportamiento previo (tienda sin config = se ve igual).
+            ->assertJsonPath('data.tema.portada.overlay', true)
+            ->assertJsonPath('data.tema.portada.posicion', 'center')
+            ->assertJsonPath('data.tema.textos.slogan', '')
+            ->assertJsonPath('data.tema.textos.descripcion', '')
+            ->assertJsonPath('data.tema.redes.facebook', '')
+            ->assertJsonPath('data.tema.redes.instagram', '')
+            ->assertJsonPath('data.tema.catalogo.layout', 'grilla')
+            ->assertJsonPath('data.tema.destacados.modo', 'banner')
+            ->assertJsonPath('data.tema.destacados.adorno', 'ninguno')
+            ->assertJsonPath('data.tema.promos.mostrar_home', false)
             ->assertJsonPath('data.comportamiento', []);
 
         // Con IDs + tema PARCIAL persistido: los IDs viajan y el tema mergea
