@@ -25,7 +25,9 @@ return [
 
     'allowed_headers' => ['*'],
 
-    'exposed_headers' => [],
+    // ETag del catálogo (RF-T5): sin exponerlo, un consumidor browser-side
+    // cross-origin no puede leerlo y la revalidación If-None-Match no anda.
+    'exposed_headers' => ['ETag'],
 
     'max_age' => 3600,
 

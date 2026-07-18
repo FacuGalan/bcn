@@ -20,18 +20,58 @@ class Tienda extends Model
 
     protected $table = 'tiendas';
 
+    /**
+     * Design tokens default de la tienda (Principio 10 del spec tienda-online).
+     * `tema` NULL o parcial en BD → se mergea sobre estos defaults; las claves
+     * son CONTRATO con bcn-tienda (agregar es aditivo, renombrar rompe).
+     */
+    public const TEMA_DEFAULTS = [
+        'colores' => [
+            'primario' => '#4f46e5',
+            'acento' => '#f59e0b',
+            'fondo' => '#f9fafb',
+            'superficie' => '#ffffff',
+            'texto' => '#111827',
+        ],
+        'tipografia' => [
+            'fuente' => 'system',
+        ],
+        'radios' => 'md',
+        'densidad' => 'normal',
+    ];
+
+    /** Fuentes self-hosted disponibles en bcn-tienda (catálogo cerrado). */
+    public const FUENTES_DISPONIBLES = ['system', 'inter', 'poppins', 'roboto', 'montserrat', 'lora'];
+
+    public const RADIOS_DISPONIBLES = ['none', 'sm', 'md', 'lg', 'full'];
+
+    public const DENSIDADES_DISPONIBLES = ['compacta', 'normal', 'amplia'];
+
+    /** Seteos de conducta de la tienda (Principio 10). v1: sin seteos, objeto reservado. */
+    public const COMPORTAMIENTO_DEFAULTS = [];
+
     protected $fillable = [
         'comercio_id',
         'sucursal_id',
         'slug',
         'habilitada',
         'dominio_propio',
+        'ga4_measurement_id',
+        'meta_pixel_id',
+        'tema',
     ];
 
     protected $casts = [
         'habilitada' => 'boolean',
         'sucursal_id' => 'integer',
+        'tema' => 'array',
     ];
+
+    /** Tema efectivo: defaults del core con merge profundo del JSON persistido. */
+    public function temaCompleto(): array
+    {
+        return array_replace_recursive(self::TEMA_DEFAULTS, $this->tema ?? []);
+    }
 
     public function comercio(): BelongsTo
     {

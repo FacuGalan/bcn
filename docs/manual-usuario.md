@@ -1,7 +1,7 @@
 # BCN Pymes -- Manual de Usuario
 
 > Manual completo del sistema BCN Pymes para administradores de comercio.
-> Version: 0.1.x | Ultima actualizacion: 2026-07-14 (modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal"; + hardening del circuito de precios e impuestos: el precio de venta es siempre FINAL con IVA incluido (se quita el switch del ABM), el precio de venta en comercios de una sola sucursal tambien edita el efectivo de la sucursal, revision de precios post-compra con piso de costo (badge "bajo costo"), percepciones con comprador no inscripto van 100% al costo, notas de credito de proveedor con precarga de percepciones de la compra origen y aviso si exceden a la origen, movimientos fiscales generados por compras/ventas/conciliacion ya no se anulan a mano, y cambio masivo de precios extendido a costos; + hardening fiscal saliente/ventas: la percepcion aplicada en ventas ahora se calcula solo sobre el neto gravado (baja si hay items exentos), los pedidos delivery convertidos en venta cobran la percepcion correspondiente antes de convertir, el reintento de facturacion y el cambio de forma de pago conservan las percepciones del comprobante original, y la cortesia total con concepto libre ya no da error al confirmar)
+> Version: 0.1.x | Ultima actualizacion: 2026-07-17 (la Configuracion de Delivery se mudo al menu Configuracion como item propio "Delivery / Take Away" en `/configuracion/delivery` -- el link viejo desde el engranaje de Pedidos Delivery sigue funcionando y redirige; nuevo apartado "Tienda Online" en esa misma pantalla para crear y personalizar la tienda publica de la sucursal: slug, publicacion, IDs de analytics de Google Analytics 4 y Meta Pixel, y apariencia (colores, tipografia, bordes, densidad); anteriores: modulo Compras reescrito por completo: editor de compra en modal fullscreen con grilla tipo planilla, costos y utilidad en Articulos/Categorias/Configuracion, revision de precios post-compra y repricing automatico, cuenta corriente y pagos a proveedores, reportes de compras; nuevo menu padre "Compras"; + factura de servicio y percepciones habituales por proveedor; + navegacion con Enter en el encabezado de compras, boton "Usar como precio" en Articulos, precio de venta unico por sucursal, aviso de CUITs con condiciones de IVA mixtas y precarga de descuentos de la ultima compra; + coeficiente computable de percepciones sufridas (base/monto sugeridos, campo "Coef." editable por compra), perfil fiscal del proveedor en modal propio y reorden del ABM de Articulos en secciones "Costos" / "Utilidad y precio" / "Configuracion en la sucursal"; + hardening del circuito de precios e impuestos: el precio de venta es siempre FINAL con IVA incluido (se quita el switch del ABM), el precio de venta en comercios de una sola sucursal tambien edita el efectivo de la sucursal, revision de precios post-compra con piso de costo (badge "bajo costo"), percepciones con comprador no inscripto van 100% al costo, notas de credito de proveedor con precarga de percepciones de la compra origen y aviso si exceden a la origen, movimientos fiscales generados por compras/ventas/conciliacion ya no se anulan a mano, y cambio masivo de precios extendido a costos; + hardening fiscal saliente/ventas: la percepcion aplicada en ventas ahora se calcula solo sobre el neto gravado (baja si hay items exentos), los pedidos delivery convertidos en venta cobran la percepcion correspondiente antes de convertir, el reintento de facturacion y el cambio de forma de pago conservan las percepciones del comprobante original, y la cortesia total con concepto libre ya no da error al confirmar)
 
 ---
 
@@ -3806,7 +3806,7 @@ Un pedido delivery tiene, ademas del **estado del pedido** y el **estado del pag
 
 **Ruta**: Menu > Pedidos Delivery (o Menu > Pedidos > Delivery)
 
-Igual que Pedidos por Mostrador, la pagina es fullscreen con vistas **Lista** y **Kanban** intercambiables (la preferencia se guarda en el dispositivo). El header incluye contador de pedidos, badge de nuevos, chips de filtros activos, buscador, boton Filtros, boton Refrescar, toggle Lista/Kanban, boton Nuevo Pedido y el **engranaje de Configuracion** (abre la Configuracion de Delivery, seccion 15.6, con el permiso `func.pedidos_delivery.config`).
+Igual que Pedidos por Mostrador, la pagina es fullscreen con vistas **Lista** y **Kanban** intercambiables (la preferencia se guarda en el dispositivo). El header incluye contador de pedidos, badge de nuevos, chips de filtros activos, buscador, boton Filtros, boton Refrescar, toggle Lista/Kanban, boton Nuevo Pedido y el **engranaje de Configuracion** (abre la Configuracion de Delivery, seccion 15.6, con el permiso `func.pedidos_delivery.config`). Esa misma pantalla tambien es accesible directo desde **Menu > Configuracion > Delivery / Take Away**.
 
 #### Strip "Pedidos por aceptar"
 
@@ -3927,7 +3927,7 @@ Un **repartidor tercero** no tiene esta eleccion: siempre entrega a la caja lo c
 
 ### 15.6 Configuracion de Delivery
 
-**Ruta**: engranaje del panel de Pedidos Delivery > `/pedidos/delivery/configuracion` (permiso `func.pedidos_delivery.config`)
+**Ruta**: Menu > Configuracion > **Delivery / Take Away** > `/configuracion/delivery` (permiso `func.pedidos_delivery.config`). Tambien se llega con el engranaje del panel de Pedidos Delivery (seccion 15.1); la URL vieja `/pedidos/delivery/configuracion` redirige automaticamente a la nueva.
 
 #### General
 - **Usar Delivery** (activa el modulo para la sucursal).
@@ -3955,11 +3955,30 @@ ABM de **zonas de entrega dibujadas en el mapa** (poligono): nombre, costo de en
 #### Calendario de atencion
 Dias laborales, horarios de atencion (por dia/rango) y feriados. Fuera de horario, la API/tienda publica rechaza el pedido; el panel solo advierte.
 
+#### Tienda Online
+
+Apartado para crear y personalizar la tienda publica de la sucursal (el sitio que consumen los clientes por internet, sobre el mismo catalogo y datos de delivery/take-away configurados arriba). Requiere el permiso `func.tienda.config` (los roles Administrador y Super Administrador lo tienen por defecto); sin ese permiso, el apartado se muestra de solo lectura.
+
+**Sin tienda creada**: se muestra un cartel con el boton **"Crear mi tienda online"**. Al crearla, el sistema le asigna un slug (direccion) sugerido automaticamente a partir del nombre del comercio y la sucursal (unico en todo el sistema; si hay colision suma un numero al final) y la deja **despublicada** para que la revise antes de darla a conocer.
+
+**Con tienda creada**, el apartado muestra un badge **"Publicada"** o **"No publicada"** y estos campos:
+
+- **Tienda publicada** (checkbox): mientras esta apagado, la URL publica responde "tienda no disponible" y no entran pedidos por ese canal.
+- **Direccion de la tienda (slug)**: la parte de la URL que identifica a la tienda (unica en el sistema). Se muestra la URL publica completa como referencia. Cambiarla rompe los links ya compartidos y los accesos directos que los clientes hayan instalado, por lo que el sistema lo advierte antes de guardar.
+- **Metricas (Google Analytics y Meta Pixel)**: ID de medicion de GA4 (formato `G-XXXXXXXXXX`) e ID del Pixel de Meta (numerico). Con el ID cargado, la tienda mide visitas, carritos y compras en la cuenta propia del comercio; vacio, no se inyecta ningun script de ese proveedor.
+- **Apariencia de la tienda**: personalizacion visual de la tienda publica (design tokens que consume el sitio):
+  - 5 colores (con selector visual y campo hexadecimal): Primario (botones), Acento (ofertas), Fondo, Tarjetas y Texto.
+  - Tipografia: Del sistema (rapida) / Inter / Poppins / Roboto / Montserrat / Lora.
+  - Bordes redondeados: Rectos / Suaves / Medios / Amplios / Redondos.
+  - Densidad del contenido: Compacta / Normal / Amplia.
+  - Boton **"Restablecer al tema default"**: vuelve los 5 colores, la tipografia, los bordes y la densidad a los valores de fabrica del sistema (no requiere guardar aparte, pero los cambios quedan pendientes hasta hacer clic en "Guardar tienda").
+- Boton **"Guardar tienda"**: confirma slug, publicacion, analytics y apariencia en un solo paso.
+
 ### 15.7 Tokens de API
 
 **Ruta**: `/configuracion/api-tokens` (tambien accesible con un boton **"Tokens de API"** en el header de Configuracion > Datos de la Empresa, visible solo con el permiso `func.api.tokens`)
 
-Permite emitir y revocar **tokens de integracion** para que aplicaciones externas (o la futura tienda online) operen sobre los pedidos delivery del comercio via la API REST v1:
+Permite emitir y revocar **tokens de integracion** para que aplicaciones externas (o la tienda online del comercio, seccion 15.6) operen sobre los pedidos delivery del comercio via la API REST v1:
 
 - **Crear token**: se elige un nombre descriptivo y las **abilities** (permisos del token): leer pedidos, crear/modificar pedidos, leer configuracion, leer catalogo. El token se muestra **una unica vez** en pantalla para copiarlo; despues no se puede volver a ver.
 - **Listar tokens**: nombre, abilities, fecha de ultimo uso.
@@ -4015,12 +4034,14 @@ Permite emitir y revocar **tokens de integracion** para que aplicaciones externa
 | **Repartidor** | Persona (propia o tercerizada) que realiza las entregas de pedidos delivery, con su propio fondo de cambio. |
 | **Saldo a favor** | Monto que el comercio le debe al cliente (por ejemplo, si pago de mas). |
 | **Salida de reparto** | Viaje de un repartidor con uno o mas pedidos "en camino"; se cierra al registrar la vuelta. |
+| **Slug** | Parte de la URL que identifica de forma unica a una tienda online (por ejemplo `mi-negocio-centro`). Se sugiere automaticamente al crear la tienda y puede editarse desde su configuracion. |
 | **Sucursal** | Cada ubicacion fisica del comercio. |
 | **Take-away** | Pedido para retirar en el local, sin direccion de entrega ni repartidor. |
 | **Tesoreria** | Caja fuerte central de la sucursal donde se resguarda el efectivo no asignado a cajas operativas. |
 | **Retencion** | Descuento que retiene un agente de retencion del pago a un proveedor, a cuenta de un impuesto. |
 | **Percepcion** | Importe adicional que cobra un agente de percepcion sobre una operacion, a cuenta de un impuesto. |
 | **Ticket** | Comprobante no fiscal de una venta. |
+| **Tienda Online** | Sitio publico (una tienda = una sucursal) donde los clientes ven el catalogo, arman el carrito y piden delivery o take-away sin pasar por el panel. Se crea y personaliza (publicacion, slug, analytics, apariencia) desde Configuracion > Delivery / Take Away, seccion 15.6. |
 | **Tipo de cambio** | Cotizacion de una moneda respecto a otra (tasa de compra y tasa de venta). |
 | **Token de API** | Credencial emitida por el comercio para que una aplicacion externa opere sobre pedidos delivery via la API REST. |
 | **Turno** | Periodo operativo de una caja, desde su apertura hasta su cierre con arqueo. |

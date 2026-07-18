@@ -216,7 +216,7 @@
 
             {{-- Configuración delivery (RF-05) --}}
             @if(auth()->user()?->hasPermissionTo('func.pedidos_delivery.config'))
-                <a href="{{ route('pedidos.delivery.configuracion') }}" wire:navigate
+                <a href="{{ route('configuracion.delivery') }}" wire:navigate
                     class="h-9 w-9 inline-flex items-center justify-center border border-gray-300 dark:border-gray-600 rounded-md text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                     title="{{ __('Configuración de Delivery') }}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

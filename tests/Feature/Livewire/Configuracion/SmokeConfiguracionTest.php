@@ -3,6 +3,7 @@
 namespace Tests\Feature\Livewire\Configuracion;
 
 use App\Livewire\Configuracion\ConfiguracionEmpresa;
+use App\Livewire\Configuracion\ConfiguracionTienda;
 use App\Livewire\Configuracion\CuitDomicilios;
 use App\Livewire\Configuracion\CuitImpuestos;
 use App\Livewire\Configuracion\CuitPuntosVenta;
@@ -740,6 +741,81 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertSame('Pasá tu producto', $config['mensaje_idle']);
         $this->assertSame(8, $config['duracion_resultado']);
         $this->assertNotNull($fresca->token_publico);
+    }
+
+    public function test_configuracion_tienda_monta(): void
+    {
+        Livewire::test(ConfiguracionTienda::class)->assertOk();
+    }
+
+    public function test_configuracion_tienda_crear_y_guardar(): void
+    {
+        // La tabla config.tiendas persiste entre corridas: limpiar lo del
+        // comercio fixture para que el estado inicial sea "sin tienda".
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+
+        $component = Livewire::test(ConfiguracionTienda::class)
+            ->assertSet('tiendaId', null)
+            ->call('crearTienda')
+            ->assertOk();
+
+        $tienda = \App\Models\Tienda::where('comercio_id', $this->comercio->id)
+            ->where('sucursal_id', $this->sucursalId)
+            ->first();
+        $this->assertNotNull($tienda);
+        $this->assertFalse((bool) $tienda->habilitada, 'La tienda se crea despublicada');
+        $this->assertNotSame('', $tienda->slug);
+
+        $component->assertSet('tiendaId', $tienda->id)
+            ->set('habilitada', true)
+            ->set('ga4MeasurementId', 'g-abc123')
+            ->set('metaPixelId', '123456789012345')
+            ->set('colorPrimario', '#FF0000')
+            ->set('fuente', 'poppins')
+            ->set('radios', 'lg')
+            ->set('densidad', 'compacta')
+            ->call('guardarTienda')
+            ->assertHasNoErrors();
+
+        $tienda->refresh();
+        $this->assertTrue((bool) $tienda->habilitada);
+        $this->assertSame('G-ABC123', $tienda->ga4_measurement_id, 'GA4 se normaliza a mayúsculas');
+        $this->assertSame('123456789012345', $tienda->meta_pixel_id);
+        $this->assertSame('#ff0000', $tienda->tema['colores']['primario']);
+        $this->assertSame('poppins', $tienda->tema['tipografia']['fuente']);
+        $this->assertSame('lg', $tienda->tema['radios']);
+        $this->assertSame('compacta', $tienda->tema['densidad']);
+
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+    }
+
+    public function test_configuracion_tienda_valida_slug_duplicado_y_analytics(): void
+    {
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+
+        // Tienda de OTRA sucursal que ya ocupa un slug (unique global, D15).
+        \App\Models\Tienda::create([
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId + 999,
+            'slug' => 'slug-ocupado-test',
+            'habilitada' => true,
+        ]);
+
+        Livewire::test(ConfiguracionTienda::class)
+            ->call('crearTienda')
+            ->set('slug', 'slug-ocupado-test')
+            ->call('guardarTienda')
+            ->assertHasErrors(['slug'])
+            ->set('slug', 'slug-libre-test')
+            ->set('ga4MeasurementId', 'no-es-ga4')
+            ->call('guardarTienda')
+            ->assertHasErrors(['ga4MeasurementId'])
+            ->set('ga4MeasurementId', '')
+            ->set('metaPixelId', 'abc')
+            ->call('guardarTienda')
+            ->assertHasErrors(['metaPixelId']);
+
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
     }
 
     public function test_roles_permisos_monta(): void

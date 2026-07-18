@@ -3411,7 +3411,7 @@ Conserva TODO el historial de intentos (incluidos re-despachos); `pedidos_delive
 
 | Tabla | Columnas clave | Notas |
 |---|---|---|
-| `tiendas` | `comercio_id` FK, `sucursal_id` (FK logico tenant), `slug` UNIQUE(60), `habilitada`, `dominio_propio` UNIQUE nullable | UNIQUE(`comercio_id`,`sucursal_id`). La tienda es POR SUCURSAL (D15): el slug identifica comercio+sucursal, sin ambiguedad. En v1 se alta por consola/soporte |
+| `tiendas` | `comercio_id` FK, `sucursal_id` (FK logico tenant), `slug` UNIQUE(60), `habilitada`, `dominio_propio` UNIQUE nullable, `ga4_measurement_id` varchar(30) nullable, `meta_pixel_id` varchar(30) nullable, `tema` json nullable | UNIQUE(`comercio_id`,`sucursal_id`). La tienda es POR SUCURSAL (D15): el slug identifica comercio+sucursal, sin ambiguedad. `ga4_measurement_id`/`meta_pixel_id` (RF-T7, migracion `add_analytics_y_tema_a_tiendas`): IDs de Google Analytics 4 (formato `G-...`) y Meta Pixel (numerico); `null` = no inyectar el script de ese proveedor. `tema` (RF-T6, Principio 10): design tokens JSON PARCIAL o `null` — ver `Tienda::temaCompleto()` abajo. Desde RF-T10 se alta y edita desde el panel (`Configuracion > Delivery / Take Away`, apartado "Tienda Online"), ya no solo por consola/soporte |
 | `rubros` | `nombre`, `slug` UNIQUE, `activo` | Catalogo global (hamburgueseria, pizzeria...). `comercios.rubro_id` (FK nullable) referencia esta tabla — CONVIVE con `comercios.rubro` (string, MCC de Mercado Pago) |
 | `consumidores` | `nombre`, `email` UNIQUE, `password`, `telefono`, `email_verified_at`, `remember_token` | Cuenta GLOBAL cross-comercio (D8), guard `consumidores` + Sanctum. Auth completa (registro/login/logout/verificacion/reset) implementada en el CORE (RF-T1, Fase 0 de la spec tienda-online) — `App\Http\Controllers\Api\V1\Consumidores\AuthController` |
 | `consumidor_direcciones` | `consumidor_id` FK CASCADE, `alias`, `direccion`, `referencia`, `localidad_id` nullable, `latitud`/`longitud` nullable, `es_default` | Direcciones reutilizables en cualquier comercio. CRUD via `DireccionesController` (RF-T2), maximo 10 por consumidor |
@@ -3419,6 +3419,17 @@ Conserva TODO el historial de intentos (incluidos re-despachos); `pedidos_delive
 | `personal_access_tokens` | Sanctum estandar (`tokenable_type/id` morph, `token`, `abilities`, `last_used_at`, `expires_at`) | Vive en CONFIG (no en tenant): los tokenables (`Comercio`, `Consumidor`) son cross-tenant. `Sanctum::usePersonalAccessTokenModel(PersonalAccessToken::class)` |
 
 `comercios` gana `rubro_id` (FK nullable a `rubros`) y `tienda_alta_cliente_automatica` (boolean, default 0).
+
+**`Tienda::temaCompleto()`** (RF-T6, `app/Models/Tienda.php`): merge profundo (`array_replace_recursive`) de `Tienda::TEMA_DEFAULTS` con el JSON persistido en `tema` (que puede ser `null` o parcial). Las claves de `TEMA_DEFAULTS` son CONTRATO con `bcn-tienda`: agregar claves es aditivo, renombrar/quitar rompe el consumidor y exige v2 del endpoint. Shape:
+```php
+[
+    'colores' => ['primario' => '#4f46e5', 'acento' => '#f59e0b', 'fondo' => '#f9fafb', 'superficie' => '#ffffff', 'texto' => '#111827'],
+    'tipografia' => ['fuente' => 'system'],
+    'radios' => 'md',
+    'densidad' => 'normal',
+]
+```
+Catalogos cerrados (validados en `ConfiguracionTienda::guardarTienda()` y en el `GET /v1/tiendas/{slug}`): `Tienda::FUENTES_DISPONIBLES` (`system`, `inter`, `poppins`, `roboto`, `montserrat`, `lora` — self-hosted en `bcn-tienda`), `Tienda::RADIOS_DISPONIBLES` (`none`, `sm`, `md`, `lg`, `full`), `Tienda::DENSIDADES_DISPONIBLES` (`compacta`, `normal`, `amplia`). `Tienda::COMPORTAMIENTO_DEFAULTS` esta reservado (array vacio, sin seteos en v1) — es el bloque `comportamiento` que devuelve la API.
 
 #### Permisos del modulo
 
@@ -3434,8 +3445,13 @@ Migracion `add_pedidos_delivery_menu_permisos_y_seeds` (menu + permisos) y `crea
 | `func.pedidos_delivery.forzar_alcance` | Confirmar un pedido fuera del area de entrega |
 | `func.pedidos_delivery.config` | Configuracion de delivery de la sucursal (zonas, promesa, aceptacion, calendario) |
 | `func.api.tokens` | Emitir/revocar tokens de integracion de la API |
+| `func.tienda.config` | Crear la tienda online de la sucursal y editar su configuracion (slug, habilitada, analytics, tema visual) — grupo funcional propio "Tienda Online", NO usa el prefijo `pedidos_delivery` aunque vive en la misma pantalla (RF-T10, migracion `add_configuracion_delivery_menu_y_permiso_tienda`) |
 
 Los `confirmar*` de vuelta/salida/asignacion re-chequean `repartidores` server-side (no confian solo en el gate de UI); `vueltaSalidaId` es `#[Locked]` en el componente Livewire (rev21, hardening de permisos).
+
+#### Menu y ruta de Configuracion de Delivery (RF-T10, 2026-07-17)
+
+La pantalla de configuracion de delivery (zonas, promesa, calendario, pedidos externos + apartado "Tienda Online") paso a tener item propio en el menu **Configuracion**: migracion `add_configuracion_delivery_menu_y_permiso_tienda` crea el `MenuItem` "Delivery / Take Away" (`slug=configuracion-delivery`, bajo el padre `configuracion`, icono `heroicon-o-truck`) apuntando a la ruta `configuracion.delivery` (`/configuracion/delivery`), que sigue siendo el mismo componente `App\Livewire\Pedidos\ConfiguracionDelivery`. La ruta vieja `pedidos.delivery.configuracion` (`/pedidos/delivery/configuracion`, usada por el engranaje del panel de Pedidos Delivery) ahora es un `redirect()->route('configuracion.delivery', [], 301)` en `routes/web.php` — no se borro para no romper links/bookmarks existentes. El permiso de MENU que gobierna el acceso sigue siendo `func.pedidos_delivery.config` (el `MenuItemObserver` crea `menu.configuracion-delivery` automaticamente al insertar el `MenuItem`, pero es el permiso funcional el que efectivamente restringe la vista dentro del componente).
 
 #### Patrones de consulta SQL utiles
 
@@ -4694,9 +4710,9 @@ Base nueva bajo `/api/v1` (`routes/api.php`), documentada en detalle en `docs/ap
 
 #### Endpoints publicos (por slug)
 
-- `GET /v1/tiendas/{slug}`: datos de la tienda + bloque `entrega` (modo_promesa, acepta_lo_antes_posible, demoras, usa_franjas) + `formas_pago` declarables contra entrega/retiro.
+- `GET /v1/tiendas/{slug}`: datos de la tienda + bloque `entrega` (modo_promesa, acepta_lo_antes_posible, demoras, usa_franjas) + `formas_pago` declarables contra entrega/retiro + (aditivo 2026-07-17, RF-T7/RF-T6) `analytics` (`{ga4_measurement_id, meta_pixel_id}`, cada uno `null` si no esta cargado) + `tema` (`Tienda::temaCompleto()`, el efectivo YA mergeado con defaults) + `comportamiento` (objeto reservado, vacio en v1).
 - `GET /v1/tiendas/{slug}/franjas?tipo=`: slots de la jornada en modo franjas (cupos = Fase 8).
-- `GET /v1/tiendas/{slug}/catalogo?tipo=`: catalogo segun criterio RF-17 (activo + vendible + `visible_tienda` + disponible por tipo); agotados vienen marcados `pedible:false`. Precios FINALES calculados por `PrecioService` (nunca localmente, D12). Los grupos de opcionales que viajan por articulo son los ASIGNADOS a ese articulo EN LA SUCURSAL de la tienda (`ArticuloGrupoOpcional`, mismo criterio que `OpcionalService::obtenerOpcionalesParaVenta` del panel), con `precio_extra` de la asignacion (override por articulo, no el del catalogo global de `Opcional`); un grupo sin opciones vivas no se publica. Shape: `{grupo_id, nombre, tipo, obligatorio, min, max, opciones:[{opcional_id, nombre, precio_extra, disponible}]}`. **Cache HTTP (RF-T5)**: responde con `ETag` (md5 del payload) + `Cache-Control: public, max-age=60`; si el cliente manda `If-None-Match` con el mismo ETag devuelve `304` sin body (es el endpoint mas golpeado de la tienda).
+- `GET /v1/tiendas/{slug}/catalogo?tipo=`: catalogo segun criterio RF-17 (activo + vendible + `visible_tienda` + disponible por tipo); agotados vienen marcados `pedible:false`. Precios FINALES calculados por `PrecioService` (nunca localmente, D12). Los grupos de opcionales que viajan por articulo son los ASIGNADOS a ese articulo EN LA SUCURSAL de la tienda (`ArticuloGrupoOpcional`, mismo criterio que `OpcionalService::obtenerOpcionalesParaVenta` del panel), con `precio_extra` de la asignacion (override por articulo, no el del catalogo global de `Opcional`); un grupo sin opciones vivas no se publica. Shape: `{grupo_id, nombre, tipo, obligatorio, min, max, opciones:[{opcional_id, nombre, precio_extra, disponible}]}`. **Cache HTTP (RF-T5)**: responde con `ETag` (md5 del payload) + `Cache-Control: public, max-age=60`; si el cliente manda `If-None-Match` con el mismo ETag devuelve `304` sin body (es el endpoint mas golpeado de la tienda). **Cache server-side (aditivo 2026-07-17, RF-T5)**: ademas del ETag, el armado del payload (`CatalogoTiendaService::catalogo()`) se cachea 60s con `Cache::remember("tienda_catalogo:{comercio_id}:{sucursal_id}:{tipo}", 60, ...)` — sin esto, cada revalidacion `If-None-Match` (que igual pega al servidor) recalculaba el catalogo completo contra la BD tenant y el motor de precios aunque terminara respondiendo `304`. Efecto: un cambio de catalogo/precio puede demorar hasta 60s en reflejarse en la tienda.
 - `POST /v1/tiendas/{slug}/envios/cotizar`: `{latitud, longitud, ?hora_pactada}` → `{alcance, pedible, costo_envio, distancia_km, zona, demora_estimada_min}`.
 - `POST /v1/tiendas/{slug}/carrito/cotizar`: cotizacion server-side del carrito completo (**`CotizadorCarritoTienda`**, harness headless del trait `WithCalculoVenta` — mismo motor de precios/promos/cupones que el panel). Con Bearer de consumidor, cotiza con SU cliente materializado (mismo total que el checkout, D12). Los `opcional_id` de `items.*.opcionales` se validan contra las asignaciones (`ArticuloGrupoOpcional`) del articulo EN LA SUCURSAL de la tienda — no asignado o `disponible:false` → `422`. Se cobran al `precio_extra` de la asignacion (no el global del `Opcional`) y el precio del item que ve el motor de calculo YA INCLUYE los opcionales (paridad con el panel `WithOpcionales`: las promociones aplican sobre el precio con opcionales, `precio_opcionales` viaja aparte como desglose).
 - `POST /v1/tiendas/{slug}/pedidos` (throttle 15/min, `PedidoTiendaService`): alta de pedido invitado o consumidor. `entrega.{franja|lo_antes_posible}` validados contra la config (franja inventada/vencida → 422); `pago.{forma_pago_id, paga_con}` crea un pago PLANIFICADO (nunca cobra). Bloqueos: fuera de horario/alcance/agotados → 422. Entra "por aceptar" o `confirmado` segun `aceptacion_pedidos_externos`.
@@ -4740,12 +4756,12 @@ Base `/v1/consumidores`, sin `api.tenant` (la cuenta es cross-comercio, BD `conf
 
 #### Alta de una tienda
 
-`config.tiendas` se crea por consola/soporte en v1 (no hay UI): `Tienda::create(['comercio_id' => ..., 'sucursal_id' => ..., 'slug' => ..., 'habilitada' => true])`.
+Hasta RF-T10 (2026-07-17), `config.tiendas` se creaba por consola/soporte: `Tienda::create(['comercio_id' => ..., 'sucursal_id' => ..., 'slug' => ..., 'habilitada' => true])`. Desde RF-T10 hay UI propia en el panel: `App\Livewire\Configuracion\ConfiguracionTienda` (embebido en `Configuracion > Delivery / Take Away`, apartado "Tienda Online", permiso `func.tienda.config`). El boton "Crear mi tienda online" crea el registro **despublicada** (`habilitada=false`) con un slug SUGERIDO (`ConfiguracionTienda::slugSugerido()`: `Str::slug(nombre_comercio.' '.nombre_sucursal)`, truncado a 55 chars, sufijo numerico incremental ante colision de `slug` UNIQUE global) — el operador lo revisa/edita y publica cuando esta lista. El alta por consola sigue siendo valida (multi-sucursal, migraciones de datos, etc.).
 
 #### CORS y config del proyecto tienda (RF-T5)
 
-- **`config/cors.php`** (nuevo): `allowed_origins` lee `CORS_ALLOWED_ORIGINS` (env, coma-separado; `*` = abierto, default actual hasta configurar el dominio real del frontend tienda).
-- **`config/tienda.php`** (nuevo): `url` (env `TIENDA_URL`, default `APP_URL`) — dominio del frontend `bcn-tienda` que consumen los Mailables de consumidores (`app/Mail/Consumidores/VerificarEmailConsumidor`, `RecuperarPasswordConsumidor`, vistas markdown en `resources/views/emails/consumidores/`) para armar los links `{TIENDA_URL}/verificar?token=...` y `{TIENDA_URL}/recuperar?token=...`.
+- **`config/cors.php`** (nuevo): `allowed_origins` lee `CORS_ALLOWED_ORIGINS` (env, coma-separado; `*` = abierto, default actual hasta configurar el dominio real del frontend tienda). `exposed_headers` incluye `ETag` (aditivo 2026-07-17): sin exponerlo en CORS, un consumidor browser-side cross-origin no puede LEER el header `ETag` de la respuesta aunque venga, y la revalidacion `If-None-Match` del cache HTTP del catalogo (arriba) no puede funcionar desde `bcn-tienda`.
+- **`config/tienda.php`** (nuevo): `url` (env `TIENDA_URL`, default `APP_URL`) — dominio del frontend `bcn-tienda` que consumen los Mailables de consumidores (`app/Mail/Consumidores/VerificarEmailConsumidor`, `RecuperarPasswordConsumidor`, vistas markdown en `resources/views/emails/consumidores/`) para armar los links `{TIENDA_URL}/verificar?token=...` y `{TIENDA_URL}/recuperar?token=...`. Tambien arma la URL publica que muestra `ConfiguracionTienda` (`{TIENDA_URL}/tienda/{slug}`).
 
 ---
 

@@ -48,6 +48,14 @@ abstract class TestCase extends BaseTestCase
         // Evitar que Vite busque manifest.json (no se compila en CI)
         $this->withoutVite();
 
+        // Polución estática cross-test: cualquier test que renderizó un
+        // componente Livewire deja $disableBackButtonCache=true (static PHP,
+        // sobrevive entre tests del mismo proceso) y su middleware global pisa
+        // el Cache-Control de TODAS las respuestas siguientes — rompe los
+        // asserts de cache HTTP de la API (RF-T5) según el orden de la suite.
+        // En prod no pasa: un request de API nunca bootea Livewire.
+        \Livewire\Features\SupportDisablingBackButtonCache\SupportDisablingBackButtonCache::$disableBackButtonCache = false;
+
         // Asegurar que las BDs de testing existen
         if (! static::$migrationsRun) {
             $this->ensureTestDatabases();
@@ -109,11 +117,11 @@ abstract class TestCase extends BaseTestCase
                 ['pymes_test', 'menu_items']
             );
 
-            // Centinela adicional: última tabla estructural agregada en CONFIG
-            // (API v1 pedidos-delivery). Si falta, hay migraciones pendientes.
+            // Centinela adicional: último cambio estructural en CONFIG
+            // (tiendas.tema, RF-T6/RF-T7). Si falta, hay migraciones pendientes.
             $existsTiendas = DB::connection('config')->select(
-                'SELECT COUNT(*) as cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
-                ['config_test', 'tiendas']
+                'SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+                ['config_test', 'tiendas', 'tema']
             );
 
             if (($exists[0]->cnt ?? 0) > 0 && ($existsTiendas[0]->cnt ?? 0) > 0) {

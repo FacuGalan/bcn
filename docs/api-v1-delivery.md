@@ -73,6 +73,30 @@ integrado es otro circuito, pendiente en el spec de integraciones);
 — mostrarlo junto a la opción ("Efectivo −10%"); el monto exacto lo calcula
 `carrito/cotizar` con `forma_pago_id`.
 
+**Analytics, tema y comportamiento** (aditivo 2026-07-17, RF-T7 + RF-T6):
+
+```json
+{
+  "analytics": {
+    "ga4_measurement_id": "G-XXXXXXXXXX",   // null ⇒ NO inyectar gtag
+    "meta_pixel_id": "123456789012345"      // null ⇒ NO inyectar fbq
+  },
+  "tema": {
+    "colores": { "primario": "#4f46e5", "acento": "#f59e0b",
+                 "fondo": "#f9fafb", "superficie": "#ffffff",
+                 "texto": "#111827" },
+    "tipografia": { "fuente": "system" },   // system|inter|poppins|roboto|montserrat|lora (self-hosted en la tienda)
+    "radios": "md",                          // none|sm|md|lg|full
+    "densidad": "normal"                     // compacta|normal|amplia
+  },
+  "comportamiento": {}                       // reservado (Principio 10); v1 sin seteos
+}
+```
+
+`tema` es el resultado EFECTIVO (defaults del core + JSON configurado en el
+panel): la tienda lo vuelca a sus design tokens sin defaults propios. Las
+claves son contrato: agregar claves es aditivo; renombrar/quitar exige v2.
+
 ### `GET /v1/tiendas/{slug}/franjas?tipo=delivery|take_away`
 Horarios de entrega/retiro de la JORNADA con lugar (modo `franjas`):
 ```json
@@ -134,7 +158,9 @@ ese precio, igual que en el mostrador).
 
 **Cache HTTP (RF-T5)**: la respuesta trae `ETag` y `Cache-Control:
 public, max-age=60`. Revalidar con `If-None-Match` → `304` sin payload si el
-catálogo no cambió.
+catálogo no cambió. El armado además se cachea SERVER-SIDE 60s (los cambios
+de catálogo/precios pueden demorar hasta un minuto en verse en la tienda).
+`ETag` está en `exposed_headers` de CORS para consumo browser-side.
 
 ### `POST /v1/tiendas/{slug}/envios/cotizar`
 ```json
