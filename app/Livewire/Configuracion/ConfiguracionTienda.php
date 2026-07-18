@@ -29,6 +29,13 @@ class ConfiguracionTienda extends Component
 {
     use SucursalAware, WithFileUploads;
 
+    /**
+     * Estado PERSISTIDO de `habilitada`, montado por el PADRE (RF-T12): con
+     * true el visor embebe la tienda real (la API 404ea despublicadas); con
+     * false cae al mock. El padre lo re-monta vía wire:key al cambiar.
+     */
+    public bool $publicadaPersistida = false;
+
     public ?int $tiendaId = null;
 
     public string $slug = '';
@@ -217,6 +224,8 @@ class ConfiguracionTienda extends Component
             $this->logoPathActual = (string) ($tienda->logo_path ?? '');
             $this->portadaPathActual = (string) ($tienda->portada_path ?? '');
 
+            // El visor recarga el iframe: lo persistido ya incluye todo.
+            $this->dispatch('tienda-guardada');
             $this->dispatch('toast-success', message: __('Configuración de la tienda guardada'));
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
@@ -224,6 +233,29 @@ class ConfiguracionTienda extends Component
     }
 
     // ==================== LOGO Y PORTADA (RF-T11) ====================
+
+    /**
+     * El visor en vivo (RF-T12) recibe las URLs de preview por evento: son
+     * server-rendered (temporaryUrl del upload pendiente) y no entanglables.
+     */
+    public function updatedLogoUpload(): void
+    {
+        $this->emitirImagenesPreview();
+    }
+
+    public function updatedPortadaUpload(): void
+    {
+        $this->emitirImagenesPreview();
+    }
+
+    protected function emitirImagenesPreview(): void
+    {
+        $this->dispatch(
+            'tienda-preview-imagenes',
+            logoUrl: $this->previewUrl($this->logoUpload, $this->logoPathActual),
+            portadaUrl: $this->previewUrl($this->portadaUpload, $this->portadaPathActual),
+        );
+    }
 
     /** Descarta el upload pendiente o borra la imagen ya guardada. */
     public function eliminarLogo(): void
@@ -259,6 +291,7 @@ class ConfiguracionTienda extends Component
         try {
             app(ImagenTiendaService::class)->{$metodoService}($tienda);
             $this->{$propActual} = '';
+            $this->emitirImagenesPreview();
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }
@@ -295,12 +328,25 @@ class ConfiguracionTienda extends Component
                 ? config('tienda.url').'/tienda/'.$this->slug
                 : null,
             'puedeConfigurar' => (bool) auth()->user()?->hasPermissionTo('func.tienda.config'),
+            // Origen (scheme://host[:port]) del frontend de la tienda: es el
+            // targetOrigin del postMessage del visor (RF-T12), nunca '*'.
+            'origenTienda' => $this->origenTienda(),
             // Para el uploader y el preview en vivo: upload pendiente gana
             // sobre lo guardado. temporaryUrl() puede fallar si el tmp
             // expiró — degradar a lo persistido.
             'logoPreviewUrl' => $this->previewUrl($this->logoUpload, $this->logoPathActual),
             'portadaPreviewUrl' => $this->previewUrl($this->portadaUpload, $this->portadaPathActual),
         ]);
+    }
+
+    protected function origenTienda(): string
+    {
+        $partes = parse_url((string) config('tienda.url'));
+        if (empty($partes['scheme']) || empty($partes['host'])) {
+            return '';
+        }
+
+        return $partes['scheme'].'://'.$partes['host'].(isset($partes['port']) ? ':'.$partes['port'] : '');
     }
 
     protected function previewUrl($upload, string $pathActual): ?string

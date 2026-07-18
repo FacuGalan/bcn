@@ -292,8 +292,13 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('El calendario y los pedidos externos se guardan con el botón "Guardar configuración" y aplican también al panel y a la API, tengas o no la tienda publicada.') }}</p>
                 @endif
 
-                {{-- Registro config.tiendas (guardado propio del sub-componente) --}}
-                <livewire:configuracion.configuracion-tienda />
+                {{-- Registro config.tiendas (guardado propio del sub-componente).
+                     wire:key con el estado persistido: publicar/despublicar
+                     REMONTA el hijo (los props de hijos Livewire 3 no se
+                     re-propagan solos) y el visor pasa de mock a iframe. --}}
+                <livewire:configuracion.configuracion-tienda
+                    :publicada-persistida="$tiendaPublicadaPersistida"
+                    :wire:key="'config-tienda-'.($tiendaPublicadaPersistida ? 'pub' : 'nopub')" />
             </div>
         @endif
     </div>
