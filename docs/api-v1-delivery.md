@@ -167,6 +167,19 @@ FINALES (motor de precios del sistema: listas + promociones vigentes).
 host de la API (fix 2026-07-17): la tienda corre en otro origen y una ruta
 relativa se rompería contra su propio host. `null` si no hay imagen.
 
+**Precios tachados y promos genéricas** (aditivo 2026-07-18, RF-T13):
+
+- Cada artículo suma `precio_lista`: el precio ANTES de promociones, SOLO
+  cuando difiere del `precio` final (si no, `null`). La tienda lo muestra
+  tachado junto al precio de oferta. Deriva del mismo motor de precios
+  (nunca lo calcula la tienda).
+- La respuesta suma `promociones_genericas: [{ "nombre", "descripcion" }]`:
+  promociones de alcance GENERAL vigentes HOY — comunes automáticas (sin
+  cupón) sin condición por artículo (cantidad, total, forma de pago,
+  categoría) y especiales automáticas (NxM/combos/grupos) del canal tienda.
+  Alimenta el aviso "Promociones de hoy" de la home (visible según
+  `tema.promos.mostrar_home`). Vacío ⇒ sin aviso.
+
 Los grupos de opcionales son los ASIGNADOS al artículo en la sucursal de la
 tienda (paridad con el panel), con el precio de la asignación (override por
 artículo, no el del catálogo global). Grupos sin opciones vivas no se
