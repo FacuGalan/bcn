@@ -8,6 +8,15 @@
         {{-- Defensivo: el padre solo monta este componente con tienda creada. --}}
         <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Esta sucursal todavía no tiene tienda online.') }}</p>
     @else
+        {{-- Scope Alpine del preview (RF-T12): config inicial por DATASET
+             (cambiar un data-* NO re-inicializa Alpine; el gotcha del morph
+             es solo con el atributo x-data). Visor a la derecha en xl+. --}}
+        <div x-data="tiendaPreview"
+            data-origen-tienda="{{ $origenTienda }}"
+            data-logo-url="{{ $logoPreviewUrl }}"
+            data-portada-url="{{ $portadaPreviewUrl }}"
+            class="xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] xl:gap-4 xl:items-start">
+        <div class="space-y-3">
         {{-- ==================== DIRECCIÓN ==================== --}}
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -184,5 +193,9 @@
                 </button>
             </div>
         @endif
+        </div> {{-- /columna config --}}
+
+        @include('livewire.configuracion.partials.tienda-preview-visor')
+        </div> {{-- /grid preview --}}
     @endif
 </div>

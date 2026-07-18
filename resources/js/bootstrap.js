@@ -22,6 +22,9 @@ import './zonas-mapa.js';
 // Componente Alpine demoraAlerta (resaltado de pedidos demorados, tick local)
 import './demora-alerta.js';
 
+// Componente Alpine tiendaPreview (visor en vivo de la tienda online, RF-T12)
+import './tienda-preview.js';
+
 // Modulo de impresion QZ Tray
 import './qz-integration.js';
 

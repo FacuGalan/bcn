@@ -1,43 +1,8 @@
-{{-- Vista previa en vivo de la tienda (RF-T11): drawer lateral derecho con un
-     mock del storefront pintado SOLO con los design tokens del form (CSS vars
-     --tp-*). El x-data es ESTÁTICO (cero interpolación Blade: el morph de
-     Livewire re-inicializa Alpine si el atributo cambia — gotcha del
-     proyecto) y sincroniza por $wire.entangle. x-show va en HIJOS del x-data,
-     nunca en el mismo elemento (otro gotcha del proyecto). El interior del
-     mock NO usa clases dark:: la tienda se pinta solo con su propio tema. --}}
-<div x-data="{
-        open: false,
-        colorPrimario: $wire.entangle('colorPrimario').live,
-        colorAcento: $wire.entangle('colorAcento').live,
-        colorFondo: $wire.entangle('colorFondo').live,
-        colorSuperficie: $wire.entangle('colorSuperficie').live,
-        colorTexto: $wire.entangle('colorTexto').live,
-        fuente: $wire.entangle('fuente').live,
-        radios: $wire.entangle('radios').live,
-        densidad: $wire.entangle('densidad').live,
-        get radioCard() { return ({ none: '0px', sm: '4px', md: '8px', lg: '16px', full: '24px' })[this.radios] || '8px' },
-        get radioBoton() { return this.radios === 'full' ? '9999px' : this.radioCard },
-        get pad() { return ({ compacta: '8px', normal: '12px', amplia: '16px' })[this.densidad] || '12px' },
-        get fontStack() {
-            return ({
-                system: 'system-ui, sans-serif',
-                inter: 'Inter, ui-sans-serif, system-ui, sans-serif',
-                poppins: 'Poppins, ui-sans-serif, system-ui, sans-serif',
-                roboto: 'Roboto, ui-sans-serif, system-ui, sans-serif',
-                montserrat: 'Montserrat, ui-sans-serif, system-ui, sans-serif',
-                lora: 'Lora, Georgia, serif',
-            })[this.fuente] || 'system-ui, sans-serif'
-        },
-        get cssVars() {
-            return '--tp-primario:' + this.colorPrimario + ';--tp-acento:' + this.colorAcento
-                + ';--tp-fondo:' + this.colorFondo + ';--tp-superficie:' + this.colorSuperficie
-                + ';--tp-texto:' + this.colorTexto + ';--tp-radio:' + this.radioCard
-                + ';--tp-radio-boton:' + this.radioBoton + ';--tp-pad:' + this.pad
-                + ';--tp-font:' + this.fontStack;
-        },
-    }"
-    @keydown.escape.window="open = false"
-    class="inline-flex">
+{{-- Drawer de vista previa (RF-T11/RF-T12): fallback para pantallas <xl,
+     donde no entra el visor lateral. Usa el scope Alpine `tiendaPreview` del
+     ANCESTRO (configuracion-tienda.blade.php) — acá no hay x-data propio.
+     x-show va en HIJOS, nunca junto a x-data (gotcha del proyecto). --}}
+<div class="inline-flex xl:hidden" @keydown.escape.window="open = false">
 
     {{-- Trigger --}}
     <button type="button" @click="open = true"
@@ -74,75 +39,8 @@
             </button>
         </div>
 
-        {{-- Mock del storefront: SOLO tokens de la tienda, sin dark: --}}
-        <div class="flex-1 overflow-y-auto" :style="cssVars"
-            style="background-color: var(--tp-fondo); font-family: var(--tp-font); color: var(--tp-texto);">
-
-            {{-- Header con portada + logo + nombre --}}
-            <div class="relative">
-                <div class="h-28 w-full overflow-hidden" style="background: linear-gradient(120deg, var(--tp-primario), var(--tp-acento));">
-                    @if($portadaPreviewUrl)
-                        <img src="{{ $portadaPreviewUrl }}" alt="" class="h-full w-full object-cover">
-                    @endif
-                </div>
-                <div class="absolute -bottom-7 left-4 h-14 w-14 overflow-hidden border-2 border-white shadow"
-                    style="border-radius: var(--tp-radio-boton); background-color: var(--tp-superficie);">
-                    @if($logoPreviewUrl)
-                        <img src="{{ $logoPreviewUrl }}" alt="" class="h-full w-full object-cover">
-                    @else
-                        <div class="h-full w-full flex items-center justify-center text-lg font-bold" style="color: var(--tp-primario);">
-                            {{ mb_substr(app(\App\Services\TenantService::class)->getComercio()?->nombre ?? 'T', 0, 1) }}
-                        </div>
-                    @endif
-                </div>
-            </div>
-
-            <div class="pt-9 pb-4" style="padding-left: var(--tp-pad); padding-right: var(--tp-pad);">
-                <p class="text-sm font-bold" style="color: var(--tp-texto);">{{ sucursal_activa_model()?->nombre ?? __('Tu tienda') }}</p>
-                <p class="text-[11px] opacity-70">{{ __('Abierto · Delivery y Take Away') }}</p>
-
-                {{-- Chips de categorías --}}
-                <div class="flex gap-1.5 mt-3 overflow-hidden">
-                    <span class="px-2.5 py-1 text-[11px] font-semibold text-white" style="background-color: var(--tp-primario); border-radius: var(--tp-radio-boton);">{{ __('Todo') }}</span>
-                    <span class="px-2.5 py-1 text-[11px]" style="background-color: var(--tp-superficie); border-radius: var(--tp-radio-boton); border: 1px solid color-mix(in srgb, var(--tp-texto) 15%, transparent);">{{ __('Pizzas') }}</span>
-                    <span class="px-2.5 py-1 text-[11px]" style="background-color: var(--tp-superficie); border-radius: var(--tp-radio-boton); border: 1px solid color-mix(in srgb, var(--tp-texto) 15%, transparent);">{{ __('Bebidas') }}</span>
-                    <span class="px-2.5 py-1 text-[11px]" style="background-color: var(--tp-superficie); border-radius: var(--tp-radio-boton); border: 1px solid color-mix(in srgb, var(--tp-texto) 15%, transparent);">{{ __('Postres') }}</span>
-                </div>
-
-                {{-- Cards de producto de ejemplo --}}
-                <div class="mt-3 grid grid-cols-2" style="gap: var(--tp-pad);">
-                    @foreach([
-                        ['nombre' => __('Pizza muzzarella'), 'precio' => '$ 9.500', 'oferta' => true],
-                        ['nombre' => __('Hamburguesa completa'), 'precio' => '$ 8.200', 'oferta' => false],
-                        ['nombre' => __('Gaseosa 1,5 L'), 'precio' => '$ 2.800', 'oferta' => false],
-                        ['nombre' => __('Flan casero'), 'precio' => '$ 3.100', 'oferta' => true],
-                    ] as $producto)
-                        <div class="overflow-hidden shadow-sm" style="background-color: var(--tp-superficie); border-radius: var(--tp-radio);">
-                            <div class="relative h-16" style="background: color-mix(in srgb, var(--tp-primario) 18%, var(--tp-superficie));">
-                                @if($producto['oferta'])
-                                    <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 text-[9px] font-bold text-white" style="background-color: var(--tp-acento); border-radius: var(--tp-radio-boton);">{{ __('Oferta') }}</span>
-                                @endif
-                            </div>
-                            <div style="padding: var(--tp-pad);">
-                                <p class="text-[11px] font-semibold leading-tight" style="color: var(--tp-texto);">{{ $producto['nombre'] }}</p>
-                                <div class="flex items-center justify-between mt-1.5">
-                                    <span class="text-[11px] font-bold" style="color: var(--tp-texto);">{{ $producto['precio'] }}</span>
-                                    <span class="px-2 py-0.5 text-[10px] font-semibold text-white" style="background-color: var(--tp-primario); border-radius: var(--tp-radio-boton);">{{ __('Agregar') }}</span>
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            </div>
-
-            {{-- Barra carrito --}}
-            <div class="sticky bottom-0" style="padding: var(--tp-pad);">
-                <div class="flex items-center justify-between px-3 py-2 text-white text-xs font-semibold shadow-lg"
-                    style="background-color: var(--tp-primario); border-radius: var(--tp-radio-boton);">
-                    <span>{{ __('Ver carrito') }} · 2</span>
-                    <span>$ 12.300</span>
-                </div>
-            </div>
+        <div class="flex-1 overflow-y-auto">
+            @include('livewire.configuracion.partials.tienda-preview-mock')
         </div>
     </div>
 </div>
