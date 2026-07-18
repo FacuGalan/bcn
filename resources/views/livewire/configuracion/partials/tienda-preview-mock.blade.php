@@ -7,9 +7,13 @@
 
     {{-- Header con portada + logo + nombre --}}
     <div class="relative">
-        <div class="h-28 w-full overflow-hidden" style="background: linear-gradient(120deg, var(--tp-primario), var(--tp-acento));">
+        <div class="relative h-28 w-full overflow-hidden" style="background: linear-gradient(120deg, var(--tp-primario), var(--tp-acento));">
             @if($portadaPreviewUrl)
-                <img src="{{ $portadaPreviewUrl }}" alt="" class="h-full w-full object-cover">
+                <img src="{{ $portadaPreviewUrl }}" alt="" class="h-full w-full object-cover"
+                    :style="'object-position: center ' + portadaPosicion">
+                {{-- Fade con el color primario (RF-T13, toggle en vivo) --}}
+                <div x-show="portadaOverlay" class="absolute inset-0"
+                    style="background: color-mix(in srgb, var(--tp-primario) 55%, transparent);"></div>
             @endif
         </div>
         <div class="absolute -bottom-7 left-4 h-14 w-14 overflow-hidden border-2 border-white shadow"
@@ -26,6 +30,8 @@
 
     <div class="pt-9 pb-4" style="padding-left: var(--tp-pad); padding-right: var(--tp-pad);">
         <p class="text-sm font-bold" style="color: var(--tp-texto);">{{ sucursal_activa_model()?->nombre ?? __('Tu tienda') }}</p>
+        {{-- Slogan en vivo (RF-T13) --}}
+        <p x-show="slogan" x-text="slogan" class="text-[11px] italic opacity-80" style="color: var(--tp-texto);"></p>
         <p class="text-[11px] opacity-70">{{ __('Abierto · Delivery y Take Away') }}</p>
 
         {{-- Chips de categorías --}}

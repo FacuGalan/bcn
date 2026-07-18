@@ -102,7 +102,10 @@
                     <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Portada (banner del encabezado)') }}</label>
                     <div class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
                         @if($portadaPreviewUrl)
-                            <img src="{{ $portadaPreviewUrl }}" alt="{{ __('Portada de la tienda') }}" class="max-h-24 w-full object-cover mb-3 rounded">
+                            {{-- La miniatura muestra el ENCUADRE real elegido (RF-T13) --}}
+                            <img src="{{ $portadaPreviewUrl }}" alt="{{ __('Portada de la tienda') }}"
+                                class="max-h-24 w-full object-cover mb-3 rounded"
+                                style="object-position: center {{ $portadaPosicion }};">
                         @else
                             <svg class="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -126,6 +129,28 @@
                         <div wire:loading wire:target="portadaUpload" class="mt-1 text-xs text-bcn-primary">{{ __('Subiendo imagen...') }}</div>
                     </div>
                     @error('portadaUpload') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+
+                    {{-- Overlay + encuadre de la portada (RF-T13) --}}
+                    @if($portadaPreviewUrl)
+                        <div class="mt-2 space-y-2">
+                            <label class="flex items-start gap-2 cursor-pointer">
+                                <input type="checkbox" wire:model.live="portadaOverlay" @disabled(! $puedeConfigurar)
+                                    class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Fundir la portada con el color de la tienda (fade)') }}</span>
+                            </label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Encuadre') }}</span>
+                                <div class="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
+                                    @foreach(['top' => __('Arriba'), 'center' => __('Centro'), 'bottom' => __('Abajo')] as $pos => $labelPos)
+                                        <button type="button" wire:click="$set('portadaPosicion', '{{ $pos }}')" @disabled(! $puedeConfigurar)
+                                            class="px-3 py-1 text-xs font-medium transition-colors {{ $portadaPosicion === $pos ? 'bg-bcn-primary text-white' : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600' }}">
+                                            {{ $labelPos }}
+                                        </button>
+                                    @endforeach
+                                </div>
+                            </div>
+                        </div>
+                    @endif
                 </div>
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
@@ -181,6 +206,88 @@
                         <option value="amplia">{{ __('Amplia') }}</option>
                     </select>
                 </div>
+            </div>
+
+            {{-- ==================== CONTENIDO Y REDES (RF-T13) ==================== --}}
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-1">
+                <h4 class="text-xs font-semibold text-gray-900 dark:text-white mb-2">{{ __('Contenido y redes') }}</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label for="ct-slogan" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Slogan (se muestra en el encabezado)') }}</label>
+                        <input id="ct-slogan" type="text" maxlength="120" wire:model.live.debounce.500ms="slogan" @disabled(! $puedeConfigurar)
+                            placeholder="{{ __('Ej: Las mejores pizzas de la zona') }}"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                        @error('slogan') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="sm:row-span-2">
+                        <label for="ct-descripcion" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Texto libre (sección propia en la página principal)') }}</label>
+                        <textarea id="ct-descripcion" rows="4" maxlength="1000" wire:model.live.debounce.500ms="descripcion" @disabled(! $puedeConfigurar)
+                            placeholder="{{ __('Contale a tus clientes sobre tu comercio, tu historia, tus horarios especiales...') }}"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
+                        @error('descripcion') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Vacío: la sección no aparece en la tienda.') }}</p>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label for="ct-facebook" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Facebook</label>
+                            <input id="ct-facebook" type="url" wire:model.live.debounce.500ms="redFacebook" @disabled(! $puedeConfigurar)
+                                placeholder="https://facebook.com/micomercio"
+                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            @error('redFacebook') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <label for="ct-instagram" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Instagram</label>
+                            <input id="ct-instagram" type="url" wire:model.live.debounce.500ms="redInstagram" @disabled(! $puedeConfigurar)
+                                placeholder="https://instagram.com/micomercio"
+                                class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            @error('redInstagram') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                </div>
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Con la URL cargada aparece el botón de la red en el encabezado de la tienda.') }}</p>
+            </div>
+
+            {{-- ==================== PRESENTACIÓN DEL CATÁLOGO (RF-T13) ==================== --}}
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-1">
+                <h4 class="text-xs font-semibold text-gray-900 dark:text-white mb-2">{{ __('Presentación del catálogo') }}</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                        <label for="ct-layout" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cómo se muestran los artículos') }}</label>
+                        <select id="ct-layout" wire:model="catalogoLayout" @disabled(! $puedeConfigurar)
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                            <option value="grilla">{{ __('Grilla (foto protagonista)') }}</option>
+                            <option value="lista">{{ __('Renglones (foto + detalle al lado)') }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="ct-destacados-modo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Artículos destacados') }}</label>
+                        <select id="ct-destacados-modo" wire:model.live="destacadosModo" @disabled(! $puedeConfigurar)
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                            <option value="banner">{{ __('Banner deslizable arriba de todo') }}</option>
+                            <option value="tarjeta_grande">{{ __('Tarjeta grande entre los artículos') }}</option>
+                            <option value="ninguno">{{ __('Sin sección de destacados') }}</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="ct-destacados-adorno" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Adorno del destacado') }}</label>
+                        <select id="ct-destacados-adorno" wire:model="destacadosAdorno" @disabled(! $puedeConfigurar || $destacadosModo !== 'tarjeta_grande')
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-50">
+                            <option value="ninguno">{{ __('Ninguno') }}</option>
+                            <option value="glow">{{ __('Brillo alrededor (glow)') }}</option>
+                            <option value="badge">{{ __('Badge con icono de destacado') }}</option>
+                            <option value="ambos">{{ __('Brillo + badge') }}</option>
+                        </select>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Solo aplica a la tarjeta grande.') }}</p>
+                    </div>
+                </div>
+                <label class="mt-2 flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" wire:model="promosMostrarHome" @disabled(! $puedeConfigurar)
+                        class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <span class="text-xs text-gray-700 dark:text-gray-300">
+                        {{ __('Mostrar aviso de "Promociones de hoy" en la página principal') }}
+                        <span class="block text-gray-500 dark:text-gray-400">{{ __('Lista las promociones vigentes de alcance general (combos, 2x1, descuentos por categoría). Los cambios de esta sección se ven al guardar.') }}</span>
+                    </span>
+                </label>
             </div>
         </div>
 

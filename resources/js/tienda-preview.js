@@ -35,7 +35,12 @@ document.addEventListener('alpine:init', () => {
             // instante en el cliente, $wire.$watch refleja acá cada cambio
             // (también los server-side, ej. restablecerTema).
             const props = ['colorPrimario', 'colorAcento', 'colorFondo', 'colorSuperficie',
-                'colorTexto', 'fuente', 'radios', 'densidad'];
+                'colorTexto', 'fuente', 'radios', 'densidad',
+                // RF-T13 — tokens que también reflejan en vivo (layout del
+                // catálogo/destacados/promos son server-rendered: recargan
+                // al guardar, no viajan por acá).
+                'portadaOverlay', 'portadaPosicion', 'slogan', 'descripcion',
+                'redFacebook', 'redInstagram'];
             props.forEach((prop) => {
                 this[prop] = this.$wire.get(prop);
                 this.$wire.$watch(prop, (valor) => {
@@ -111,6 +116,9 @@ document.addEventListener('alpine:init', () => {
                     tipografia: { fuente: this.fuente },
                     radios: this.radios,
                     densidad: this.densidad,
+                    portada: { overlay: this.portadaOverlay, posicion: this.portadaPosicion },
+                    textos: { slogan: this.slogan, descripcion: this.descripcion },
+                    redes: { facebook: this.redFacebook, instagram: this.redInstagram },
                 },
                 logoUrl: this.logoUrl,
                 portadaUrl: this.portadaUrl,
