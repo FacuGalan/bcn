@@ -51,8 +51,11 @@
                     <h3 class="text-xs font-semibold text-gray-900 dark:text-white">{{ __('Apariencia de la tienda') }}</h3>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Logo, portada, colores, tipografía y estilo con los que se pinta tu tienda.') }}</p>
                 </div>
-                <button type="button" wire:click="restablecerTema" @disabled(! $puedeConfigurar)
-                    class="text-xs text-bcn-primary hover:underline disabled:opacity-50">{{ __('Restablecer al tema default') }}</button>
+                <div class="flex items-center gap-3">
+                    @include('livewire.configuracion.partials.tienda-preview-drawer')
+                    <button type="button" wire:click="restablecerTema" @disabled(! $puedeConfigurar)
+                        class="text-xs text-bcn-primary hover:underline disabled:opacity-50">{{ __('Restablecer al tema default') }}</button>
+                </div>
             </div>
 
             {{-- Logo + portada (se persisten al Guardar tienda) --}}
@@ -139,7 +142,7 @@
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                     <label for="ct-fuente" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipografía') }}</label>
-                    <select id="ct-fuente" wire:model="fuente" @disabled(! $puedeConfigurar)
+                    <select id="ct-fuente" wire:model.live="fuente" @disabled(! $puedeConfigurar)
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         <option value="system">{{ __('Del sistema (rápida)') }}</option>
                         <option value="inter">Inter</option>
@@ -151,7 +154,7 @@
                 </div>
                 <div>
                     <label for="ct-radios" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Bordes redondeados') }}</label>
-                    <select id="ct-radios" wire:model="radios" @disabled(! $puedeConfigurar)
+                    <select id="ct-radios" wire:model.live="radios" @disabled(! $puedeConfigurar)
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         <option value="none">{{ __('Rectos') }}</option>
                         <option value="sm">{{ __('Suaves') }}</option>
@@ -162,7 +165,7 @@
                 </div>
                 <div>
                     <label for="ct-densidad" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Densidad del contenido') }}</label>
-                    <select id="ct-densidad" wire:model="densidad" @disabled(! $puedeConfigurar)
+                    <select id="ct-densidad" wire:model.live="densidad" @disabled(! $puedeConfigurar)
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
                         <option value="compacta">{{ __('Compacta') }}</option>
                         <option value="normal">{{ __('Normal') }}</option>
