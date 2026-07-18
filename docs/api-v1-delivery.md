@@ -97,6 +97,18 @@ integrado es otro circuito, pendiente en el spec de integraciones);
 panel): la tienda lo vuelca a sus design tokens sin defaults propios. Las
 claves son contrato: agregar claves es aditivo; renombrar/quitar exige v2.
 
+**Identidad visual** (aditivo 2026-07-17, RF-T11):
+
+```json
+{
+  "logo_url": "https://core.example/storage/tiendas/1/uuid.webp",   // null ⇒ sin logo
+  "portada_url": "https://core.example/storage/tiendas/1/uuid.webp" // null ⇒ sin portada (banner del header)
+}
+```
+
+URLs ABSOLUTAS (host del core) porque la tienda corre en otro origen.
+Imágenes re-encodeadas a WebP por el panel (logo ≤800px, portada ≤1600×900).
+
 ### `GET /v1/tiendas/{slug}/franjas?tipo=delivery|take_away`
 Horarios de entrega/retiro de la JORNADA con lugar (modo `franjas`):
 ```json
@@ -374,7 +386,9 @@ ordena por distancia; una tienda sin georreferenciar devuelve
 todas en orden alfabético. Card: `{slug, nombre, comercio, rubro: {id,
 nombre}, logo_url, direccion, localidad, latitud, longitud, abierta_ahora,
 takeaway_habilitado, alcance, distancia_km}`. Los datos por tienda se
-cachean ~5 min.
+cachean ~5 min. `logo_url` (RF-T11): prima el logo propio de la tienda
+(config del panel); fallback al logo de pantalla-cliente/empresa de la
+sucursal. Por el cache, un cambio de logo puede demorar ~5 min en verse.
 
 ### `GET /v1/rubros`
 

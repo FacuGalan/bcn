@@ -129,6 +129,26 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.tema.radios', 'md');
     }
 
+    public function test_tienda_show_expone_logo_y_portada_absolutas(): void
+    {
+        // RF-T11 (aditivo): sin imágenes, null explícito; con paths, URLs
+        // ABSOLUTAS (la tienda corre en otro origen — patrón imagen_url).
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.logo_url', null)
+            ->assertJsonPath('data.portada_url', null);
+
+        $this->tienda->update([
+            'logo_path' => 'tiendas/1/logo-test.webp',
+            'portada_path' => 'tiendas/1/portada-test.webp',
+        ]);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test')->assertOk();
+        $this->assertStringStartsWith('http', (string) $respuesta->json('data.logo_url'));
+        $this->assertStringEndsWith('/storage/tiendas/1/logo-test.webp', (string) $respuesta->json('data.logo_url'));
+        $this->assertStringEndsWith('/storage/tiendas/1/portada-test.webp', (string) $respuesta->json('data.portada_url'));
+    }
+
     public function test_catalogo_etag_y_revalidacion_304(): void
     {
         // Cache HTTP del catálogo (RF-T5): ETag + max-age, y revalidación

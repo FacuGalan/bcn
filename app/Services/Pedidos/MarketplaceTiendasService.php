@@ -131,7 +131,9 @@ class MarketplaceTiendasService
                         'nombre' => $sucursal->nombre,
                         'direccion' => $sucursal->direccion,
                         'localidad' => $sucursal->localidad,
-                        'logo_url' => $sucursal->logoPantallaClienteUrl(),
+                        // RF-T11: prima el logo propio de la tienda; fallback
+                        // al de pantalla-cliente/empresa (comportamiento previo).
+                        'logo_url' => $tienda->logoUrl() ? url($tienda->logoUrl()) : $sucursal->logoPantallaClienteUrl(),
                         'latitud' => $sucursal->latitud !== null ? (float) $sucursal->latitud : null,
                         'longitud' => $sucursal->longitud !== null ? (float) $sucursal->longitud : null,
                         'georreferenciada' => (bool) ($config['georreferenciar_pedidos'] ?? false),
