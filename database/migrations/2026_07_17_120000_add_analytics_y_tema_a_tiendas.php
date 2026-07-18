@@ -16,10 +16,19 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // Idempotente: en las BD de test las columnas pueden existir sin el
+        // registro en `migrations` (el centinela de TestCase corre migrate
+        // dentro de la suite).
         Schema::connection('config')->table('tiendas', function (Blueprint $table) {
-            $table->string('ga4_measurement_id', 30)->nullable()->after('dominio_propio');
-            $table->string('meta_pixel_id', 30)->nullable()->after('ga4_measurement_id');
-            $table->json('tema')->nullable()->after('meta_pixel_id');
+            if (! Schema::connection('config')->hasColumn('tiendas', 'ga4_measurement_id')) {
+                $table->string('ga4_measurement_id', 30)->nullable()->after('dominio_propio');
+            }
+            if (! Schema::connection('config')->hasColumn('tiendas', 'meta_pixel_id')) {
+                $table->string('meta_pixel_id', 30)->nullable()->after('ga4_measurement_id');
+            }
+            if (! Schema::connection('config')->hasColumn('tiendas', 'tema')) {
+                $table->json('tema')->nullable()->after('meta_pixel_id');
+            }
         });
     }
 

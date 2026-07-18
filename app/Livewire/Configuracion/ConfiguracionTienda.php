@@ -3,11 +3,13 @@
 namespace App\Livewire\Configuracion;
 
 use App\Models\Tienda;
+use App\Services\ImagenTiendaService;
 use App\Services\TenantService;
 use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Str;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 /**
  * Tienda Online de la sucursal (RF-T10/RF-T11 + RF-T7 + RF-T6 parcial,
@@ -25,7 +27,7 @@ use Livewire\Component;
  */
 class ConfiguracionTienda extends Component
 {
-    use SucursalAware;
+    use SucursalAware, WithFileUploads;
 
     public ?int $tiendaId = null;
 
@@ -53,6 +55,21 @@ class ConfiguracionTienda extends Component
 
     public string $densidad = 'normal';
 
+    // ==================== LOGO Y PORTADA (RF-T11) ====================
+
+    /**
+     * Uploads pendientes: nada persiste hasta "Guardar tienda" (coherente
+     * con el resto del form); el preview mientras tanto usa temporaryUrl().
+     * El procesamiento definitivo (re-encode WebP) lo hace ImagenTiendaService.
+     */
+    public $logoUpload = null;
+
+    public $portadaUpload = null;
+
+    public string $logoPathActual = '';
+
+    public string $portadaPathActual = '';
+
     public function mount(): void
     {
         $this->cargar();
@@ -76,6 +93,10 @@ class ConfiguracionTienda extends Component
             $this->slug = '';
             $this->ga4MeasurementId = '';
             $this->metaPixelId = '';
+            $this->logoUpload = null;
+            $this->portadaUpload = null;
+            $this->logoPathActual = '';
+            $this->portadaPathActual = '';
             $this->aplicarTema(Tienda::TEMA_DEFAULTS);
 
             return;
@@ -85,6 +106,10 @@ class ConfiguracionTienda extends Component
         $this->slug = $tienda->slug;
         $this->ga4MeasurementId = (string) ($tienda->ga4_measurement_id ?? '');
         $this->metaPixelId = (string) ($tienda->meta_pixel_id ?? '');
+        $this->logoUpload = null;
+        $this->portadaUpload = null;
+        $this->logoPathActual = (string) ($tienda->logo_path ?? '');
+        $this->portadaPathActual = (string) ($tienda->portada_path ?? '');
         $this->aplicarTema($tienda->temaCompleto());
     }
 
@@ -146,6 +171,8 @@ class ConfiguracionTienda extends Component
             'slug' => 'required|string|min:3|max:60',
             'ga4MeasurementId' => ['nullable', 'string', 'max:30', 'regex:/^G-[A-Z0-9]+$/i'],
             'metaPixelId' => ['nullable', 'string', 'max:30', 'regex:/^[0-9]+$/'],
+            'logoUpload' => 'nullable|image|max:5120',
+            'portadaUpload' => 'nullable|image|max:5120',
             'colorPrimario' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
             'colorAcento' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
             'colorFondo' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
@@ -175,7 +202,63 @@ class ConfiguracionTienda extends Component
                 'tema' => $this->temaDesdeForm(),
             ]);
 
+            // Logo/portada pendientes: recién acá se procesan (re-encode
+            // WebP + reemplazo del anterior) — nada persiste sin guardar.
+            $imagenes = app(ImagenTiendaService::class);
+            if ($this->logoUpload) {
+                $imagenes->actualizarLogo($tienda, $this->logoUpload);
+                $this->logoUpload = null;
+            }
+            if ($this->portadaUpload) {
+                $imagenes->actualizarPortada($tienda, $this->portadaUpload);
+                $this->portadaUpload = null;
+            }
+            $tienda->refresh();
+            $this->logoPathActual = (string) ($tienda->logo_path ?? '');
+            $this->portadaPathActual = (string) ($tienda->portada_path ?? '');
+
             $this->dispatch('toast-success', message: __('Configuración de la tienda guardada'));
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    // ==================== LOGO Y PORTADA (RF-T11) ====================
+
+    /** Descarta el upload pendiente o borra la imagen ya guardada. */
+    public function eliminarLogo(): void
+    {
+        $this->eliminarImagen('logoUpload', 'logoPathActual', 'eliminarLogo');
+    }
+
+    public function eliminarPortada(): void
+    {
+        $this->eliminarImagen('portadaUpload', 'portadaPathActual', 'eliminarPortada');
+    }
+
+    protected function eliminarImagen(string $propUpload, string $propActual, string $metodoService): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.tienda.config')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para configurar la tienda online'));
+
+            return;
+        }
+
+        // Upload pendiente: descartarlo alcanza (no se persistió nada).
+        if ($this->{$propUpload}) {
+            $this->{$propUpload} = null;
+
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda || $this->{$propActual} === '') {
+            return;
+        }
+
+        try {
+            app(ImagenTiendaService::class)->{$metodoService}($tienda);
+            $this->{$propActual} = '';
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
         }
@@ -212,6 +295,24 @@ class ConfiguracionTienda extends Component
                 ? config('tienda.url').'/tienda/'.$this->slug
                 : null,
             'puedeConfigurar' => (bool) auth()->user()?->hasPermissionTo('func.tienda.config'),
+            // Para el uploader y el preview en vivo: upload pendiente gana
+            // sobre lo guardado. temporaryUrl() puede fallar si el tmp
+            // expiró — degradar a lo persistido.
+            'logoPreviewUrl' => $this->previewUrl($this->logoUpload, $this->logoPathActual),
+            'portadaPreviewUrl' => $this->previewUrl($this->portadaUpload, $this->portadaPathActual),
         ]);
+    }
+
+    protected function previewUrl($upload, string $pathActual): ?string
+    {
+        if ($upload) {
+            try {
+                return $upload->temporaryUrl();
+            } catch (Exception) {
+                // cae al persistido
+            }
+        }
+
+        return $pathActual !== '' ? asset('storage/'.ltrim($pathActual, '/')) : null;
     }
 }
