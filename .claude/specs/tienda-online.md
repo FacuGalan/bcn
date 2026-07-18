@@ -334,7 +334,7 @@ del apartado Tienda Online, 2 columnas en xl).
   carrito dentro del iframe no tiene sesión (SameSite) — el visor valida
   estética; la operatoria completa se prueba en la pestaña real.
 
-### RF-T13: Personalización estética avanzada de la tienda — EN REVISIÓN (2026-07-18)
+### RF-T13: Personalización estética avanzada de la tienda — IMPLEMENTADO (2026-07-18, cross-repo: core feat/tienda-estetica-avanzada-rf-t13 + tienda feat/estetica-avanzada-rf-t13; validado en vivo)
 
 Cross-repo (core + bcn-tienda). Decisiones del usuario 2026-07-18. Toda
 opción nueva tiene su valor "nada/ninguno". Persistencia: TODO dentro del
