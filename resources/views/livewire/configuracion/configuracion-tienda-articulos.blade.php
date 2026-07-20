@@ -13,6 +13,9 @@
         'mas_vendido' => ['🔥', 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'],
         'artesanal' => ['🧑‍🍳', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'],
         'sin_azucar' => ['🍃', 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'],
+        'sin_lactosa' => ['🥛', 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'],
+        'kosher' => ['✡️', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'],
+        'con_frutos_secos' => ['🌰', 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'],
     ];
     $estiloBadgeCustom = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 ring-1 ring-inset ring-gray-300 dark:ring-gray-600';
 @endphp
@@ -163,6 +166,37 @@
                                                 class="w-full sm:w-64 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
                                             @error('badgeCustom') <p class="mt-1 text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                                         </div>
+                                    </div>
+
+                                    {{-- ALÉRGENOS (RF-T14): texto libre + botonera de atajos --}}
+                                    <div>
+                                        <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            {{ __('Alérgenos') }}
+                                            <span class="font-normal text-gray-500 dark:text-gray-400">({{ __('la tienda muestra "Contiene: ..." en el detalle') }})</span>
+                                        </p>
+                                        <input type="text" wire:model.live.debounce.800ms="alergenos" maxlength="400" @disabled(! $puedeConfigurar)
+                                            placeholder="{{ __('Separados por coma. Ej: soja, huevos, mostaza') }}"
+                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                                        <div class="mt-1.5 flex flex-wrap gap-1">
+                                            @foreach($alergenosSugeridos as $sugerido)
+                                                <button type="button" wire:click="agregarAlergeno('{{ $sugerido }}')" @disabled(! $puedeConfigurar)
+                                                    class="px-1.5 py-0.5 text-[10px] font-medium rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-bcn-primary hover:text-bcn-primary transition-colors">
+                                                    + {{ $sugerido }}
+                                                </button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+
+                                    {{-- DESCRIPCIÓN PARA LA TIENDA (RF-T14) --}}
+                                    <div>
+                                        <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                            {{ __('Descripción para la tienda') }}
+                                            <span class="font-normal text-gray-500 dark:text-gray-400">({{ __('vacía: se usa la del artículo') }})</span>
+                                        </p>
+                                        <textarea rows="3" wire:model.live.debounce.800ms="descripcionTienda" maxlength="1000" @disabled(! $puedeConfigurar)
+                                            placeholder="{{ $articulo->descripcion ?: __('Contá este producto como quieras que se lea en la tienda...') }}"
+                                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
+                                        @error('descripcionTienda') <p class="mt-1 text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                                     </div>
                                 </div>
                             @endif

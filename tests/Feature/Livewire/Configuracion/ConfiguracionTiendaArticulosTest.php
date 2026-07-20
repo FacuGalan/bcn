@@ -157,6 +157,46 @@ class ConfiguracionTiendaArticulosTest extends TestCase
         $this->assertSame(20, (int) $cat1->fresh()->orden);
     }
 
+    public function test_alergenos_input_libre_y_atajos_persisten_saneados(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId);
+
+        $componente = Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('abrirEditor', $articulo->id)
+            ->set('alergenos', ' soja , huevos,, SOJA , queso azul ')
+            ->assertDispatched('tienda-catalogo-cambiado');
+
+        $this->assertSame(['soja', 'huevos', 'queso azul'], $articulo->fresh()->alergenosTienda(), 'Trim + dedupe case-insensitive + vacíos afuera');
+
+        // Atajo: agrega si falta, no duplica si ya está (case-insensitive).
+        $componente->call('agregarAlergeno', 'mostaza')
+            ->call('agregarAlergeno', 'soja')
+            ->call('agregarAlergeno', 'kriptonita'); // fuera de la botonera: ignorado
+
+        $this->assertSame(['soja', 'huevos', 'queso azul', 'mostaza'], $articulo->fresh()->alergenosTienda());
+
+        // Vaciar el input limpia la columna.
+        $componente->set('alergenos', '');
+        $this->assertNull($articulo->fresh()->alergenos_tienda);
+    }
+
+    public function test_descripcion_de_tienda_persiste_y_vacia_vuelve_a_null(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId);
+        $articulo->update(['descripcion' => 'Operativa']);
+
+        $componente = Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('abrirEditor', $articulo->id)
+            ->set('descripcionTienda', '  Especial para la tienda  ')
+            ->assertDispatched('tienda-catalogo-cambiado');
+
+        $this->assertSame('Especial para la tienda', $articulo->fresh()->descripcion_tienda);
+
+        $componente->set('descripcionTienda', '');
+        $this->assertNull($articulo->fresh()->descripcion_tienda, 'Vacía = vuelve a usarse la operativa');
+        $this->assertSame('Operativa', $articulo->fresh()->descripcion);
+    }
+
     public function test_sin_permiso_no_escribe(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId);

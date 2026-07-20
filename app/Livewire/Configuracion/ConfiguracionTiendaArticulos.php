@@ -44,6 +44,12 @@ class ConfiguracionTiendaArticulos extends Component
     /** Texto del badge custom del artículo abierto ('' = sin custom). */
     public string $badgeCustom = '';
 
+    /** Alérgenos del artículo abierto: texto libre separado por comas. */
+    public string $alergenos = '';
+
+    /** Descripción específica de tienda del artículo abierto ('' = usa la operativa). */
+    public string $descripcionTienda = '';
+
     protected function onSucursalChanged($sucursalId = null, $sucursalNombre = null): void
     {
         $this->cerrarEditor();
@@ -89,6 +95,9 @@ class ConfiguracionTiendaArticulos extends Component
                 $this->badgesSel[] = $badge['tipo'];
             }
         }
+
+        $this->alergenos = implode(', ', $articulo->alergenosTienda());
+        $this->descripcionTienda = (string) ($articulo->descripcion_tienda ?? '');
     }
 
     public function cerrarEditor(): void
@@ -97,6 +106,8 @@ class ConfiguracionTiendaArticulos extends Component
         $this->fotosUpload = [];
         $this->badgesSel = [];
         $this->badgeCustom = '';
+        $this->alergenos = '';
+        $this->descripcionTienda = '';
         $this->resetValidation();
     }
 
@@ -241,6 +252,98 @@ class ConfiguracionTiendaArticulos extends Component
         }
 
         $articulo->update(['badges_tienda' => $badges !== [] ? $badges : null]);
+
+        $this->catalogoCambiado();
+    }
+
+    // ==================== ALÉRGENOS (RF-T14) ====================
+
+    /** wire:model.live.debounce del input libre separado por comas. */
+    public function updatedAlergenos(): void
+    {
+        if (! $this->autorizado()) {
+            return;
+        }
+
+        $this->persistirAlergenos();
+    }
+
+    /** Botonera de atajos: agrega el alérgeno sugerido si no está. */
+    public function agregarAlergeno(string $alergeno): void
+    {
+        if (! $this->autorizado() || ! in_array($alergeno, Articulo::ALERGENOS_SUGERIDOS, true)) {
+            return;
+        }
+
+        $actuales = $this->parsearAlergenos();
+        $yaEsta = collect($actuales)->contains(fn ($a) => mb_strtolower($a) === mb_strtolower($alergeno));
+
+        if (! $yaEsta) {
+            $actuales[] = $alergeno;
+            $this->alergenos = implode(', ', $actuales);
+            $this->persistirAlergenos();
+        }
+    }
+
+    /** @return list<string> input "soja, huevos" → items saneados */
+    protected function parsearAlergenos(): array
+    {
+        $items = [];
+        $vistos = [];
+
+        foreach (explode(',', $this->alergenos) as $item) {
+            $texto = trim($item);
+            $clave = mb_strtolower($texto);
+
+            if ($texto === '' || mb_strlen($texto) > Articulo::MAX_ALERGENO_LARGO || isset($vistos[$clave])) {
+                continue;
+            }
+
+            $vistos[$clave] = true;
+            $items[] = $texto;
+
+            if (count($items) >= Articulo::MAX_ALERGENOS_TIENDA) {
+                break;
+            }
+        }
+
+        return $items;
+    }
+
+    protected function persistirAlergenos(): void
+    {
+        $articulo = $this->articuloVisible((int) $this->articuloAbierto);
+        if (! $articulo) {
+            return;
+        }
+
+        $items = $this->parsearAlergenos();
+        $articulo->update(['alergenos_tienda' => $items !== [] ? $items : null]);
+
+        $this->catalogoCambiado();
+    }
+
+    // ==================== DESCRIPCIÓN DE TIENDA (RF-T14) ====================
+
+    /** wire:model.live.debounce del textarea. Vacía = usa la operativa. */
+    public function updatedDescripcionTienda(): void
+    {
+        if (! $this->autorizado()) {
+            return;
+        }
+
+        $this->validate(
+            ['descripcionTienda' => 'nullable|string|max:1000'],
+            ['descripcionTienda.max' => __('La descripción de tienda admite hasta :max caracteres', ['max' => 1000])],
+        );
+
+        $articulo = $this->articuloVisible((int) $this->articuloAbierto);
+        if (! $articulo) {
+            return;
+        }
+
+        $texto = trim($this->descripcionTienda);
+        $articulo->update(['descripcion_tienda' => $texto !== '' ? $texto : null]);
 
         $this->catalogoCambiado();
     }
@@ -404,6 +507,7 @@ class ConfiguracionTiendaArticulos extends Component
             'badgesCatalogo' => self::badgesCatalogo(),
             'maxFotos' => ImagenArticuloTiendaService::MAX_IMAGENES,
             'maxBadges' => Articulo::MAX_BADGES_TIENDA,
+            'alergenosSugeridos' => Articulo::ALERGENOS_SUGERIDOS,
         ]);
     }
 
@@ -419,6 +523,9 @@ class ConfiguracionTiendaArticulos extends Component
             'mas_vendido' => __('Más vendido'),
             'artesanal' => __('Artesanal'),
             'sin_azucar' => __('Sin azúcar'),
+            'sin_lactosa' => __('Sin lactosa'),
+            'kosher' => __('Kosher'),
+            'con_frutos_secos' => __('Con frutos secos'),
         ];
     }
 }

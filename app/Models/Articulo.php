@@ -86,6 +86,8 @@ class Articulo extends Model
         'orden',
         'destacado',
         'badges_tienda',
+        'alergenos_tienda',
+        'descripcion_tienda',
         'permite_venta_sin_stock',
     ];
 
@@ -106,6 +108,7 @@ class Articulo extends Model
         'orden' => 'integer',
         'destacado' => 'boolean',
         'badges_tienda' => 'array',
+        'alergenos_tienda' => 'array',
         'permite_venta_sin_stock' => 'boolean',
     ];
 
@@ -123,11 +126,36 @@ class Articulo extends Model
         'mas_vendido',
         'artesanal',
         'sin_azucar',
+        'sin_lactosa',
+        'kosher',
+        'con_frutos_secos',
     ];
 
     public const MAX_BADGES_TIENDA = 4;
 
     public const MAX_BADGE_CUSTOM_LARGO = 30;
+
+    /**
+     * Atajos de alérgenos del panel (RF-T14). El campo es TEXTO LIBRE
+     * separado por comas — esto es solo la botonera de carga rápida; el
+     * comercio puede escribir cualquier otro.
+     */
+    public const ALERGENOS_SUGERIDOS = [
+        'soja',
+        'huevos',
+        'pescado',
+        'mariscos',
+        'maní',
+        'mostaza',
+        'sésamo',
+        'cereales con gluten',
+        'lupino',
+        'apio',
+    ];
+
+    public const MAX_ALERGENOS_TIENDA = 15;
+
+    public const MAX_ALERGENO_LARGO = 40;
 
     // Relaciones
     public function tipoIva(): BelongsTo
@@ -723,5 +751,40 @@ class Articulo extends Model
         }
 
         return $badges;
+    }
+
+    /**
+     * Alérgenos de tienda SANEADOS (RF-T14): strings no vacíos, sin
+     * duplicados (case-insensitive), con topes de largo y cantidad. Texto
+     * libre del comercio — un JSON corrupto nunca rompe el catálogo.
+     *
+     * @return list<string>
+     */
+    public function alergenosTienda(): array
+    {
+        $alergenos = [];
+        $vistos = [];
+
+        foreach ((array) ($this->alergenos_tienda ?? []) as $alergeno) {
+            if (! is_string($alergeno)) {
+                continue;
+            }
+
+            $texto = trim($alergeno);
+            $clave = mb_strtolower($texto);
+
+            if ($texto === '' || mb_strlen($texto) > self::MAX_ALERGENO_LARGO || isset($vistos[$clave])) {
+                continue;
+            }
+
+            $vistos[$clave] = true;
+            $alergenos[] = $texto;
+
+            if (count($alergenos) >= self::MAX_ALERGENOS_TIENDA) {
+                break;
+            }
+        }
+
+        return $alergenos;
     }
 }

@@ -137,7 +137,9 @@ class CatalogoTiendaService
             return [
                 'id' => (int) $articulo->id,
                 'nombre' => $articulo->nombre,
-                'descripcion' => $articulo->descripcion,
+                // RF-T14: descripción ESPECÍFICA de tienda si el comercio la
+                // cargó en el panel; si no, la operativa (comportamiento previo).
+                'descripcion' => filled($articulo->descripcion_tienda) ? $articulo->descripcion_tienda : $articulo->descripcion,
                 'categoria_id' => $articulo->categoria_id,
                 // ABSOLUTA con el host del request: la tienda corre en otro
                 // origen y una ruta relativa se rompería contra su propio host.
@@ -149,6 +151,9 @@ class CatalogoTiendaService
                     ->values()
                     ->all(),
                 'badges' => $articulo->badgesTienda(),
+                // RF-T14: alérgenos declarados en el panel → aviso
+                // "Contiene: ..." en el detalle de la tienda ([] = sin aviso).
+                'alergenos' => $articulo->alergenosTienda(),
                 'destacado' => (bool) $articulo->destacado,
                 'orden' => (int) $articulo->orden,
                 'pesable' => (bool) $articulo->pesable,

@@ -178,11 +178,16 @@ class ApiV1DeliveryTest extends TestCase
         // Galería cargada fuera de orden: la API debe respetar `orden`.
         $conConfig->imagenesTienda()->create(['path' => 'articulos/9/tienda/segunda.webp', 'orden' => 2]);
         $conConfig->imagenesTienda()->create(['path' => 'articulos/9/tienda/primera.webp', 'orden' => 1]);
-        $conConfig->update(['badges_tienda' => [
-            ['tipo' => 'sin_tacc'],
-            ['tipo' => 'custom', 'texto' => 'De la nona'],
-            ['tipo' => 'inventado'], // fuera del catálogo: el core sanea
-        ]]);
+        $conConfig->update([
+            'badges_tienda' => [
+                ['tipo' => 'sin_tacc'],
+                ['tipo' => 'custom', 'texto' => 'De la nona'],
+                ['tipo' => 'inventado'], // fuera del catálogo: el core sanea
+            ],
+            'alergenos_tienda' => ['soja', ' huevos ', 'SOJA', ''], // dup + espacios + vacío: se sanea
+            'descripcion' => 'Descripcion operativa del panel',
+            'descripcion_tienda' => 'Descripcion pensada para la tienda',
+        ]);
 
         $respuesta = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
 
@@ -195,11 +200,15 @@ class ApiV1DeliveryTest extends TestCase
             ['tipo' => 'sin_tacc', 'texto' => null],
             ['tipo' => 'custom', 'texto' => 'De la nona'],
         ], $articulo['badges']);
+        $this->assertSame(['soja', 'huevos'], $articulo['alergenos'], 'Saneados: sin duplicados ni vacíos');
+        $this->assertSame('Descripcion pensada para la tienda', $articulo['descripcion'], 'La descripción de tienda pisa la operativa');
 
-        // Sin config nueva: claves presentes pero vacías (aditivo puro).
+        // Sin config nueva: claves presentes pero vacías (aditivo puro) y
+        // la descripción operativa como siempre.
         $vacio = collect($respuesta->json('data.articulos'))->firstWhere('id', $sinConfig->id);
         $this->assertSame([], $vacio['imagenes']);
         $this->assertSame([], $vacio['badges']);
+        $this->assertSame([], $vacio['alergenos']);
     }
 
     public function test_invalidar_cache_del_catalogo_refresca_sin_esperar_ttl(): void
