@@ -168,6 +168,65 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertFalse($nombres->contains('Solo otro dia'));
     }
 
+    public function test_catalogo_expone_galeria_y_badges_rf_t14(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush(); // catálogo cacheado 60s server-side
+
+        $conConfig = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $sinConfig = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Galería cargada fuera de orden: la API debe respetar `orden`.
+        $conConfig->imagenesTienda()->create(['path' => 'articulos/9/tienda/segunda.webp', 'orden' => 2]);
+        $conConfig->imagenesTienda()->create(['path' => 'articulos/9/tienda/primera.webp', 'orden' => 1]);
+        $conConfig->update(['badges_tienda' => [
+            ['tipo' => 'sin_tacc'],
+            ['tipo' => 'custom', 'texto' => 'De la nona'],
+            ['tipo' => 'inventado'], // fuera del catálogo: el core sanea
+        ]]);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+
+        $articulo = collect($respuesta->json('data.articulos'))->firstWhere('id', $conConfig->id);
+        $this->assertCount(2, $articulo['imagenes']);
+        $this->assertStringStartsWith('http', $articulo['imagenes'][0], 'URL absoluta (la tienda corre en otro origen)');
+        $this->assertStringEndsWith('/storage/articulos/9/tienda/primera.webp', $articulo['imagenes'][0]);
+        $this->assertStringEndsWith('/storage/articulos/9/tienda/segunda.webp', $articulo['imagenes'][1]);
+        $this->assertSame([
+            ['tipo' => 'sin_tacc', 'texto' => null],
+            ['tipo' => 'custom', 'texto' => 'De la nona'],
+        ], $articulo['badges']);
+
+        // Sin config nueva: claves presentes pero vacías (aditivo puro).
+        $vacio = collect($respuesta->json('data.articulos'))->firstWhere('id', $sinConfig->id);
+        $this->assertSame([], $vacio['imagenes']);
+        $this->assertSame([], $vacio['badges']);
+    }
+
+    public function test_invalidar_cache_del_catalogo_refresca_sin_esperar_ttl(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush();
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Primer hit puebla el cache server-side de 60s.
+        $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+
+        $articulo->update(['badges_tienda' => [['tipo' => 'nuevo']]]);
+
+        // Sin invalidar: sigue sirviendo el payload cacheado (sin badges).
+        $cacheado = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+        $this->assertSame([], collect($cacheado->json('data.articulos'))->firstWhere('id', $articulo->id)['badges']);
+
+        // Lo que hará el panel al guardar config por artículo (RF-T14).
+        \App\Services\Pedidos\CatalogoTiendaService::invalidarCache((int) $this->comercio->id, (int) $this->sucursalId);
+
+        $fresco = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+        $this->assertSame(
+            [['tipo' => 'nuevo', 'texto' => null]],
+            collect($fresco->json('data.articulos'))->firstWhere('id', $articulo->id)['badges'],
+        );
+    }
+
     public function test_tienda_show_expone_analytics_tema_y_comportamiento(): void
     {
         // Sin IDs cargados: null explícito (la tienda NO inyecta scripts) y

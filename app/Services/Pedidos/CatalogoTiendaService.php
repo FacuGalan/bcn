@@ -30,6 +30,27 @@ class CatalogoTiendaService
     public function __construct(protected PrecioService $precioService) {}
 
     /**
+     * Key del cache server-side del catálogo (TiendaController::catalogo).
+     * Centralizada acá para que el panel pueda invalidarla al guardar
+     * config por artículo (RF-T14) — sin esto, la tienda/visor muestran
+     * el catálogo viejo hasta 60s después de guardar.
+     */
+    public static function cacheKey(int $comercioId, int $sucursalId, string $tipo): string
+    {
+        return "tienda_catalogo:{$comercioId}:{$sucursalId}:{$tipo}";
+    }
+
+    /**
+     * Invalida el cache del catálogo de la sucursal (ambos tipos de pedido).
+     */
+    public static function invalidarCache(int $comercioId, int $sucursalId): void
+    {
+        foreach ([PedidoDelivery::TIPO_DELIVERY, PedidoDelivery::TIPO_TAKE_AWAY] as $tipo) {
+            \Illuminate\Support\Facades\Cache::forget(self::cacheKey($comercioId, $sucursalId, $tipo));
+        }
+    }
+
+    /**
      * @return array{categorias: list<array>, articulos: list<array>}
      */
     public function catalogo(Sucursal $sucursal, string $tipo = PedidoDelivery::TIPO_DELIVERY): array
@@ -59,6 +80,7 @@ class CatalogoTiendaService
             })
             ->with([
                 'tipoIva:id,porcentaje',
+                'imagenesTienda',
                 // Asignaciones de grupos opcionales DE ESTA SUCURSAL (el
                 // vínculo es ArticuloGrupoOpcional, por sucursal), con el
                 // mismo criterio del panel (OpcionalService::obtenerOpcionalesParaVenta):
@@ -118,6 +140,13 @@ class CatalogoTiendaService
                 // ABSOLUTA con el host del request: la tienda corre en otro
                 // origen y una ruta relativa se rompería contra su propio host.
                 'imagen_url' => $articulo->imagen_path ? url($articulo->imagenUrl()) : null,
+                // RF-T14 (aditivo): galería de fotos de tienda ordenada ([] =
+                // sin galería, la tienda cae a imagen_url) y badges saneados.
+                'imagenes' => $articulo->imagenesTienda
+                    ->map(fn ($img) => url($img->url()))
+                    ->values()
+                    ->all(),
+                'badges' => $articulo->badgesTienda(),
                 'destacado' => (bool) $articulo->destacado,
                 'orden' => (int) $articulo->orden,
                 'pesable' => (bool) $articulo->pesable,
