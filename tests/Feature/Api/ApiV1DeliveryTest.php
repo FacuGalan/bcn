@@ -98,6 +98,76 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertFalse((bool) $agotadoJson['pedible']);
     }
 
+    public function test_catalogo_expone_precio_lista_y_promociones_genericas_rf_t13(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush(); // catálogo cacheado 60s server-side
+
+        $conPromo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $sinPromo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Promo DIRECTA a un artículo: pega en el precio (tachado), NO es genérica.
+        $directa = \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Directa 10%',
+            'tipo' => 'descuento_porcentaje', 'valor' => 10, 'prioridad' => 1,
+            'combinable' => true, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+        \App\Models\PromocionCondicion::create([
+            'promocion_id' => $directa->id, 'tipo_condicion' => 'por_articulo',
+            'articulo_id' => $conPromo->id,
+        ]);
+
+        // Genérica por monto de compra: no pega en el precio unitario, SÍ se lista.
+        \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Descuento por compra grande',
+            'descripcion' => '5% superando los $50.000', 'tipo' => 'descuento_porcentaje',
+            'valor' => 5, 'prioridad' => 2, 'combinable' => true, 'activo' => true,
+            'usos_actuales' => 0,
+        ])->condiciones()->create(['tipo_condicion' => 'por_total_compra', 'monto_minimo' => 50000]);
+
+        // Con cupón: NUNCA se lista (requiere código).
+        \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Secreta con cupon',
+            'codigo_cupon' => 'SECRETA', 'tipo' => 'descuento_porcentaje', 'valor' => 50,
+            'prioridad' => 3, 'combinable' => true, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        // De OTRO día de la semana: no es "de hoy".
+        \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Solo otro dia',
+            'tipo' => 'descuento_porcentaje', 'valor' => 15, 'prioridad' => 4,
+            'combinable' => true, 'activo' => true, 'usos_actuales' => 0,
+            'dias_semana' => [(now()->dayOfWeek + 1) % 7],
+        ]);
+
+        // Especial automática (combo): genérica por naturaleza.
+        \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Combo Familiar',
+            'descripcion' => '2 pizzas + bebida', 'tipo' => \App\Models\PromocionEspecial::TIPO_COMBO,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'prioridad' => 1, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+
+        // precio_lista tachado SOLO donde hubo promo.
+        $articuloConPromo = collect($respuesta->json('data.articulos'))->firstWhere('id', $conPromo->id);
+        $this->assertEqualsWithDelta(900.0, (float) $articuloConPromo['precio'], 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $articuloConPromo['precio_lista'], 0.01);
+        $this->assertContains('Directa 10%', $articuloConPromo['promociones']);
+
+        $articuloSinPromo = collect($respuesta->json('data.articulos'))->firstWhere('id', $sinPromo->id);
+        $this->assertNull($articuloSinPromo['precio_lista']);
+
+        // Genéricas: por monto + combo especial; nunca la directa, la de cupón
+        // ni la de otro día.
+        $nombres = collect($respuesta->json('data.promociones_genericas'))->pluck('nombre');
+        $this->assertTrue($nombres->contains('Descuento por compra grande'));
+        $this->assertTrue($nombres->contains('Combo Familiar'));
+        $this->assertFalse($nombres->contains('Directa 10%'));
+        $this->assertFalse($nombres->contains('Secreta con cupon'));
+        $this->assertFalse($nombres->contains('Solo otro dia'));
+    }
+
     public function test_tienda_show_expone_analytics_tema_y_comportamiento(): void
     {
         // Sin IDs cargados: null explícito (la tienda NO inyecta scripts) y
@@ -110,6 +180,18 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.tema.tipografia.fuente', 'system')
             ->assertJsonPath('data.tema.radios', 'md')
             ->assertJsonPath('data.tema.densidad', 'normal')
+            // RF-T13: los sub-objetos nuevos viajan con defaults que replican
+            // el comportamiento previo (tienda sin config = se ve igual).
+            ->assertJsonPath('data.tema.portada.overlay', true)
+            ->assertJsonPath('data.tema.portada.posicion', 'center')
+            ->assertJsonPath('data.tema.textos.slogan', '')
+            ->assertJsonPath('data.tema.textos.descripcion', '')
+            ->assertJsonPath('data.tema.redes.facebook', '')
+            ->assertJsonPath('data.tema.redes.instagram', '')
+            ->assertJsonPath('data.tema.catalogo.layout', 'grilla')
+            ->assertJsonPath('data.tema.destacados.modo', 'banner')
+            ->assertJsonPath('data.tema.destacados.adorno', 'ninguno')
+            ->assertJsonPath('data.tema.promos.mostrar_home', false)
             ->assertJsonPath('data.comportamiento', []);
 
         // Con IDs + tema PARCIAL persistido: los IDs viajan y el tema mergea

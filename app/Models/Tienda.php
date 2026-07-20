@@ -38,6 +38,30 @@ class Tienda extends Model
         ],
         'radios' => 'md',
         'densidad' => 'normal',
+        // RF-T13 — cada default replica el comportamiento previo al RF:
+        // una tienda que no toca nada se ve EXACTAMENTE igual que antes.
+        'portada' => [
+            'overlay' => true,        // fade con color primario sobre la portada
+            'posicion' => 'center',   // encuadre vertical: top|center|bottom
+        ],
+        'textos' => [
+            'slogan' => '',           // hero, bajo el nombre ('' = no se muestra)
+            'descripcion' => '',      // sección propia de la home ('' = sin sección)
+        ],
+        'redes' => [
+            'facebook' => '',         // URL del perfil ('' = sin botón)
+            'instagram' => '',
+        ],
+        'catalogo' => [
+            'layout' => 'grilla',     // grilla|lista
+        ],
+        'destacados' => [
+            'modo' => 'banner',       // banner|tarjeta_grande|ninguno
+            'adorno' => 'ninguno',    // glow|badge|ambos|ninguno (solo tarjeta_grande)
+        ],
+        'promos' => [
+            'mostrar_home' => false,  // aviso "Promociones de hoy" en la home
+        ],
     ];
 
     /** Fuentes self-hosted disponibles en bcn-tienda (catálogo cerrado). */
@@ -46,6 +70,16 @@ class Tienda extends Model
     public const RADIOS_DISPONIBLES = ['none', 'sm', 'md', 'lg', 'full'];
 
     public const DENSIDADES_DISPONIBLES = ['compacta', 'normal', 'amplia'];
+
+    // RF-T13 — catálogos cerrados de las opciones nuevas (validación panel).
+
+    public const POSICIONES_PORTADA = ['top', 'center', 'bottom'];
+
+    public const LAYOUTS_CATALOGO = ['grilla', 'lista'];
+
+    public const MODOS_DESTACADOS = ['banner', 'tarjeta_grande', 'ninguno'];
+
+    public const ADORNOS_DESTACADOS = ['glow', 'badge', 'ambos', 'ninguno'];
 
     /** Seteos de conducta de la tienda (Principio 10). v1: sin seteos, objeto reservado. */
     public const COMPORTAMIENTO_DEFAULTS = [];

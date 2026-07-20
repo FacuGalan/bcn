@@ -769,6 +769,17 @@ class SmokeConfiguracionTest extends TestCase
             ->set('fuente', 'poppins')
             ->set('radios', 'lg')
             ->set('densidad', 'compacta')
+            // RF-T13 — estética avanzada
+            ->set('portadaOverlay', false)
+            ->set('portadaPosicion', 'top')
+            ->set('slogan', 'Las mejores pizzas')
+            ->set('descripcion', 'Somos una pizzería familiar.')
+            ->set('redFacebook', 'https://facebook.com/mipizzeria')
+            ->set('redInstagram', 'https://www.instagram.com/mipizzeria')
+            ->set('catalogoLayout', 'lista')
+            ->set('destacadosModo', 'tarjeta_grande')
+            ->set('destacadosAdorno', 'ambos')
+            ->set('promosMostrarHome', true)
             ->call('guardarTienda')
             ->assertHasNoErrors();
 
@@ -780,6 +791,47 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertSame('poppins', $tienda->tema['tipografia']['fuente']);
         $this->assertSame('lg', $tienda->tema['radios']);
         $this->assertSame('compacta', $tienda->tema['densidad']);
+        // RF-T13: los sub-objetos persisten con el shape del contrato.
+        $this->assertFalse($tienda->tema['portada']['overlay']);
+        $this->assertSame('top', $tienda->tema['portada']['posicion']);
+        $this->assertSame('Las mejores pizzas', $tienda->tema['textos']['slogan']);
+        $this->assertSame('Somos una pizzería familiar.', $tienda->tema['textos']['descripcion']);
+        $this->assertSame('https://facebook.com/mipizzeria', $tienda->tema['redes']['facebook']);
+        $this->assertSame('https://www.instagram.com/mipizzeria', $tienda->tema['redes']['instagram']);
+        $this->assertSame('lista', $tienda->tema['catalogo']['layout']);
+        $this->assertSame('tarjeta_grande', $tienda->tema['destacados']['modo']);
+        $this->assertSame('ambos', $tienda->tema['destacados']['adorno']);
+        $this->assertTrue($tienda->tema['promos']['mostrar_home']);
+
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+    }
+
+    public function test_configuracion_tienda_valida_redes_y_enums_rf_t13(): void
+    {
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+        \App\Models\Tienda::create([
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId,
+            'slug' => 'tienda-rf13-test',
+            'habilitada' => false,
+        ]);
+
+        Livewire::test(ConfiguracionTienda::class)
+            ->set('redFacebook', 'https://otrositio.com/perfil')
+            ->call('guardarTienda')
+            ->assertHasErrors(['redFacebook'])
+            ->set('redFacebook', '')
+            ->set('redInstagram', 'instagram.com/sin-https')
+            ->call('guardarTienda')
+            ->assertHasErrors(['redInstagram'])
+            ->set('redInstagram', '')
+            ->set('portadaPosicion', 'diagonal')
+            ->call('guardarTienda')
+            ->assertHasErrors(['portadaPosicion'])
+            ->set('portadaPosicion', 'center')
+            ->set('destacadosModo', 'carrusel-3d')
+            ->call('guardarTienda')
+            ->assertHasErrors(['destacadosModo']);
 
         \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
     }

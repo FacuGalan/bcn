@@ -7,6 +7,8 @@ use App\Models\CanalVenta;
 use App\Models\Categoria;
 use App\Models\FormaVenta;
 use App\Models\PedidoDelivery;
+use App\Models\Promocion;
+use App\Models\PromocionEspecial;
 use App\Models\Stock;
 use App\Models\Sucursal;
 use App\Services\PrecioService;
@@ -120,6 +122,9 @@ class CatalogoTiendaService
                 'orden' => (int) $articulo->orden,
                 'pesable' => (bool) $articulo->pesable,
                 'precio' => (float) ($precioInfo['precio_final'] ?? $precioInfo['precio'] ?? 0),
+                // RF-T13 (aditivo): precio ANTES de promos, solo cuando hay
+                // descuento — la tienda lo muestra tachado junto a la oferta.
+                'precio_lista' => $this->precioLista($precioInfo),
                 'promociones' => collect($precioInfo['promociones_aplicadas'] ?? [])
                     ->map(fn ($p) => is_array($p) ? ($p['nombre'] ?? null) : null)
                     ->filter()
@@ -172,6 +177,73 @@ class CatalogoTiendaService
         return [
             'categorias' => $categorias,
             'articulos' => $itemsCatalogo,
+            // RF-T13 (aditivo): promos de alcance general vigentes HOY, para
+            // el aviso "Promociones de hoy" de la home de la tienda.
+            'promociones_genericas' => $this->promocionesGenericas($sucursal, $canalVentaId),
         ];
+    }
+
+    /**
+     * Precio ANTES de promociones (para tachado), derivado del mismo cálculo
+     * de PrecioService: se escala el precio final por la proporción
+     * sin-descuento/con-descuento (IVA y ajustes escalan igual). Null cuando
+     * no hubo descuento (la tienda no muestra tachado).
+     */
+    protected function precioLista(array $precioInfo): ?float
+    {
+        $descuento = (float) ($precioInfo['descuento_total'] ?? 0);
+        $subSin = (float) ($precioInfo['subtotal_sin_descuento'] ?? 0);
+        $subCon = (float) ($precioInfo['subtotal_con_descuento'] ?? 0);
+        $precioFinal = (float) ($precioInfo['precio_final'] ?? 0);
+
+        if ($descuento <= 0 || $subCon <= 0 || $subSin <= $subCon || $precioFinal <= 0) {
+            return null;
+        }
+
+        return round($precioFinal * $subSin / $subCon, 2);
+    }
+
+    /**
+     * Promociones de alcance GENERAL vigentes hoy (RF-T13): las que NO se
+     * reflejan (o no completas) en el precio unitario del catálogo.
+     *
+     * - Promocion común AUTOMÁTICA (sin cupón) sin condición por_articulo:
+     *   combos por cantidad/total/FP y descuentos por categoría.
+     * - PromocionEspecial AUTOMÁTICA (NxM, grupos): por naturaleza dependen
+     *   de la unión de varios artículos.
+     *
+     * Filtro "hoy": vigencia por fecha + día de semana. Las limitadas por
+     * horario se listan igual (son "de hoy"; el detalle vive en descripcion).
+     *
+     * @return list<array{nombre: string, descripcion: string|null}>
+     */
+    protected function promocionesGenericas(Sucursal $sucursal, ?int $canalVentaId): array
+    {
+        $hoy = now()->dayOfWeek; // 0 = domingo (misma convención del modelo)
+
+        $comunes = Promocion::activas()
+            ->vigentes()
+            ->porSucursal((int) $sucursal->id)
+            ->automaticas()
+            ->conUsosDisponibles()
+            ->with('condiciones')
+            ->get()
+            ->filter(fn (Promocion $p) => empty($p->dias_semana) || in_array($hoy, array_map('intval', $p->dias_semana), true))
+            ->filter(fn (Promocion $p) => ! $p->condiciones->contains('tipo_condicion', 'por_articulo'));
+
+        $especiales = PromocionEspecial::activas()
+            ->vigentes()
+            ->where('sucursal_id', (int) $sucursal->id)
+            ->where('modo_aplicacion', PromocionEspecial::MODO_AUTOMATICA)
+            ->get()
+            ->filter(fn (PromocionEspecial $p) => empty($p->dias_semana) || in_array($hoy, array_map('intval', $p->dias_semana), true))
+            // Con canal restringido, solo si es el canal TIENDA.
+            ->filter(fn (PromocionEspecial $p) => ! $p->canal_venta_id || (int) $p->canal_venta_id === (int) $canalVentaId);
+
+        return $comunes->map(fn ($p) => ['nombre' => (string) $p->nombre, 'descripcion' => $p->descripcion !== '' ? $p->descripcion : null])
+            ->concat($especiales->map(fn ($p) => ['nombre' => (string) $p->nombre, 'descripcion' => $p->descripcion !== '' ? $p->descripcion : null]))
+            ->unique('nombre')
+            ->values()
+            ->all();
     }
 }

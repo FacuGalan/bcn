@@ -87,11 +87,33 @@ integrado es otro circuito, pendiente en el spec de integraciones);
                  "texto": "#111827" },
     "tipografia": { "fuente": "system" },   // system|inter|poppins|roboto|montserrat|lora (self-hosted en la tienda)
     "radios": "md",                          // none|sm|md|lg|full
-    "densidad": "normal"                     // compacta|normal|amplia
+    "densidad": "normal",                    // compacta|normal|amplia
+    "portada": {                             // (aditivo 2026-07-18, RF-T13)
+      "overlay": true,                       // false ⇒ portada cruda, sin fade del color primario
+      "posicion": "center"                   // encuadre vertical: top|center|bottom (object-position)
+    },
+    "textos": {
+      "slogan": "",                          // hero, bajo el nombre ('' ⇒ no se muestra)
+      "descripcion": ""                      // sección propia de la home ('' ⇒ sin sección)
+    },
+    "redes": {
+      "facebook": "",                        // URL del perfil ('' ⇒ sin botón en el hero)
+      "instagram": ""
+    },
+    "catalogo": { "layout": "grilla" },      // grilla|lista (renglón-tarjeta)
+    "destacados": {
+      "modo": "banner",                      // banner|tarjeta_grande|ninguno
+      "adorno": "ninguno"                    // glow|badge|ambos|ninguno (solo aplica a tarjeta_grande)
+    },
+    "promos": { "mostrar_home": false }      // true ⇒ mostrar aviso "Promociones de hoy" en la home
   },
   "comportamiento": {}                       // reservado (Principio 10); v1 sin seteos
 }
 ```
+
+Sub-objetos de RF-T13: los defaults replican el comportamiento previo al RF
+(snapshot viejo sin las claves ⇒ la tienda usa estos defaults y se ve igual
+que siempre — tolerancia a clave ausente en ambos lados).
 
 `tema` es el resultado EFECTIVO (defaults del core + JSON configurado en el
 panel): la tienda lo vuelca a sus design tokens sin defaults propios. Las
@@ -144,6 +166,19 @@ FINALES (motor de precios del sistema: listas + promociones vigentes).
 `imagen_url` (de artículos y categorías) es SIEMPRE una URL absoluta con el
 host de la API (fix 2026-07-17): la tienda corre en otro origen y una ruta
 relativa se rompería contra su propio host. `null` si no hay imagen.
+
+**Precios tachados y promos genéricas** (aditivo 2026-07-18, RF-T13):
+
+- Cada artículo suma `precio_lista`: el precio ANTES de promociones, SOLO
+  cuando difiere del `precio` final (si no, `null`). La tienda lo muestra
+  tachado junto al precio de oferta. Deriva del mismo motor de precios
+  (nunca lo calcula la tienda).
+- La respuesta suma `promociones_genericas: [{ "nombre", "descripcion" }]`:
+  promociones de alcance GENERAL vigentes HOY — comunes automáticas (sin
+  cupón) sin condición por artículo (cantidad, total, forma de pago,
+  categoría) y especiales automáticas (NxM/combos/grupos) del canal tienda.
+  Alimenta el aviso "Promociones de hoy" de la home (visible según
+  `tema.promos.mostrar_home`). Vacío ⇒ sin aviso.
 
 Los grupos de opcionales son los ASIGNADOS al artículo en la sucursal de la
 tienda (paridad con el panel), con el precio de la asignación (override por

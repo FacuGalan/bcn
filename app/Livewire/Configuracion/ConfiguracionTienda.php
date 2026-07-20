@@ -62,6 +62,28 @@ class ConfiguracionTienda extends Component
 
     public string $densidad = 'normal';
 
+    // ==================== ESTÉTICA AVANZADA (RF-T13) ====================
+
+    public bool $portadaOverlay = true;
+
+    public string $portadaPosicion = 'center';
+
+    public string $slogan = '';
+
+    public string $descripcion = '';
+
+    public string $redFacebook = '';
+
+    public string $redInstagram = '';
+
+    public string $catalogoLayout = 'grilla';
+
+    public string $destacadosModo = 'banner';
+
+    public string $destacadosAdorno = 'ninguno';
+
+    public bool $promosMostrarHome = false;
+
     // ==================== LOGO Y PORTADA (RF-T11) ====================
 
     /**
@@ -155,6 +177,26 @@ class ConfiguracionTienda extends Component
         $this->densidad = in_array($tema['densidad'] ?? '', Tienda::DENSIDADES_DISPONIBLES, true)
             ? $tema['densidad']
             : Tienda::TEMA_DEFAULTS['densidad'];
+
+        // RF-T13 — estética avanzada (defaults = comportamiento previo).
+        $this->portadaOverlay = (bool) ($tema['portada']['overlay'] ?? true);
+        $this->portadaPosicion = in_array($tema['portada']['posicion'] ?? '', Tienda::POSICIONES_PORTADA, true)
+            ? $tema['portada']['posicion']
+            : Tienda::TEMA_DEFAULTS['portada']['posicion'];
+        $this->slogan = (string) ($tema['textos']['slogan'] ?? '');
+        $this->descripcion = (string) ($tema['textos']['descripcion'] ?? '');
+        $this->redFacebook = (string) ($tema['redes']['facebook'] ?? '');
+        $this->redInstagram = (string) ($tema['redes']['instagram'] ?? '');
+        $this->catalogoLayout = in_array($tema['catalogo']['layout'] ?? '', Tienda::LAYOUTS_CATALOGO, true)
+            ? $tema['catalogo']['layout']
+            : Tienda::TEMA_DEFAULTS['catalogo']['layout'];
+        $this->destacadosModo = in_array($tema['destacados']['modo'] ?? '', Tienda::MODOS_DESTACADOS, true)
+            ? $tema['destacados']['modo']
+            : Tienda::TEMA_DEFAULTS['destacados']['modo'];
+        $this->destacadosAdorno = in_array($tema['destacados']['adorno'] ?? '', Tienda::ADORNOS_DESTACADOS, true)
+            ? $tema['destacados']['adorno']
+            : Tienda::TEMA_DEFAULTS['destacados']['adorno'];
+        $this->promosMostrarHome = (bool) ($tema['promos']['mostrar_home'] ?? false);
     }
 
     // ==================== GUARDAR ====================
@@ -188,11 +230,23 @@ class ConfiguracionTienda extends Component
             'fuente' => 'required|in:'.implode(',', Tienda::FUENTES_DISPONIBLES),
             'radios' => 'required|in:'.implode(',', Tienda::RADIOS_DISPONIBLES),
             'densidad' => 'required|in:'.implode(',', Tienda::DENSIDADES_DISPONIBLES),
+            'portadaOverlay' => 'boolean',
+            'portadaPosicion' => 'required|in:'.implode(',', Tienda::POSICIONES_PORTADA),
+            'slogan' => 'nullable|string|max:120',
+            'descripcion' => 'nullable|string|max:1000',
+            'redFacebook' => ['nullable', 'string', 'max:255', 'regex:#^https://(www\.)?(facebook\.com|fb\.com)/.+#i'],
+            'redInstagram' => ['nullable', 'string', 'max:255', 'regex:#^https://(www\.)?instagram\.com/.+#i'],
+            'catalogoLayout' => 'required|in:'.implode(',', Tienda::LAYOUTS_CATALOGO),
+            'destacadosModo' => 'required|in:'.implode(',', Tienda::MODOS_DESTACADOS),
+            'destacadosAdorno' => 'required|in:'.implode(',', Tienda::ADORNOS_DESTACADOS),
+            'promosMostrarHome' => 'boolean',
         ], [
             'slug.required' => __('Ingresá la dirección (slug) de la tienda'),
             'slug.min' => __('La dirección de la tienda debe tener al menos 3 caracteres'),
             'ga4MeasurementId.regex' => __('El ID de GA4 tiene formato G-XXXXXXXXXX'),
             'metaPixelId.regex' => __('El ID del Pixel de Meta es numérico'),
+            'redFacebook.regex' => __('Ingresá la URL completa de tu página de Facebook (https://facebook.com/...)'),
+            'redInstagram.regex' => __('Ingresá la URL completa de tu perfil de Instagram (https://instagram.com/...)'),
         ]);
 
         if (Tienda::where('slug', $this->slug)->where('id', '!=', $tienda->id)->exists()) {
@@ -299,10 +353,16 @@ class ConfiguracionTienda extends Component
 
     public function restablecerTema(): void
     {
-        $this->aplicarTema(Tienda::TEMA_DEFAULTS);
+        // Restablece la ESTÉTICA; slogan/descripción/redes son contenido
+        // del comercio y sobreviven al reset.
+        $contenido = [
+            'textos' => ['slogan' => $this->slogan, 'descripcion' => $this->descripcion],
+            'redes' => ['facebook' => $this->redFacebook, 'instagram' => $this->redInstagram],
+        ];
+        $this->aplicarTema(array_replace_recursive(Tienda::TEMA_DEFAULTS, $contenido));
     }
 
-    /** @return array{colores: array<string,string>, tipografia: array{fuente: string}, radios: string, densidad: string} */
+    /** Shape espejo de Tienda::TEMA_DEFAULTS (contrato con bcn-tienda). */
     protected function temaDesdeForm(): array
     {
         return [
@@ -316,6 +376,24 @@ class ConfiguracionTienda extends Component
             'tipografia' => ['fuente' => $this->fuente],
             'radios' => $this->radios,
             'densidad' => $this->densidad,
+            'portada' => [
+                'overlay' => $this->portadaOverlay,
+                'posicion' => $this->portadaPosicion,
+            ],
+            'textos' => [
+                'slogan' => trim($this->slogan),
+                'descripcion' => trim($this->descripcion),
+            ],
+            'redes' => [
+                'facebook' => trim($this->redFacebook),
+                'instagram' => trim($this->redInstagram),
+            ],
+            'catalogo' => ['layout' => $this->catalogoLayout],
+            'destacados' => [
+                'modo' => $this->destacadosModo,
+                'adorno' => $this->destacadosAdorno,
+            ],
+            'promos' => ['mostrar_home' => $this->promosMostrarHome],
         ];
     }
 

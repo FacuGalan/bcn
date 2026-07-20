@@ -334,6 +334,103 @@ del apartado Tienda Online, 2 columnas en xl).
   carrito dentro del iframe no tiene sesión (SameSite) — el visor valida
   estética; la operatoria completa se prueba en la pestaña real.
 
+### RF-T13: Personalización estética avanzada de la tienda — IMPLEMENTADO (2026-07-18, cross-repo: core feat/tienda-estetica-avanzada-rf-t13 + tienda feat/estetica-avanzada-rf-t13; validado en vivo)
+
+Cross-repo (core + bcn-tienda). Decisiones del usuario 2026-07-18. Toda
+opción nueva tiene su valor "nada/ninguno". Persistencia: TODO dentro del
+JSON `config.tiendas.tema` (aditivo, SIN migración de columnas); defaults
+en `Tienda::TEMA_DEFAULTS` y expuesto por `temaCompleto()` en
+`GET /v1/tiendas/{slug}` (contrato api-v1-delivery.md actualizado,
+aditivo). Triple espejo obligatorio para lo que refleja en vivo:
+`Tienda.php` (core) ↔ `TiendaActual.php` (tienda) ↔ `preview.js`.
+
+**Shape nuevo del `tema` (sub-objetos aditivos):**
+
+```json
+"tema": { "...existente...": "colores/tipografia/radios/densidad",
+  "portada":    { "overlay": true, "posicion": "center" },
+  "textos":     { "slogan": "", "descripcion": "" },
+  "redes":      { "facebook": null, "instagram": null },
+  "catalogo":   { "layout": "grilla" },
+  "destacados": { "modo": "banner", "adorno": "ninguno" },
+  "promos":     { "mostrar_home": false } }
+```
+
+- `portada.overlay` (bool): fade con color primario sobre la portada
+  (comportamiento actual) o imagen cruda. `portada.posicion`:
+  `top|center|bottom` → `object-position` vertical (el ancho SIEMPRE es
+  pantalla completa — decisión usuario: no hace falta 3×3). El panel
+  muestra el recorte sobre la portada real y refleja en vivo en el visor.
+- `textos.slogan` (≤120 chars): en el hero bajo el nombre del comercio.
+  `textos.descripcion` (≤1000): SECCIÓN nueva de la home debajo del hero
+  (vacío = la sección no se renderiza).
+- `redes.facebook`/`instagram`: URLs validadas (host facebook.com /
+  instagram.com, https) → botones con icono en el hero. `null` = sin botón.
+- `catalogo.layout`: `grilla` (actual, foto protagonista) | `lista`
+  (renglón-tarjeta: imagen izq., nombre/descripción/precio der. —
+  bcn-tienda ya tiene la variante lista en catalogo.blade.php, RF-T13 la
+  alimenta desde el tema).
+- `destacados.modo`: `banner` (carrusel horizontal arriba, actual) |
+  `tarjeta_grande` (intercalado entre los artículos, full-width y doble
+  alto) | `ninguno`. `destacados.adorno` (solo tarjeta_grande): `glow`
+  (brillo alrededor) | `badge` (redondo sobresaliente del borde con icono
+  de destacado) | `ambos` | `ninguno`.
+- `promos.mostrar_home` (bool): activa el aviso de promociones en la home.
+
+**Promociones (híbrido, decisión explícita del usuario):**
+
+1. **Genéricas** (no atadas a un artículo puntual: `PromocionEspecial` —
+   combos/NxM/grupos — y `Promocion` de alcance no-artículo): el catálogo
+   suma el campo ADITIVO `promociones_genericas: [{nombre, descripcion}]`
+   (vigentes HOY para el canal tienda, calculadas por
+   `CatalogoTiendaService`). La home las muestra como badge/desplegable
+   "Promociones de hoy" (si `promos.mostrar_home`).
+2. **Por artículo**: el catálogo suma `precio_lista` (ADITIVO, solo cuando
+   difiere del `precio` final) → la card muestra el precio de lista TACHADO
+   + precio oferta.
+3. **Carrito**: cotizar debe permitir mostrar qué promo aplica a qué
+   renglón con precio tachado (verificar qué expone ya la respuesta de
+   `carrito/cotizar` tras bcn-tienda PR #8; extender ADITIVAMENTE con
+   `precio_lista`/detalle por renglón solo si falta).
+
+**Panel (`ConfiguracionTienda`)**: nuevos controles en "Apariencia" —
+toggle overlay + selector de posición (con recorte visible sobre la
+miniatura de la portada), inputs slogan/descripcion, inputs FB/IG,
+selector layout artículos, selector modo+adorno destacados, toggle promos
+en home. Validaciones server-side (regex URL por red, largos, `in:` por
+enum). Reflejo EN VIVO por postMessage: overlay, posicion, slogan,
+descripcion, redes (extender shape del mensaje `tienda-preview-estado` y
+espejo en preview.js). Layout/destacados/promos_home: recarga al guardar
+(iframe reload — son server-rendered; limitación documentada).
+
+**bcn-tienda**: hero (slogan, botones redes con SVG inline, overlay
+condicional, object-position), sección nueva `texto`, sección/badge
+`promos` (genéricas), variante de catálogo desde
+`tema.catalogo.layout` (via `seccionesHome()`/variante), partial nuevo de
+destacado `tarjeta_grande` con adornos (glow = box-shadow con
+color-mix del primario; badge = absoluto sobresaliente con icono),
+precios tachados en cards y carrito. Tokens CSS nuevos solo si hacen
+falta (`--tienda-*`).
+
+**Fases:** F1 contrato+modelo core (TEMA_DEFAULTS + show() + doc contrato)
+· F2 panel core (UI+validaciones+eventos preview) · F3 catálogo/promos
+core (precio_lista + promociones_genericas + cotizar si falta) · F4
+tienda hero/texto/portada · F5 tienda layout+destacados+tachados · F6
+tienda promos home+carrito · F7 espejo preview.js + traducciones (es/en/pt
+ambos repos) + docs (@docs-sync, design-tokens.md, preview-panel.md,
+api-v1-delivery.md) + tests (core: ConfiguracionTienda*, ApiV1Delivery;
+tienda: TemaYAnalytics/Portada/Preview/CoreApiContract/TiendaActual).
+
+**Criterios de aceptación:** cada opción nueva default = comportamiento
+actual (tienda existente NO cambia sin tocar nada); snapshot viejo sin las
+claves → la tienda usa defaults (tolerancia a clave ausente); overlay
+off = imagen cruda; posicion refleja en visor sin guardar; slogan/redes/
+descripcion visibles solo si cargados; layout lista muestra renglones;
+destacado tarjeta_grande ocupa full-width doble alto con el adorno
+elegido; promos genéricas listadas solo con mostrar_home on y vigentes
+hoy; precio_lista tachado solo cuando difiere; contract tests de la
+tienda en verde contra fixtures actualizados.
+
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
 `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas
