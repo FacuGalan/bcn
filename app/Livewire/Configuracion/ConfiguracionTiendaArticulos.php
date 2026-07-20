@@ -250,8 +250,9 @@ class ConfiguracionTiendaArticulos extends Component
     /**
      * Persiste el orden visual de los artículos de una categoría. Renumera
      * de a 10 para dejar huecos (altas posteriores sin re-renumerar todo).
-     * Nota: los destacados SIEMPRE van primero en la tienda; el orden manual
-     * aplica dentro de cada grupo (se aclara en la UI).
+     * El orden es 100% MANUAL: destacado no fuerza posición (decisión del
+     * usuario 2026-07-20 — puede querer el destacado tercero en la lista
+     * aunque también salga en el banner).
      */
     public function reordenarArticulos(array $ids): void
     {
@@ -368,7 +369,6 @@ class ConfiguracionTiendaArticulos extends Component
     {
         $articulos = $this->queryVisibles()
             ->with('imagenesTienda')
-            ->orderByDesc('destacado')
             ->orderBy('orden')
             ->orderBy('nombre')
             ->get();

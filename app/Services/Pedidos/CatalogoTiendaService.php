@@ -98,7 +98,9 @@ class CatalogoTiendaService
                             ->orderBy('orden'),
                     ]),
             ])
-            ->orderByDesc('destacado')
+            // Orden 100% MANUAL del panel (RF-T14): destacado NO fuerza
+            // posición — es decoración (banner/tarjeta grande); el comercio
+            // decide dónde cae cada artículo en el listado con drag & drop.
             ->orderBy('orden')
             ->orderBy('nombre')
             ->get();
