@@ -239,6 +239,10 @@
             <div wire:key="calendario-delivery">
                 @include('livewire.pedidos.partials.config-calendario')
             </div>
+
+            <div wire:key="encargos-delivery">
+                @include('livewire.pedidos.partials.config-encargos')
+            </div>
         @endunless
     </div>
 
@@ -278,6 +282,9 @@
                         </div>
                         <div wire:key="calendario-tienda">
                             @include('livewire.pedidos.partials.config-calendario')
+                        </div>
+                        <div wire:key="encargos-tienda" class="xl:col-span-2">
+                            @include('livewire.pedidos.partials.config-encargos')
                         </div>
                     </div>
                     <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('El calendario y los pedidos externos se guardan automáticamente y aplican también al panel y a la API, tengas o no la tienda publicada.') }}</p>

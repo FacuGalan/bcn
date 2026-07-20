@@ -127,9 +127,20 @@ class Sucursal extends Model
         // Los CUPOS por franja (cupo_delivery/cupo_takeaway) quedan para Fase 8.
         'acepta_lo_antes_posible' => true,   // ofrece "Lo antes posible" (hora_pactada null)
         'franjas' => [],                     // [{hora:'20:30', dias:[1..7], delivery:bool, take_away:bool}]
-        // Pedidos programados (Fase 8, flag maestro OFF)
+        // Pedidos programados / ENCARGOS (RF-T16; flag maestro OFF = todo
+        // lo de encargos oculto en tienda/API/panel, comportamiento previo)
         'acepta_programados' => false,
         'programados_aparecen_min_antes' => 60,
+        // Calendario PROPIO de encargos (RF-T16): mismo shape que el de
+        // atención, PRECARGADO desde él al activar el toggle por primera
+        // vez. Permite encargar para días en que el local no atiende.
+        'encargos' => [
+            'dias_laborales' => [1, 2, 3, 4, 5, 6, 7],
+            'horarios' => null,              // null = todo el día; [{dias, desde, hasta}]
+            'feriados' => [],                // fechas 'Y-m-d' sin encargos
+            'anticipacion_horas' => 24,      // mínimo de anticipación
+            'max_dias_adelante' => 30,       // ventana hacia adelante
+        ],
     ];
 
     /**
@@ -416,7 +427,16 @@ class Sucursal extends Model
     {
         $guardada = is_array($this->config_delivery) ? $this->config_delivery : [];
 
-        return array_merge(self::CONFIG_DELIVERY_DEFAULTS, $guardada);
+        $config = array_merge(self::CONFIG_DELIVERY_DEFAULTS, $guardada);
+
+        // Sub-objeto `encargos` (RF-T16): merge por clave para que un JSON
+        // guardado antes de una key nueva no la deje sin default.
+        $config['encargos'] = array_merge(
+            self::CONFIG_DELIVERY_DEFAULTS['encargos'],
+            is_array($guardada['encargos'] ?? null) ? $guardada['encargos'] : [],
+        );
+
+        return $config;
     }
 
     /**
