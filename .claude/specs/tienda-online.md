@@ -563,7 +563,7 @@ elige en el visor.
   El botón pasó de "Guardar tienda" a "Guardar apariencia".
 - La config por artículo (RF-T14) ya nacía con guardado inmediato.
 
-### RF-T16: Pedidos por ENCARGUE (día futuro) — APROBADO (2026-07-20), EN PROGRESO
+### RF-T16: Pedidos por ENCARGUE (día futuro) — IMPLEMENTADO (2026-07-20, cross-repo: core feat/tienda-encargos-rf-t16 + tienda feat/encargos-rf-t16; F1-F5 completas, tests verdes. Ajuste vs diseño: el reporte de producción NO tiene ítem de menú propio — se llega desde la solapa Encargos del panel, mismo público)
 
 Cross-repo (core + bcn-tienda) + PANEL DE ATENCIÓN (pedido explícito del
 usuario: los pedidos de la tienda terminan ahí y hay que distinguir "de
