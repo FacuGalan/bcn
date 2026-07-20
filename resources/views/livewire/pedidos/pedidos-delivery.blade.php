@@ -117,6 +117,7 @@
             <select wire:model.live="filterEstadoPedido" title="{{ __('Estado del pedido') }}"
                 class="h-9 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
                 <option value="activos">{{ __('Solo activos') }}</option>
+                <option value="programados">{{ __('Encargos programados') }}</option>
                 <option value="all">{{ __('Todos los estados') }}</option>
                 @foreach($estadosPedido as $key => $label)
                     <option value="{{ $key }}">{{ __($label) }}</option>
@@ -211,6 +212,20 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v6a2 2 0 01-2 2h-2a2 2 0 01-2-2V6z" />
                     </svg>
+                </button>
+                {{-- Encargos (RF-T16): programados futuros fuera de ventana --}}
+                @php $totalEncargos = array_sum(array_map('count', $encargosProgramados)); @endphp
+                <button type="button" @click="setVista('encargos')"
+                    :class="vista === 'encargos' ? 'bg-bcn-primary text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'"
+                    class="inline-flex items-center justify-center gap-1 px-2.5 transition-colors border-l border-gray-300 dark:border-gray-600"
+                    title="{{ __('Encargos programados') }}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    @if($totalEncargos > 0)
+                        <span class="text-[10px] font-bold px-1 rounded-full"
+                            :class="vista === 'encargos' ? 'bg-white/20' : 'bg-fuchsia-100 text-fuchsia-800 dark:bg-fuchsia-900/50 dark:text-fuchsia-200'">{{ $totalEncargos }}</span>
+                    @endif
                 </button>
             </div>
 
@@ -1120,6 +1135,71 @@
         </div>
         </div>
         {{-- FIN VISTA KANBAN --}}
+
+        {{-- ==================== VISTA ENCARGOS (RF-T16) ==================== --}}
+        {{-- Encargos programados aún fuera de ventana, agrupados por día. Al
+             acercarse su hora pasan SOLOS al kanban/lista; desde acá se pueden
+             adelantar, ver o cancelar. --}}
+        <div x-show="vista === 'encargos'" x-cloak class="h-full overflow-y-auto">
+            <div class="p-3 sm:p-4 space-y-4">
+                @forelse($encargosProgramados as $fecha => $grupo)
+                    @php $dia = \Illuminate\Support\Carbon::parse($fecha); @endphp
+                    <div wire:key="encargos-dia-{{ $fecha }}">
+                        <h3 class="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-fuchsia-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                            {{ $dia->isToday() ? __('Hoy') : ($dia->isTomorrow() ? __('Mañana') : $dia->translatedFormat('l d/m')) }}
+                            <span class="font-normal normal-case">({{ count($grupo) }})</span>
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                            @foreach($grupo as $pedido)
+                                <div wire:key="encargo-{{ $pedido->id }}"
+                                    class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 shadow-sm p-3 space-y-1.5">
+                                    <div class="flex items-center justify-between gap-2">
+                                        <span class="inline-flex items-center gap-1 text-sm font-bold text-fuchsia-700 dark:text-fuchsia-300">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                            {{ $pedido->programado_para->format('H:i') }}
+                                        </span>
+                                        <span class="text-xs text-gray-500 dark:text-gray-400">#{{ $pedido->numero }}</span>
+                                    </div>
+                                    <p class="text-sm font-medium text-gray-900 dark:text-white truncate">
+                                        {{ $pedido->cliente?->nombre ?? $pedido->nombre_cliente_temporal ?? __('Sin nombre') }}
+                                    </p>
+                                    <div class="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                                        <span>{{ $pedido->tipo === \App\Models\PedidoDelivery::TIPO_TAKE_AWAY ? __('Para llevar') : __('Delivery') }}</span>
+                                        <span>·</span>
+                                        <span>{{ $pedido->detalles->count() }} {{ __('items') }}</span>
+                                        <span>·</span>
+                                        <span class="font-semibold text-gray-700 dark:text-gray-200">${{ number_format((float) $pedido->total_final, 2, ',', '.') }}</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 pt-1">
+                                        <button type="button" wire:click="verDetalle({{ $pedido->id }})"
+                                            class="px-2 py-1 text-[11px] font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                            {{ __('Ver') }}
+                                        </button>
+                                        <button type="button" wire:click="adelantarEncargo({{ $pedido->id }})"
+                                            wire:confirm="{{ __('¿Pasar este encargo al tablero de atención ahora?') }}"
+                                            class="px-2 py-1 text-[11px] font-medium rounded-md bg-fuchsia-600 text-white hover:bg-fuchsia-700 transition-colors">
+                                            {{ __('Preparar ahora') }}
+                                        </button>
+                                        <button type="button" wire:click="abrirCancelar({{ $pedido->id }})"
+                                            class="ml-auto px-2 py-1 text-[11px] font-medium rounded-md text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">
+                                            {{ __('Cancelar') }}
+                                        </button>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+                @empty
+                    <div class="flex flex-col items-center justify-center py-16 text-center">
+                        <svg class="w-10 h-10 text-gray-300 dark:text-gray-600 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <p class="text-sm text-gray-500 dark:text-gray-400">{{ __('No hay encargos programados pendientes.') }}</p>
+                        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">{{ __('Los encargos aparecen en el tablero solos cuando se acerca su hora.') }}</p>
+                    </div>
+                @endforelse
+            </div>
+        </div>
+        {{-- FIN VISTA ENCARGOS --}}
 
         <style>
             .kanban-card { user-select: none; -webkit-user-select: none; }

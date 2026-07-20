@@ -874,6 +874,14 @@ class PedidosDelivery extends Component
         // principal — viven en su propio desplegable arriba (obtenerBorradores).
         if ($this->filterEstadoPedido === 'activos') {
             $query->activos()->where('estado_pedido', '!=', PedidoDelivery::ESTADO_BORRADOR);
+            // RF-T16: "activos" es la atención DE AHORA — los encargos para
+            // más adelante viven en su solapa hasta entrar en ventana.
+            $this->excluirEncargosFuturos($query);
+        } elseif ($this->filterEstadoPedido === 'programados') {
+            // RF-T16: solo encargos futuros aún fuera de ventana.
+            $query->activos()
+                ->where('estado_pedido', '!=', PedidoDelivery::ESTADO_BORRADOR)
+                ->where('programado_para', '>', now());
         } elseif ($this->filterEstadoPedido === 'borrador') {
             // Caso edge: si el usuario eligió "borrador" en el filtro, lo
             // dejamos pasar (puede querer auditarlos).
@@ -1107,6 +1115,11 @@ class PedidosDelivery extends Component
             // Facturado/cancelado son terminales: el kanban es el tablero
             // operativo — los convertidos en venta viven en la vista Lista.
             ->whereIn('estado_pedido', self::ESTADOS_KANBAN);
+
+        // RF-T16: los encargos entran al tablero recién X min antes de su
+        // hora (config programados_aparecen_min_antes); hasta entonces viven
+        // en la solapa Encargos.
+        $this->excluirEncargosFuturos($query);
 
         $this->aplicarFiltrosDelivery($query);
 
@@ -1518,6 +1531,84 @@ class PedidosDelivery extends Component
      * Pedidos externos "por aceptar": borradores con origen tienda/api (D14,
      * patrón borrador — sin número ni stock, precios cotizados snapshot).
      */
+    // ==================== ENCARGOS (RF-T16) ====================
+
+    /**
+     * Excluye del tablero operativo los ENCARGOS cuya hora está a más de
+     * `programados_aparecen_min_antes` minutos: hasta entonces viven en la
+     * solapa Encargos. Los "por aceptar" NO pasan por acá (un encargo se
+     * acepta apenas llega, no a su hora).
+     */
+    protected function excluirEncargosFuturos($query): void
+    {
+        $limite = now()->addMinutes($this->minutosAparicionEncargos());
+
+        $query->where(fn ($q) => $q->whereNull('programado_para')
+            ->orWhere('programado_para', '<=', $limite));
+    }
+
+    protected function minutosAparicionEncargos(): int
+    {
+        $sucursal = $this->sucursalActual() ? Sucursal::find($this->sucursalActual()) : null;
+        if (! $sucursal) {
+            return 60;
+        }
+
+        $config = app(\App\Services\Pedidos\DeliveryEnvioService::class)->configDelivery($sucursal);
+
+        return max(0, (int) ($config['programados_aparecen_min_antes'] ?? 60));
+    }
+
+    /**
+     * Encargos ACTIVOS aún fuera de ventana, agrupados por día para la
+     * solapa Encargos ('Y-m-d' => Collection ordenada por hora). Los "por
+     * aceptar" no están acá (viven en su banda de aceptación).
+     *
+     * @return array<string, \Illuminate\Support\Collection>
+     */
+    protected function obtenerEncargosProgramados(): array
+    {
+        $sucursalId = $this->sucursalActual();
+        if ($sucursalId === null) {
+            return [];
+        }
+
+        // Solo los FUERA de ventana: los que ya entraron en ventana viven en
+        // el tablero (evita verlos duplicados en ambos lados).
+        return PedidoDelivery::with(['cliente:id,nombre,telefono', 'zona:id,nombre', 'detalles'])
+            ->where('sucursal_id', $sucursalId)
+            ->activos()
+            ->where('estado_pedido', '!=', PedidoDelivery::ESTADO_BORRADOR)
+            ->where('programado_para', '>', now()->addMinutes($this->minutosAparicionEncargos()))
+            ->orderBy('programado_para')
+            ->limit(300)
+            ->get()
+            ->groupBy(fn (PedidoDelivery $p) => $p->programado_para->toDateString())
+            ->all();
+    }
+
+    /**
+     * "Pasar a preparación ahora": adelanta el encargo al tablero (lo saca
+     * de la espera moviendo programado_para a ahora — conserva la hora
+     * PACTADA original para el semáforo de demora).
+     */
+    public function adelantarEncargo(int $pedidoId): void
+    {
+        if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.cambiar_estado')) {
+            $this->dispatch('toast-error', message: __('No tenés permiso para cambiar el estado de pedidos'));
+
+            return;
+        }
+
+        $pedido = PedidoDelivery::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id) || ! $pedido->programado_para) {
+            return;
+        }
+
+        $pedido->update(['programado_para' => now()]);
+        $this->dispatch('toast-success', message: __('El encargo pasó al tablero de atención'));
+    }
+
     protected function pedidosPorAceptar()
     {
         $sucursalId = $this->sucursalActual();
@@ -2734,6 +2825,8 @@ class PedidosDelivery extends Component
             'salidasEnCurso' => $this->salidasEnCurso(),
             'pedidosParaSalida' => $this->showArmarSalidaModal ? $this->pedidosParaSalida() : collect(),
             'pedidosPorAceptar' => $this->pedidosPorAceptar(),
+            // RF-T16: encargos futuros para la solapa Encargos.
+            'encargosProgramados' => $this->obtenerEncargosProgramados(),
             'timeoutAceptacionMin' => $timeoutAceptacionMin,
         ]);
     }
