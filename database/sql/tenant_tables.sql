@@ -165,7 +165,7 @@ CREATE TABLE `{{PREFIX}}articulos` (
   `destacado` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Destacado en catalogo tienda (RF-17)',
   `badges_tienda` json DEFAULT NULL COMMENT 'Badges de la tienda (RF-T14): tipos predefinidos + custom',
   `alergenos_tienda` json DEFAULT NULL COMMENT 'Alergenos del articulo para el aviso de la tienda (RF-T14)',
-  `descripcion_tienda` text COLLATE utf8mb4_unicode_ci COMMENT 'Descripcion especifica para la tienda; vacia usa la operativa (RF-T14)',
+  `descripcion_tienda` text COLLATE utf8mb4_unicode_ci COMMENT 'Descripcion especifica para la tienda, vacia usa la operativa (RF-T14)',
   `permite_venta_sin_stock` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'La tienda permite pedirlo agotado (RF-17)',
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT NULL,

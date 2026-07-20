@@ -27,7 +27,7 @@ return new class extends Migration
                     COMMENT 'Alergenos del articulo para el aviso de la tienda (RF-T14)'
                     AFTER `badges_tienda`,
                     ADD COLUMN `descripcion_tienda` text DEFAULT NULL
-                    COMMENT 'Descripcion especifica para la tienda; vacia usa la operativa (RF-T14)'
+                    COMMENT 'Descripcion especifica para la tienda, vacia usa la operativa (RF-T14)'
                     AFTER `alergenos_tienda`
                 ");
             } catch (\Exception $e) {
