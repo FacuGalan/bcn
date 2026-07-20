@@ -1,7 +1,7 @@
 <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-4 space-y-3">
     <div>
         <h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ __('Identidad y apariencia de la tienda') }}</h2>
-        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Dirección pública, métricas y estética. Se guardan con el botón "Guardar tienda".') }}</p>
+        <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('La dirección y las métricas se guardan automáticamente. La apariencia se aplica con "Guardar apariencia", para que el público nunca vea un cambio a medias.') }}</p>
     </div>
 
     @if(! $tiendaId)
@@ -21,7 +21,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
                 <label for="ct-slug" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Dirección de la tienda (slug)') }}</label>
-                <input id="ct-slug" type="text" wire:model="slug" @disabled(! $puedeConfigurar)
+                <input id="ct-slug" type="text" wire:model.live.debounce.1000ms="slug" @disabled(! $puedeConfigurar)
                     class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
                 @error('slug') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                 @if($urlPublica)
@@ -40,13 +40,13 @@
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                     <label for="ct-ga4" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('ID de medición GA4') }}</label>
-                    <input id="ct-ga4" type="text" wire:model="ga4MeasurementId" placeholder="G-XXXXXXXXXX" @disabled(! $puedeConfigurar)
+                    <input id="ct-ga4" type="text" wire:model.live.debounce.1000ms="ga4MeasurementId" placeholder="G-XXXXXXXXXX" @disabled(! $puedeConfigurar)
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
                     @error('ga4MeasurementId') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                 </div>
                 <div>
                     <label for="ct-pixel" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('ID del Pixel de Meta') }}</label>
-                    <input id="ct-pixel" type="text" wire:model="metaPixelId" placeholder="123456789012345" @disabled(! $puedeConfigurar)
+                    <input id="ct-pixel" type="text" wire:model.live.debounce.1000ms="metaPixelId" placeholder="123456789012345" @disabled(! $puedeConfigurar)
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
                     @error('metaPixelId') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                 </div>
@@ -298,7 +298,7 @@
                 <button type="button" wire:click="guardarTienda"
                     class="h-9 px-4 inline-flex items-center gap-1.5 bg-bcn-primary border border-transparent rounded-md font-semibold text-sm text-white hover:bg-opacity-90 transition-colors">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
-                    {{ __('Guardar tienda') }}
+                    {{ __('Guardar apariencia') }}
                 </button>
             </div>
         @endif

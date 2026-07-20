@@ -33,9 +33,9 @@
                         </label>
                     @endforeach
                 </div>
-                <input type="time" wire:model="horariosAtencion.{{ $i }}.desde" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1" />
+                <input type="time" wire:model.live.debounce.500ms="horariosAtencion.{{ $i }}.desde" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1" />
                 <span class="text-xs text-gray-400">—</span>
-                <input type="time" wire:model="horariosAtencion.{{ $i }}.hasta" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1" />
+                <input type="time" wire:model.live.debounce.500ms="horariosAtencion.{{ $i }}.hasta" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1" />
                 <button type="button" wire:click="quitarHorario({{ $i }})" class="text-red-500 hover:text-red-700" title="{{ __('Quitar') }}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
