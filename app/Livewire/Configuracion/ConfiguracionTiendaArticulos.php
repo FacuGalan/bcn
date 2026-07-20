@@ -50,6 +50,9 @@ class ConfiguracionTiendaArticulos extends Component
     /** Descripción específica de tienda del artículo abierto ('' = usa la operativa). */
     public string $descripcionTienda = '';
 
+    /** Disponible para encargos del artículo abierto (RF-T16, reusa permite_programado). */
+    public bool $permiteEncargo = true;
+
     protected function onSucursalChanged($sucursalId = null, $sucursalNombre = null): void
     {
         $this->cerrarEditor();
@@ -98,6 +101,7 @@ class ConfiguracionTiendaArticulos extends Component
 
         $this->alergenos = implode(', ', $articulo->alergenosTienda());
         $this->descripcionTienda = (string) ($articulo->descripcion_tienda ?? '');
+        $this->permiteEncargo = (bool) $articulo->permite_programado;
     }
 
     public function cerrarEditor(): void
@@ -344,6 +348,25 @@ class ConfiguracionTiendaArticulos extends Component
 
         $texto = trim($this->descripcionTienda);
         $articulo->update(['descripcion_tienda' => $texto !== '' ? $texto : null]);
+
+        $this->catalogoCambiado();
+    }
+
+    // ==================== ENCARGOS (RF-T16) ====================
+
+    /** wire:model.live del checkbox "Disponible para encargos". */
+    public function updatedPermiteEncargo(): void
+    {
+        if (! $this->autorizado()) {
+            return;
+        }
+
+        $articulo = $this->articuloVisible((int) $this->articuloAbierto);
+        if (! $articulo) {
+            return;
+        }
+
+        $articulo->update(['permite_programado' => $this->permiteEncargo]);
 
         $this->catalogoCambiado();
     }

@@ -187,6 +187,16 @@
                                         </div>
                                     </div>
 
+                                    {{-- ENCARGOS (RF-T16) --}}
+                                    <label class="flex items-start gap-2 cursor-pointer">
+                                        <input type="checkbox" wire:model.live="permiteEncargo" @disabled(! $puedeConfigurar)
+                                            class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                                        <span class="text-[11px] text-gray-700 dark:text-gray-300">
+                                            {{ __('Disponible para encargos') }}
+                                            <span class="block text-gray-500 dark:text-gray-400">{{ __('Se puede pedir para un día futuro (si la tienda toma encargos).') }}</span>
+                                        </span>
+                                    </label>
+
                                     {{-- DESCRIPCIÓN PARA LA TIENDA (RF-T14) --}}
                                     <div>
                                         <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">

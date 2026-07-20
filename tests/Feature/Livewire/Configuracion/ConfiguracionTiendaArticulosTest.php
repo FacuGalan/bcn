@@ -197,6 +197,23 @@ class ConfiguracionTiendaArticulosTest extends TestCase
         $this->assertSame('Operativa', $articulo->fresh()->descripcion);
     }
 
+    public function test_disponible_para_encargos_persiste_al_instante(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId);
+        $articulo->update(['permite_programado' => true]);
+
+        $componente = Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('abrirEditor', $articulo->id)
+            ->assertSet('permiteEncargo', true)
+            ->set('permiteEncargo', false)
+            ->assertDispatched('tienda-catalogo-cambiado');
+
+        $this->assertFalse((bool) $articulo->fresh()->permite_programado);
+
+        $componente->set('permiteEncargo', true);
+        $this->assertTrue((bool) $articulo->fresh()->permite_programado);
+    }
+
     public function test_sin_permiso_no_escribe(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId);
