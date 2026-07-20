@@ -25,6 +25,9 @@ import './demora-alerta.js';
 // Componente Alpine tiendaPreview (visor en vivo de la tienda online, RF-T12)
 import './tienda-preview.js';
 
+// Componente Alpine tiendaArticulos (drag & drop config por artículo RF-T14)
+import './tienda-articulos.js';
+
 // Modulo de impresion QZ Tray
 import './qz-integration.js';
 

@@ -180,6 +180,30 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   Alimenta el aviso "Promociones de hoy" de la home (visible según
   `tema.promos.mostrar_home`). Vacío ⇒ sin aviso.
 
+**Galería y badges por artículo** (aditivo 2026-07-20, RF-T14):
+
+- Cada artículo suma `imagenes: ["https://...", ...]`: la galería de fotos
+  ESPECÍFICAS de la tienda (config del panel, máx 5, ordenada, URLs
+  absolutas). `[]` ⇒ sin galería: la tienda usa `imagen_url` (imagen
+  operativa) como fallback. Con galería, `imagenes[0]` es la foto principal
+  de las cards y el detalle muestra carrusel si hay más de una.
+- Cada artículo suma `badges: [{ "tipo", "texto" }]` (máx 4). `tipo` ∈
+  `sin_tacc | vegetariano | vegano | picante | nuevo | mas_vendido |
+  artesanal | sin_azucar | sin_lactosa | kosher | con_frutos_secos |
+  custom`. Con `custom`, `texto` trae el label libre (≤30 chars); en los
+  predefinidos `texto` es `null` y el icono/color/label los resuelve la
+  tienda. Tipos desconocidos NO viajan (el core sanea), pero la tienda
+  debe IGNORAR tipos que no reconozca (tolerancia a catálogo futuro).
+  `[]` ⇒ sin badges.
+- Cada artículo suma `alergenos: ["soja", "huevos", ...]`: texto libre del
+  comercio (máx 15 ítems de ≤40 chars, saneado por el core). La tienda
+  muestra el aviso "Contiene: ..." en el DETALLE del artículo. `[]` ⇒ sin
+  aviso.
+- `descripcion` pasa a servir la descripción ESPECÍFICA de tienda cuando
+  el comercio la cargó en el panel (campo por artículo, RF-T14); vacía ⇒
+  la descripción operativa del artículo, como siempre (misma clave, sin
+  cambio de shape).
+
 Los grupos de opcionales son los ASIGNADOS al artículo en la sucursal de la
 tienda (paridad con el panel), con el precio de la asignación (override por
 artículo, no el del catálogo global). Grupos sin opciones vivas no se

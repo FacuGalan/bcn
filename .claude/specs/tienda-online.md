@@ -431,6 +431,112 @@ elegido; promos genéricas listadas solo con mostrar_home on y vigentes
 hoy; precio_lista tachado solo cuando difiere; contract tests de la
 tienda en verde contra fixtures actualizados.
 
+### RF-T14: Configuración de tienda POR ARTÍCULO (vidriera) — IMPLEMENTADO (2026-07-20, cross-repo: core feat/tienda-config-articulos-rf-t14 + tienda feat/config-articulos-rf-t14; F1-F5 completas, tests verdes en ambos)
+
+Cross-repo (core + bcn-tienda). Decisiones del usuario 2026-07-20: badges
+PREDEFINIDOS + texto libre; galería MÚLTIPLE de fotos por artículo;
+reordenamiento por DRAG & DROP (artículos y categorías). Primer bloque de
+config de tienda a nivel ARTÍCULO: a diferencia del `tema` (JSON en
+config.tiendas), estos datos viven en la BD TENANT. Todo es ADITIVO: un
+artículo sin nada configurado se ve EXACTAMENTE igual que hoy.
+
+**UI (panel `ConfiguracionTienda`)**: sección nueva "Artículos de la
+tienda" DENTRO del contenedor "Identidad y apariencia", debajo de
+"Presentación del catálogo", en la COLUMNA DE CONFIGURACIÓN (izquierda) —
+el visor sticky de la derecha sigue siempre visible acompañando el scroll
+(pedido explícito del usuario). Sub-componente Livewire embebido
+`ConfiguracionTiendaArticulos` (NO lazy full-page; patrón embebido) para
+no engordar más `ConfiguracionTienda`. Lista los artículos VISIBLES en la
+tienda de la sucursal activa (mismo criterio que `CatalogoTiendaService`:
+activo + vendible + visible_tienda), agrupados por categoría colapsable,
+en el MISMO orden que muestra la tienda. Por fila: thumbnail (1ª foto de
+tienda o imagen operativa), nombre, toggle destacado, chips de badges,
+botón "Fotos (n)" que expande la galería inline. GUARDADO INMEDIATO por
+acción (toggle, drop, upload, borrar, badges al confirmar) — estos datos
+no forman parte del form del tema ni del botón "Guardar tienda"; el visor
+recarga (debounced) tras cada guardado porque el catálogo es
+server-rendered (misma limitación documentada de RF-T13). Permiso:
+`func.tienda.config`.
+
+**Modelo de datos (tenant, migración + regenerar tenant_tables.sql):**
+
+1. Tabla nueva `{prefix}articulo_imagenes_tienda`: `id`, `articulo_id`
+   (FK a `{prefix}articulos`, cascade), `path` (varchar 255), `orden`
+   (int, default 0), timestamps. Índice por `articulo_id`. Máx 5 fotos
+   por artículo (validación en service). Galería GLOBAL del artículo
+   (no por sucursal), igual que la imagen operativa.
+2. `{prefix}articulos.badges_tienda` JSON NULL: array
+   `[{"tipo":"sin_tacc"}, {"tipo":"custom","texto":"Receta de la nona"}]`.
+   Máx 4 badges por artículo. Catálogo predefinido (constante
+   `Articulo::BADGES_TIENDA`): `sin_tacc`, `vegetariano`, `vegano`,
+   `picante`, `nuevo`, `mas_vendido`, `artesanal`, `sin_azucar` + `custom`
+   (texto libre ≤30 chars). Icono+color por tipo se resuelven en la
+   TIENDA (espejo en bcn-tienda con tokens `--tienda-*`); el core solo
+   persiste/valida tipos.
+3. Destacado y orden REUSAN lo existente: `articulos.destacado`,
+   `articulos.orden`, `categorias.orden` (drag & drop renumera 10,20,30…
+   dentro de la categoría / entre categorías). Sin columnas nuevas.
+   ORDEN 100% MANUAL (decisión 2026-07-20): destacado NO fuerza posición
+   en el listado — es decoración (banner/tarjeta grande).
+4. Ampliación 2026-07-20 (2da tanda, mismo branch): badges nuevos
+   `sin_lactosa|kosher|con_frutos_secos`; `articulos.alergenos_tienda`
+   JSON (texto libre por comas, máx 15×40 chars, botonera de atajos:
+   soja/huevos/pescado/mariscos/maní/mostaza/sésamo/cereales con
+   gluten/lupino/apio) → catálogo expone `alergenos[]` aditivo → aviso
+   "Contiene: …" en el DETALLE de la tienda; y
+   `articulos.descripcion_tienda` TEXT (vacía ⇒ el catálogo sirve la
+   operativa por la MISMA clave `descripcion`). Badges en cards de la
+   tienda: SOLO icono (label en title/aria-label); chip completo con
+   palabra en el detalle. Visor: refresco por morph (postMessage
+   `tienda-preview-refrescar-catalogo` → `$wire.$refresh()`), preview
+   saltea el cache local del catálogo.
+
+**Services:** `ImagenArticuloTiendaService` nuevo (clon del pipeline
+`ImagenArticuloService`: finfo MIME real, whitelist jpg/png/webp,
+re-encode WebP q85, UUID, resize 800px, path
+`articulos/{comercio_id}/tienda/{uuid}.webp`, borra archivo al eliminar).
+Reordenamiento y badges: métodos en el componente vía transacción
+`pymes_tenant` (o service chico si crece). Drag & drop en el front:
+SortableJS bundleado en `resources/js` (patrón Alpine.data, NADA inline).
+
+**API v1 (aditivo, contrato api-v1-delivery.md):** cada artículo del
+catálogo suma `imagenes: [url…]` (galería ordenada; `[]` si no tiene —
+`imagen_url` se MANTIENE como fallback/compat) y
+`badges: [{tipo, texto|null}]` (`[]` si no tiene). CLAVE: invalidar el
+cache server-side del catálogo (`Cache::forget` de las keys
+`comercio:sucursal:tipo`, ambos tipos) al guardar CUALQUIER config por
+artículo — sin esto el panel guarda pero la tienda/visor muestran viejo
+hasta 60s (y el ETag acompaña solo).
+
+**bcn-tienda:** `detalle-articulo` con CARRUSEL cuando `imagenes.length >
+1` (scroll-snap horizontal + dots; sin librería); cards
+(grilla/lista/destacado) muestran `imagenes[0] ?? imagen_url`. Badges:
+chips con icono SVG inline + color por tipo (espejo del catálogo de
+badges) en cards y detalle; `custom` renderiza el texto con estilo
+neutro. Fixtures de contrato (`catalogo.json`) + contract tests
+actualizados (claves nuevas opcionales, tolerancia a ausencia).
+
+**Fases:** F1 core datos (migraciones tenant + tenant_tables.sql + modelo
+`ArticuloImagenTienda` + relación/constantes en `Articulo` +
+`ImagenArticuloTiendaService` + tests service) · F2 core API
+(`CatalogoTiendaService` imagenes[]/badges[] + invalidación cache +
+contrato .md + ApiV1DeliveryTest) · F3 core panel lista (sub-componente
+embebido: lista agrupada, destacado, badges con modal, smoke test) · F4
+core panel galería + drag & drop (upload múltiple, orden fotos,
+SortableJS artículos/categorías) · F5 tienda (carrusel + badges +
+fixtures/contract tests) · F6 cierre (traducciones es/en/pt ambos repos,
+@docs-sync, validación en vivo).
+
+**Criterios de aceptación:** artículo sin config nueva → catálogo y
+tienda IDÉNTICOS a hoy (aditivo puro); snapshot viejo sin `imagenes`/
+`badges` → la tienda no rompe (tolerancia a clave ausente); galería con
+fallback a imagen operativa; máx 5 fotos / 4 badges validados
+server-side; drag & drop persiste y la tienda refleja el orden tras
+recarga; guardar config por artículo invalida el cache del catálogo (se
+ve en el visor sin esperar 60s); badges predefinidos con icono/color
+consistentes y custom neutro; contract tests de la tienda en verde;
+smoke test del sub-componente nuevo.
+
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
 `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas

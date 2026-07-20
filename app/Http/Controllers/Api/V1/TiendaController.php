@@ -161,7 +161,9 @@ class TiendaController extends Controller
         }
 
         // Key por comercio+sucursal+tipo: el store es compartido entre tenants.
-        $cacheKey = "tienda_catalogo:{$comercio->id}:{$sucursal->id}:{$tipo}";
+        // Centralizada en el service: el panel la invalida al guardar config
+        // por artículo (RF-T14).
+        $cacheKey = CatalogoTiendaService::cacheKey((int) $comercio->id, (int) $sucursal->id, $tipo);
         $payload = \Illuminate\Support\Facades\Cache::remember(
             $cacheKey,
             60,

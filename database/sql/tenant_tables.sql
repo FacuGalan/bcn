@@ -89,6 +89,18 @@ CREATE TABLE `{{PREFIX}}articulo_grupo_opcional_opcion` (
   CONSTRAINT `fk_agoo_ago` FOREIGN KEY (`articulo_grupo_opcional_id`) REFERENCES `{{PREFIX}}articulo_grupo_opcional` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_agoo_opcional` FOREIGN KEY (`opcional_id`) REFERENCES `{{PREFIX}}opcionales` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB AUTO_INCREMENT=124 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+DROP TABLE IF EXISTS `{{PREFIX}}articulo_imagenes_tienda`;
+CREATE TABLE `{{PREFIX}}articulo_imagenes_tienda` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `articulo_id` bigint unsigned NOT NULL,
+  `path` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `orden` int NOT NULL DEFAULT '0',
+  `created_at` timestamp NULL DEFAULT NULL,
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `{{PREFIX}}idx_aimg_tienda_articulo` (`articulo_id`),
+  CONSTRAINT `{{PREFIX}}fk_aimg_tienda_articulo` FOREIGN KEY (`articulo_id`) REFERENCES `{{PREFIX}}articulos` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}articulo_proveedor`;
 CREATE TABLE `{{PREFIX}}articulo_proveedor` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -151,6 +163,9 @@ CREATE TABLE `{{PREFIX}}articulos` (
   `permite_programado` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Puede incluirse en pedidos programados (RF-15/Fase 8)',
   `orden` int NOT NULL DEFAULT '0' COMMENT 'Orden de presentacion en catalogo tienda (RF-17)',
   `destacado` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Destacado en catalogo tienda (RF-17)',
+  `badges_tienda` json DEFAULT NULL COMMENT 'Badges de la tienda (RF-T14): tipos predefinidos + custom',
+  `alergenos_tienda` json DEFAULT NULL COMMENT 'Alergenos del articulo para el aviso de la tienda (RF-T14)',
+  `descripcion_tienda` text COLLATE utf8mb4_unicode_ci COMMENT 'Descripcion especifica para la tienda, vacia usa la operativa (RF-T14)',
   `permite_venta_sin_stock` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'La tienda permite pedirlo agotado (RF-17)',
   `activo` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` timestamp NULL DEFAULT NULL,

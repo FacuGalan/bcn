@@ -85,6 +85,9 @@ class Articulo extends Model
         'permite_programado',
         'orden',
         'destacado',
+        'badges_tienda',
+        'alergenos_tienda',
+        'descripcion_tienda',
         'permite_venta_sin_stock',
     ];
 
@@ -104,8 +107,55 @@ class Articulo extends Model
         'permite_programado' => 'boolean',
         'orden' => 'integer',
         'destacado' => 'boolean',
+        'badges_tienda' => 'array',
+        'alergenos_tienda' => 'array',
         'permite_venta_sin_stock' => 'boolean',
     ];
+
+    /**
+     * Tipos de badge de tienda predefinidos (RF-T14). El icono y color de
+     * cada tipo los resuelve la TIENDA (espejo en bcn-tienda); el core solo
+     * persiste y valida tipos. 'custom' (texto libre) se valida aparte.
+     */
+    public const BADGES_TIENDA = [
+        'sin_tacc',
+        'vegetariano',
+        'vegano',
+        'picante',
+        'nuevo',
+        'mas_vendido',
+        'artesanal',
+        'sin_azucar',
+        'sin_lactosa',
+        'kosher',
+        'con_frutos_secos',
+    ];
+
+    public const MAX_BADGES_TIENDA = 4;
+
+    public const MAX_BADGE_CUSTOM_LARGO = 30;
+
+    /**
+     * Atajos de alérgenos del panel (RF-T14). El campo es TEXTO LIBRE
+     * separado por comas — esto es solo la botonera de carga rápida; el
+     * comercio puede escribir cualquier otro.
+     */
+    public const ALERGENOS_SUGERIDOS = [
+        'soja',
+        'huevos',
+        'pescado',
+        'mariscos',
+        'maní',
+        'mostaza',
+        'sésamo',
+        'cereales con gluten',
+        'lupino',
+        'apio',
+    ];
+
+    public const MAX_ALERGENOS_TIENDA = 15;
+
+    public const MAX_ALERGENO_LARGO = 40;
 
     // Relaciones
     public function tipoIva(): BelongsTo
@@ -654,5 +704,87 @@ class Articulo extends Model
         $y = (float) ($this->imagen_focal_y ?? 50);
 
         return number_format($x, 2, '.', '').'% '.number_format($y, 2, '.', '').'%';
+    }
+
+    /**
+     * Galería de fotos de TIENDA (RF-T14), ordenada. Independiente de la
+     * imagen operativa (imagen_path), que actúa de fallback si está vacía.
+     */
+    public function imagenesTienda(): HasMany
+    {
+        return $this->hasMany(ArticuloImagenTienda::class, 'articulo_id')
+            ->orderBy('orden')
+            ->orderBy('id');
+    }
+
+    /**
+     * Badges de tienda SANEADOS (RF-T14): descarta entradas con tipo fuera
+     * del catálogo, custom sin texto y todo lo que exceda el máximo. Un JSON
+     * viejo/corrupto nunca rompe el catálogo público.
+     *
+     * @return array<int, array{tipo: string, texto: string|null}>
+     */
+    public function badgesTienda(): array
+    {
+        $badges = [];
+
+        foreach ((array) ($this->badges_tienda ?? []) as $badge) {
+            if (! is_array($badge) || empty($badge['tipo'])) {
+                continue;
+            }
+
+            $tipo = (string) $badge['tipo'];
+            $texto = isset($badge['texto']) ? trim((string) $badge['texto']) : '';
+
+            if ($tipo === 'custom') {
+                if ($texto === '' || mb_strlen($texto) > self::MAX_BADGE_CUSTOM_LARGO) {
+                    continue;
+                }
+                $badges[] = ['tipo' => 'custom', 'texto' => $texto];
+            } elseif (in_array($tipo, self::BADGES_TIENDA, true)) {
+                $badges[] = ['tipo' => $tipo, 'texto' => null];
+            }
+
+            if (count($badges) >= self::MAX_BADGES_TIENDA) {
+                break;
+            }
+        }
+
+        return $badges;
+    }
+
+    /**
+     * Alérgenos de tienda SANEADOS (RF-T14): strings no vacíos, sin
+     * duplicados (case-insensitive), con topes de largo y cantidad. Texto
+     * libre del comercio — un JSON corrupto nunca rompe el catálogo.
+     *
+     * @return list<string>
+     */
+    public function alergenosTienda(): array
+    {
+        $alergenos = [];
+        $vistos = [];
+
+        foreach ((array) ($this->alergenos_tienda ?? []) as $alergeno) {
+            if (! is_string($alergeno)) {
+                continue;
+            }
+
+            $texto = trim($alergeno);
+            $clave = mb_strtolower($texto);
+
+            if ($texto === '' || mb_strlen($texto) > self::MAX_ALERGENO_LARGO || isset($vistos[$clave])) {
+                continue;
+            }
+
+            $vistos[$clave] = true;
+            $alergenos[] = $texto;
+
+            if (count($alergenos) >= self::MAX_ALERGENOS_TIENDA) {
+                break;
+            }
+        }
+
+        return $alergenos;
     }
 }
