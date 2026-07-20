@@ -476,6 +476,20 @@ server-rendered (misma limitación documentada de RF-T13). Permiso:
 3. Destacado y orden REUSAN lo existente: `articulos.destacado`,
    `articulos.orden`, `categorias.orden` (drag & drop renumera 10,20,30…
    dentro de la categoría / entre categorías). Sin columnas nuevas.
+   ORDEN 100% MANUAL (decisión 2026-07-20): destacado NO fuerza posición
+   en el listado — es decoración (banner/tarjeta grande).
+4. Ampliación 2026-07-20 (2da tanda, mismo branch): badges nuevos
+   `sin_lactosa|kosher|con_frutos_secos`; `articulos.alergenos_tienda`
+   JSON (texto libre por comas, máx 15×40 chars, botonera de atajos:
+   soja/huevos/pescado/mariscos/maní/mostaza/sésamo/cereales con
+   gluten/lupino/apio) → catálogo expone `alergenos[]` aditivo → aviso
+   "Contiene: …" en el DETALLE de la tienda; y
+   `articulos.descripcion_tienda` TEXT (vacía ⇒ el catálogo sirve la
+   operativa por la MISMA clave `descripcion`). Badges en cards de la
+   tienda: SOLO icono (label en title/aria-label); chip completo con
+   palabra en el detalle. Visor: refresco por morph (postMessage
+   `tienda-preview-refrescar-catalogo` → `$wire.$refresh()`), preview
+   saltea el cache local del catálogo.
 
 **Services:** `ImagenArticuloTiendaService` nuevo (clon del pipeline
 `ImagenArticuloService`: finfo MIME real, whitelist jpg/png/webp,
