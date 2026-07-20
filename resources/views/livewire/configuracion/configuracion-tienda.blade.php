@@ -102,10 +102,9 @@
                     <label class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Portada (banner del encabezado)') }}</label>
                     <div class="flex flex-col items-center justify-center p-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg">
                         @if($portadaPreviewUrl)
-                            {{-- La miniatura muestra el ENCUADRE real elegido (RF-T13) --}}
+                            {{-- Miniatura FIJA con la foto completa; el encuadre elegido se ve en la tienda/visor (RF-T13) --}}
                             <img src="{{ $portadaPreviewUrl }}" alt="{{ __('Portada de la tienda') }}"
-                                class="max-h-24 w-full object-cover mb-3 rounded"
-                                style="object-position: center {{ $portadaPosicion }};">
+                                class="max-h-24 w-full object-contain mb-3 rounded">
                         @else
                             <svg class="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
@@ -249,7 +248,10 @@
 
             {{-- ==================== PRESENTACIÓN DEL CATÁLOGO (RF-T13) ==================== --}}
             <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-1">
-                <h4 class="text-xs font-semibold text-gray-900 dark:text-white mb-2">{{ __('Presentación del catálogo') }}</h4>
+                <h4 class="text-xs font-semibold text-gray-900 dark:text-white mb-2">
+                    {{ __('Presentación del catálogo') }}
+                    <span class="ml-1 font-normal text-gray-500 dark:text-gray-400">{{ __('Los cambios de esta sección se ven al guardar.') }}</span>
+                </h4>
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                         <label for="ct-layout" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Cómo se muestran los artículos') }}</label>
@@ -285,7 +287,7 @@
                         class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-xs text-gray-700 dark:text-gray-300">
                         {{ __('Mostrar aviso de "Promociones de hoy" en la página principal') }}
-                        <span class="block text-gray-500 dark:text-gray-400">{{ __('Lista las promociones vigentes de alcance general (combos, 2x1, descuentos por categoría). Los cambios de esta sección se ven al guardar.') }}</span>
+                        <span class="block text-gray-500 dark:text-gray-400">{{ __('Lista las promociones vigentes de alcance general (combos, 2x1, descuentos por categoría).') }}</span>
                     </span>
                 </label>
             </div>
