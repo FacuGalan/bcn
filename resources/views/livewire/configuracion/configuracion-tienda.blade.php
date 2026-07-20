@@ -302,6 +302,12 @@
                 </button>
             </div>
         @endif
+
+        {{-- ==================== ARTÍCULOS DE LA TIENDA (RF-T14) ====================
+             Sub-componente con guardado INMEDIATO (no participa del botón
+             "Guardar tienda"); queda en esta columna para que el visor
+             sticky siga visible mientras se configura. --}}
+        <livewire:configuracion.configuracion-tienda-articulos :wire:key="'cta-articulos-'.$tiendaId" />
         </div> {{-- /columna config --}}
 
         @include('livewire.configuracion.partials.tienda-preview-visor')

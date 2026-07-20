@@ -64,6 +64,10 @@ document.addEventListener('alpine:init', () => {
                 this.enviarEstado();
             });
             window.Livewire?.on('tienda-guardada', () => this.recargarIframe());
+            // RF-T14: la config por artículo guarda AL INSTANTE por acción
+            // (toggle/drag/foto). Debounce largo para no recargar el iframe
+            // en cada micro-cambio de una ráfaga.
+            window.Livewire?.on('tienda-catalogo-cambiado', () => this.recargarIframeDebounced());
         },
 
         destroy() {
@@ -133,6 +137,11 @@ document.addEventListener('alpine:init', () => {
         recargarIframe() {
             const iframe = this.$refs.iframe;
             if (iframe) iframe.src = iframe.src;
+        },
+
+        recargarIframeDebounced() {
+            clearTimeout(this._timerReload);
+            this._timerReload = setTimeout(() => this.recargarIframe(), 1200);
         },
     }));
 });

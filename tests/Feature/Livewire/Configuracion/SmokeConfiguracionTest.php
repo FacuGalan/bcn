@@ -4,6 +4,7 @@ namespace Tests\Feature\Livewire\Configuracion;
 
 use App\Livewire\Configuracion\ConfiguracionEmpresa;
 use App\Livewire\Configuracion\ConfiguracionTienda;
+use App\Livewire\Configuracion\ConfiguracionTiendaArticulos;
 use App\Livewire\Configuracion\CuitDomicilios;
 use App\Livewire\Configuracion\CuitImpuestos;
 use App\Livewire\Configuracion\CuitPuntosVenta;
@@ -746,6 +747,11 @@ class SmokeConfiguracionTest extends TestCase
     public function test_configuracion_tienda_monta(): void
     {
         Livewire::test(ConfiguracionTienda::class)->assertOk();
+    }
+
+    public function test_configuracion_tienda_articulos_monta(): void
+    {
+        Livewire::test(ConfiguracionTiendaArticulos::class)->assertOk();
     }
 
     public function test_configuracion_tienda_guardar(): void
