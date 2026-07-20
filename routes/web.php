@@ -191,6 +191,9 @@ Route::prefix('app')->group(function () {
          * Panel kanban de delivery + ABM de repartidores y fondos (RF-01/RF-07/RF-09).
          */
         Route::get('pedidos/delivery', \App\Livewire\Pedidos\PedidosDelivery::class)->name('pedidos.delivery');
+        // Reporte de producción de encargos (RF-T16): se llega desde la
+        // solapa Encargos del panel — mismo público que el panel de pedidos.
+        Route::get('pedidos/encargos/produccion', \App\Livewire\Pedidos\ProduccionEncargos::class)->name('pedidos.encargos.produccion');
         // RF-T10: la configuración se movió a Configuración → Delivery/Take Away.
         Route::get('pedidos/delivery/configuracion', fn () => redirect()->route('configuracion.delivery', [], 301));
         Route::get('configuracion/api-tokens', \App\Livewire\Configuracion\ApiTokens::class)->name('configuracion.api-tokens');

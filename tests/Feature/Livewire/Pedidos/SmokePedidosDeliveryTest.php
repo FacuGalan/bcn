@@ -140,6 +140,29 @@ class SmokePedidosDeliveryTest extends TestCase
         $this->assertTrue(collect($kanban)->flatMap(fn ($col) => $col->pluck('id'))->contains($futuro->id));
     }
 
+    public function test_produccion_encargos_monta_y_agrega_cantidades(): void
+    {
+        Livewire::test(\App\Livewire\Pedidos\ProduccionEncargos::class)->assertOk();
+
+        // Dos encargos del MISMO día con el mismo artículo: el reporte suma.
+        $cuando = now()->addDays(3)->setTime(20, 0);
+        $a = $this->pedidoDeliveryConfirmado(1000, null, ['programado_para' => $cuando, 'hora_pactada_at' => $cuando]);
+        $b = $this->pedidoDeliveryConfirmado(1000, null, ['programado_para' => $cuando->copy()->addHour(), 'hora_pactada_at' => $cuando->copy()->addHour()]);
+
+        $componente = Livewire::test(\App\Livewire\Pedidos\ProduccionEncargos::class)
+            ->set('fechaDesde', today()->toDateString())
+            ->set('fechaHasta', today()->addDays(7)->toDateString());
+
+        $reporte = $componente->viewData('reporte');
+        $dia = $cuando->toDateString();
+        $this->assertArrayHasKey($dia, $reporte);
+
+        $cantidadPedidoA = (float) $a->detalles()->sum('cantidad');
+        $cantidadPedidoB = (float) $b->detalles()->sum('cantidad');
+        $totalDia = array_sum(array_column($reporte[$dia], 'cantidad'));
+        $this->assertEqualsWithDelta($cantidadPedidoA + $cantidadPedidoB, $totalDia, 0.001, 'El día suma las cantidades de ambos encargos');
+    }
+
     public function test_repartidores_monta(): void
     {
         Livewire::test(Repartidores::class)->assertOk();
