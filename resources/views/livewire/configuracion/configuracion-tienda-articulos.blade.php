@@ -1,6 +1,21 @@
 {{-- Configuración de tienda POR ARTÍCULO (RF-T14): galería, badges,
      destacado y orden drag & drop. Guardado INMEDIATO por acción (no pasa
-     por "Guardar tienda"); el visor recarga solo (debounced). --}}
+     por "Guardar tienda"); el visor se refresca solo por morph (debounced). --}}
+@php
+    // Look ESPEJO de la tienda (bcn-tienda badges-articulo.blade.php):
+    // mismo emoji y misma familia de color por tipo, en paleta del panel.
+    $estiloBadges = [
+        'sin_tacc' => ['🌾', 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'],
+        'vegetariano' => ['🥕', 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'],
+        'vegano' => ['🌱', 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'],
+        'picante' => ['🌶️', 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'],
+        'nuevo' => ['✨', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'],
+        'mas_vendido' => ['🔥', 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'],
+        'artesanal' => ['🧑‍🍳', 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300'],
+        'sin_azucar' => ['🍃', 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'],
+    ];
+    $estiloBadgeCustom = 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 ring-1 ring-inset ring-gray-300 dark:ring-gray-600';
+@endphp
 <div class="border border-gray-200 dark:border-gray-700 rounded-lg p-3 space-y-2" x-data="tiendaArticulos">
     <div>
         <h3 class="text-xs font-semibold text-gray-900 dark:text-white">{{ __('Artículos de la tienda') }}</h3>
@@ -60,11 +75,17 @@
                                     <p class="text-xs font-medium text-gray-900 dark:text-white truncate">{{ $articulo->nombre }}</p>
                                     @php($badgesFila = $articulo->badgesTienda())
                                     @if($badgesFila !== [])
-                                        <p class="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                                        <span class="mt-0.5 flex flex-wrap gap-1">
                                             @foreach($badgesFila as $badge)
-                                                <span>{{ $badge['tipo'] === 'custom' ? $badge['texto'] : ($badgesCatalogo[$badge['tipo']] ?? $badge['tipo']) }}@if(! $loop->last) · @endif</span>
+                                                @if($badge['tipo'] === 'custom')
+                                                    <span class="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium {{ $estiloBadgeCustom }}">{{ $badge['texto'] }}</span>
+                                                @else
+                                                    <span class="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium {{ $estiloBadges[$badge['tipo']][1] ?? '' }}">
+                                                        <span aria-hidden="true">{{ $estiloBadges[$badge['tipo']][0] ?? '' }}</span>{{ $badgesCatalogo[$badge['tipo']] ?? $badge['tipo'] }}
+                                                    </span>
+                                                @endif
                                             @endforeach
-                                        </p>
+                                        </span>
                                     @endif
                                 </div>
 
@@ -126,9 +147,13 @@
                                         </p>
                                         <div class="flex flex-wrap gap-1.5">
                                             @foreach($badgesCatalogo as $tipo => $label)
+                                                @php($seleccionado = in_array($tipo, $badgesSel, true))
+                                                {{-- Mismo look que en la tienda: apagado = gris/desaturado, prendido = su color real --}}
                                                 <button type="button" wire:click="toggleBadge('{{ $tipo }}')" @disabled(! $puedeConfigurar)
-                                                    class="px-2 py-0.5 text-[11px] font-medium rounded-full border transition-colors {{ in_array($tipo, $badgesSel, true) ? 'bg-bcn-primary text-white border-transparent' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
-                                                    {{ $label }}
+                                                    class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border transition-all {{ $seleccionado
+                                                        ? ($estiloBadges[$tipo][1] ?? '').' border-transparent shadow-sm'
+                                                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 grayscale opacity-75 hover:opacity-100 hover:grayscale-0' }}">
+                                                    <span aria-hidden="true">{{ $estiloBadges[$tipo][0] ?? '' }}</span>{{ $label }}
                                                 </button>
                                             @endforeach
                                         </div>

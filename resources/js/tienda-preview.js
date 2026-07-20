@@ -65,9 +65,12 @@ document.addEventListener('alpine:init', () => {
             });
             window.Livewire?.on('tienda-guardada', () => this.recargarIframe());
             // RF-T14: la config por artículo guarda AL INSTANTE por acción
-            // (toggle/drag/foto). Debounce largo para no recargar el iframe
-            // en cada micro-cambio de una ráfaga.
-            window.Livewire?.on('tienda-catalogo-cambiado', () => this.recargarIframeDebounced());
+            // (toggle/drag/foto). En vez de recargar el iframe (flash blanco
+            // + lento), se le pide a la tienda un re-render por Livewire
+            // (morph): preview.js hace $refresh y el catálogo llega fresco
+            // (el guardado ya invalidó el cache del core y el preview
+            // saltea el local). Debounce corto para agrupar ráfagas.
+            window.Livewire?.on('tienda-catalogo-cambiado', () => this.refrescarCatalogoDebounced());
         },
 
         destroy() {
@@ -139,9 +142,19 @@ document.addEventListener('alpine:init', () => {
             if (iframe) iframe.src = iframe.src;
         },
 
-        recargarIframeDebounced() {
+        refrescarCatalogo() {
+            const iframe = this.$refs.iframe;
+            if (! iframe || ! this.origenTienda) return;
+
+            iframe.contentWindow?.postMessage(
+                { tipo: 'tienda-preview-refrescar-catalogo' },
+                this.origenTienda,
+            );
+        },
+
+        refrescarCatalogoDebounced() {
             clearTimeout(this._timerReload);
-            this._timerReload = setTimeout(() => this.recargarIframe(), 1200);
+            this._timerReload = setTimeout(() => this.refrescarCatalogo(), 400);
         },
     }));
 });
