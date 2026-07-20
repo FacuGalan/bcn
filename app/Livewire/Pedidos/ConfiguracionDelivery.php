@@ -53,6 +53,10 @@ class ConfiguracionDelivery extends Component
         'diasLaborales', 'horariosAtencion', 'feriados',
         'modoPromesa', 'demoraBaseMin', 'demoraMinPorKm', 'botonesDemora',
         'franjas', 'aceptaLoAntesPosible',
+        // RF-T16 — encargos (aceptaProgramados NO va acá: su hook propio
+        // precarga el calendario ANTES de persistir)
+        'programadosAparecenMinAntes', 'encargosDias', 'encargosHorarios',
+        'encargosFeriados', 'encargosAnticipacionHoras', 'encargosMaxDias',
     ];
 
     // ==================== CONFIG SUCURSAL (RF-05) ====================
@@ -138,6 +142,29 @@ class ConfiguracionDelivery extends Component
     public string $alertaAmarillaMin = '15';
 
     public string $alertaRojaMin = '30';
+
+    // ==================== ENCARGOS (RF-T16) ====================
+
+    /** Toggle maestro: tomar pedidos por encargue (día futuro). */
+    public bool $aceptaProgramados = false;
+
+    /** Minutos antes de la hora pactada en que el encargo entra al kanban. */
+    public string $programadosAparecenMinAntes = '60';
+
+    /** @var array<int, bool> calendario PROPIO de encargos: día => habilitado */
+    public array $encargosDias = [];
+
+    /** @var array<int, array{dias: array<int,bool>, desde: string, hasta: string}> */
+    public array $encargosHorarios = [];
+
+    /** @var array<int, string> fechas Y-m-d sin encargos */
+    public array $encargosFeriados = [];
+
+    public string $nuevoFeriadoEncargos = '';
+
+    public string $encargosAnticipacionHoras = '24';
+
+    public string $encargosMaxDias = '30';
 
     // ==================== APARTADO TIENDA ONLINE (RF-T11) ====================
 
@@ -297,6 +324,23 @@ class ConfiguracionDelivery extends Component
             ->toArray();
 
         $this->feriados = array_values($config['feriados'] ?? []);
+
+        // Encargos (RF-T16)
+        $this->aceptaProgramados = (bool) ($config['acepta_programados'] ?? false);
+        $this->programadosAparecenMinAntes = (string) ($config['programados_aparecen_min_antes'] ?? 60);
+        $encargos = (array) ($config['encargos'] ?? []);
+        $this->encargosDias = [];
+        foreach (range(1, 7) as $dia) {
+            $this->encargosDias[$dia] = in_array($dia, $encargos['dias_laborales'] ?? range(1, 7));
+        }
+        $this->encargosHorarios = collect($encargos['horarios'] ?? [])
+            ->map(fn ($r) => $this->rangoAForm((array) $r))
+            ->values()
+            ->toArray();
+        $this->encargosFeriados = array_values($encargos['feriados'] ?? []);
+        $this->encargosAnticipacionHoras = (string) ($encargos['anticipacion_horas'] ?? 24);
+        $this->encargosMaxDias = (string) ($encargos['max_dias_adelante'] ?? 30);
+
         $modo = (string) $config['modo_promesa'];
         $this->modoPromesa = in_array($modo, ['automatica', 'franjas'], true) ? $modo : 'manual';
         $this->demoraBaseMin = (string) $config['demora_base_min'];
@@ -381,6 +425,16 @@ class ConfiguracionDelivery extends Component
             'botones_demora' => $botones ?: Sucursal::CONFIG_DELIVERY_DEFAULTS['botones_demora'],
             'franjas' => $this->franjasDesdeForm($this->franjas),
             'acepta_lo_antes_posible' => $this->aceptaLoAntesPosible,
+            // Encargos (RF-T16)
+            'acepta_programados' => $this->aceptaProgramados,
+            'programados_aparecen_min_antes' => max(0, (int) $this->programadosAparecenMinAntes),
+            'encargos' => [
+                'dias_laborales' => array_keys(array_filter($this->encargosDias)),
+                'horarios' => $this->rangosDesdeForm($this->encargosHorarios) ?: null,
+                'feriados' => array_values($this->encargosFeriados),
+                'anticipacion_horas' => max(0, (int) $this->encargosAnticipacionHoras),
+                'max_dias_adelante' => max(1, (int) $this->encargosMaxDias),
+            ],
         ]);
 
         try {
@@ -415,6 +469,60 @@ class ConfiguracionDelivery extends Component
 
         $service->reiniciarNumeracionDisplay((int) $this->sucursalActual(), (int) auth()->id());
         $this->dispatch('toast-success', message: __('Numeración de pedidos delivery reiniciada'));
+    }
+
+    // ==================== ENCARGOS (RF-T16) ====================
+
+    /**
+     * Toggle de encargos con hook PROPIO (fuera de la whitelist genérica):
+     * la PRIMERA activación precarga el calendario de encargos desde el de
+     * atención (decisión usuario 2026-07-20) ANTES de persistir.
+     */
+    public function updatedAceptaProgramados(): void
+    {
+        $sucursal = Sucursal::find($this->sucursalActual());
+
+        if ($this->aceptaProgramados
+            && $sucursal
+            && ! isset($sucursal->config_delivery['encargos'])) {
+            $this->encargosDias = $this->diasLaborales;
+            $this->encargosHorarios = $this->horariosAtencion;
+            $this->encargosFeriados = $this->feriados;
+        }
+
+        $this->persistirConfig();
+    }
+
+    public function agregarHorarioEncargos(): void
+    {
+        $this->encargosHorarios[] = $this->rangoAForm([]);
+        $this->persistirConfig();
+    }
+
+    public function quitarHorarioEncargos(int $index): void
+    {
+        unset($this->encargosHorarios[$index]);
+        $this->encargosHorarios = array_values($this->encargosHorarios);
+        $this->persistirConfig();
+    }
+
+    public function agregarFeriadoEncargos(): void
+    {
+        $fecha = trim($this->nuevoFeriadoEncargos);
+        if ($fecha === '' || in_array($fecha, $this->encargosFeriados, true)) {
+            return;
+        }
+        $this->encargosFeriados[] = $fecha;
+        sort($this->encargosFeriados);
+        $this->nuevoFeriadoEncargos = '';
+        $this->persistirConfig();
+    }
+
+    public function quitarFeriadoEncargos(int $index): void
+    {
+        unset($this->encargosFeriados[$index]);
+        $this->encargosFeriados = array_values($this->encargosFeriados);
+        $this->persistirConfig();
     }
 
     // ==================== HORARIOS (repeater compartido) ====================

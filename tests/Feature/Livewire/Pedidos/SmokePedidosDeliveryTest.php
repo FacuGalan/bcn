@@ -80,6 +80,89 @@ class SmokePedidosDeliveryTest extends TestCase
         Livewire::test(NuevoPedidoDelivery::class)->assertOk();
     }
 
+    // ==================== ENCARGOS (RF-T16) ====================
+
+    public function test_encargo_futuro_se_oculta_del_tablero_hasta_su_ventana(): void
+    {
+        // Encargo para pasado mañana: fuera de la ventana de aparición (60').
+        $futuro = $this->pedidoDeliveryConfirmado(1000, null, [
+            'programado_para' => now()->addDays(2)->setTime(20, 0),
+            'hora_pactada_at' => now()->addDays(2)->setTime(20, 0),
+        ]);
+
+        // Encargo a 30 minutos: DENTRO de la ventana → tablero normal.
+        $inminente = $this->pedidoDeliveryConfirmado(1000, null, [
+            'programado_para' => now()->addMinutes(30),
+            'hora_pactada_at' => now()->addMinutes(30),
+        ]);
+
+        $componente = Livewire::test(PedidosDelivery::class);
+
+        $kanban = $componente->viewData('pedidosKanban');
+        $idsKanban = collect($kanban)->flatMap(fn ($col) => $col->pluck('id'));
+        $this->assertFalse($idsKanban->contains($futuro->id), 'El encargo lejano no entra al kanban');
+        $this->assertTrue($idsKanban->contains($inminente->id), 'El encargo en ventana sí entra');
+
+        // Lista "activos": misma regla.
+        $idsLista = collect($componente->viewData('pedidos')->items())->pluck('id');
+        $this->assertFalse($idsLista->contains($futuro->id));
+        $this->assertTrue($idsLista->contains($inminente->id));
+
+        // Solapa Encargos: SOLO los futuros.
+        $encargos = collect($componente->viewData('encargosProgramados'))->flatMap(fn ($grupo) => collect($grupo)->pluck('id'));
+        $this->assertTrue($encargos->contains($futuro->id));
+        $this->assertFalse($encargos->contains($inminente->id), 'El inminente ya vive en el tablero, no en la solapa');
+
+        // Filtro "programados" de la lista: solo el futuro.
+        $componente->set('filterEstadoPedido', 'programados');
+        $idsProgramados = collect($componente->viewData('pedidos')->items())->pluck('id');
+        $this->assertTrue($idsProgramados->contains($futuro->id));
+    }
+
+    public function test_adelantar_encargo_lo_pasa_al_tablero(): void
+    {
+        $futuro = $this->pedidoDeliveryConfirmado(1000, null, [
+            'programado_para' => now()->addDays(2)->setTime(20, 0),
+            'hora_pactada_at' => now()->addDays(2)->setTime(20, 0),
+        ]);
+
+        $componente = Livewire::test(PedidosDelivery::class)
+            ->call('adelantarEncargo', $futuro->id);
+
+        $this->assertTrue($futuro->fresh()->programado_para->lessThanOrEqualTo(now()->addMinute()));
+        $this->assertSame(
+            now()->addDays(2)->setTime(20, 0)->format('Y-m-d H:i'),
+            $futuro->fresh()->hora_pactada_at->format('Y-m-d H:i'),
+            'La hora PACTADA original se conserva (semáforo de demora)',
+        );
+
+        $kanban = $componente->viewData('pedidosKanban');
+        $this->assertTrue(collect($kanban)->flatMap(fn ($col) => $col->pluck('id'))->contains($futuro->id));
+    }
+
+    public function test_produccion_encargos_monta_y_agrega_cantidades(): void
+    {
+        Livewire::test(\App\Livewire\Pedidos\ProduccionEncargos::class)->assertOk();
+
+        // Dos encargos del MISMO día con el mismo artículo: el reporte suma.
+        $cuando = now()->addDays(3)->setTime(20, 0);
+        $a = $this->pedidoDeliveryConfirmado(1000, null, ['programado_para' => $cuando, 'hora_pactada_at' => $cuando]);
+        $b = $this->pedidoDeliveryConfirmado(1000, null, ['programado_para' => $cuando->copy()->addHour(), 'hora_pactada_at' => $cuando->copy()->addHour()]);
+
+        $componente = Livewire::test(\App\Livewire\Pedidos\ProduccionEncargos::class)
+            ->set('fechaDesde', today()->toDateString())
+            ->set('fechaHasta', today()->addDays(7)->toDateString());
+
+        $reporte = $componente->viewData('reporte');
+        $dia = $cuando->toDateString();
+        $this->assertArrayHasKey($dia, $reporte);
+
+        $cantidadPedidoA = (float) $a->detalles()->sum('cantidad');
+        $cantidadPedidoB = (float) $b->detalles()->sum('cantidad');
+        $totalDia = array_sum(array_column($reporte[$dia], 'cantidad'));
+        $this->assertEqualsWithDelta($cantidadPedidoA + $cantidadPedidoB, $totalDia, 0.001, 'El día suma las cantidades de ambos encargos');
+    }
+
     public function test_repartidores_monta(): void
     {
         Livewire::test(Repartidores::class)->assertOk();

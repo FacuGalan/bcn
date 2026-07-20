@@ -563,6 +563,99 @@ elige en el visor.
   El botón pasó de "Guardar tienda" a "Guardar apariencia".
 - La config por artículo (RF-T14) ya nacía con guardado inmediato.
 
+### RF-T16: Pedidos por ENCARGUE (día futuro) — IMPLEMENTADO (2026-07-20, cross-repo: core feat/tienda-encargos-rf-t16 + tienda feat/encargos-rf-t16; F1-F5 completas, tests verdes. Ajuste vs diseño: el reporte de producción NO tiene ítem de menú propio — se llega desde la solapa Encargos del panel, mismo público)
+
+Cross-repo (core + bcn-tienda) + PANEL DE ATENCIÓN (pedido explícito del
+usuario: los pedidos de la tienda terminan ahí y hay que distinguir "de
+ahora" vs programados, con gestión propia y reporte de producción).
+APROVECHA la estructura que la Fase 8 de pedidos-delivery dejó creada:
+`pedidos_delivery.programado_para` (columna existente, hoy write-only),
+keys `acepta_programados` + `programados_aparecen_min_antes` en
+config_delivery, y `articulos.permite_programado` (hoy sin lectura de
+negocio). CERO migraciones nuevas. Los CUPOS por franja siguen FUERA
+(sub-fase futura, como define ese spec).
+
+**Config (auto-guardado RF-T15, sección "Encargos" junto al calendario):**
+
+- `acepta_programados` (key existente): toggle maestro "Tomar pedidos por
+  encargue". OFF = nada de encargos en tienda/API/panel (default actual).
+- CALENDARIO PROPIO de encargos (decisión usuario 2026-07-20): keys nuevas
+  ADITIVAS del JSON `config_delivery.encargos` = `{dias_laborales,
+  horarios, feriados, anticipacion_horas (default 24), max_dias_adelante
+  (default 30)}` — mismo shape que el calendario de atención y PRECARGADO
+  desde él al activar el toggle por primera vez. Permite encargar para
+  días en que el local no atiende al público.
+- `programados_aparecen_min_antes` (key existente, default 60): cuántos
+  minutos antes de la hora pactada el encargo APARECE en el kanban.
+
+**Artículos:** REUSA `articulos.permite_programado` ("disponible para
+encargos"). Se expone TAMBIÉN en la vidriera (ConfiguracionTiendaArticulos,
+checkbox por artículo con guardado inmediato — hoy solo está en el ABM).
+El catálogo público suma `permite_encargo` (bool, aditivo) por artículo.
+
+**Services/API (aditivo, contrato api-v1-delivery.md):**
+
+- `DeliveryEnvioService::validarProgramado(Sucursal, Carbon, array
+  $articuloIds)` (firma ya prevista en el spec de delivery): fecha/hora
+  dentro del calendario de encargos (día válido + rango horario + no
+  feriado + ventana anticipación→max_dias) y TODOS los artículos con
+  `permite_programado`.
+- Endpoint nuevo `GET /v1/tiendas/{slug}/encargos?tipo=[&fecha=Y-m-d]`:
+  sin fecha → fechas disponibles de la ventana; con fecha → slots de 30
+  min generados de los rangos del día. 404/vacío si no acepta encargos.
+- `POST carrito/cotizar` y alta: campo nuevo `entrega.programado_para`
+  (ISO datetime). Cotizar valida y devuelve error claro si un artículo no
+  permite encargo. El alta persiste `programado_para` + `hora_pactada_at`
+  (= programado_para) y respeta aceptación manual/automática como hoy.
+- Tienda CERRADA con encargos activos: `GET /tiendas/{slug}` suma
+  `encargos: {activo, anticipacion_horas, max_dias_adelante}`; la tienda
+  puede seguir vendiendo SOLO en modo encargo (el pedido inmediato sigue
+  rechazándose fuera de horario, como hoy).
+
+**bcn-tienda (checkout):** si `encargos.activo`, el paso de entrega suma
+la opción "Encargar para otro día" → selector de fecha (del endpoint) +
+selector de slot. Si el carrito tiene artículos sin `permite_encargo`, se
+avisa antes de cotizar (y el core igual valida server-side). Con la
+tienda cerrada y encargos activos, el hero muestra "Cerrado ahora — podés
+encargar para otro día" y el flujo solo ofrece encargo.
+
+**Panel de atención (PedidosDelivery):**
+
+1. El kanban/lista EXCLUYE los programados cuya hora esté a más de
+   `programados_aparecen_min_antes` minutos (query, sin scheduler); al
+   entrar en ventana aparecen como cualquier pedido, con badge.
+2. Badge "Encargo · {d/m H:i}" (color propio, ej. violeta) en tarjeta,
+   lista y detalle para TODO pedido con `programado_para`.
+3. SOLAPA nueva "Encargos" en el mismo panel: lista de programados
+   futuros agrupados por día (fecha, hora, cliente, tipo, total, items),
+   con acciones ver detalle / cancelar / "pasar a preparación ahora"
+   (lo adelanta al kanban). Filtro por rango de fechas.
+4. Filtro "Programados" en el selector de estado existente.
+
+**Reporte de producción (nuevo, patrón ReportesCompras):** página
+`pedidos/encargos/produccion` (menú + permiso nuevos): rango de fechas →
+agrupado por DÍA → ARTÍCULO con cantidades totales (suma de
+pedidos_delivery_detalle de programados activos), drill-down a los
+pedidos. Para saber qué producir en los próximos días. Export simple
+(imprimible) v1.
+
+**Fases:** F1 core config+calendario encargos (keys, precarga, UI panel
+config auto-save) · F2 core services+API (validarProgramado, endpoint
+encargos, cotizar/alta con programado_para, permite_encargo en catálogo,
+contrato) · F3 panel atención (ocultamiento por ventana, badges, solapa
+Encargos, filtro) · F4 reporte de producción (componente+ruta+menú+
+permiso) · F5 vidriera (checkbox encargos por artículo) + tienda
+(checkout fecha+slot, hero cerrado-con-encargos, fixtures/contract
+tests) · F6 cierre (traducciones, docs, validación en vivo).
+
+**Criterios de aceptación:** toggle OFF ⇒ comportamiento idéntico a hoy
+(aditivo puro); encargo fuera de calendario/ventana o con artículo no
+apto ⇒ 422 con motivo; el programado NO aparece en el kanban hasta su
+ventana y SÍ en la solapa Encargos; badge visible en kanban/lista/
+detalle; reporte suma cantidades correctas por día/artículo excluyendo
+cancelados; tienda cerrada + encargos ⇒ solo flujo encargo; contract
+tests de la tienda verdes; smoke de los componentes nuevos.
+
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
 `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas

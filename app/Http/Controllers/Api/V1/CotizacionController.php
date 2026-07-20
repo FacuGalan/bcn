@@ -63,9 +63,28 @@ class CotizacionController extends Controller
             'cupon_codigo' => 'nullable|string|max:50',
             'forma_pago_id' => 'nullable|integer',
             'usar_puntos' => 'nullable|boolean',
+            // Encargo (RF-T16): validar acá para que el checkout falle
+            // TEMPRANO (slot vencido o artículo no apto) y no en el alta.
+            'entrega.programado_para' => 'nullable|date',
         ]);
 
         $sucursal = $request->attributes->get('api_sucursal');
+
+        if (! empty($datos['entrega']['programado_para'])) {
+            try {
+                app(DeliveryEnvioService::class)->validarProgramado(
+                    $sucursal,
+                    \Illuminate\Support\Carbon::parse($datos['entrega']['programado_para']),
+                    collect($datos['items'])->pluck('articulo_id')->map(fn ($id) => (int) $id)->all(),
+                );
+            } catch (\Exception $e) {
+                abort(response()->json(['error' => [
+                    'code' => 'encargo_invalido',
+                    'message' => $e->getMessage(),
+                    'details' => null,
+                ]], 422));
+            }
+        }
 
         // Consumidor logueado con cliente materializado (D11): la cotización
         // del checkout usa SU cliente (precios especiales/promos por cliente)

@@ -154,6 +154,9 @@ class CatalogoTiendaService
                 // RF-T14: alérgenos declarados en el panel → aviso
                 // "Contiene: ..." en el detalle de la tienda ([] = sin aviso).
                 'alergenos' => $articulo->alergenosTienda(),
+                // RF-T16 (aditivo): apto para pedidos por encargue (la tienda
+                // avisa antes de cotizar; el core valida igual server-side).
+                'permite_encargo' => (bool) $articulo->permite_programado,
                 'destacado' => (bool) $articulo->destacado,
                 'orden' => (int) $articulo->orden,
                 'pesable' => (bool) $articulo->pesable,

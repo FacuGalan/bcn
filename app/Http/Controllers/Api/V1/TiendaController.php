@@ -77,6 +77,14 @@ class TiendaController extends Controller
                 // absoluta con el host real del request.
                 'logo_url' => $tienda->logoUrl() ? url($tienda->logoUrl()) : null,
                 'portada_url' => $tienda->portadaUrl() ? url($tienda->portadaUrl()) : null,
+                // RF-T16 (aditivo 2026-07-20): encargos para día futuro. Con
+                // activo=true la tienda ofrece "Encargar para otro día"
+                // (fechas/slots en GET /encargos) incluso CERRADA.
+                'encargos' => [
+                    'activo' => (bool) ($config['acepta_programados'] ?? false),
+                    'anticipacion_horas' => (int) ($config['encargos']['anticipacion_horas'] ?? 24),
+                    'max_dias_adelante' => (int) ($config['encargos']['max_dias_adelante'] ?? 30),
+                ],
             ],
         ]);
     }
@@ -137,6 +145,53 @@ class TiendaController extends Controller
                 'modo_promesa' => $modoPromesa,
                 'acepta_lo_antes_posible' => (bool) ($config['acepta_lo_antes_posible'] ?? true),
                 'franjas' => $franjas,
+            ],
+        ]);
+    }
+
+    /**
+     * GET /v1/tiendas/{slug}/encargos[?fecha=Y-m-d] — disponibilidad de
+     * ENCARGOS (RF-T16). Sin `fecha`: los días de la ventana con al menos un
+     * slot. Con `fecha`: los slots de 30 min de ese día. Encargos inactivos
+     * ⇒ activo:false con listas vacías (nunca un error).
+     */
+    public function encargos(Request $request, DeliveryEnvioService $envioService): JsonResponse
+    {
+        $sucursal = $request->attributes->get('api_sucursal');
+        $activo = $envioService->aceptaEncargos($sucursal);
+
+        $fecha = trim((string) $request->query('fecha', ''));
+
+        if ($fecha !== '') {
+            try {
+                $dia = \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $fecha);
+            } catch (\Throwable) {
+                $dia = null;
+            }
+
+            return response()->json([
+                'data' => [
+                    'activo' => $activo,
+                    'fecha' => $fecha,
+                    'slots' => ($activo && $dia)
+                        ? array_map(fn ($slot) => [
+                            'hora' => $slot->toIso8601String(),
+                            'label' => $slot->format('H:i'),
+                        ], $envioService->slotsEncargos($sucursal, $dia))
+                        : [],
+                ],
+            ]);
+        }
+
+        return response()->json([
+            'data' => [
+                'activo' => $activo,
+                'fechas' => $activo
+                    ? array_map(fn ($dia) => [
+                        'fecha' => $dia->toDateString(),
+                        'label' => $dia->translatedFormat('D d/m'),
+                    ], $envioService->fechasEncargosDisponibles($sucursal))
+                    : [],
             ],
         ]);
     }

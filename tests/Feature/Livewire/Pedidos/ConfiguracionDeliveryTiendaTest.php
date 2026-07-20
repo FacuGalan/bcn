@@ -131,6 +131,43 @@ class ConfiguracionDeliveryTiendaTest extends TestCase
         $this->assertNotContains('2026-12-25', (array) $config['feriados']);
     }
 
+    public function test_encargos_toggle_precarga_calendario_de_atencion_y_persiste(): void
+    {
+        // Calendario de atención con datos distintivos: la PRIMERA activación
+        // de encargos lo precarga como punto de partida (RF-T16).
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+        $sucursal->update(['config_delivery' => array_merge(
+            is_array($sucursal->config_delivery) ? $sucursal->config_delivery : [],
+            [
+                'dias_laborales' => [5, 6, 7],
+                'horarios_atencion' => [['dias' => [5, 6, 7], 'desde' => '20:00', 'hasta' => '23:00']],
+                'feriados' => ['2026-12-25'],
+            ],
+        )]);
+
+        $componente = Livewire::test(ConfiguracionDelivery::class)
+            ->set('aceptaProgramados', true);
+
+        $config = \App\Models\Sucursal::find($this->sucursalId)->getConfigDelivery();
+        $this->assertTrue((bool) $config['acepta_programados']);
+        $this->assertSame([5, 6, 7], array_map('intval', $config['encargos']['dias_laborales']));
+        $this->assertSame('20:00', $config['encargos']['horarios'][0]['desde']);
+        $this->assertContains('2026-12-25', $config['encargos']['feriados']);
+        $this->assertSame(24, (int) $config['encargos']['anticipacion_horas']);
+        $this->assertSame(30, (int) $config['encargos']['max_dias_adelante']);
+
+        // Editar el calendario de encargos y apagar/prender: NO re-precarga
+        // (la precarga es SOLO la primera vez, cuando el JSON no tenía
+        // `encargos`). Misma instancia: dos Livewire::test en un método
+        // pierden la sesión de sucursal (quirk del entorno de test).
+        $componente->set('encargosDias.5', false)
+            ->set('aceptaProgramados', false)
+            ->set('aceptaProgramados', true);
+
+        $config = \App\Models\Sucursal::find($this->sucursalId)->getConfigDelivery();
+        $this->assertSame([6, 7], array_map('intval', $config['encargos']['dias_laborales']), 'La re-activación no debe re-precargar el calendario editado');
+    }
+
     public function test_autoguardado_sin_permiso_no_escribe(): void
     {
         $original = (bool) \App\Models\Sucursal::find($this->sucursalId)->getConfigDelivery()['takeaway_habilitado'];

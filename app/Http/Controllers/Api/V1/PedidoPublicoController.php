@@ -56,6 +56,9 @@ class PedidoPublicoController extends Controller
             // ISO 8601 de GET /franjas). El service la valida contra la config.
             'entrega.lo_antes_posible' => 'nullable|boolean',
             'entrega.franja' => 'nullable|date',
+            // Encargo para día futuro (RF-T16): el service lo valida contra
+            // el calendario de encargos y los artículos aptos.
+            'entrega.programado_para' => 'nullable|date',
             // Pago declarado contra entrega/retiro (planificado): FP de
             // GET /tiendas/{slug} y, para efectivo, "¿con cuánto pagás?".
             'pago.forma_pago_id' => 'nullable|integer',

@@ -2,6 +2,7 @@
 
 namespace App\Services\Pedidos;
 
+use App\Models\Articulo;
 use App\Models\DeliveryZona;
 use App\Models\PedidoDelivery;
 use App\Models\Sucursal;
@@ -263,6 +264,139 @@ class DeliveryEnvioService
         }
 
         return $cierre;
+    }
+
+    // ==================== ENCARGOS (RF-T16) ====================
+
+    public function aceptaEncargos(Sucursal $sucursal): bool
+    {
+        return (bool) ($this->configDelivery($sucursal)['acepta_programados'] ?? false);
+    }
+
+    /**
+     * Fechas disponibles para ENCARGOS (RF-T16) dentro de la ventana
+     * [ahora + anticipacion_horas, hoy + max_dias_adelante], según el
+     * calendario PROPIO de encargos (independiente del de atención). Solo
+     * entran días a los que les queda al menos un slot elegible.
+     *
+     * @return Carbon[] días (00:00), ordenados
+     */
+    public function fechasEncargosDisponibles(Sucursal $sucursal): array
+    {
+        $config = $this->configDelivery($sucursal);
+        if (! ($config['acepta_programados'] ?? false)) {
+            return [];
+        }
+
+        $encargos = (array) ($config['encargos'] ?? []);
+        $limite = today()->addDays((int) ($encargos['max_dias_adelante'] ?? 30))->endOfDay();
+
+        $fechas = [];
+        for ($dia = today(); $dia->lessThanOrEqualTo($limite); $dia = $dia->copy()->addDay()) {
+            if ($this->slotsEncargos($sucursal, $dia) !== []) {
+                $fechas[] = $dia->copy();
+            }
+        }
+
+        return $fechas;
+    }
+
+    /**
+     * Slots de 30 minutos elegibles para encargar en `$dia`, según los
+     * rangos horarios del calendario de encargos (null/vacío = todo el día),
+     * descartando lo anterior a la anticipación mínima y lo posterior a la
+     * ventana máxima. Un rango que cruza medianoche se recorta a las 23:30
+     * del día (el encargo pertenece al día calendario elegido).
+     *
+     * @return Carbon[]
+     */
+    public function slotsEncargos(Sucursal $sucursal, Carbon $dia): array
+    {
+        $config = $this->configDelivery($sucursal);
+        if (! ($config['acepta_programados'] ?? false)) {
+            return [];
+        }
+
+        $encargos = (array) ($config['encargos'] ?? []);
+        $minimo = now()->addHours(max(0, (int) ($encargos['anticipacion_horas'] ?? 24)));
+        $limite = today()->addDays((int) ($encargos['max_dias_adelante'] ?? 30))->endOfDay();
+
+        $dia = $dia->copy()->startOfDay();
+        if ($dia->greaterThan($limite)) {
+            return [];
+        }
+
+        $diasHabilitados = array_map('intval', (array) ($encargos['dias_laborales'] ?? range(1, 7)));
+        if (! in_array($dia->isoWeekday(), $diasHabilitados, true)) {
+            return [];
+        }
+        if (in_array($dia->toDateString(), (array) ($encargos['feriados'] ?? []), true)) {
+            return [];
+        }
+
+        $rangos = (array) ($encargos['horarios'] ?? []);
+        if ($rangos === []) {
+            $rangos = [['dias' => range(1, 7), 'desde' => '00:00', 'hasta' => '23:30']];
+        }
+
+        $slots = [];
+        foreach ($rangos as $rango) {
+            $dias = array_map('intval', (array) ($rango['dias'] ?? range(1, 7)));
+            if (! in_array($dia->isoWeekday(), $dias, true)) {
+                continue;
+            }
+
+            $desde = $dia->copy()->setTimeFromTimeString((string) ($rango['desde'] ?? '00:00'));
+            $hasta = $dia->copy()->setTimeFromTimeString((string) ($rango['hasta'] ?? '23:59'));
+            if ($hasta->lessThan($desde)) {
+                $hasta = $dia->copy()->setTime(23, 30); // cruce de medianoche: se recorta al día
+            }
+
+            for ($slot = $desde->copy(); $slot->lessThanOrEqualTo($hasta); $slot = $slot->copy()->addMinutes(30)) {
+                if ($slot->greaterThanOrEqualTo($minimo) && $slot->lessThanOrEqualTo($limite)) {
+                    $slots[$slot->format('H:i')] = $slot->copy();
+                }
+            }
+        }
+
+        ksort($slots);
+
+        return array_values($slots);
+    }
+
+    /**
+     * Valida un ENCARGO (RF-T16): fecha/hora en un slot disponible del
+     * calendario de encargos + todos los artículos aptos. Lanza Exception
+     * con motivo claro (la API la traduce a 422).
+     *
+     * @param  array<int, int>  $articuloIds
+     *
+     * @throws \Exception
+     */
+    public function validarProgramado(Sucursal $sucursal, Carbon $cuando, array $articuloIds = []): void
+    {
+        if (! $this->aceptaEncargos($sucursal)) {
+            throw new \Exception(__('Esta tienda no toma pedidos por encargue'));
+        }
+
+        $esSlotValido = collect($this->slotsEncargos($sucursal, $cuando))
+            ->contains(fn (Carbon $slot) => $slot->format('Y-m-d H:i') === $cuando->format('Y-m-d H:i'));
+
+        if (! $esSlotValido) {
+            throw new \Exception(__('La fecha y hora elegidas no están disponibles para encargos: consultá los horarios vigentes'));
+        }
+
+        if ($articuloIds !== []) {
+            $noAptos = Articulo::whereIn('id', array_map('intval', $articuloIds))
+                ->where('permite_programado', false)
+                ->pluck('nombre');
+
+            if ($noAptos->isNotEmpty()) {
+                throw new \Exception(__('Estos productos no están disponibles por encargue: :lista', [
+                    'lista' => $noAptos->implode(', '),
+                ]));
+            }
+        }
     }
 
     /**

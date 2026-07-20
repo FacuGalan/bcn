@@ -924,6 +924,150 @@ class ApiV1DeliveryTest extends TestCase
             ->assertStatus(422);
     }
 
+    public function test_encargos_endpoint_devuelve_fechas_y_slots(): void
+    {
+        // Inactivo (default): activo=false con listas vacías, nunca error.
+        $this->getJson('/api/v1/tiendas/tienda-test/encargos')
+            ->assertOk()
+            ->assertJsonPath('data.activo', false)
+            ->assertJsonPath('data.fechas', []);
+
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'acepta_programados' => true,
+                'encargos' => [
+                    'dias_laborales' => [1, 2, 3, 4, 5, 6, 7],
+                    'horarios' => [['dias' => [1, 2, 3, 4, 5, 6, 7], 'desde' => '10:00', 'hasta' => '12:00']],
+                    'feriados' => [],
+                    'anticipacion_horas' => 24,
+                    'max_dias_adelante' => 7,
+                ],
+            ]),
+        ]);
+
+        $fechas = $this->getJson('/api/v1/tiendas/tienda-test/encargos')
+            ->assertOk()
+            ->assertJsonPath('data.activo', true)
+            ->json('data.fechas');
+
+        $this->assertNotEmpty($fechas);
+        // Anticipación 24h con slots hasta las 12:00: hoy nunca entra.
+        $this->assertGreaterThanOrEqual(today()->addDay()->toDateString(), $fechas[0]['fecha']);
+
+        // Un día lejano (dentro de la ventana): el rango completo en slots de 30.
+        $slots = $this->getJson('/api/v1/tiendas/tienda-test/encargos?fecha='.today()->addDays(3)->toDateString())
+            ->assertOk()
+            ->json('data.slots');
+        $this->assertSame(['10:00', '10:30', '11:00', '11:30', '12:00'], array_column($slots, 'label'));
+    }
+
+    public function test_alta_de_encargo_programa_el_pedido_y_valida_articulos(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'acepta_programados' => true,
+                'encargos' => [
+                    'dias_laborales' => [1, 2, 3, 4, 5, 6, 7],
+                    'horarios' => null, // todo el día
+                    'feriados' => [],
+                    'anticipacion_horas' => 1,
+                    'max_dias_adelante' => 30,
+                ],
+            ]),
+        ]);
+
+        $apto = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $cuando = today()->addDays(2)->setTime(15, 0);
+
+        $payload = $this->payloadPedido($apto->id) + ['entrega' => ['programado_para' => $cuando->toIso8601String()]];
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertSame($cuando->format('Y-m-d H:i'), $pedido->programado_para->format('Y-m-d H:i'));
+        $this->assertSame($cuando->format('Y-m-d H:i'), $pedido->hora_pactada_at->format('Y-m-d H:i'), 'La hora pactada ES la del encargo');
+        $this->assertFalse((bool) $pedido->lo_antes_posible);
+
+        // Hora fuera de la grilla de 30 minutos: rechazada.
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($apto->id)
+            + ['entrega' => ['programado_para' => today()->addDays(2)->setTime(15, 17)->toIso8601String()]])
+            ->assertStatus(422);
+
+        // Fuera de la ventana máxima: rechazado.
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($apto->id)
+            + ['entrega' => ['programado_para' => today()->addDays(45)->setTime(15, 0)->toIso8601String()]])
+            ->assertStatus(422);
+
+        // Artículo no apto para encargos: rechazado con motivo.
+        $noApto = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $noApto->update(['permite_programado' => false]);
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($noApto->id)
+            + ['entrega' => ['programado_para' => $cuando->toIso8601String()]])
+            ->assertStatus(422);
+    }
+
+    public function test_encargo_con_tienda_cerrada_entra_igual(): void
+    {
+        // Sin días laborales = SIEMPRE cerrada para pedidos inmediatos; los
+        // encargos validan contra SU calendario (RF-T16).
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'dias_laborales' => [],
+                'acepta_programados' => true,
+                'encargos' => [
+                    'dias_laborales' => [1, 2, 3, 4, 5, 6, 7],
+                    'horarios' => null,
+                    'feriados' => [],
+                    'anticipacion_horas' => 1,
+                    'max_dias_adelante' => 30,
+                ],
+            ]),
+        ]);
+
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Pedido inmediato: 422 (cerrada).
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))
+            ->assertStatus(422);
+
+        // Encargo: entra igual.
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id)
+            + ['entrega' => ['programado_para' => today()->addDays(2)->setTime(19, 0)->toIso8601String()]])
+            ->assertCreated();
+    }
+
+    public function test_cotizar_con_encargo_valida_articulos_no_aptos(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'acepta_programados' => true,
+                'encargos' => [
+                    'dias_laborales' => [1, 2, 3, 4, 5, 6, 7],
+                    'horarios' => null,
+                    'feriados' => [],
+                    'anticipacion_horas' => 1,
+                    'max_dias_adelante' => 30,
+                ],
+            ]),
+        ]);
+
+        $apto = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $noApto = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $noApto->update(['permite_programado' => false]);
+        $cuando = today()->addDays(2)->setTime(15, 0)->toIso8601String();
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $apto->id, 'cantidad' => 1]],
+            'entrega' => ['programado_para' => $cuando],
+        ])->assertOk();
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $noApto->id, 'cantidad' => 1]],
+            'entrega' => ['programado_para' => $cuando],
+        ])->assertStatus(422)->assertJsonPath('error.code', 'encargo_invalido');
+    }
+
     public function test_pedido_externo_lo_antes_posible_respeta_la_config(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
