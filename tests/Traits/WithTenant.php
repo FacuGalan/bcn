@@ -65,6 +65,7 @@ trait WithTenant
         'opcionales',
         'articulo_grupo_opcional',
         'articulo_grupo_opcional_opcion',
+        'articulo_imagenes_tienda',
         'forma_pago_conceptos',
         'forma_pago_integraciones',
         'formas_pago_sucursales',
