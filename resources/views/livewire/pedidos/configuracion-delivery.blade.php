@@ -5,13 +5,17 @@
             <h1 class="text-lg font-bold text-bcn-secondary dark:text-white">{{ __('Delivery / Take Away') }}</h1>
             <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('Georreferenciación, costos de envío, zonas, horarios, promesa de entrega y tienda online de la sucursal.') }}</p>
         </div>
-        <button type="button" wire:click="guardarConfig"
-            class="h-9 px-4 inline-flex items-center gap-1.5 bg-bcn-primary border border-transparent rounded-md font-semibold text-sm text-white hover:bg-opacity-90 transition-colors">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-            </svg>
-            {{ __('Guardar') }}
-        </button>
+        {{-- Auto-guardado (RF-T15): sin botón Guardar; feedback sutil --}}
+        <div class="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <span wire:loading.delay.short class="inline-flex items-center gap-1.5 text-bcn-primary">
+                <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"/></svg>
+                {{ __('Guardando...') }}
+            </span>
+            <span wire:loading.remove.delay.short class="inline-flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                {{ __('Los cambios se guardan automáticamente') }}
+            </span>
+        </div>
     </div>
 
     {{-- ==================== ZONA DELIVERY/PANEL (full-width, 2 col en xl) ==================== --}}
@@ -29,28 +33,28 @@
                     </span>
                 </label>
                 <label class="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" wire:model="takeawayHabilitado" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <input type="checkbox" wire:model.live="takeawayHabilitado" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                         {{ __('Take-away habilitado') }}
                         <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Permite pedidos "para llevar" (retiro en el local).') }}</span>
                     </span>
                 </label>
                 <label class="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" wire:model="exigirRepartidor" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <input type="checkbox" wire:model.live="exigirRepartidor" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                         {{ __('Exigir repartidor para despachar') }}
                         <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Listo → En camino requiere repartidor asignado.') }}</span>
                     </span>
                 </label>
                 <label class="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" wire:model="usaEstadoListo" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <input type="checkbox" wire:model.live="usaEstadoListo" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                         {{ __('Usar estado "Listo"') }}
                         <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Desactivado: la columna Listo se oculta y de "En preparación" se pasa directo al envío o retiro. Aun activado, se puede despachar sin pasar por Listo.') }}</span>
                     </span>
                 </label>
                 <label class="flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" wire:model="convertirVentaAlEntregar" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <input type="checkbox" wire:model.live="convertirVentaAlEntregar" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                         {{ __('Convertir en venta al entregar') }}
                         <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Al pasar a Entregado el pedido se convierte en venta con todos sus movimientos y se emiten los comprobantes fiscales de las formas de pago marcadas como fiscales (requiere pagos completos y caja). Propia de delivery, no afecta mostrador.') }}</span>
@@ -58,7 +62,7 @@
                 </label>
                 <div>
                     <label for="cd-categoria-envio" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Categoría del renglón de envío') }}</label>
-                    <select id="cd-categoria-envio" wire:model="conceptoCategoriaEnvioId"
+                    <select id="cd-categoria-envio" wire:model.live="conceptoCategoriaEnvioId"
                         class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
                         <option value="">{{ __('Sin categoría') }}</option>
                         @foreach($categorias as $categoria)
@@ -89,7 +93,7 @@
                             @if($numeracionDisplayModo === 'diario')
                                 <div>
                                     <label for="cd-num-horas" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Horas de reinicio (0-23)') }}</label>
-                                    <input id="cd-num-horas" type="text" wire:model="numeracionDisplayHoras" placeholder="6, 18"
+                                    <input id="cd-num-horas" type="text" wire:model.live.debounce.800ms="numeracionDisplayHoras" placeholder="6, 18"
                                         class="w-28 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                                 </div>
                             @else
@@ -105,12 +109,12 @@
                 <div class="sm:col-span-2 flex flex-wrap items-end gap-3">
                     <div>
                         <label for="cd-alerta-amarilla" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alerta amarilla (min)') }}</label>
-                        <input id="cd-alerta-amarilla" type="number" min="0" wire:model="alertaAmarillaMin"
+                        <input id="cd-alerta-amarilla" type="number" min="0" wire:model.live.debounce.800ms="alertaAmarillaMin"
                             class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                     </div>
                     <div>
                         <label for="cd-alerta-roja" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Alerta roja (min)') }}</label>
-                        <input id="cd-alerta-roja" type="number" min="0" wire:model="alertaRojaMin"
+                        <input id="cd-alerta-roja" type="number" min="0" wire:model.live.debounce.800ms="alertaRojaMin"
                             class="w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                     </div>
                     <div class="text-xs text-gray-500 dark:text-gray-400 basis-full space-y-1">
@@ -139,18 +143,18 @@
                 @if($modoPromesa === 'automatica')
                     <div>
                         <label for="cd-demora-base" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Demora base (min)') }}</label>
-                        <input id="cd-demora-base" type="number" min="0" wire:model="demoraBaseMin"
+                        <input id="cd-demora-base" type="number" min="0" wire:model.live.debounce.800ms="demoraBaseMin"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                     </div>
                     <div>
                         <label for="cd-demora-km" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Minutos por km') }}</label>
-                        <input id="cd-demora-km" type="number" min="0" step="0.5" wire:model="demoraMinPorKm"
+                        <input id="cd-demora-km" type="number" min="0" step="0.5" wire:model.live.debounce.800ms="demoraMinPorKm"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                     </div>
                 @elseif($modoPromesa === 'franjas')
                     <div class="sm:col-span-2 flex items-end pb-1.5">
                         <label class="inline-flex items-center gap-2 cursor-pointer">
-                            <input type="checkbox" wire:model="aceptaLoAntesPosible"
+                            <input type="checkbox" wire:model.live="aceptaLoAntesPosible"
                                 class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                             <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Aceptar "Lo antes posible"') }}</span>
                         </label>
@@ -162,7 +166,7 @@
                         </div>
                         @forelse($franjas as $i => $franja)
                             <div class="flex flex-wrap items-center gap-2 mb-1.5 border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1.5">
-                                <input type="time" wire:model="franjas.{{ $i }}.hora" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1" />
+                                <input type="time" wire:model.live.debounce.500ms="franjas.{{ $i }}.hora" class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1" />
                                 <div class="flex flex-wrap gap-1">
                                     @foreach($diasSemana as $dia => $label)
                                         <label class="inline-flex items-center px-1.5 py-0.5 border rounded cursor-pointer text-[10px] {{ ($franjas[$i]['dias'][$dia] ?? false) ? 'border-bcn-primary bg-bcn-primary/10 text-bcn-primary font-semibold' : 'border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400' }}">
@@ -195,7 +199,7 @@
                 @else
                     <div class="sm:col-span-2">
                         <label for="cd-botones" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Botones de demora (min, separados por coma)') }}</label>
-                        <input id="cd-botones" type="text" wire:model="botonesDemora"
+                        <input id="cd-botones" type="text" wire:model.live.debounce.800ms="botonesDemora"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
                     </div>
                 @endif
@@ -238,14 +242,6 @@
         @endunless
     </div>
 
-    {{-- Guardar (repetido para no scrollear) --}}
-    <div class="flex justify-end">
-        <button type="button" wire:click="guardarConfig"
-            class="h-9 px-4 inline-flex items-center gap-1.5 bg-bcn-primary border border-transparent rounded-md font-semibold text-sm text-white hover:bg-opacity-90 transition-colors">
-            {{ __('Guardar configuración') }}
-        </button>
-    </div>
-
     {{-- ==================== TIENDA ONLINE (RF-T11: switch maestro del padre) ==================== --}}
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-4 space-y-4">
         <div class="flex flex-wrap items-center justify-between gap-2">
@@ -266,11 +262,6 @@
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $tiendaPublicadaPersistida ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300' }}">
                         {{ $tiendaPublicadaPersistida ? __('Publicada') : __('No publicada') }}
                     </span>
-                    @if($tiendaPublicada !== $tiendaPublicadaPersistida)
-                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                            {{ $tiendaPublicada ? __('Se publica al guardar') : __('Se despublica al guardar') }}
-                        </span>
-                    @endif
                 @else
                     <span class="text-xs text-gray-500 dark:text-gray-400">{{ __('Prendé el switch para crear tu tienda') }}</span>
                 @endif
@@ -289,7 +280,7 @@
                             @include('livewire.pedidos.partials.config-calendario')
                         </div>
                     </div>
-                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('El calendario y los pedidos externos se guardan con el botón "Guardar configuración" y aplican también al panel y a la API, tengas o no la tienda publicada.') }}</p>
+                    <p class="text-xs text-gray-500 dark:text-gray-400">{{ __('El calendario y los pedidos externos se guardan automáticamente y aplican también al panel y a la API, tengas o no la tienda publicada.') }}</p>
                 @endif
 
                 {{-- Registro config.tiendas (guardado propio del sub-componente).

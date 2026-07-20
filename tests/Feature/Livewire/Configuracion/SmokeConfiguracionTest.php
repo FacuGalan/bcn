@@ -754,6 +754,59 @@ class SmokeConfiguracionTest extends TestCase
         Livewire::test(ConfiguracionTiendaArticulos::class)->assertOk();
     }
 
+    public function test_configuracion_tienda_slug_y_analytics_autoguardan(): void
+    {
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+        $tienda = \App\Models\Tienda::create([
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId,
+            'slug' => 'tienda-autosave-test',
+            'habilitada' => false,
+        ]);
+
+        // RF-T15: sin botón — updatedX persiste al instante. El slug se
+        // normaliza y recarga el visor (evento tienda-guardada).
+        Livewire::test(ConfiguracionTienda::class)
+            ->assertSet('tiendaId', $tienda->id)
+            ->set('slug', 'Mi Tienda Nueva')
+            ->assertSet('slug', 'mi-tienda-nueva')
+            ->assertDispatched('tienda-guardada')
+            ->set('ga4MeasurementId', 'g-xyz789')
+            ->set('metaPixelId', '999888777');
+
+        $tienda->refresh();
+        $this->assertSame('mi-tienda-nueva', $tienda->slug);
+        $this->assertSame('G-XYZ789', $tienda->ga4_measurement_id);
+        $this->assertSame('999888777', $tienda->meta_pixel_id);
+
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+    }
+
+    public function test_configuracion_tienda_slug_duplicado_no_autoguarda(): void
+    {
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+        \App\Models\Tienda::create([
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId + 999,
+            'slug' => 'slug-tomado-auto',
+            'habilitada' => true,
+        ]);
+        $propia = \App\Models\Tienda::create([
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId,
+            'slug' => 'tienda-propia-auto',
+            'habilitada' => false,
+        ]);
+
+        Livewire::test(ConfiguracionTienda::class)
+            ->set('slug', 'slug-tomado-auto')
+            ->assertHasErrors(['slug']);
+
+        $this->assertSame('tienda-propia-auto', $propia->fresh()->slug, 'El slug duplicado no debe persistir');
+
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+    }
+
     public function test_configuracion_tienda_guardar(): void
     {
         // La tabla config.tiendas persiste entre corridas: limpiar lo del

@@ -12,10 +12,11 @@ use Tests\Traits\WithTenant;
 
 /**
  * Switch maestro del apartado Tienda Online en ConfiguracionDelivery
- * (RF-T11): el PADRE es el único escritor de `tiendas.habilitada` —
- * prender el switch crea la tienda (despublicada), guardar publica,
- * apagar + guardar despublica. Sin permiso `func.tienda.config` el
- * switch no crea ni publica.
+ * (RF-T11 + RF-T15): el PADRE es el único escritor de `tiendas.habilitada`.
+ * Con el auto-guardado (RF-T15) el switch publica/despublica AL INSTANTE
+ * (prenderlo sin tienda la crea y publica en el mismo acto). Sin permiso
+ * `func.tienda.config` el switch no crea ni publica. También cubre el
+ * auto-guardado del resto de la config (updated → persistirConfig).
  */
 class ConfiguracionDeliveryTiendaTest extends TestCase
 {
@@ -64,7 +65,7 @@ class ConfiguracionDeliveryTiendaTest extends TestCase
             ->first();
     }
 
-    public function test_toggle_crea_tienda_despublicada_y_despliega(): void
+    public function test_toggle_crea_la_tienda_y_la_publica_al_instante(): void
     {
         $component = Livewire::test(ConfiguracionDelivery::class)
             ->assertSet('tiendaExiste', false)
@@ -76,24 +77,13 @@ class ConfiguracionDeliveryTiendaTest extends TestCase
 
         $tienda = $this->tienda();
         $this->assertNotNull($tienda);
-        $this->assertFalse((bool) $tienda->habilitada, 'El toggle crea la tienda DESPUBLICADA; publica recién el guardado');
+        $this->assertTrue((bool) $tienda->habilitada, 'RF-T15: el toggle publica AL INSTANTE, sin pasar por Guardar');
         $this->assertNotSame('', $tienda->slug);
 
-        $component->assertSet('tiendaPublicadaPersistida', false);
+        $component->assertSet('tiendaPublicadaPersistida', true);
     }
 
-    public function test_guardar_con_switch_prendido_publica(): void
-    {
-        Livewire::test(ConfiguracionDelivery::class)
-            ->call('toggleTiendaOnline')
-            ->call('guardarConfig')
-            ->assertOk()
-            ->assertSet('tiendaPublicadaPersistida', true);
-
-        $this->assertTrue((bool) $this->tienda()->habilitada);
-    }
-
-    public function test_apagar_switch_y_guardar_despublica(): void
+    public function test_apagar_el_switch_despublica_al_instante(): void
     {
         Tienda::create([
             'comercio_id' => $this->comercio->id,
@@ -107,10 +97,54 @@ class ConfiguracionDeliveryTiendaTest extends TestCase
             ->assertSet('tiendaPublicada', true)
             ->call('toggleTiendaOnline')
             ->assertSet('tiendaPublicada', false)
-            ->call('guardarConfig')
-            ->assertOk();
+            ->assertSet('tiendaPublicadaPersistida', false);
 
-        $this->assertFalse((bool) $this->tienda()->habilitada);
+        $this->assertFalse((bool) $this->tienda()->habilitada, 'RF-T15: despublica sin pasar por Guardar');
+    }
+
+    public function test_autoguardado_persiste_cada_cambio_sin_boton(): void
+    {
+        // Un checkbox: updated() → persistirConfig() directo a la BD.
+        Livewire::test(ConfiguracionDelivery::class)
+            ->set('takeawayHabilitado', false)
+            ->set('modoPromesa', 'automatica')
+            ->set('demoraBaseMin', '25');
+
+        $sucursal = \App\Models\Sucursal::find($this->sucursalId);
+        $config = $sucursal->getConfigDelivery();
+        $this->assertFalse((bool) $config['takeaway_habilitado']);
+        $this->assertSame('automatica', $config['modo_promesa']);
+        $this->assertSame(25, (int) $config['demora_base_min']);
+    }
+
+    public function test_repeaters_persisten_al_mutar(): void
+    {
+        $componente = Livewire::test(ConfiguracionDelivery::class)
+            ->set('nuevoFeriado', '2026-12-25')
+            ->call('agregarFeriado');
+
+        $config = \App\Models\Sucursal::find($this->sucursalId)->getConfigDelivery();
+        $this->assertContains('2026-12-25', $config['feriados']);
+
+        $componente->call('quitarFeriado', array_search('2026-12-25', $componente->get('feriados'), true));
+        $config = \App\Models\Sucursal::find($this->sucursalId)->getConfigDelivery();
+        $this->assertNotContains('2026-12-25', (array) $config['feriados']);
+    }
+
+    public function test_autoguardado_sin_permiso_no_escribe(): void
+    {
+        $original = (bool) \App\Models\Sucursal::find($this->sucursalId)->getConfigDelivery()['takeaway_habilitado'];
+
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test(ConfiguracionDelivery::class)
+            ->set('takeawayHabilitado', ! $original)
+            ->assertDispatched('toast-error');
+
+        $this->assertSame(
+            $original,
+            (bool) \App\Models\Sucursal::find($this->sucursalId)->getConfigDelivery()['takeaway_habilitado'],
+        );
     }
 
     public function test_sin_permiso_no_crea_ni_publica(): void
@@ -136,9 +170,9 @@ class ConfiguracionDeliveryTiendaTest extends TestCase
 
         $this->actingAs(User::factory()->create());
 
-        // Sin permiso el toggle no cambia nada y aunque la prop difiriera,
-        // guardarConfig no escribe habilitada (doble defensa server-side).
-        // guardarConfig igual corta antes por falta de permiso delivery.
+        // Sin permiso el toggle no cambia nada; guardarConfig ya NO escribe
+        // habilitada nunca (RF-T15: la persiste solo el toggle) y además
+        // corta antes por falta de permiso delivery.
         Livewire::test(ConfiguracionDelivery::class)
             ->set('tiendaPublicada', false)
             ->call('guardarConfig');

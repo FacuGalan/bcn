@@ -23,6 +23,13 @@ use Livewire\Component;
  * ConfiguracionDeliveryEnvio, montado A DEMANDA con `showEnvioZonas` para no
  * cargar el SDK de Maps en cada visita.
  *
+ * AUTO-GUARDADO (RF-T15): NO hay botón Guardar — cada cambio persiste al
+ * instante (hook updated() con whitelist PROPS_AUTOGUARDADO + repeaters que
+ * persisten al mutar). El switch de Tienda Online también publica/despublica
+ * AL TOQUE. La única excepción del panel es la APARIENCIA de la tienda
+ * (sub-componente ConfiguracionTienda), que conserva su botón a propósito
+ * para no dejar la tienda visualmente a medias mientras se elige.
+ *
  * Requiere permiso `func.pedidos_delivery.config` para guardar.
  */
 #[Layout('layouts.app')]
@@ -30,6 +37,23 @@ use Livewire\Component;
 class ConfiguracionDelivery extends Component
 {
     use SucursalAware;
+
+    /**
+     * Props que persisten AL INSTANTE al cambiar (RF-T15). Para arrays
+     * (diasLaborales, horariosAtencion, franjas) matchea por la raíz del
+     * path. Quedan afuera a propósito: showEnvioZonas (UI), nuevoFeriado
+     * (staging del repeater) y tiendaPublicada (la persiste el toggle).
+     */
+    protected const PROPS_AUTOGUARDADO = [
+        'usaDelivery', 'takeawayHabilitado', 'exigirRepartidor', 'usaEstadoListo',
+        'convertirVentaAlEntregar', 'conceptoCategoriaEnvioId',
+        'usaNumeracionDisplay', 'numeracionDisplayModo', 'numeracionDisplayHoras',
+        'alertaAmarillaMin', 'alertaRojaMin',
+        'aceptacionPedidosExternos', 'imprimirComandaAlAceptar', 'timeoutAceptacionMin',
+        'diasLaborales', 'horariosAtencion', 'feriados',
+        'modoPromesa', 'demoraBaseMin', 'demoraMinPorKm', 'botonesDemora',
+        'franjas', 'aceptaLoAntesPosible',
+    ];
 
     // ==================== CONFIG SUCURSAL (RF-05) ====================
 
@@ -154,12 +178,26 @@ class ConfiguracionDelivery extends Component
         $this->showEnvioZonas = ! $this->showEnvioZonas;
     }
 
+    /**
+     * Auto-guardado (RF-T15): cualquier cambio en un prop whitelisteado
+     * persiste al instante, sin toast de éxito (el feedback es el
+     * indicador "Guardando…" del header).
+     */
+    public function updated(string $nombre): void
+    {
+        $raiz = explode('.', $nombre)[0];
+
+        if (in_array($raiz, self::PROPS_AUTOGUARDADO, true)) {
+            $this->persistirConfig();
+        }
+    }
+
     // ==================== TIENDA ONLINE (switch maestro, RF-T11) ====================
 
     /**
-     * Switch del apartado: crea la tienda si no existe (al prender por
-     * primera vez) y despliega/colapsa. La publicación efectiva
-     * (`habilitada`) se persiste recién en guardarConfig().
+     * Switch del apartado: publica/despublica AL INSTANTE (RF-T15 — antes
+     * difería a "Guardar"). Prenderlo sin tienda creada la CREA y la publica
+     * en el mismo acto. Único escritor de `tiendas.habilitada`.
      */
     public function toggleTiendaOnline(TiendaService $service): void
     {
@@ -170,7 +208,10 @@ class ConfiguracionDelivery extends Component
         }
 
         if ($this->tiendaPublicada) {
+            $this->tiendaActual()?->update(['habilitada' => false]);
             $this->tiendaPublicada = false;
+            $this->tiendaPublicadaPersistida = false;
+            $this->dispatch('toast-success', message: __('Tienda despublicada'));
 
             return;
         }
@@ -186,7 +227,6 @@ class ConfiguracionDelivery extends Component
             try {
                 $service->crearParaSucursal((int) $comercio->id, $sucursal, (string) ($comercio->nombre ?? ''));
                 $this->tiendaExiste = true;
-                $this->dispatch('toast-success', message: __('Tienda creada. Revisá la configuración y guardá para publicarla.'));
             } catch (Exception $e) {
                 $this->dispatch('toast-error', message: $e->getMessage());
 
@@ -194,7 +234,10 @@ class ConfiguracionDelivery extends Component
             }
         }
 
+        $this->tiendaActual()?->update(['habilitada' => true]);
         $this->tiendaPublicada = true;
+        $this->tiendaPublicadaPersistida = true;
+        $this->dispatch('toast-success', message: __('Tienda publicada'));
     }
 
     protected function tiendaActual(): ?Tienda
@@ -266,17 +309,30 @@ class ConfiguracionDelivery extends Component
         $this->aceptaLoAntesPosible = (bool) ($config['acepta_lo_antes_posible'] ?? true);
     }
 
+    /**
+     * Persistencia con toast de éxito. Queda como acción explícita (la usan
+     * los tests y cualquier flujo que quiera el feedback); el auto-guardado
+     * usa persistirConfig() directo, sin toast.
+     */
     public function guardarConfig(): void
+    {
+        if ($this->persistirConfig()) {
+            $this->dispatch('toast-success', message: __('Configuración de delivery guardada'));
+        }
+    }
+
+    /** Núcleo del guardado (RF-T15): silencioso salvo error. */
+    protected function persistirConfig(): bool
     {
         if (! auth()->user()?->hasPermissionTo('func.pedidos_delivery.config')) {
             $this->dispatch('toast-error', message: __('No tenés permiso para configurar el delivery'));
 
-            return;
+            return false;
         }
 
         $sucursal = Sucursal::find($this->sucursalActual());
         if (! $sucursal) {
-            return;
+            return false;
         }
 
         $botones = collect(explode(',', $this->botonesDemora))
@@ -335,20 +391,14 @@ class ConfiguracionDelivery extends Component
                 'config_delivery' => $config,
             ]);
 
-            // Publicar/despublicar la tienda (RF-T11): único escritor de
-            // `habilitada`. Sin permiso tienda, el switch va disabled y acá
-            // no se toca nada.
-            $tienda = $this->tiendaActual();
-            if ($tienda
-                && auth()->user()?->hasPermissionTo('func.tienda.config')
-                && (bool) $tienda->habilitada !== $this->tiendaPublicada) {
-                $tienda->update(['habilitada' => $this->tiendaPublicada]);
-            }
-            $this->tiendaPublicadaPersistida = $this->tiendaPublicada;
+            // `tiendas.habilitada` ya NO se toca acá: la publica/despublica
+            // el toggle AL INSTANTE (RF-T15).
 
-            $this->dispatch('toast-success', message: __('Configuración de delivery guardada'));
+            return true;
         } catch (Exception $e) {
             $this->dispatch('toast-error', message: $e->getMessage());
+
+            return false;
         }
     }
 
@@ -372,12 +422,14 @@ class ConfiguracionDelivery extends Component
     public function agregarHorario(): void
     {
         $this->horariosAtencion[] = $this->rangoAForm([]);
+        $this->persistirConfig();
     }
 
     public function quitarHorario(int $index): void
     {
         unset($this->horariosAtencion[$index]);
         $this->horariosAtencion = array_values($this->horariosAtencion);
+        $this->persistirConfig();
     }
 
     // ==================== FRANJAS (horarios de entrega a mano, RF-15) ====================
@@ -385,12 +437,14 @@ class ConfiguracionDelivery extends Component
     public function agregarFranja(): void
     {
         $this->franjas[] = $this->franjaAForm([]);
+        $this->persistirConfig();
     }
 
     public function quitarFranja(int $index): void
     {
         unset($this->franjas[$index]);
         $this->franjas = array_values($this->franjas);
+        $this->persistirConfig();
     }
 
     /**
@@ -442,12 +496,14 @@ class ConfiguracionDelivery extends Component
         $this->feriados[] = $fecha;
         sort($this->feriados);
         $this->nuevoFeriado = '';
+        $this->persistirConfig();
     }
 
     public function quitarFeriado(int $index): void
     {
         unset($this->feriados[$index]);
         $this->feriados = array_values($this->feriados);
+        $this->persistirConfig();
     }
 
     /**

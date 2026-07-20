@@ -199,7 +199,97 @@ class ConfiguracionTienda extends Component
         $this->promosMostrarHome = (bool) ($tema['promos']['mostrar_home'] ?? false);
     }
 
-    // ==================== GUARDAR ====================
+    // ==================== AUTO-GUARDADO (RF-T15): SLUG + ANALYTICS ====================
+
+    /**
+     * La dirección y las métricas persisten AL INSTANTE (debounced en la
+     * vista). La APARIENCIA (tema/logo/portada/contenido) conserva el botón
+     * "Guardar apariencia" A PROPÓSITO: se elige tranquilo en el visor y
+     * recién al guardar lo ve el público (no queda a medias).
+     */
+    public function updatedSlug(): void
+    {
+        if (! $this->puedeGuardar()) {
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda || $tienda->id !== $this->tiendaId) {
+            return;
+        }
+
+        $this->slug = Str::slug(trim($this->slug));
+
+        $this->validate(
+            ['slug' => 'required|string|min:3|max:60'],
+            [
+                'slug.required' => __('Ingresá la dirección (slug) de la tienda'),
+                'slug.min' => __('La dirección de la tienda debe tener al menos 3 caracteres'),
+            ],
+        );
+
+        if (Tienda::where('slug', $this->slug)->where('id', '!=', $tienda->id)->exists()) {
+            $this->addError('slug', __('Esa dirección ya está en uso por otra tienda'));
+
+            return;
+        }
+
+        $tienda->update(['slug' => $this->slug]);
+
+        // El visor apunta al slug: recarga con la URL nueva.
+        $this->dispatch('tienda-guardada');
+    }
+
+    public function updatedGa4MeasurementId(): void
+    {
+        if (! $this->puedeGuardar()) {
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda || $tienda->id !== $this->tiendaId) {
+            return;
+        }
+
+        $this->validate(
+            ['ga4MeasurementId' => ['nullable', 'string', 'max:30', 'regex:/^G-[A-Z0-9]+$/i']],
+            ['ga4MeasurementId.regex' => __('El ID de GA4 tiene formato G-XXXXXXXXXX')],
+        );
+
+        $tienda->update(['ga4_measurement_id' => $this->ga4MeasurementId !== '' ? strtoupper($this->ga4MeasurementId) : null]);
+    }
+
+    public function updatedMetaPixelId(): void
+    {
+        if (! $this->puedeGuardar()) {
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda || $tienda->id !== $this->tiendaId) {
+            return;
+        }
+
+        $this->validate(
+            ['metaPixelId' => ['nullable', 'string', 'max:30', 'regex:/^[0-9]+$/']],
+            ['metaPixelId.regex' => __('El ID del Pixel de Meta es numérico')],
+        );
+
+        $tienda->update(['meta_pixel_id' => $this->metaPixelId !== '' ? $this->metaPixelId : null]);
+    }
+
+    protected function puedeGuardar(): bool
+    {
+        if (auth()->user()?->hasPermissionTo('func.tienda.config')) {
+            return true;
+        }
+
+        $this->dispatch('toast-error', message: __('No tenés permiso para configurar la tienda online'));
+
+        return false;
+    }
+
+    // ==================== GUARDAR (APARIENCIA) ====================
 
     public function guardarTienda(): void
     {

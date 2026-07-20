@@ -537,6 +537,32 @@ ve en el visor sin esperar 60s); badges predefinidos con icono/color
 consistentes y custom neutro; contract tests de la tienda en verde;
 smoke test del sub-componente nuevo.
 
+### RF-T15: Auto-guardado del panel Delivery/Tienda — IMPLEMENTADO (2026-07-20)
+
+Decisión del usuario 2026-07-20: en Configuración → Delivery/Tienda ya NO
+hay botón Guardar — todo cambio persiste AL INSTANTE. La ÚNICA excepción
+(a propósito) es la APARIENCIA de la tienda (tema/logo/portada/contenido/
+catálogo, RF-T6/T11/T13): conserva su botón "Guardar apariencia" para que
+el público nunca vea la tienda a medio cambiar mientras el comerciante
+elige en el visor.
+
+- `ConfiguracionDelivery`: hook `updated()` con whitelist
+  `PROPS_AUTOGUARDADO` → `persistirConfig()` (núcleo silencioso;
+  `guardarConfig()` queda como wrapper con toast para tests/acciones
+  explícitas). Repeaters (horarios, franjas, feriados) persisten al mutar.
+  Vista: inputs a `wire:model.live` (texto con debounce 500-800ms),
+  indicador "Guardando…/Los cambios se guardan automáticamente" en el
+  header, sin botones Guardar.
+- Switch Tienda Online: publica/despublica AL INSTANTE (antes difería al
+  guardado); prenderlo sin tienda la crea Y publica en el mismo acto.
+  `persistirConfig()` ya no toca `tiendas.habilitada` (único escritor: el
+  toggle). Se eliminó el badge "(se publica al guardar)".
+- `ConfiguracionTienda`: slug (normalizado + unique check, recarga el
+  visor vía `tienda-guardada`) y analytics (GA4/Pixel) auto-guardan con
+  debounce 1000ms; validación fallida = error visible y NO persiste.
+  El botón pasó de "Guardar tienda" a "Guardar apariencia".
+- La config por artículo (RF-T14) ya nacía con guardado inmediato.
+
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
 `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas
