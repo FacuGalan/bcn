@@ -431,7 +431,7 @@ elegido; promos genéricas listadas solo con mostrar_home on y vigentes
 hoy; precio_lista tachado solo cuando difiere; contract tests de la
 tienda en verde contra fixtures actualizados.
 
-### RF-T14: Configuración de tienda POR ARTÍCULO (vidriera) — APROBADO (2026-07-20), EN PROGRESO
+### RF-T14: Configuración de tienda POR ARTÍCULO (vidriera) — IMPLEMENTADO (2026-07-20, cross-repo: core feat/tienda-config-articulos-rf-t14 + tienda feat/config-articulos-rf-t14; F1-F5 completas, tests verdes en ambos)
 
 Cross-repo (core + bcn-tienda). Decisiones del usuario 2026-07-20: badges
 PREDEFINIDOS + texto libre; galería MÚLTIPLE de fotos por artículo;
