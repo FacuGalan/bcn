@@ -52,7 +52,11 @@ class PedidoTiendaService
         $tipo = $payload['tipo'] ?? PedidoDelivery::TIPO_DELIVERY;
 
         // Bloqueos de API pública (el panel advierte; acá se bloquea).
-        if (! $this->envioService->estaAbierto($sucursal)) {
+        // ENCARGO (RF-T16): valida contra SU calendario, no contra el de
+        // atención — con la tienda cerrada se puede encargar igual (el
+        // slot elegido se valida en resolverPromesa).
+        $esEncargo = ! empty($payload['entrega']['programado_para']);
+        if (! $esEncargo && ! $this->envioService->estaAbierto($sucursal)) {
             throw new Exception(__('La tienda está cerrada en este momento'));
         }
 
@@ -116,10 +120,10 @@ class PedidoTiendaService
 
         $aceptacionManual = ($config['aceptacion_pedidos_externos'] ?? 'manual') !== 'automatica';
 
-        // Promesa de entrega elegida por el CONSUMIDOR (RF-15): franja (modo
-        // franjas) o "lo antes posible". Validada contra la config — la API
-        // pública no negocia.
-        [$horaPactada, $loAntesPosible] = $this->resolverPromesa($sucursal, $config, $tipo, $payload, $aceptacionManual);
+        // Promesa de entrega elegida por el CONSUMIDOR (RF-15/RF-T16):
+        // encargo (día futuro), franja (modo franjas) o "lo antes posible".
+        // Validada contra la config — la API pública no negocia.
+        [$horaPactada, $loAntesPosible, $programadoPara] = $this->resolverPromesa($sucursal, $config, $tipo, $payload, $aceptacionManual);
 
         $data = [
             'tipo' => $tipo,
@@ -171,6 +175,7 @@ class PedidoTiendaService
             'distancia_km' => $cotizacionEnvio?->distanciaKm,
             'hora_pactada_at' => $horaPactada,
             'lo_antes_posible' => $loAntesPosible,
+            'programado_para' => $programadoPara,
             '_actualizar_direccion_cliente' => false, // el consumidor gestiona sus direcciones globales
         ];
 
@@ -213,8 +218,11 @@ class PedidoTiendaService
     }
 
     /**
-     * Resuelve la promesa elegida por el consumidor → [hora_pactada_at, asap].
+     * Resuelve la promesa elegida por el consumidor →
+     * [hora_pactada_at, asap, programado_para].
      *
+     * - `entrega.programado_para` (RF-T16, solo con encargos activos): día
+     *   futuro validado contra el calendario de encargos y los artículos.
      * - `entrega.franja` (solo modo franjas): debe ser una franja VIGENTE de
      *   franjasDisponibles — la API no acepta horarios inventados.
      * - `entrega.lo_antes_posible`: solo si la config lo ofrece.
@@ -230,6 +238,22 @@ class PedidoTiendaService
         $aceptaAsap = (bool) ($config['acepta_lo_antes_posible'] ?? true);
         $franjaElegida = $payload['entrega']['franja'] ?? null;
         $pidioAsap = (bool) ($payload['entrega']['lo_antes_posible'] ?? false);
+        $programadoPara = $payload['entrega']['programado_para'] ?? null;
+
+        // ENCARGO (RF-T16): día futuro validado contra el calendario PROPIO
+        // de encargos + artículos aptos. hora_pactada = la del encargo.
+        if ($programadoPara !== null) {
+            $cuando = \Illuminate\Support\Carbon::parse($programadoPara);
+            $articuloIds = collect($payload['items'] ?? [])
+                ->pluck('articulo_id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $this->envioService->validarProgramado($sucursal, $cuando, $articuloIds);
+
+            return [$cuando, false, $cuando];
+        }
 
         if ($franjaElegida !== null) {
             if ($modo !== 'franjas') {
@@ -239,7 +263,7 @@ class PedidoTiendaService
             $elegida = \Illuminate\Support\Carbon::parse($franjaElegida);
             foreach ($this->envioService->franjasDisponibles($sucursal, $tipo) as $slot) {
                 if ($slot->equalTo($elegida)) {
-                    return [$slot, false];
+                    return [$slot, false, null];
                 }
             }
 
@@ -251,13 +275,13 @@ class PedidoTiendaService
                 throw new Exception(__('Esta tienda no ofrece entrega "lo antes posible": elegí un horario'));
             }
 
-            return [null, true];
+            return [null, true, null];
         }
 
         // Sin elección explícita.
         if ($modo === 'franjas') {
             if ($aceptaAsap) {
-                return [null, true];
+                return [null, true, null];
             }
 
             throw new Exception(__('Elegí un horario de entrega (franja)'));
@@ -268,10 +292,10 @@ class PedidoTiendaService
         // (nadie va a pactar hora después); con aceptación manual, el modal
         // de aceptación la define (D14).
         if ($modo === 'manual' && ! $aceptacionManual && $aceptaAsap) {
-            return [null, true];
+            return [null, true, null];
         }
 
-        return [null, false];
+        return [null, false, null];
     }
 
     /**

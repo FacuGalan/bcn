@@ -204,6 +204,27 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   la descripción operativa del artículo, como siempre (misma clave, sin
   cambio de shape).
 
+**Encargos — pedidos para día futuro** (aditivo 2026-07-20, RF-T16):
+
+- `GET /tiendas/{slug}` suma `encargos: { activo, anticipacion_horas,
+  max_dias_adelante }`. Con `activo: true` la tienda ofrece "Encargar para
+  otro día" — incluso con `abierta_ahora: false` (el encargo valida contra
+  SU calendario, no contra el de atención).
+- Cada artículo del catálogo suma `permite_encargo` (bool): apto para
+  encargos. La tienda avisa antes de cotizar; el core valida igual.
+- Endpoint nuevo `GET /tiendas/{slug}/encargos[?fecha=Y-m-d]`: sin fecha ⇒
+  `{ activo, fechas: [{fecha, label}] }` (días de la ventana
+  [ahora+anticipación, hoy+max_días] con al menos un slot); con fecha ⇒
+  `{ activo, fecha, slots: [{hora: ISO8601, label: "HH:MM"}] }` (slots de
+  30 min de los rangos del calendario de encargos). Inactivo ⇒
+  `activo: false` con listas vacías (nunca error).
+- `POST carrito/cotizar` y `POST /pedidos` aceptan
+  `entrega.programado_para` (ISO 8601, un slot de GET /encargos). Slot
+  inválido/vencido o artículo sin `permite_encargo` ⇒ 422 con
+  `encargo_invalido` (cotizar) / `validacion` (alta) y mensaje claro. El
+  alta persiste el encargo con `hora_pactada` = ese momento; el
+  seguimiento no cambia de shape.
+
 Los grupos de opcionales son los ASIGNADOS al artículo en la sucursal de la
 tienda (paridad con el panel), con el precio de la asignación (override por
 artículo, no el del catálogo global). Grupos sin opciones vivas no se
