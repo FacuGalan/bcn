@@ -938,12 +938,22 @@ elegir otra; logueado ⇒ prioridad de la cuenta; cookie cifrada
   iframe; la tienda lo aplica en F6. El aviso de contraste quedó para
   F6 (con el cálculo de luminancia ya del lado tienda).
 - **F5 (tienda)**: RF-T17 + RF-T18 lado tienda — carrito reordenado,
-  dirección Maps, desplegable FP + 2 FP, fixtures/contract tests.
+  dirección Maps, desplegable FP + 2 FP, fixtures/contract tests. —
+  ✅ COMPLETA (2026-07-21, rama tienda `feat/checkout-operacion`;
+  sugerencias con dropdown propio sobre AutocompleteSuggestion — el
+  web component no permite pre-llenar texto; la 2da FP viaja SIN monto
+  y el resto lo asigna el core, ajuste aditivo del contrato).
 - **F6 (tienda)**: RF-T19/T20/T21 lado tienda (paso datos, promesa,
   pago, resumen final, popover promos) + RF-T22 auto-contraste y
-  `?modo=` en preview + RF-T23 cookie de autocompletado.
+  modo del preview + RF-T23 cookie de autocompletado. — ✅ COMPLETA
+  (2026-07-21). Ajuste vs diseño RF-T22: cualquier fondo/texto custom
+  CONGELA superficies+tintas para ambos modos (no solo el par tocado)
+  — evita mezclas custom/adaptativo ilegibles; el modo del visor va
+  por postMessage (`estado.modo` → data-modo), no query param.
 - **F7**: cierre — traducciones (es/en/pt), docs (@docs-sync),
-  validación en vivo del usuario.
+  validación en vivo del usuario. — EN CURSO (2026-07-21: traducciones
+  y docs listos en cada fase; PRs core #177 y tienda #16 abiertos;
+  FALTA la validación en vivo del usuario y el merge).
 
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
