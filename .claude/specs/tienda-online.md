@@ -850,7 +850,71 @@ de precio fijo muestra el precio; condiciones legibles correctas (test
 del service de catálogo); tema claro/oscuro + móvil; contract tests con
 los campos nuevos.
 
-### Fases RF-T17..T21 (cada una = un PR mergeable; core primero)
+### RF-T22: Colores personalizados legibles en dark mode — EN REVISIÓN (2026-07-21)
+
+Cross-repo. Problema: un color personalizado del tema se emite como
+paleta FIJA en ambos modos (`TiendaActual::temaCss()`), pero los tokens
+NO personalizados siguen siendo adaptativos. Caso típico: el comercio
+define fondo de tarjetas CLARO, no toca el texto → en la preview (modo
+claro) se ve negro sobre claro, pero el dark mode real pone la tinta
+blanca → ilegible. Solución en DOS frentes (decisión 2026-07-21):
+
+**bcn-tienda — auto-contraste (garantía de legibilidad):**
+
+- En `temaCssVars()`: si el comercio personalizó un token de FONDO
+  (`fondo`/superficie, `tarjetas`/superficie-alta) y NO personalizó su
+  par de TEXTO, derivar `tinta`/`tinta-suave` (y `borde`) por
+  luminancia/contraste del fondo elegido (umbral por luminancia
+  relativa, salida oscura o clara) y emitirlos FIJOS para ambos modos
+  — el fondo custom arrastra su par de texto. Si el comercio
+  personalizó también el texto, se respeta lo suyo (no se pisa).
+- Unit tests del cálculo (fondo claro ⇒ tinta oscura; fondo oscuro ⇒
+  tinta clara; texto custom ⇒ intacto).
+
+**Core — toggle de modo en el visor del panel (visibilidad):**
+
+- El visor en vivo (RF-T12) suma toggle sol/luna "Ver en modo oscuro":
+  fuerza el modo del iframe de preview. Lado tienda: en modo preview se
+  acepta el parámetro (query `?modo=claro|oscuro` del visor) que setea
+  `data-modo` en `:root` — la infraestructura `data-modo` YA existe
+  (`app.css`, `comportamiento.modo_color`).
+- Nice-to-have (si es barato en F4): aviso de contraste insuficiente en
+  el panel cuando texto y fondo personalizados no contrastan.
+
+**Criterios:** fondo claro custom + dark mode del cliente ⇒ texto
+legible (fijo); toggle del visor muestra ambos modos sin recargar la
+config; tienda sin personalización ⇒ CERO cambios (adaptativa como
+hoy).
+
+### RF-T23: Autocompletado del checkout por cookie (invitados) — EN REVISIÓN (2026-07-21)
+
+Solo bcn-tienda (sin cambios de contrato). Al CONFIRMARSE un pedido, la
+tienda guarda en una cookie first-party (cifrada por Laravel, larga
+duración ~6 meses) los datos del comprador: `nombre, telefono, email,
+fecha_nacimiento?, direccion {texto, referencia, lat, lng}`.
+
+- Objetivo doble: no volver a tipear nada en el próximo pedido
+  (principalmente INVITADOS sin cuenta) y evitar llamadas de gusto a la
+  API de Maps (texto + coordenadas ya resueltos viajan en la cookie).
+- La cookie es del dominio de la tienda (un deploy, N tiendas) ⇒ vale
+  ENTRE tiendas de distintos comercios: los datos personales se
+  pre-llenan siempre.
+- La DIRECCIÓN pre-llenada se valida SIEMPRE contra el rango de entrega
+  de la tienda actual (cotización de envío existente, que ya rechaza
+  fuera de zona): si no está en rango, se muestra aviso "esta dirección
+  está fuera de la zona de entrega de esta tienda, ingresá otra" y se
+  deja el selector de dirección editable (RF-T17).
+- Consumidor LOGUEADO: sus direcciones guardadas y datos de cuenta
+  tienen prioridad; la cookie es el fallback para invitados.
+- El pedido confirmado ACTUALIZA la cookie (última dirección usada
+  gana).
+
+**Criterios:** segundo pedido invitado ⇒ todo pre-llenado sin tocar
+Maps; dirección fuera de zona en otra tienda ⇒ aviso y no bloquea
+elegir otra; logueado ⇒ prioridad de la cuenta; cookie cifrada
+(EncryptCookies) y solo lectura server-side.
+
+### Fases RF-T17..T23 (cada una = un PR mergeable; core primero)
 
 - **F1 (core)**: RF-T18 lado core — migración pivot + filtro + orden +
   toggle en ABM + contrato. `feat/tienda-fp-disponibilidad`.
@@ -859,11 +923,14 @@ los campos nuevos.
 - **F3 (core)**: RF-T19 lado core — keys checkout + migraciones
   fecha_nacimiento (tenant + config) + exposición + validaciones +
   contrato.
-- **F4 (core)**: RF-T21 lado core — promos enriquecidas + contrato.
+- **F4 (core)**: RF-T21 lado core (promos enriquecidas + contrato) +
+  RF-T22 toggle sol/luna en el visor (+ aviso de contraste si es
+  barato).
 - **F5 (tienda)**: RF-T17 + RF-T18 lado tienda — carrito reordenado,
   dirección Maps, desplegable FP + 2 FP, fixtures/contract tests.
-- **F6 (tienda)**: RF-T19/T20/T21 lado tienda — paso datos, promesa,
-  pago, resumen final, popover promos.
+- **F6 (tienda)**: RF-T19/T20/T21 lado tienda (paso datos, promesa,
+  pago, resumen final, popover promos) + RF-T22 auto-contraste y
+  `?modo=` en preview + RF-T23 cookie de autocompletado.
 - **F7**: cierre — traducciones (es/en/pt), docs (@docs-sync),
   validación en vivo del usuario.
 
