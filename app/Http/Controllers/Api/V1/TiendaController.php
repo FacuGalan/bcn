@@ -254,7 +254,9 @@ class TiendaController extends Controller
             ->with('conceptoPago:id,codigo,nombre,permite_vuelto')
             ->whereHas('sucursales', fn ($q) => $q
                 ->where('sucursal_id', $sucursal->id)
-                ->where('formas_pago_sucursales.activo', true))
+                ->where('formas_pago_sucursales.activo', true)
+                ->where('formas_pago_sucursales.disponible_en_tienda', true))
+            ->orderBy('orden')
             ->orderBy('nombre')
             ->get()
             ->reject(fn ($fp) => in_array(strtoupper((string) $fp->conceptoPago?->codigo), ['CTA_CTE', 'CUENTA_CORRIENTE', 'PUNTOS'], true))

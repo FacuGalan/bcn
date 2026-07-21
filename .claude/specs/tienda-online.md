@@ -656,7 +656,7 @@ detalle; reporte suma cantidades correctas por día/artículo excluyendo
 cancelados; tienda cerrada + encargos ⇒ solo flujo encargo; contract
 tests de la tienda verdes; smoke de los componentes nuevos.
 
-### RF-T17: Carrito reordenado + dirección con Google Maps — EN REVISIÓN (2026-07-21)
+### RF-T17: Carrito reordenado + dirección con Google Maps — APROBADO (2026-07-21)
 
 Cross-repo (mayormente bcn-tienda). El carrito pasa a concentrar TODA la
 decisión de compra; el checkout queda para identidad del cliente y
@@ -703,7 +703,7 @@ autocomplete setea lat/lng + texto; pin arrastrable actualiza ambos;
 texto editable siempre; sin key la tienda funciona como hoy; contract
 tests sin cambios (no cambia el contrato); smoke Livewire de Carrito.
 
-### RF-T18: Formas de pago en tienda — orden, disponibilidad por sucursal y pago con 2 FP — EN REVISIÓN (2026-07-21)
+### RF-T18: Formas de pago en tienda — orden, disponibilidad por sucursal y pago con 2 FP — APROBADO (2026-07-21)
 
 Cross-repo. La FP se elige en el carrito (desplegable) y el pedido puede
 declararse con HASTA 2 formas de pago, con los mismos ajustes
@@ -763,7 +763,7 @@ panel para el mismo carrito (test de paridad en el core); suma ≠ total ⇒
 alta manual (test de service); singular `pago`/`forma_pago_id` sigue
 funcionando (compat, contract test); smoke del ABM FP con el toggle.
 
-### RF-T19: Datos del cliente configurables (email / cumpleaños) — EN REVISIÓN (2026-07-21)
+### RF-T19: Datos del cliente configurables (email / cumpleaños) — APROBADO (2026-07-21)
 
 Cross-repo. Con RF-T17/T18 el checkout queda en: paso "tus datos" (este
 RF) → promesa → confirmación (RF-T20).
@@ -803,7 +803,7 @@ tenant y en consumidor global si hay Bearer; defaults ⇒ comportamiento
 idéntico a hoy; contract tests con el bloque `checkout` nuevo; smoke de
 ConfiguracionDelivery con las keys nuevas.
 
-### RF-T20: Checkout estético — promesa, pago y resumen final — EN REVISIÓN (2026-07-21)
+### RF-T20: Checkout estético — promesa, pago y resumen final — APROBADO (2026-07-21)
 
 Solo bcn-tienda (la cotización ya devuelve todo lo necesario).
 
@@ -824,7 +824,7 @@ Solo bcn-tienda (la cotización ya devuelve todo lo necesario).
 promo/descuento con su monto (lo que devuelve `carrito/cotizar`); dark
 mode + móvil verificados; smoke Livewire Checkout.
 
-### RF-T21: Banner "Promociones de hoy" — popover con precio fijo y condiciones — EN REVISIÓN (2026-07-21)
+### RF-T21: Banner "Promociones de hoy" — popover con precio fijo y condiciones — APROBADO (2026-07-21)
 
 Cross-repo. Hoy el banner (RF-T13) es un acordeón que EMPUJA el
 contenido y la API solo manda `nombre` + `descripcion`.
@@ -850,7 +850,7 @@ de precio fijo muestra el precio; condiciones legibles correctas (test
 del service de catálogo); tema claro/oscuro + móvil; contract tests con
 los campos nuevos.
 
-### RF-T22: Colores personalizados legibles en dark mode — EN REVISIÓN (2026-07-21)
+### RF-T22: Colores personalizados legibles en dark mode — APROBADO (2026-07-21)
 
 Cross-repo. Problema: un color personalizado del tema se emite como
 paleta FIJA en ambos modos (`TiendaActual::temaCss()`), pero los tokens
@@ -886,7 +886,7 @@ legible (fijo); toggle del visor muestra ambos modos sin recargar la
 config; tienda sin personalización ⇒ CERO cambios (adaptativa como
 hoy).
 
-### RF-T23: Autocompletado del checkout por cookie (invitados) — EN REVISIÓN (2026-07-21)
+### RF-T23: Autocompletado del checkout por cookie (invitados) — APROBADO (2026-07-21)
 
 Solo bcn-tienda (sin cambios de contrato). Al CONFIRMARSE un pedido, la
 tienda guarda en una cookie first-party (cifrada por Laravel, larga
@@ -917,7 +917,9 @@ elegir otra; logueado ⇒ prioridad de la cuenta; cookie cifrada
 ### Fases RF-T17..T23 (cada una = un PR mergeable; core primero)
 
 - **F1 (core)**: RF-T18 lado core — migración pivot + filtro + orden +
-  toggle en ABM + contrato. `feat/tienda-fp-disponibilidad`.
+  toggle en ABM + contrato. — ✅ COMPLETA (2026-07-21, rama
+  `feat/tienda-checkout-operacion`; tests FormaPagoTest +
+  ApiV1DeliveryTest + SmokeConfiguracion verdes).
 - **F2 (core)**: RF-T18 multi-pago — cotizar/alta con `pagos[]`,
   `registrarPagoDeclarado` N pagos, tests de paridad, contrato.
 - **F3 (core)**: RF-T19 lado core — keys checkout + migraciones

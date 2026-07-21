@@ -38,10 +38,12 @@ class FormaPagoSucursal extends Model
         'ajuste_porcentaje',
         'multiplicador_puntos',
         'factura_fiscal',
+        'disponible_en_tienda',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
+        'disponible_en_tienda' => 'boolean',
         'ajuste_porcentaje' => 'decimal:2',
         'multiplicador_puntos' => 'decimal:2',
         'factura_fiscal' => 'boolean',

@@ -865,6 +865,49 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertTrue((bool) $efectivo['permite_vuelto']);
     }
 
+    public function test_tienda_show_respeta_orden_y_disponibilidad_en_tienda_de_las_fp(): void
+    {
+        $base = $this->crearFormaPagoEfectivo();
+
+        // Nombres invertidos respecto del orden: si ordenara por nombre, el test falla.
+        $ultima = $base['formaPago'];
+        $ultima->update(['nombre' => 'AAA va última', 'orden' => 30]);
+        $ultima->sucursales()->attach($this->sucursalId, ['activo' => true]);
+
+        $primera = \App\Models\FormaPago::create([
+            'nombre' => 'ZZZ va primera',
+            'codigo' => 'zzz_primera',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $base['concepto']->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => 0,
+            'activo' => true,
+            'orden' => 10,
+        ]);
+        $primera->sucursales()->attach($this->sucursalId, ['activo' => true]);
+
+        $oculta = \App\Models\FormaPago::create([
+            'nombre' => 'MMM oculta en tienda',
+            'codigo' => 'mmm_oculta',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $base['concepto']->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => 0,
+            'activo' => true,
+            'orden' => 20,
+        ]);
+        $oculta->sucursales()->attach($this->sucursalId, ['activo' => true, 'disponible_en_tienda' => false]);
+
+        $formasPago = collect($this->getJson('/api/v1/tiendas/tienda-test')->assertOk()->json('data.formas_pago'));
+
+        $this->assertNull($formasPago->firstWhere('id', $oculta->id), 'La FP marcada no disponible en tienda queda excluida');
+
+        $ids = $formasPago->whereIn('id', [$ultima->id, $primera->id])->pluck('id')->values()->all();
+        $this->assertSame([$primera->id, $ultima->id], $ids, 'Las FP vienen ordenadas por el campo orden, no por nombre');
+    }
+
     public function test_franjas_endpoint_devuelve_horarios_de_la_jornada_por_tipo(): void
     {
         Sucursal::where('id', $this->sucursalId)->update([

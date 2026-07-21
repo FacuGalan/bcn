@@ -73,6 +73,9 @@ class GestionarFormasPago extends Component
     // Sucursales seleccionadas
     public array $sucursales_seleccionadas = [];
 
+    // Sucursales donde la FP se ofrece en la tienda online (RF-T18)
+    public array $tienda_sucursales_seleccionadas = [];
+
     // Propiedades para gestión de cuotas
     public $gestionandoCuotas = false;
 
@@ -372,6 +375,7 @@ class GestionarFormasPago extends Component
 
         // Seleccionar todas las sucursales por defecto
         $this->sucursales_seleccionadas = Sucursal::pluck('id')->toArray();
+        $this->tienda_sucursales_seleccionadas = $this->sucursales_seleccionadas;
 
         $this->mostrarModal = true;
     }
@@ -439,9 +443,16 @@ class GestionarFormasPago extends Component
             ->pluck('sucursal_id')
             ->toArray();
 
+        // Sucursales donde se ofrece en la tienda online (fila ausente = disponible)
+        $this->tienda_sucursales_seleccionadas = $formaPago->sucursales()
+            ->wherePivot('disponible_en_tienda', true)
+            ->pluck('sucursal_id')
+            ->toArray();
+
         // Si no tiene configuración de sucursales, seleccionar todas por defecto
         if (empty($this->sucursales_seleccionadas) && ! FormaPagoSucursal::where('forma_pago_id', $id)->exists()) {
             $this->sucursales_seleccionadas = Sucursal::pluck('id')->toArray();
+            $this->tienda_sucursales_seleccionadas = $this->sucursales_seleccionadas;
         }
 
         $this->modoEdicion = true;
@@ -563,6 +574,7 @@ class GestionarFormasPago extends Component
             foreach ($todasSucursales as $sucursalId) {
                 $syncData[$sucursalId] = [
                     'activo' => in_array($sucursalId, $this->sucursales_seleccionadas),
+                    'disponible_en_tienda' => in_array($sucursalId, $this->tienda_sucursales_seleccionadas),
                 ];
             }
             $formaPago->sucursales()->sync($syncData);
@@ -713,6 +725,7 @@ class GestionarFormasPago extends Component
         $this->integraciones_fp = [];
         $this->qrLibreImagenes = [];
         $this->sucursales_seleccionadas = [];
+        $this->tienda_sucursales_seleccionadas = [];
         $this->cuenta_empresa_id = null;
         $this->cuentaSugeridaAutomaticamente = false;
         $this->moneda_id = null;

@@ -73,6 +73,11 @@ integrado es otro circuito, pendiente en el spec de integraciones);
 — mostrarlo junto a la opción ("Efectivo −10%"); el monto exacto lo calcula
 `carrito/cotizar` con `forma_pago_id`.
 
+*(Aditivo 2026-07-21, RF-T18)* la lista viene ordenada por el `orden` que el
+comercio definió en el panel (la tienda la muestra tal cual llega, sin
+reordenar) y excluye las FP marcadas como no disponibles en tienda online
+para esa sucursal (filtro server-side; el shape de cada ítem no cambia).
+
 **Analytics, tema y comportamiento** (aditivo 2026-07-17, RF-T7 + RF-T6):
 
 ```json

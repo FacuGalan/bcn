@@ -829,6 +829,31 @@
                                             <p class="text-sm text-gray-500 dark:text-gray-400 italic">{{ __('No hay sucursales configuradas') }}</p>
                                         @endif
                                     </div>
+
+                                    @if(! $es_mixta)
+                                        <!-- Disponible en tienda online (RF-T18) -->
+                                        <div class="sm:col-span-2 border-t border-gray-200 dark:border-gray-700 pt-4 mt-2">
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                {{ __('Disponible en tienda online') }}
+                                            </label>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                                                {{ __('En qué sucursales los clientes de la tienda online pueden elegir esta forma de pago') }}
+                                            </p>
+                                            <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                                @foreach($sucursales as $sucursal)
+                                                    <label class="flex items-center p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors {{ in_array($sucursal->id, $sucursales_seleccionadas) ? '' : 'opacity-50' }}">
+                                                        <input
+                                                            type="checkbox"
+                                                            value="{{ $sucursal->id }}"
+                                                            wire:model="tienda_sucursales_seleccionadas"
+                                                            class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary"
+                                                        />
+                                                        <span class="ml-2 text-sm text-gray-700 dark:text-gray-300">{{ $sucursal->nombre }}</span>
+                                                    </label>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
                                 </div>
                             </div>
                         </div>
