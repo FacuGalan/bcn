@@ -68,7 +68,11 @@ pago declarables**:
 
 **Checkout** *(aditivo 2026-07-21, RF-T19)*: `GET /tiendas/{slug}` suma
 `checkout: { pedir_email: "no"|"opcional"|"obligatorio", pedir_cumpleanios:
-bool }` — qué datos del cliente pide el paso "tus datos" de la tienda. Con
+bool, pedir_entre_calles: "no"|"opcional"|"obligatorio" }` — qué datos del
+cliente pide el paso "tus datos" de la tienda. `entre_calles` (solo delivery)
+viaja como `direccion.entre_calles` en `POST /pedidos`; con config
+"obligatorio" y sin dato → 422. El core lo persiste DENTRO de la referencia
+de entrega ("Entre calles: X · {referencia}"), visible en panel y comanda. Con
 `pedir_email: "obligatorio"` el alta sin email (de payload o de la cuenta del
 consumidor) da 422. El cumpleaños NUNCA es obligatorio: la tienda lo muestra
 con la leyenda "se solicita para participar de promociones y descuentos" y

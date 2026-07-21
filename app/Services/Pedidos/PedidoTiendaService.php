@@ -72,6 +72,14 @@ class PedidoTiendaService
             throw new Exception(__('El email es obligatorio para pedir en esta tienda'));
         }
 
+        // Entre calles (RF-T19): solo delivery; obligatorio según config.
+        $entreCalles = trim((string) ($payload['direccion']['entre_calles'] ?? ''));
+        if ($tipo === PedidoDelivery::TIPO_DELIVERY
+            && ($config['checkout']['pedir_entre_calles'] ?? 'opcional') === 'obligatorio'
+            && $entreCalles === '') {
+            throw new Exception(__('Indicá entre qué calles está la dirección'));
+        }
+
         // Envío (RF-06): con georreferenciación, coordenadas obligatorias y
         // fuera de alcance BLOQUEA (la API pública nunca fuerza).
         $costoEnvio = 0.0;
@@ -197,7 +205,13 @@ class PedidoTiendaService
             'datos_fiscales_snapshot' => $payload['datos_fiscales'] ?? null,
             // Dirección (snapshot RF-04) + envío.
             'direccion_entrega' => $tipo === PedidoDelivery::TIPO_DELIVERY ? ($payload['direccion']['direccion'] ?? null) : null,
-            'direccion_referencia' => $payload['direccion']['referencia'] ?? null,
+            // Entre calles (RF-T19): viaja aparte en el contrato y se persiste
+            // DENTRO de la referencia de entrega (visible en kanban/detalle/
+            // comanda sin tocar el esquema).
+            'direccion_referencia' => collect([
+                $entreCalles !== '' ? __('Entre calles: :calles', ['calles' => $entreCalles]) : null,
+                $payload['direccion']['referencia'] ?? null,
+            ])->filter()->implode(' · ') ?: null,
             'localidad_entrega_id' => $payload['direccion']['localidad_id'] ?? null,
             'latitud' => $payload['direccion']['latitud'] ?? null,
             'longitud' => $payload['direccion']['longitud'] ?? null,

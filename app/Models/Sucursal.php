@@ -145,6 +145,7 @@ class Sucursal extends Model
         'checkout' => [
             'pedir_email' => 'opcional',     // no | opcional | obligatorio
             'pedir_cumpleanios' => false,    // nunca obligatorio (leyenda de promos)
+            'pedir_entre_calles' => 'opcional', // no | opcional | obligatorio (solo delivery)
         ],
     ];
 

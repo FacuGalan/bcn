@@ -1758,7 +1758,8 @@ class ApiV1DeliveryTest extends TestCase
         $this->getJson('/api/v1/tiendas/tienda-test')
             ->assertOk()
             ->assertJsonPath('data.checkout.pedir_email', 'opcional')
-            ->assertJsonPath('data.checkout.pedir_cumpleanios', false);
+            ->assertJsonPath('data.checkout.pedir_cumpleanios', false)
+            ->assertJsonPath('data.checkout.pedir_entre_calles', 'opcional');
 
         Sucursal::where('id', $this->sucursalId)->update([
             'config_delivery' => json_encode([
@@ -1806,6 +1807,31 @@ class ApiV1DeliveryTest extends TestCase
 
         $this->assertSame('1990-05-04', $cliente->fresh()->fecha_nacimiento?->format('Y-m-d'), 'Se persiste en el cliente tenant');
         $this->assertSame('1990-05-04', $consumidor->fresh()->fecha_nacimiento?->format('Y-m-d'), 'Se copia a la cuenta global');
+    }
+
+    public function test_entre_calles_obligatorio_bloquea_y_se_persiste_en_la_referencia(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'checkout' => ['pedir_entre_calles' => 'obligatorio'],
+            ]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Sin entre calles → 422 con motivo.
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))
+            ->assertStatus(422);
+
+        // Con entre calles → se persiste DENTRO de la referencia de entrega.
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['direccion']['entre_calles'] = 'Av. Norte y Calle Sur';
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertStringContainsString('Av. Norte y Calle Sur', (string) $pedido->direccion_referencia);
+        $this->assertStringContainsString('3B', (string) $pedido->direccion_referencia, 'La referencia original se conserva');
     }
 
     public function test_pedido_con_fecha_nacimiento_futura_da_422(): void

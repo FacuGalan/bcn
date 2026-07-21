@@ -36,7 +36,16 @@
                     <option value="obligatorio">{{ __('Pedir (obligatorio)') }}</option>
                 </select>
             </div>
-            <label class="flex items-end gap-2 cursor-pointer pb-1 sm:col-span-2">
+            <div>
+                <label for="cd-entre-calles" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Entre calles (solo delivery)') }}</label>
+                <select id="cd-entre-calles" wire:model.live="checkoutPedirEntreCalles"
+                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                    <option value="no">{{ __('No pedir') }}</option>
+                    <option value="opcional">{{ __('Pedir (opcional)') }}</option>
+                    <option value="obligatorio">{{ __('Pedir (obligatorio)') }}</option>
+                </select>
+            </div>
+            <label class="flex items-end gap-2 cursor-pointer pb-1">
                 <input type="checkbox" wire:model.live="checkoutPedirCumpleanios" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                 <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Pedir fecha de cumpleaños (siempre opcional, con leyenda de promociones)') }}</span>
             </label>

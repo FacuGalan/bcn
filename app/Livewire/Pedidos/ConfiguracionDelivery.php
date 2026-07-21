@@ -58,7 +58,7 @@ class ConfiguracionDelivery extends Component
         'programadosAparecenMinAntes', 'encargosDias', 'encargosHorarios',
         'encargosFeriados', 'encargosAnticipacionHoras', 'encargosMaxDias',
         // RF-T19 — datos del cliente en el checkout de la tienda
-        'checkoutPedirEmail', 'checkoutPedirCumpleanios',
+        'checkoutPedirEmail', 'checkoutPedirCumpleanios', 'checkoutPedirEntreCalles',
     ];
 
     // ==================== CONFIG SUCURSAL (RF-05) ====================
@@ -95,6 +95,9 @@ class ConfiguracionDelivery extends Component
 
     /** RF-T19: pedir cumpleaños en el checkout (nunca obligatorio) */
     public bool $checkoutPedirCumpleanios = false;
+
+    /** RF-T19: entre calles del delivery — no | opcional | obligatorio */
+    public string $checkoutPedirEntreCalles = 'opcional';
 
     /** @var array<int, bool> día (1=lunes .. 7=domingo) => laboral */
     public array $diasLaborales = [];
@@ -322,6 +325,7 @@ class ConfiguracionDelivery extends Component
         $this->timeoutAceptacionMin = $config['timeout_aceptacion_min'] !== null ? (string) $config['timeout_aceptacion_min'] : '';
         $this->checkoutPedirEmail = (string) ($config['checkout']['pedir_email'] ?? 'opcional');
         $this->checkoutPedirCumpleanios = (bool) ($config['checkout']['pedir_cumpleanios'] ?? false);
+        $this->checkoutPedirEntreCalles = (string) ($config['checkout']['pedir_entre_calles'] ?? 'opcional');
 
         $this->diasLaborales = [];
         foreach (range(1, 7) as $dia) {
@@ -451,6 +455,9 @@ class ConfiguracionDelivery extends Component
                     ? $this->checkoutPedirEmail
                     : 'opcional',
                 'pedir_cumpleanios' => $this->checkoutPedirCumpleanios,
+                'pedir_entre_calles' => in_array($this->checkoutPedirEntreCalles, ['no', 'opcional', 'obligatorio'], true)
+                    ? $this->checkoutPedirEntreCalles
+                    : 'opcional',
             ],
         ]);
 

@@ -91,6 +91,7 @@ class TiendaController extends Controller
                 'checkout' => [
                     'pedir_email' => (string) ($config['checkout']['pedir_email'] ?? 'opcional'),
                     'pedir_cumpleanios' => (bool) ($config['checkout']['pedir_cumpleanios'] ?? false),
+                    'pedir_entre_calles' => (string) ($config['checkout']['pedir_entre_calles'] ?? 'opcional'),
                 ],
             ],
         ]);

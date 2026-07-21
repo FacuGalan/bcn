@@ -47,6 +47,7 @@ class PedidoPublicoController extends Controller
             // la config lo activa; se persiste en cliente y cuenta global).
             'cliente.fecha_nacimiento' => 'nullable|date|before:today',
             'direccion.direccion' => 'required_if:tipo,delivery|string|max:255',
+            'direccion.entre_calles' => 'nullable|string|max:150',
             'direccion.referencia' => 'nullable|string|max:255',
             'direccion.latitud' => 'nullable|numeric|between:-90,90',
             'direccion.longitud' => 'nullable|numeric|between:-180,180',
