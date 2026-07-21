@@ -921,7 +921,10 @@ elegir otra; logueado ⇒ prioridad de la cuenta; cookie cifrada
   `feat/tienda-checkout-operacion`; tests FormaPagoTest +
   ApiV1DeliveryTest + SmokeConfiguracion verdes).
 - **F2 (core)**: RF-T18 multi-pago — cotizar/alta con `pagos[]`,
-  `registrarPagoDeclarado` N pagos, tests de paridad, contrato.
+  `registrarPagoDeclarado` N pagos, tests de paridad, contrato. —
+  ✅ COMPLETA (2026-07-21; desglosarPagos en CotizadorCarritoTienda como
+  fuente única, FP principal = pagos[0], envío excluido proporcional
+  D17, limitación v1: sin usar_puntos con 2 FP).
 - **F3 (core)**: RF-T19 lado core — keys checkout + migraciones
   fecha_nacimiento (tenant + config) + exposición + validaciones +
   contrato.

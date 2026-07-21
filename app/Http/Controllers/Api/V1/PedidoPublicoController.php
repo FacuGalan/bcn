@@ -63,6 +63,12 @@ class PedidoPublicoController extends Controller
             // GET /tiendas/{slug} y, para efectivo, "¿con cuánto pagás?".
             'pago.forma_pago_id' => 'nullable|integer',
             'pago.paga_con' => 'nullable|numeric|min:0',
+            // Multi-pago (RF-T18): hasta 2 FP con el monto (sin ajuste) que
+            // cubre cada una. Si viaja, `pago` singular se ignora.
+            'pagos' => 'nullable|array|min:1|max:2',
+            'pagos.*.forma_pago_id' => 'required|integer',
+            'pagos.*.monto' => 'required|numeric|min:0.01',
+            'pagos.*.paga_con' => 'nullable|numeric|min:0',
             // Canje de puntos (RF-T9, Fase 3): pago por el máximo canjeable.
             // Solo tiene efecto con Bearer de consumidor con cliente.
             'usar_puntos' => 'nullable|boolean',

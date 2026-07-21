@@ -8,6 +8,7 @@ use App\Models\Articulo;
 use App\Models\ArticuloGrupoOpcional;
 use App\Models\CanalVenta;
 use App\Models\FormaPago;
+use App\Models\FormaPagoSucursal;
 use App\Models\FormaVenta;
 use App\Models\ListaPrecio;
 use App\Models\PedidoDelivery;
@@ -232,6 +233,116 @@ class CotizadorCarritoTienda
         $resultado['total_a_pagar'] = round((float) ($resultado['total_final'] ?? 0) + $ajusteMonto, 2);
 
         return $resultado;
+    }
+
+    /** Máximo de formas de pago declarables por pedido en la tienda (RF-T18 v1). */
+    public const MAX_PAGOS_TIENDA = 2;
+
+    /**
+     * Desglosa el pago declarado en hasta 2 FP (RF-T18): valida declarabilidad
+     * y que los montos cubran el total, y calcula el ajuste de CADA FP sobre
+     * su porción con la MISMA regla del panel (WithPagosDesglose::
+     * agregarAlDesglose + exclusión proporcional del envío de la base del
+     * ajuste, D17 — espejo de NuevoPedidoDelivery::baseAjustePagoDesglose).
+     *
+     * `$pagosInput` = [['forma_pago_id' => int, 'monto' => num, 'paga_con' => ?num], ...]
+     * `$totalACubrir` = lo que las FP deben cubrir SIN sus ajustes
+     *   (bienes + envío); los ajustes se SUMAN encima, igual que en el panel.
+     * `$costoEnvio` = porción de envío incluida en `$totalACubrir` (excluida
+     *   proporcionalmente de la base del ajuste de cada pago).
+     *
+     * @return list<array{forma_pago_id: int, nombre: string, monto_base: float,
+     *   ajuste_porcentaje: float, monto_ajuste: float, monto_final: float,
+     *   permite_vuelto: bool, paga_con: float|null, vuelto: float}>
+     *
+     * @throws Exception con mensaje claro (la API lo devuelve como 422)
+     */
+    public function desglosarPagos(Sucursal $sucursal, array $pagosInput, float $totalACubrir, float $costoEnvio = 0.0): array
+    {
+        $pagosInput = array_values($pagosInput);
+
+        if (count($pagosInput) < 1 || count($pagosInput) > self::MAX_PAGOS_TIENDA) {
+            throw new Exception(__('Se aceptan hasta :max formas de pago por pedido', ['max' => self::MAX_PAGOS_TIENDA]));
+        }
+
+        $ids = array_map(fn ($p) => (int) ($p['forma_pago_id'] ?? 0), $pagosInput);
+        if (count(array_unique($ids)) !== count($ids)) {
+            throw new Exception(__('No se puede repetir la forma de pago en el desglose'));
+        }
+
+        if ($totalACubrir <= 0) {
+            throw new Exception(__('No hay monto a pagar para desglosar'));
+        }
+
+        $sumaMontos = round(array_sum(array_map(fn ($p) => (float) ($p['monto'] ?? 0), $pagosInput)), 2);
+        if (abs($sumaMontos - round($totalACubrir, 2)) > 0.05) {
+            throw new Exception(__('Los montos de las formas de pago no suman el total del pedido'));
+        }
+
+        // Exclusión proporcional del envío de la base del ajuste (D17): el
+        // envío es un valor fijo, sin descuentos ni recargos por FP.
+        $factorBase = $costoEnvio > 0
+            ? max(0, ($totalACubrir - $costoEnvio) / $totalACubrir)
+            : 1.0;
+
+        $pagos = [];
+        foreach ($pagosInput as $input) {
+            $monto = round((float) ($input['monto'] ?? 0), 2);
+            if ($monto <= 0) {
+                throw new Exception(__('Cada forma de pago debe tener un monto mayor a cero'));
+            }
+
+            $formaPago = FormaPago::find((int) ($input['forma_pago_id'] ?? 0));
+            if (! $formaPago || ! $formaPago->esDeclarableEnTienda((int) $sucursal->id)) {
+                throw new Exception(__('La forma de pago elegida no está disponible en esta tienda'));
+            }
+
+            // Ajuste efectivo: override de sucursal > general (misma regla que
+            // WithAjusteFormaPago y formasPagoPublicas).
+            $ajustePorcentaje = (float) (FormaPagoSucursal::where('forma_pago_id', $formaPago->id)
+                ->where('sucursal_id', (int) $sucursal->id)
+                ->value('ajuste_porcentaje') ?? $formaPago->ajuste_porcentaje ?? 0);
+
+            $baseAjuste = round($monto * $factorBase, 2);
+            $montoAjuste = round($baseAjuste * ($ajustePorcentaje / 100), 2) + 0;
+            $montoFinal = round($monto + $montoAjuste, 2);
+
+            $permiteVuelto = (bool) ($formaPago->conceptoPago?->permite_vuelto ?? false);
+            $pagaCon = isset($input['paga_con']) ? round((float) $input['paga_con'], 2) : null;
+            if ($pagaCon !== null && ! $permiteVuelto) {
+                $pagaCon = null; // "paga con" solo tiene sentido con efectivo
+            }
+            if ($pagaCon !== null && $pagaCon > 0 && $pagaCon < $montoFinal) {
+                throw new Exception(__('El monto declarado no cubre lo que pagás con :fp', ['fp' => $formaPago->nombre]));
+            }
+
+            $pagos[] = [
+                'forma_pago_id' => (int) $formaPago->id,
+                'nombre' => $formaPago->nombre,
+                'monto_base' => $monto,
+                'ajuste_porcentaje' => $ajustePorcentaje,
+                'monto_ajuste' => $montoAjuste,
+                'monto_final' => $montoFinal,
+                'permite_vuelto' => $permiteVuelto,
+                'paga_con' => $pagaCon && $pagaCon > 0 ? $pagaCon : null,
+                'vuelto' => $pagaCon && $pagaCon > $montoFinal ? round($pagaCon - $montoFinal, 2) : 0,
+            ];
+        }
+
+        return $pagos;
+    }
+
+    /**
+     * Re-prorratea el desglose de IVA de la última cotización con el ajuste
+     * COMBINADO del multi-pago (RF-T18) y lo devuelve. Reemplaza el ajuste
+     * single-FP que calcularVenta dejó (el método del trait re-deriva desde
+     * las bases por alícuota, así que re-llamarlo es seguro).
+     */
+    public function desgloseIvaConAjuste(float $montoAjuste): ?array
+    {
+        $this->actualizarDesgloseIvaConAjusteFormaPago($montoAjuste, 0);
+
+        return $this->resultado['desglose_iva'] ?? null;
     }
 
     /** Monto del ajuste por FP de la última cotización (para el alta del pedido). */

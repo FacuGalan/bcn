@@ -318,6 +318,42 @@ monto pagado sin puntos × multiplicador de la FP ÷ monto_por_punto, con el
 redondeo de la config; sin envío). El crédito verdadero lo hace la conversión
 a venta.
 
+**Multi-pago** *(aditivo 2026-07-21, RF-T18)*: `pagos` (opcional, hasta **2**
+FP) reemplaza a `forma_pago_id` (si viajan ambos, gana `pagos`). Cada ítem
+lleva el **monto que esa FP cubre SIN su ajuste** (los ajustes los calcula y
+devuelve el core, sumados encima). `costo_envio` (opcional) es la cotización
+que la tienda ya obtuvo de `/envios/cotizar`, para desglosar el total completo:
+
+```json
+{ "pagos": [ { "forma_pago_id": 1, "monto": 6000 },
+             { "forma_pago_id": 3, "monto": 4000 } ],
+  "costo_envio": 500 }
+```
+
+Reglas: los montos deben **sumar `total_final` + `costo_envio`** (±0.05, si no
+422 `pagos_invalidos`); FP repetida → 422; ambas FP deben ser declarables en la
+tienda. La **primera FP es la principal**: participa del precio como la FP
+única (promos/listas condicionadas por FP, cupones restringidos). El ajuste de
+CADA FP se calcula sobre **su porción** con la regla del panel, excluyendo el
+envío proporcionalmente de la base (D17). Respuesta: `forma_pago` viene null y
+se suma `pagos[]`; **`total_a_pagar` = Σ monto_final e INCLUYE el
+`costo_envio` informado** (a diferencia del modo single-FP):
+
+```json
+"pagos": [
+  { "forma_pago_id": 1, "nombre": "Efectivo", "monto_base": 6000,
+    "ajuste_porcentaje": -10, "monto_ajuste": -572.73, "monto_final": 5427.27,
+    "permite_vuelto": true },
+  { "forma_pago_id": 3, "nombre": "Transferencia", "monto_base": 4000,
+    "ajuste_porcentaje": 0, "monto_ajuste": 0, "monto_final": 4000,
+    "permite_vuelto": false }
+],
+"total_a_pagar": 9427.27
+```
+
+Limitación v1: `pagos` + `usar_puntos` → 422 (el canje de puntos sigue
+disponible solo con FP única).
+
 ### `POST /v1/tiendas/{slug}/pedidos`
 Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
 ```json
@@ -351,6 +387,16 @@ en el panel (`monto_base + monto_ajuste = monto_final`). El **envío queda
 fuera** de la base del ajuste (es un valor fijo): efectivo −10% sobre $1000 de
 productos + $500 de envío = $1400. Checkout con la misma FP y pedido muestran
 el MISMO total.
+
+**Multi-pago** *(aditivo 2026-07-21, RF-T18)*: `pagos` (hasta 2, mismas reglas
+que en `carrito/cotizar`; con `pagos`, el `pago` singular se ignora) admite
+`paga_con` POR pago (solo FP con `permite_vuelto`; menor a su `monto_final` →
+422). Los montos deben sumar `total_final` de bienes **+ el costo de envío que
+cotiza el alta** (mismo valor de `/envios/cotizar`). El pedido queda con N
+pagos **planificados** idénticos a un pedido cargado a mano en el panel
+(desglose `monto_base/monto_ajuste/monto_final/monto_recibido/vuelto` por FP)
+y `total_final` = Σ `monto_final`. Limitación v1: incompatible con
+`usar_puntos` (422).
 
 Reglas:
 - Tienda cerrada (calendario/horarios) → 422.

@@ -1514,6 +1514,173 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertEqualsWithDelta(1400.0, (float) $pedido->total_final, 0.01);
     }
 
+    // ==================== MULTI-PAGO (RF-T18 F2) ====================
+
+    /** FP Transferencia (sin vuelto) habilitada en la sucursal de test. */
+    protected function formaPagoTransferenciaEnSucursal(float $ajuste = 0): \App\Models\FormaPago
+    {
+        $concepto = \App\Models\ConceptoPago::firstOrCreate(
+            ['codigo' => 'TRANSFERENCIA'],
+            ['nombre' => 'Transferencia', 'permite_cuotas' => false, 'permite_vuelto' => false, 'activo' => true, 'orden' => 2],
+        );
+
+        $fp = \App\Models\FormaPago::create([
+            'nombre' => 'Transferencia',
+            'codigo' => 'transferencia',
+            'concepto' => 'transferencia',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => $ajuste,
+            'activo' => true,
+        ]);
+        $fp->sucursales()->attach($this->sucursalId, ['activo' => true]);
+
+        return $fp;
+    }
+
+    public function test_cotizar_con_dos_fp_desglosa_el_ajuste_por_porcion(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+            ],
+        ])->assertOk();
+
+        // $1000 de bienes: efectivo cubre $600 (−10% → −$60), transferencia
+        // $400 sin ajuste. total_a_pagar = 540 + 400 = 940.
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.total_final'), 0.01);
+        $this->assertNull($respuesta->json('data.forma_pago'));
+
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertCount(2, $pagos);
+        $this->assertEqualsWithDelta(600.0, (float) $pagos[0]['monto_base'], 0.01);
+        $this->assertEqualsWithDelta(-60.0, (float) $pagos[0]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(540.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertTrue((bool) $pagos[0]['permite_vuelto']);
+        $this->assertEqualsWithDelta(400.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(940.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_cotizar_con_dos_fp_que_no_suman_el_total_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 300],
+            ],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'pagos_invalidos');
+    }
+
+    public function test_cotizar_con_fp_repetida_en_el_desglose_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $efectivo->id, 'monto' => 400],
+            ],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'pagos_invalidos');
+    }
+
+    public function test_cotizar_dos_fp_con_envio_excluye_el_envio_de_la_base_del_ajuste(): void
+    {
+        // D17 proporcional: $1000 de bienes + $500 de envío. Efectivo cubre
+        // $900 (60% del pedido) → su base de ajuste son $600 de bienes → −$60.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'costo_envio' => 500,
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 900],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 600],
+            ],
+        ])->assertOk();
+
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertEqualsWithDelta(-60.0, (float) $pagos[0]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(840.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(600.0, (float) $pagos[1]['monto_final'], 0.01);
+        // total_a_pagar con `pagos` + `costo_envio` INCLUYE el envío.
+        $this->assertEqualsWithDelta(1440.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_pedido_con_dos_fp_registra_dos_pagos_planificados_como_el_panel(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', array_merge(
+            $this->payloadPedido($articulo->id),
+            ['pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600, 'paga_con' => 1000],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+            ]],
+        ))->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        $this->assertEqualsWithDelta(-60.0, (float) $pedido->ajuste_forma_pago, 0.01);
+        $this->assertEqualsWithDelta(940.0, (float) $pedido->total_final, 0.01);
+
+        $pagos = $pedido->pagos()->orderBy('id')->get();
+        $this->assertCount(2, $pagos);
+
+        $pagoEfectivo = $pagos->firstWhere('forma_pago_id', $efectivo->id);
+        $this->assertSame(\App\Models\PedidoDeliveryPago::ESTADO_PLANIFICADO, $pagoEfectivo->estado);
+        $this->assertEqualsWithDelta(600.0, (float) $pagoEfectivo->monto_base, 0.01);
+        $this->assertEqualsWithDelta(-60.0, (float) $pagoEfectivo->monto_ajuste, 0.01);
+        $this->assertEqualsWithDelta(540.0, (float) $pagoEfectivo->monto_final, 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $pagoEfectivo->monto_recibido, 0.01);
+        $this->assertEqualsWithDelta(460.0, (float) $pagoEfectivo->vuelto, 0.01);
+
+        $pagoTransferencia = $pagos->firstWhere('forma_pago_id', $transferencia->id);
+        $this->assertSame(\App\Models\PedidoDeliveryPago::ESTADO_PLANIFICADO, $pagoTransferencia->estado);
+        $this->assertEqualsWithDelta(400.0, (float) $pagoTransferencia->monto_final, 0.01);
+        $this->assertNull($pagoTransferencia->monto_recibido);
+    }
+
+    public function test_pedido_con_dos_fp_y_paga_con_insuficiente_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', array_merge(
+            $this->payloadPedido($articulo->id),
+            ['pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600, 'paga_con' => 500],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+            ]],
+        ))->assertStatus(422);
+    }
+
     // ==================== PUNTOS (RF-T8/RF-T9, Fase 3 tienda) ====================
 
     /** Programa de puntos activo: $100 = 1 punto; 1 punto = $50; mínimo 10. */

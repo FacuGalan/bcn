@@ -91,9 +91,19 @@ class PedidoTiendaService
         // artículos no pedibles (RF-16/RF-17). La FP declarada participa del
         // precio (promos/listas por FP + ajuste por FP), igual que en el panel.
         $clienteId = $this->resolverClienteId($sucursal, $consumidor);
-        $formaPagoId = isset($payload['pago']['forma_pago_id'])
-            ? (int) $payload['pago']['forma_pago_id']
-            : null;
+
+        // Multi-pago (RF-T18): la PRIMERA FP es la principal (participa del
+        // precio como la FP única); la segunda solo aporta su ajuste sobre su
+        // porción. Con `pagos`, el `pago` singular se ignora. Incompatible
+        // con canje de puntos en v1.
+        $pagosInput = isset($payload['pagos']) ? array_values($payload['pagos']) : null;
+        if ($pagosInput && ! empty($payload['usar_puntos'])) {
+            throw new Exception(__('El canje de puntos no se puede combinar con dos formas de pago'));
+        }
+
+        $formaPagoId = $pagosInput
+            ? (int) ($pagosInput[0]['forma_pago_id'] ?? 0)
+            : (isset($payload['pago']['forma_pago_id']) ? (int) $payload['pago']['forma_pago_id'] : null);
         $resultado = $this->cotizador->cotizar(
             $sucursal,
             $tipo,
@@ -103,6 +113,20 @@ class PedidoTiendaService
             $formaPagoId ?: null,
         );
         $ajusteFormaPago = $this->cotizador->ajusteFormaPagoMonto();
+
+        // Desglose multi-pago: los montos deben cubrir bienes + envío; el
+        // ajuste del pedido pasa a ser la SUMA de los ajustes por porción
+        // (misma regla del panel — reemplaza al ajuste single-FP de arriba).
+        $pagosDesglosados = null;
+        if ($pagosInput) {
+            $pagosDesglosados = $this->cotizador->desglosarPagos(
+                $sucursal,
+                $pagosInput,
+                round((float) ($resultado['total_final'] ?? 0) + $costoEnvio, 2),
+                $costoEnvio,
+            );
+            $ajusteFormaPago = round(array_sum(array_column($pagosDesglosados, 'monto_ajuste')), 2);
+        }
 
         // Canje de puntos (RF-T9, Fase 3): pago por el MÁXIMO sobre el total
         // de bienes + ajuste FP (SIN envío — los puntos nunca cubren el
@@ -191,14 +215,20 @@ class PedidoTiendaService
         // Pago declarado contra entrega/retiro (planificado, D14): "pago con
         // efectivo, con $X" queda en el pedido — el panel/vuelta lo confirma.
         // Con canje de puntos, la FP declarada cubre el RESTO del total.
-        $this->registrarPagoDeclarado(
-            $sucursal,
-            $pedido,
-            $payload['pago'] ?? null,
-            $ajusteFormaPago,
-            $this->cotizador->ajusteFormaPagoPorcentaje(),
-            (float) ($canjePuntos['monto'] ?? 0),
-        );
+        // Multi-pago (RF-T18): N pagos planificados en el MISMO formato que
+        // el desglose del alta manual (WithPagosDesglose → agregarPago).
+        if ($pagosDesglosados) {
+            $this->registrarPagosDesglosados($pedido, $pagosDesglosados);
+        } else {
+            $this->registrarPagoDeclarado(
+                $sucursal,
+                $pedido,
+                $payload['pago'] ?? null,
+                $ajusteFormaPago,
+                $this->cotizador->ajusteFormaPagoPorcentaje(),
+                (float) ($canjePuntos['monto'] ?? 0),
+            );
+        }
 
         // Aceptación automática (D14): comandar solo (marca los renglones y
         // transiciona a en_preparacion; la impresión física sigue el circuito
@@ -382,6 +412,29 @@ class PedidoTiendaService
             'vuelto' => $pagaCon && $pagaCon > $total ? round($pagaCon - $total, 2) : 0,
             'planificado' => true,
         ]);
+    }
+
+    /**
+     * Registra los pagos del multi-pago (RF-T18) como PLANIFICADOS, uno por
+     * FP, con el desglose ya calculado por CotizadorCarritoTienda —
+     * exactamente el mismo formato que un pedido cargado a mano en el panel
+     * (WithPagosDesglose): monto_base + monto_ajuste = monto_final, y
+     * monto_recibido/vuelto si declaró "con cuánto paga" (efectivo).
+     */
+    protected function registrarPagosDesglosados(PedidoDelivery $pedido, array $pagos): void
+    {
+        foreach ($pagos as $pago) {
+            $this->pedidoService->agregarPago($pedido, [
+                'forma_pago_id' => $pago['forma_pago_id'],
+                'monto_base' => $pago['monto_base'],
+                'ajuste_porcentaje' => $pago['ajuste_porcentaje'],
+                'monto_ajuste' => $pago['monto_ajuste'],
+                'monto_final' => $pago['monto_final'],
+                'monto_recibido' => $pago['paga_con'],
+                'vuelto' => $pago['vuelto'],
+                'planificado' => true,
+            ]);
+        }
     }
 
     /**

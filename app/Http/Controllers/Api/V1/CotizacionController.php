@@ -62,6 +62,16 @@ class CotizacionController extends Controller
             'items.*.opcionales.*.cantidad' => 'nullable|numeric|min:0.001',
             'cupon_codigo' => 'nullable|string|max:50',
             'forma_pago_id' => 'nullable|integer',
+            // Multi-pago (RF-T18): hasta 2 FP con el monto que cubre cada una
+            // (SIN su ajuste; los ajustes se devuelven calculados). Si viaja,
+            // `forma_pago_id` singular se ignora. `costo_envio` es la
+            // cotización de envío que la tienda ya obtuvo de /envios/cotizar
+            // (para desglosar el total completo; el envío queda fuera de la
+            // base de los ajustes, D17).
+            'pagos' => 'nullable|array|min:1|max:2',
+            'pagos.*.forma_pago_id' => 'required|integer',
+            'pagos.*.monto' => 'required|numeric|min:0.01',
+            'costo_envio' => 'nullable|numeric|min:0',
             'usar_puntos' => 'nullable|boolean',
             // Encargo (RF-T16): validar acá para que el checkout falle
             // TEMPRANO (slot vencido o artículo no apto) y no en el alta.
@@ -105,7 +115,23 @@ class CotizacionController extends Controller
             }
         }
 
+        // Multi-pago (RF-T18): la PRIMERA FP es la principal — participa del
+        // precio (promos/listas condicionadas por FP + restricción de cupón)
+        // igual que la FP única; la segunda solo aporta su ajuste sobre su
+        // porción. Incompatible con canje de puntos en v1.
+        $pagosInput = isset($datos['pagos']) ? array_values($datos['pagos']) : null;
         $formaPagoId = isset($datos['forma_pago_id']) ? (int) $datos['forma_pago_id'] : null;
+        if ($pagosInput) {
+            if (! empty($datos['usar_puntos'])) {
+                abort(response()->json(['error' => [
+                    'code' => 'pagos_invalidos',
+                    'message' => __('El canje de puntos no se puede combinar con dos formas de pago'),
+                    'details' => null,
+                ]], 422));
+            }
+            $formaPagoId = (int) $pagosInput[0]['forma_pago_id'];
+        }
+
         $resultado = $cotizador->cotizar(
             $sucursal,
             $datos['tipo'],
@@ -117,12 +143,41 @@ class CotizacionController extends Controller
 
         $totalAPagar = (float) ($resultado['total_a_pagar'] ?? ($resultado['total_final'] ?? 0));
 
+        // Desglose multi-pago: cada FP con su ajuste sobre SU porción (misma
+        // regla del panel). total_a_pagar pasa a ser la suma de los
+        // monto_final e INCLUYE el costo_envio informado.
+        $pagosDesglose = null;
+        if ($pagosInput) {
+            $costoEnvio = round((float) ($datos['costo_envio'] ?? 0), 2);
+            $totalBienes = (float) ($resultado['total_final'] ?? 0);
+
+            try {
+                $pagosDesglose = $cotizador->desglosarPagos(
+                    $sucursal,
+                    $pagosInput,
+                    round($totalBienes + $costoEnvio, 2),
+                    $costoEnvio,
+                );
+            } catch (\Exception $e) {
+                abort(response()->json(['error' => [
+                    'code' => 'pagos_invalidos',
+                    'message' => $e->getMessage(),
+                    'details' => null,
+                ]], 422));
+            }
+
+            $ajusteCombinado = round(array_sum(array_column($pagosDesglose, 'monto_ajuste')), 2);
+            $resultado['desglose_iva'] = $cotizador->desgloseIvaConAjuste($ajusteCombinado);
+            $resultado['forma_pago'] = null;
+            $totalAPagar = round(array_sum(array_column($pagosDesglose, 'monto_final')), 2);
+        }
+
         // Puntos (RF-T9, Fase 3): el canje es un PAGO por el máximo (toggle)
         // — no toca precios ni total_final; resta del total_a_pagar. El
         // bloque viaja siempre que el programa esté activo para el cliente
         // (con `a_ganar`, aunque no canjee).
         $puntos = null;
-        if ($clienteId) {
+        if ($clienteId && ! $pagosInput) {
             $puntosTienda = app(\App\Services\Pedidos\PuntosTiendaService::class);
             $info = $puntosTienda->info($sucursal, $clienteId);
             if ($info['activo']) {
@@ -148,6 +203,17 @@ class CotizacionController extends Controller
                 // cálculos del panel. total_a_pagar = total_final + ajuste
                 // (sin envío, que va aparte) − canje de puntos si lo hay.
                 'forma_pago' => $resultado['forma_pago'] ?? null,
+                // Multi-pago (RF-T18): desglose por FP con el ajuste de cada
+                // una sobre su porción; null si se cotizó con una sola FP.
+                'pagos' => $pagosDesglose ? array_map(fn ($p) => [
+                    'forma_pago_id' => $p['forma_pago_id'],
+                    'nombre' => $p['nombre'],
+                    'monto_base' => $p['monto_base'],
+                    'ajuste_porcentaje' => $p['ajuste_porcentaje'],
+                    'monto_ajuste' => $p['monto_ajuste'],
+                    'monto_final' => $p['monto_final'],
+                    'permite_vuelto' => $p['permite_vuelto'],
+                ], $pagosDesglose) : null,
                 'puntos' => $puntos,
                 'total_a_pagar' => $totalAPagar,
                 'desglose_iva' => $resultado['desglose_iva'] ?? null,
