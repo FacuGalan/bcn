@@ -195,6 +195,11 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   categoría) y especiales automáticas (NxM/combos/grupos) del canal tienda.
   Alimenta el aviso "Promociones de hoy" de la home (visible según
   `tema.promos.mostrar_home`). Vacío ⇒ sin aviso.
+- *(Aditivo 2026-07-21, RF-T21)* cada promo genérica suma `precio_fijo`
+  (number|null — el precio fijo de la promo/combo, para destacarlo) y
+  `condiciones` (list<string> legibles y listas para mostrar: mínimos de
+  cantidad/total, forma de pago, categoría, mecánica NxM "Llevás 3, pagás
+  2", días y horario). Lista vacía ⇒ promo sin condiciones.
 
 **Galería y badges por artículo** (aditivo 2026-07-20, RF-T14):
 

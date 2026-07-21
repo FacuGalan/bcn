@@ -168,6 +168,55 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertFalse($nombres->contains('Solo otro dia'));
     }
 
+    public function test_promociones_genericas_exponen_precio_fijo_y_condiciones_rf_t21(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush(); // catálogo cacheado 60s server-side
+
+        $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Común con condiciones de monto mínimo + horario.
+        \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Nocturna por monto',
+            'tipo' => 'descuento_porcentaje', 'valor' => 5, 'prioridad' => 2,
+            'combinable' => true, 'activo' => true, 'usos_actuales' => 0,
+            'hora_desde' => '20:00', 'hora_hasta' => '23:00',
+        ])->condiciones()->create(['tipo_condicion' => 'por_total_compra', 'monto_minimo' => 50000]);
+
+        // Combo de PRECIO FIJO.
+        \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Combo Fijo',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_COMBO,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'precio_tipo' => \App\Models\PromocionEspecial::PRECIO_FIJO,
+            'precio_valor' => 15000,
+            'prioridad' => 1, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        // NxM 3x2.
+        \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Tres por Dos',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_NXM,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'nxm_lleva' => 3, 'nxm_paga' => 2,
+            'prioridad' => 3, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        $promos = collect($this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk()
+            ->json('data.promociones_genericas'));
+
+        $nocturna = $promos->firstWhere('nombre', 'Nocturna por monto');
+        $this->assertNull($nocturna['precio_fijo']);
+        $this->assertContains('Total mínimo: $50,000.00', $nocturna['condiciones']);
+        $this->assertContains('De 20:00 a 23:00', $nocturna['condiciones']);
+
+        $comboFijo = $promos->firstWhere('nombre', 'Combo Fijo');
+        $this->assertEqualsWithDelta(15000.0, (float) $comboFijo['precio_fijo'], 0.01);
+
+        $tresPorDos = $promos->firstWhere('nombre', 'Tres por Dos');
+        $this->assertNull($tresPorDos['precio_fijo']);
+        $this->assertContains('Llevás 3, pagás 2', $tresPorDos['condiciones']);
+    }
+
     public function test_catalogo_expone_galeria_y_badges_rf_t14(): void
     {
         \Illuminate\Support\Facades\Cache::flush(); // catálogo cacheado 60s server-side

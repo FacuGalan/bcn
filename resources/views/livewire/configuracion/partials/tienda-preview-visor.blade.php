@@ -20,9 +20,22 @@
     @if($publicadaPersistida && $urlPublica)
         <div class="flex items-center justify-between gap-2 px-1">
             <p class="text-xs font-semibold text-gray-900 dark:text-white">{{ __('Tu tienda en vivo') }}</p>
-            <a href="{{ $urlPublica }}" target="_blank" rel="noopener" class="text-xs text-bcn-primary hover:underline">
-                {{ __('Abrir en pestaña nueva') }}
-            </a>
+            <div class="flex items-center gap-2">
+                {{-- RF-T22: ver la tienda en modo oscuro/claro sin recargar --}}
+                <button type="button" @click="toggleModoVisor()"
+                    class="inline-flex items-center justify-center size-6 rounded-full text-gray-500 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-white dark:hover:bg-gray-700 transition-colors"
+                    :title="modoVisor === 'oscuro' ? '{{ __('Ver en modo claro') }}' : '{{ __('Ver en modo oscuro') }}'">
+                    <svg x-show="modoVisor !== 'oscuro'" class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                    </svg>
+                    <svg x-show="modoVisor === 'oscuro'" x-cloak class="size-4" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+                    </svg>
+                </button>
+                <a href="{{ $urlPublica }}" target="_blank" rel="noopener" class="text-xs text-bcn-primary hover:underline">
+                    {{ __('Abrir en pestaña nueva') }}
+                </a>
+            </div>
         </div>
         <div class="mx-auto w-fit">
             <div class="relative rounded-[2.5rem] bg-gray-900 dark:bg-gray-950 p-2.5 shadow-2xl ring-1 ring-gray-700 dark:ring-gray-800">

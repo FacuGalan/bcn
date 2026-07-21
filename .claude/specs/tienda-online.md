@@ -932,7 +932,11 @@ elegir otra; logueado ⇒ prioridad de la cuenta; cookie cifrada
   centinela de TestCase actualizado).
 - **F4 (core)**: RF-T21 lado core (promos enriquecidas + contrato) +
   RF-T22 toggle sol/luna en el visor (+ aviso de contraste si es
-  barato).
+  barato). — ✅ COMPLETA (2026-07-21). Ajuste vs diseño: el modo del
+  visor viaja por el canal postMessage del preview (campo `modo` en
+  `tienda-preview-estado`), NO por query `?modo=` — sin recarga del
+  iframe; la tienda lo aplica en F6. El aviso de contraste quedó para
+  F6 (con el cálculo de luminancia ya del lado tienda).
 - **F5 (tienda)**: RF-T17 + RF-T18 lado tienda — carrito reordenado,
   dirección Maps, desplegable FP + 2 FP, fixtures/contract tests.
 - **F6 (tienda)**: RF-T19/T20/T21 lado tienda (paso datos, promesa,

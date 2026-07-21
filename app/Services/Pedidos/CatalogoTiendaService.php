@@ -279,10 +279,98 @@ class CatalogoTiendaService
             // Con canal restringido, solo si es el canal TIENDA.
             ->filter(fn (PromocionEspecial $p) => ! $p->canal_venta_id || (int) $p->canal_venta_id === (int) $canalVentaId);
 
-        return $comunes->map(fn ($p) => ['nombre' => (string) $p->nombre, 'descripcion' => $p->descripcion !== '' ? $p->descripcion : null])
-            ->concat($especiales->map(fn ($p) => ['nombre' => (string) $p->nombre, 'descripcion' => $p->descripcion !== '' ? $p->descripcion : null]))
+        return $comunes->map(fn ($p) => [
+            'nombre' => (string) $p->nombre,
+            'descripcion' => $p->descripcion !== '' ? $p->descripcion : null,
+            // RF-T21 (aditivo): precio fijo destacable + condiciones legibles.
+            'precio_fijo' => $p->tipo === 'precio_fijo' ? (float) $p->valor : null,
+            'condiciones' => $this->condicionesLegiblesComun($p),
+        ])
+            ->concat($especiales->map(fn ($p) => [
+                'nombre' => (string) $p->nombre,
+                'descripcion' => $p->descripcion !== '' ? $p->descripcion : null,
+                'precio_fijo' => $p->esComboOMenu() && $p->precio_tipo === PromocionEspecial::PRECIO_FIJO
+                    ? (float) $p->precio_valor
+                    : null,
+                'condiciones' => $this->condicionesLegiblesEspecial($p),
+            ]))
             ->unique('nombre')
             ->values()
             ->all();
+    }
+
+    /**
+     * Condiciones legibles de una promoción común (RF-T21): las condiciones
+     * estructuradas (mínimos, FP, categoría — reusa obtenerDescripcion del
+     * modelo, mismo texto que el panel) + restricción de días/horario.
+     *
+     * @return list<string>
+     */
+    protected function condicionesLegiblesComun(Promocion $p): array
+    {
+        $condiciones = $p->condiciones
+            ->map(fn ($c) => (string) $c->obtenerDescripcion())
+            ->filter()
+            ->values()
+            ->all();
+
+        return array_merge($condiciones, $this->restriccionDiasYHorario(
+            $p->dias_semana,
+            $p->hora_desde,
+            $p->hora_hasta,
+        ));
+    }
+
+    /**
+     * Condiciones legibles de una promoción especial (RF-T21): la mecánica
+     * NxM ("Llevás 3, pagás 2" / unidades de regalo) + días/horario.
+     *
+     * @return list<string>
+     */
+    protected function condicionesLegiblesEspecial(PromocionEspecial $p): array
+    {
+        $condiciones = [];
+
+        if ($p->esNxM()) {
+            $lleva = (int) $p->nxm_lleva;
+            if ((int) $p->nxm_bonifica > 0) {
+                $condiciones[] = __('Llevás :lleva y :gratis va de regalo', ['lleva' => $lleva, 'gratis' => (int) $p->nxm_bonifica]);
+            } elseif ((int) $p->nxm_paga > 0) {
+                $condiciones[] = __('Llevás :lleva, pagás :paga', ['lleva' => $lleva, 'paga' => (int) $p->nxm_paga]);
+            }
+        }
+
+        return array_merge($condiciones, $this->restriccionDiasYHorario(
+            $p->dias_semana,
+            $p->hora_desde,
+            $p->hora_hasta,
+        ));
+    }
+
+    /**
+     * Restricción temporal legible (solo si existe): días de la semana
+     * (convención del modelo: 0 = domingo) y rango horario.
+     *
+     * @return list<string>
+     */
+    protected function restriccionDiasYHorario(?array $diasSemana, ?string $horaDesde, ?string $horaHasta): array
+    {
+        $partes = [];
+
+        if (! empty($diasSemana) && count($diasSemana) < 7) {
+            $nombres = [__('Dom'), __('Lun'), __('Mar'), __('Mié'), __('Jue'), __('Vie'), __('Sáb')];
+            $dias = array_map(fn ($d) => $nombres[(int) $d] ?? $d, $diasSemana);
+            $partes[] = __('Solo :dias', ['dias' => implode(', ', $dias)]);
+        }
+
+        if ($horaDesde && $horaHasta) {
+            $partes[] = __('De :desde a :hasta', ['desde' => substr($horaDesde, 0, 5), 'hasta' => substr($horaHasta, 0, 5)]);
+        } elseif ($horaDesde) {
+            $partes[] = __('Desde las :hora', ['hora' => substr($horaDesde, 0, 5)]);
+        } elseif ($horaHasta) {
+            $partes[] = __('Hasta las :hora', ['hora' => substr($horaHasta, 0, 5)]);
+        }
+
+        return $partes;
     }
 }
