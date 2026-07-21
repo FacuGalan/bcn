@@ -274,8 +274,25 @@ class CotizadorCarritoTienda
             throw new Exception(__('No hay monto a pagar para desglosar'));
         }
 
-        $sumaMontos = round(array_sum(array_map(fn ($p) => (float) ($p['monto'] ?? 0), $pagosInput)), 2);
-        if (abs($sumaMontos - round($totalACubrir, 2)) > 0.05) {
+        // A lo sumo UN pago puede venir sin monto: cubre EL RESTO (así la
+        // tienda nunca calcula montos localmente — regla de oro del contrato).
+        $sinMonto = array_keys(array_filter($pagosInput, fn ($p) => ! isset($p['monto']) || $p['monto'] === null || $p['monto'] === ''));
+        if (count($sinMonto) > 1) {
+            throw new Exception(__('Solo una forma de pago puede ir sin monto (cubre el resto)'));
+        }
+
+        $sumaExplicitos = round(array_sum(array_map(
+            fn ($p) => (float) ($p['monto'] ?? 0),
+            $pagosInput,
+        )), 2);
+
+        if ($sinMonto !== []) {
+            $resto = round($totalACubrir - $sumaExplicitos, 2);
+            if ($resto <= 0) {
+                throw new Exception(__('Los montos de las formas de pago no suman el total del pedido'));
+            }
+            $pagosInput[$sinMonto[0]]['monto'] = $resto;
+        } elseif (abs($sumaExplicitos - round($totalACubrir, 2)) > 0.05) {
             throw new Exception(__('Los montos de las formas de pago no suman el total del pedido'));
         }
 

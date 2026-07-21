@@ -347,8 +347,10 @@ que la tienda ya obtuvo de `/envios/cotizar`, para desglosar el total completo:
 ```
 
 Reglas: los montos deben **sumar `total_final` + `costo_envio`** (±0.05, si no
-422 `pagos_invalidos`); FP repetida → 422; ambas FP deben ser declarables en la
-tienda. La **primera FP es la principal**: participa del precio como la FP
+422 `pagos_invalidos`); a lo sumo UN pago puede viajar **sin `monto`** y cubre
+EL RESTO (recomendado: la tienda manda el monto de la primera FP y la segunda
+sin monto — nunca calcula el resto localmente); FP repetida → 422; ambas FP
+deben ser declarables en la tienda. La **primera FP es la principal**: participa del precio como la FP
 única (promos/listas condicionadas por FP, cupones restringidos). El ajuste de
 CADA FP se calcula sobre **su porción** con la regla del panel, excluyendo el
 envío proporcionalmente de la base (D17). Respuesta: `forma_pago` viene null y

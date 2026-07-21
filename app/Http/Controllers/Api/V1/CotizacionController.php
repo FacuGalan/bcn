@@ -70,7 +70,7 @@ class CotizacionController extends Controller
             // base de los ajustes, D17).
             'pagos' => 'nullable|array|min:1|max:2',
             'pagos.*.forma_pago_id' => 'required|integer',
-            'pagos.*.monto' => 'required|numeric|min:0.01',
+            'pagos.*.monto' => 'nullable|numeric|min:0.01',
             'costo_envio' => 'nullable|numeric|min:0',
             'usar_puntos' => 'nullable|boolean',
             // Encargo (RF-T16): validar acá para que el checkout falle

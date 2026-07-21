@@ -70,7 +70,7 @@ class PedidoPublicoController extends Controller
             // cubre cada una. Si viaja, `pago` singular se ignora.
             'pagos' => 'nullable|array|min:1|max:2',
             'pagos.*.forma_pago_id' => 'required|integer',
-            'pagos.*.monto' => 'required|numeric|min:0.01',
+            'pagos.*.monto' => 'nullable|numeric|min:0.01',
             'pagos.*.paga_con' => 'nullable|numeric|min:0',
             // Canje de puntos (RF-T9, Fase 3): pago por el máximo canjeable.
             // Solo tiene efecto con Bearer de consumidor con cliente.

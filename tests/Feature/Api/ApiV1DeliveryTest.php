@@ -1636,6 +1636,26 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('error.code', 'pagos_invalidos');
     }
 
+    public function test_cotizar_con_segundo_pago_sin_monto_cubre_el_resto(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id], // sin monto = el resto
+            ],
+        ])->assertOk();
+
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertEqualsWithDelta(400.0, (float) $pagos[1]['monto_base'], 0.01, 'El resto ($1000 − $600) lo calculó el core');
+        $this->assertEqualsWithDelta(940.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
     public function test_cotizar_con_fp_repetida_en_el_desglose_da_422(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
