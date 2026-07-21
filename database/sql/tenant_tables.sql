@@ -383,6 +383,7 @@ CREATE TABLE `{{PREFIX}}clientes` (
   `cuit` varchar(20) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `email` varchar(191) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `telefono` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `fecha_nacimiento` date DEFAULT NULL COMMENT 'Cumpleaños del cliente (RF-T19): lo pide la tienda para promociones',
   `direccion` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `direccion_entrega` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Domicilio de ENTREGA (delivery). NO es el fiscal (direccion)',
   `direccion_entrega_referencia` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Piso/depto/indicaciones de entrega',

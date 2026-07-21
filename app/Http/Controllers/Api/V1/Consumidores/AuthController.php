@@ -195,6 +195,8 @@ class AuthController extends Controller
             'nombre' => $consumidor->nombre,
             'email' => $consumidor->email,
             'telefono' => $consumidor->telefono,
+            // RF-T19: pre-llena el cumpleaños en el checkout de cualquier tienda.
+            'fecha_nacimiento' => $consumidor->fecha_nacimiento?->format('Y-m-d'),
             'email_verificado' => $consumidor->email_verified_at !== null,
         ];
     }

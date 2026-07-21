@@ -43,6 +43,9 @@ class PedidoPublicoController extends Controller
             'cliente.nombre' => ($consumidor ? 'nullable' : 'required').'|string|max:150',
             'cliente.telefono' => 'nullable|string|max:30',
             'cliente.email' => 'nullable|email|max:150',
+            // RF-T19: cumpleaños OPCIONAL siempre (la tienda lo pide solo si
+            // la config lo activa; se persiste en cliente y cuenta global).
+            'cliente.fecha_nacimiento' => 'nullable|date|before:today',
             'direccion.direccion' => 'required_if:tipo,delivery|string|max:255',
             'direccion.referencia' => 'nullable|string|max:255',
             'direccion.latitud' => 'nullable|numeric|between:-90,90',

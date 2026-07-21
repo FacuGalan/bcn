@@ -927,7 +927,9 @@ elegir otra; logueado ⇒ prioridad de la cuenta; cookie cifrada
   D17, limitación v1: sin usar_puntos con 2 FP).
 - **F3 (core)**: RF-T19 lado core — keys checkout + migraciones
   fecha_nacimiento (tenant + config) + exposición + validaciones +
-  contrato.
+  contrato. — ✅ COMPLETA (2026-07-21; config en ConfiguracionDelivery
+  con auto-save, GET /consumidores/me expone fecha_nacimiento,
+  centinela de TestCase actualizado).
 - **F4 (core)**: RF-T21 lado core (promos enriquecidas + contrato) +
   RF-T22 toggle sol/luna en el visor (+ aviso de contraste si es
   barato).

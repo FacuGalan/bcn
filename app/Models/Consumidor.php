@@ -29,6 +29,7 @@ class Consumidor extends Authenticatable
         'email',
         'password',
         'telefono',
+        'fecha_nacimiento',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -36,6 +37,7 @@ class Consumidor extends Authenticatable
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
+        'fecha_nacimiento' => 'date:Y-m-d',
     ];
 
     public function direcciones(): HasMany

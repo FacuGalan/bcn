@@ -64,6 +64,14 @@ class PedidoTiendaService
             throw new Exception(__('El take-away está deshabilitado en esta sucursal'));
         }
 
+        // Email obligatorio según config del checkout (RF-T19). El email del
+        // consumidor logueado satisface el requisito (viene de su cuenta).
+        if (($config['checkout']['pedir_email'] ?? 'opcional') === 'obligatorio'
+            && empty($payload['cliente']['email'])
+            && empty($consumidor?->email)) {
+            throw new Exception(__('El email es obligatorio para pedir en esta tienda'));
+        }
+
         // Envío (RF-06): con georreferenciación, coordenadas obligatorias y
         // fuera de alcance BLOQUEA (la API pública nunca fuerza).
         $costoEnvio = 0.0;
@@ -206,6 +214,12 @@ class PedidoTiendaService
         $detalles = $this->construirDetalles($resultado);
 
         $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $aceptacionManual);
+
+        // Cumpleaños (RF-T19): se persiste en el cliente tenant y, si el
+        // pedido es de consumidor logueado, también en su cuenta GLOBAL
+        // (pre-llena el checkout de otras tiendas). Invitado sin cliente:
+        // no hay dónde guardarlo (la tienda lo recuerda en su cookie).
+        $this->persistirFechaNacimiento($payload, $clienteId, $consumidor);
 
         // Pago con puntos (RF-T9): pago PLANIFICADO bajo la FP interna "Canje
         // Puntos" (solo_sistema) — la conversión a venta lo copia y ahí
@@ -412,6 +426,35 @@ class PedidoTiendaService
             'vuelto' => $pagaCon && $pagaCon > $total ? round($pagaCon - $total, 2) : 0,
             'planificado' => true,
         ]);
+    }
+
+    /**
+     * Cumpleaños declarado en el checkout (RF-T19): actualiza cliente tenant
+     * y cuenta global del consumidor. Nunca borra (solo setea si vino).
+     */
+    protected function persistirFechaNacimiento(array $payload, ?int $clienteId, ?Consumidor $consumidor): void
+    {
+        $fecha = $payload['cliente']['fecha_nacimiento'] ?? null;
+        if (! $fecha) {
+            return;
+        }
+
+        try {
+            if ($clienteId && ($cliente = Cliente::find($clienteId))) {
+                $cliente->update(['fecha_nacimiento' => $fecha]);
+            }
+
+            if ($consumidor) {
+                $consumidor->update(['fecha_nacimiento' => $fecha]);
+            }
+        } catch (Exception $e) {
+            // El cumpleaños nunca frena un pedido ya creado.
+            Log::warning('No se pudo persistir fecha_nacimiento del checkout', [
+                'cliente_id' => $clienteId,
+                'consumidor_id' => $consumidor?->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

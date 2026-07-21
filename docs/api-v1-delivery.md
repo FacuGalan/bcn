@@ -66,6 +66,17 @@ pago declarables**:
 }
 ```
 
+**Checkout** *(aditivo 2026-07-21, RF-T19)*: `GET /tiendas/{slug}` suma
+`checkout: { pedir_email: "no"|"opcional"|"obligatorio", pedir_cumpleanios:
+bool }` — qué datos del cliente pide el paso "tus datos" de la tienda. Con
+`pedir_email: "obligatorio"` el alta sin email (de payload o de la cuenta del
+consumidor) da 422. El cumpleaños NUNCA es obligatorio: la tienda lo muestra
+con la leyenda "se solicita para participar de promociones y descuentos" y
+viaja como `cliente.fecha_nacimiento` (date, pasada) en `POST /pedidos`; el
+core lo persiste en el cliente del comercio y, con Bearer, también en la
+cuenta global del consumidor (`GET /consumidores/me` lo devuelve para
+pre-llenar).
+
 `formas_pago` son las declarables **contra entrega/retiro** (el pago online
 integrado es otro circuito, pendiente en el spec de integraciones);
 `permite_vuelto: true` habilita el campo `paga_con` del alta de pedido.

@@ -1681,6 +1681,75 @@ class ApiV1DeliveryTest extends TestCase
         ))->assertStatus(422);
     }
 
+    // ==================== DATOS DEL CLIENTE (RF-T19 F3) ====================
+
+    public function test_tienda_show_expone_config_de_checkout(): void
+    {
+        // Defaults: comportamiento idéntico a hoy.
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.checkout.pedir_email', 'opcional')
+            ->assertJsonPath('data.checkout.pedir_cumpleanios', false);
+
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'checkout' => ['pedir_email' => 'obligatorio', 'pedir_cumpleanios' => true],
+            ]),
+        ]);
+
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.checkout.pedir_email', 'obligatorio')
+            ->assertJsonPath('data.checkout.pedir_cumpleanios', true);
+    }
+
+    public function test_pedido_sin_email_con_config_obligatorio_da_422(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'checkout' => ['pedir_email' => 'obligatorio'],
+            ]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        unset($payload['cliente']['email']);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertStatus(422);
+
+        $payload['cliente']['email'] = 'cliente@test.com';
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+    }
+
+    public function test_pedido_con_fecha_nacimiento_la_persiste_en_cliente_y_consumidor(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        [$consumidor, $cliente, $token] = $this->consumidorConClienteYPuntos();
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['cliente']['fecha_nacimiento'] = '1990-05-04';
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $this->assertSame('1990-05-04', $cliente->fresh()->fecha_nacimiento?->format('Y-m-d'), 'Se persiste en el cliente tenant');
+        $this->assertSame('1990-05-04', $consumidor->fresh()->fecha_nacimiento?->format('Y-m-d'), 'Se copia a la cuenta global');
+    }
+
+    public function test_pedido_con_fecha_nacimiento_futura_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['cliente']['fecha_nacimiento'] = now()->addYear()->format('Y-m-d');
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertStatus(422);
+    }
+
     // ==================== PUNTOS (RF-T8/RF-T9, Fase 3 tienda) ====================
 
     /** Programa de puntos activo: $100 = 1 punto; 1 punto = $50; mínimo 10. */

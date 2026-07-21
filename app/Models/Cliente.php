@@ -67,6 +67,7 @@ class Cliente extends Model
         'cuit',
         'email',
         'telefono',
+        'fecha_nacimiento',
         'direccion',
         // Domicilio de ENTREGA (delivery, D18) — SEPARADO del fiscal
         // (`direccion`, que alimenta ARCA/impresión/padrón y nunca se pisa)
@@ -99,6 +100,7 @@ class Cliente extends Model
 
     protected $casts = [
         'activo' => 'boolean',
+        'fecha_nacimiento' => 'date:Y-m-d',
         'latitud' => 'decimal:7',
         'longitud' => 'decimal:7',
         'tiene_cuenta_corriente' => 'boolean',

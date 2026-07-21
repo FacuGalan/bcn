@@ -85,6 +85,13 @@ class TiendaController extends Controller
                     'anticipacion_horas' => (int) ($config['encargos']['anticipacion_horas'] ?? 24),
                     'max_dias_adelante' => (int) ($config['encargos']['max_dias_adelante'] ?? 30),
                 ],
+                // RF-T19 (aditivo 2026-07-21): qué datos del cliente pide el
+                // checkout. El cumpleaños NUNCA es obligatorio (la tienda lo
+                // acompaña con la leyenda de promociones).
+                'checkout' => [
+                    'pedir_email' => (string) ($config['checkout']['pedir_email'] ?? 'opcional'),
+                    'pedir_cumpleanios' => (bool) ($config['checkout']['pedir_cumpleanios'] ?? false),
+                ],
             ],
         ]);
     }
