@@ -680,6 +680,26 @@ class ApiV1DeliveryTest extends TestCase
         ];
     }
 
+    public function test_pedido_persiste_la_aclaracion_por_item_y_el_seguimiento_la_devuelve(): void
+    {
+        // Aditivo 2026-07-22 (ronda 3f tienda): items[].observaciones —
+        // aclaración del cliente por renglón ("sin pepino").
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['items'][0]['observaciones'] = 'Sin pepino, bien cocida';
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+
+        $pedido = PedidoDelivery::with('detalles')->find($respuesta->json('data.id'));
+        $this->assertSame('Sin pepino, bien cocida', $pedido->detalles->firstWhere('articulo_id', $articulo->id)->observaciones);
+
+        $token = $respuesta->json('data.token_seguimiento');
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.observaciones', 'Sin pepino, bien cocida');
+    }
+
     public function test_pedido_externo_con_aceptacion_manual_entra_por_aceptar(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);

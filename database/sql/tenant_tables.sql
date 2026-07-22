@@ -2393,6 +2393,7 @@ CREATE TABLE `{{PREFIX}}pedidos_delivery_detalle` (
   `invitado_at` timestamp NULL DEFAULT NULL,
   `monto_invitado` decimal(12,2) NOT NULL DEFAULT '0.00',
   `precio_unitario_original` decimal(12,2) DEFAULT NULL,
+  `observaciones` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Aclaracion del cliente para este item (tienda online)',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),

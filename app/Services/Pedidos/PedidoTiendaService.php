@@ -225,7 +225,7 @@ class PedidoTiendaService
             '_actualizar_direccion_cliente' => false, // el consumidor gestiona sus direcciones globales
         ];
 
-        $detalles = $this->construirDetalles($resultado);
+        $detalles = $this->construirDetalles($resultado, array_values($payload['items']));
 
         $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $aceptacionManual);
 
@@ -552,7 +552,7 @@ class PedidoTiendaService
      * Renglones para PedidoDeliveryService::crearPedido a partir del
      * resultado del cotizador (promos por línea atribuidas por el motor).
      */
-    protected function construirDetalles(array $resultado): array
+    protected function construirDetalles(array $resultado, array $itemsPayload = []): array
     {
         $items = $this->cotizador->itemsCotizados();
         $detalles = [];
@@ -593,6 +593,9 @@ class PedidoTiendaService
                 'tiene_promocion' => ! empty($promocionesComunes) || ! empty($promocionesEspeciales),
                 'total' => $precioUnitario * $cantidad,
                 'opcionales' => $item['opcionales'] ?? [],
+                // Aclaración del cliente por ítem (mismo índice: el cotizador
+                // preserva el orden del payload).
+                'observaciones' => trim((string) ($itemsPayload[$index]['observaciones'] ?? '')) ?: null,
                 '_promociones_item' => [
                     'promociones_comunes' => $promocionesComunes,
                     'promociones_especiales' => $promocionesEspeciales,

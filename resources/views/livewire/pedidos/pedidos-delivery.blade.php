@@ -1469,6 +1469,12 @@
                                                         @endforeach
                                                     </div>
                                                 @endif
+                                                {{-- Aclaración del cliente por ítem (tienda online) --}}
+                                                @if($detalle->observaciones)
+                                                    <div class="text-xs font-medium text-amber-700 dark:text-amber-400 mt-0.5">
+                                                        📝 {{ $detalle->observaciones }}
+                                                    </div>
+                                                @endif
                                             </td>
                                             <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white text-right">{{ number_format($detalle->cantidad, 2, ',', '.') }}</td>
                                             <td class="px-4 py-2.5 text-sm text-gray-900 dark:text-white text-right">${{ number_format($detalle->precio_unitario, 2, ',', '.') }}</td>

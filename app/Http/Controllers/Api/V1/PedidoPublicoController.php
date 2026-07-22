@@ -37,6 +37,8 @@ class PedidoPublicoController extends Controller
             'items' => 'required|array|min:1|max:100',
             'items.*.articulo_id' => 'required|integer',
             'items.*.cantidad' => 'required|numeric|min:0.001',
+            // Aclaración del cliente por ítem (aditivo 2026-07-22): "sin pepino".
+            'items.*.observaciones' => 'nullable|string|max:255',
             'items.*.opcionales' => 'nullable|array',
             'items.*.opcionales.*.opcional_id' => 'required|integer',
             'items.*.opcionales.*.cantidad' => 'nullable|numeric|min:0.001',
@@ -152,6 +154,9 @@ class PedidoPublicoController extends Controller
                         'articulo_id' => (int) $d->articulo_id,
                         'nombre' => $d->articulo?->nombre,
                         'cantidad' => (float) $d->cantidad,
+                        // Aclaración del cliente (aditivo 2026-07-22): el
+                        // seguimiento la muestra y re-pedir la conserva.
+                        'observaciones' => $d->observaciones,
                         'opcionales' => $d->opcionales->map(fn ($op) => [
                             'opcional_id' => (int) $op->opcional_id,
                             'nombre' => $op->nombre_opcional,

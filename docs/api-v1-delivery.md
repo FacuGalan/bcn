@@ -397,6 +397,12 @@ Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
   "datos_fiscales": { "cuit": "20-...-3" }
 }
 ```
+`items[].observaciones` *(aditivo 2026-07-22)*: aclaración del cliente POR
+ÍTEM (string, máx 255 — ej. "sin pepino"). Se persiste en el renglón del
+pedido, se imprime en la comanda y se muestra en el panel; el seguimiento
+(`GET /pedidos/{token}`) la devuelve en `items[].observaciones` (re-pedir la
+conserva).
+
 `entrega` (opcional — "¿cuándo lo querés?"):
 - `franja` (solo modo `franjas`): un `hora` de `GET /franjas`; inventada o
   vencida → 422. Sin franja: default "lo antes posible" si la config lo
