@@ -276,3 +276,18 @@ ese provider hace algo caro en cada request (escaneo de FS, query, HTTP externo)
 
 > **IMPORTANTE:** cualquier probe `.php` o endpoint temporal que dejes en
 > `public/` para diagnosticar, **borralo al terminar**.
+
+---
+
+## Nota de tanda: "checkout operación tienda" (RF-T17..T23, mergeada 2026-07-22)
+
+Deploy CROSS-REPO con la tienda: **este core va PRIMERO**, la tienda después
+(consume campos nuevos del contrato: `cupon` enriquecido, `items[].observaciones`,
+`pagos[]`). Secuencia estándar de arriba, sin pasos extra. El `migrate --force`
+incluye 4 migraciones de la tanda: `disponible_en_tienda` (formas_pago_sucursales,
+tenant), `fecha_nacimiento` (clientes tenant + consumidores **CONFIG**) y
+`observaciones` (pedidos_delivery_detalle, tenant — aclaración por ítem que se ve
+en el panel y en la comanda). El checklist completo del deploy conjunto (env de
+Maps y APP_LOCALE de la tienda, validación end-to-end) vive en
+`bcn-tienda/.claude/docs/deploy-playbook.md`, sección "Deploy tanda checkout
+operación".
