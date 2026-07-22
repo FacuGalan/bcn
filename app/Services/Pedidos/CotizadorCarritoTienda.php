@@ -215,11 +215,17 @@ class CotizadorCarritoTienda
         $resultado['lista_precio_id'] = $this->listaPrecioId;
         $resultado['forma_venta_id'] = $this->formaVentaId;
         $resultado['canal_venta_id'] = $this->canalVentaId;
+        // Bloque cupón (aditivo 2026-07-22): `aplica_a` + artículos objetivo y
+        // bonificados, para que la tienda pueda explicar un cupón de artículos
+        // puntuales que no descuenta porque el artículo no está en el carrito.
         $resultado['cupon'] = $this->cuponAplicado ? [
             'id' => $this->cuponAplicado['id'] ?? null,
             'codigo' => $this->cuponAplicado['codigo'] ?? null,
             'descripcion' => $this->cuponAplicado['descripcion'] ?? null,
             'descuento' => $this->cuponMontoDescuento,
+            'aplica_a' => $this->cuponAplicado['aplica_a'] ?? 'total',
+            'articulos' => $this->cuponAplicado['articulos'] ?? [],
+            'articulos_bonificados' => array_values(array_map('intval', $this->cuponArticulosBonificados)),
         ] : null;
         // Contrato aditivo: total_final sigue siendo el total de bienes (sin
         // ajuste FP, paridad con el resultado del panel); total_a_pagar es lo
@@ -548,6 +554,12 @@ class CotizadorCarritoTienda
             'descripcion' => $cupon->descripcion,
             'modo_descuento' => $cupon->modo_descuento,
             'valor_descuento' => (float) $cupon->valor_descuento,
+            'aplica_a' => $cupon->aplica_a,
+            // Nombres de los artículos objetivo: la tienda los usa para avisar
+            // "este cupón es para X" cuando ninguno está en el carrito.
+            'articulos' => $cupon->aplicaAArticulos()
+                ? $cupon->articulos()->pluck('nombre')->values()->all()
+                : [],
         ];
         // El trait lee el id desde cuponInfo (paridad con WithCupones).
         $this->cuponInfo = ['id' => $cupon->id, 'codigo' => $cupon->codigo];

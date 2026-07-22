@@ -1419,6 +1419,41 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('error.message', __('Cupón expirado'));
     }
 
+    public function test_cupon_de_articulos_expone_objetivo_y_bonificados(): void
+    {
+        // Aditivo 2026-07-22 (ronda 3 tienda): el bloque cupon informa aplica_a,
+        // los artículos objetivo (nombres) y los bonificados, para que la tienda
+        // avise "este cupón es para X" cuando X no está en el carrito.
+        $enCarrito = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $objetivo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $cupon = $this->crearCuponPorcentaje(50);
+        $cupon->update(['aplica_a' => 'articulos']);
+        $cupon->articulos()->attach($objetivo->id, ['cantidad' => null]);
+
+        // Sin el artículo objetivo en el carrito: cotiza OK con descuento 0.
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $enCarrito->id, 'cantidad' => 1]],
+            'cupon_codigo' => $cupon->codigo,
+        ])->assertOk();
+
+        $this->assertSame('articulos', $respuesta->json('data.cupon.aplica_a'));
+        $this->assertSame([$objetivo->nombre], $respuesta->json('data.cupon.articulos'));
+        $this->assertSame([], $respuesta->json('data.cupon.articulos_bonificados'));
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.cupon.descuento'), 0.01);
+
+        // Con el artículo objetivo en el carrito: descuenta y lo marca bonificado.
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $objetivo->id, 'cantidad' => 1]],
+            'cupon_codigo' => $cupon->codigo,
+        ])->assertOk();
+
+        $this->assertSame([$objetivo->id], $respuesta->json('data.cupon.articulos_bonificados'));
+        $this->assertEqualsWithDelta(500.0, (float) $respuesta->json('data.cupon.descuento'), 0.01);
+    }
+
     // ==================== FORMA DE PAGO EN COTIZACIÓN/ALTA (paridad panel) ====================
 
     /** FP efectivo habilitada en sucursal con descuento del 10%. */

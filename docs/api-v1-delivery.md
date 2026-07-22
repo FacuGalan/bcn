@@ -311,6 +311,14 @@ muestra en el checkout. **Nunca calcular precios localmente.**
 `total_final`, `cupon`, `forma_pago`, `total_a_pagar`, `desglose_iva`. El
 costo de envío va aparte (endpoint anterior) y lo suma el alta del pedido.
 
+`cupon` *(enriquecido aditivo 2026-07-22)*: `{ id, codigo, descripcion,
+descuento, aplica_a, articulos, articulos_bonificados }`. `aplica_a` es
+`total` o `articulos`; con `articulos`, `articulos` son los NOMBRES de los
+artículos objetivo del cupón y `articulos_bonificados` los IDs que efectivamente
+matchearon en el carrito. Un cupón de artículos puntuales sin match cotiza OK
+con `descuento: 0` y `articulos_bonificados: []` — la tienda debe avisar para
+qué artículo es el cupón en vez de aplicarlo en silencio.
+
 `forma_pago_id` (opcional): la FP que el consumidor piensa declarar. Participa
 del precio con los **mismos cálculos del panel**: promociones y listas de
 precios condicionadas por forma de pago, cupones restringidos a FP, y el
