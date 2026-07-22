@@ -168,6 +168,55 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertFalse($nombres->contains('Solo otro dia'));
     }
 
+    public function test_promociones_genericas_exponen_precio_fijo_y_condiciones_rf_t21(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush(); // catálogo cacheado 60s server-side
+
+        $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Común con condiciones de monto mínimo + horario.
+        \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Nocturna por monto',
+            'tipo' => 'descuento_porcentaje', 'valor' => 5, 'prioridad' => 2,
+            'combinable' => true, 'activo' => true, 'usos_actuales' => 0,
+            'hora_desde' => '20:00', 'hora_hasta' => '23:00',
+        ])->condiciones()->create(['tipo_condicion' => 'por_total_compra', 'monto_minimo' => 50000]);
+
+        // Combo de PRECIO FIJO.
+        \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Combo Fijo',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_COMBO,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'precio_tipo' => \App\Models\PromocionEspecial::PRECIO_FIJO,
+            'precio_valor' => 15000,
+            'prioridad' => 1, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        // NxM 3x2.
+        \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Tres por Dos',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_NXM,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'nxm_lleva' => 3, 'nxm_paga' => 2,
+            'prioridad' => 3, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+
+        $promos = collect($this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk()
+            ->json('data.promociones_genericas'));
+
+        $nocturna = $promos->firstWhere('nombre', 'Nocturna por monto');
+        $this->assertNull($nocturna['precio_fijo']);
+        $this->assertContains('Total mínimo: $50,000.00', $nocturna['condiciones']);
+        $this->assertContains('De 20:00 a 23:00', $nocturna['condiciones']);
+
+        $comboFijo = $promos->firstWhere('nombre', 'Combo Fijo');
+        $this->assertEqualsWithDelta(15000.0, (float) $comboFijo['precio_fijo'], 0.01);
+
+        $tresPorDos = $promos->firstWhere('nombre', 'Tres por Dos');
+        $this->assertNull($tresPorDos['precio_fijo']);
+        $this->assertContains('Llevás 3, pagás 2', $tresPorDos['condiciones']);
+    }
+
     public function test_catalogo_expone_galeria_y_badges_rf_t14(): void
     {
         \Illuminate\Support\Facades\Cache::flush(); // catálogo cacheado 60s server-side
@@ -631,6 +680,26 @@ class ApiV1DeliveryTest extends TestCase
         ];
     }
 
+    public function test_pedido_persiste_la_aclaracion_por_item_y_el_seguimiento_la_devuelve(): void
+    {
+        // Aditivo 2026-07-22 (ronda 3f tienda): items[].observaciones —
+        // aclaración del cliente por renglón ("sin pepino").
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['items'][0]['observaciones'] = 'Sin pepino, bien cocida';
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+
+        $pedido = PedidoDelivery::with('detalles')->find($respuesta->json('data.id'));
+        $this->assertSame('Sin pepino, bien cocida', $pedido->detalles->firstWhere('articulo_id', $articulo->id)->observaciones);
+
+        $token = $respuesta->json('data.token_seguimiento');
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.observaciones', 'Sin pepino, bien cocida');
+    }
+
     public function test_pedido_externo_con_aceptacion_manual_entra_por_aceptar(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
@@ -863,6 +932,49 @@ class ApiV1DeliveryTest extends TestCase
         $efectivo = $formasPago->firstWhere('id', $fp->id);
         $this->assertNotNull($efectivo, 'El efectivo habilitado en la sucursal se expone');
         $this->assertTrue((bool) $efectivo['permite_vuelto']);
+    }
+
+    public function test_tienda_show_respeta_orden_y_disponibilidad_en_tienda_de_las_fp(): void
+    {
+        $base = $this->crearFormaPagoEfectivo();
+
+        // Nombres invertidos respecto del orden: si ordenara por nombre, el test falla.
+        $ultima = $base['formaPago'];
+        $ultima->update(['nombre' => 'AAA va última', 'orden' => 30]);
+        $ultima->sucursales()->attach($this->sucursalId, ['activo' => true]);
+
+        $primera = \App\Models\FormaPago::create([
+            'nombre' => 'ZZZ va primera',
+            'codigo' => 'zzz_primera',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $base['concepto']->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => 0,
+            'activo' => true,
+            'orden' => 10,
+        ]);
+        $primera->sucursales()->attach($this->sucursalId, ['activo' => true]);
+
+        $oculta = \App\Models\FormaPago::create([
+            'nombre' => 'MMM oculta en tienda',
+            'codigo' => 'mmm_oculta',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $base['concepto']->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => 0,
+            'activo' => true,
+            'orden' => 20,
+        ]);
+        $oculta->sucursales()->attach($this->sucursalId, ['activo' => true, 'disponible_en_tienda' => false]);
+
+        $formasPago = collect($this->getJson('/api/v1/tiendas/tienda-test')->assertOk()->json('data.formas_pago'));
+
+        $this->assertNull($formasPago->firstWhere('id', $oculta->id), 'La FP marcada no disponible en tienda queda excluida');
+
+        $ids = $formasPago->whereIn('id', [$ultima->id, $primera->id])->pluck('id')->values()->all();
+        $this->assertSame([$primera->id, $ultima->id], $ids, 'Las FP vienen ordenadas por el campo orden, no por nombre');
     }
 
     public function test_franjas_endpoint_devuelve_horarios_de_la_jornada_por_tipo(): void
@@ -1327,6 +1439,41 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('error.message', __('Cupón expirado'));
     }
 
+    public function test_cupon_de_articulos_expone_objetivo_y_bonificados(): void
+    {
+        // Aditivo 2026-07-22 (ronda 3 tienda): el bloque cupon informa aplica_a,
+        // los artículos objetivo (nombres) y los bonificados, para que la tienda
+        // avise "este cupón es para X" cuando X no está en el carrito.
+        $enCarrito = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $objetivo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $cupon = $this->crearCuponPorcentaje(50);
+        $cupon->update(['aplica_a' => 'articulos']);
+        $cupon->articulos()->attach($objetivo->id, ['cantidad' => null]);
+
+        // Sin el artículo objetivo en el carrito: cotiza OK con descuento 0.
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $enCarrito->id, 'cantidad' => 1]],
+            'cupon_codigo' => $cupon->codigo,
+        ])->assertOk();
+
+        $this->assertSame('articulos', $respuesta->json('data.cupon.aplica_a'));
+        $this->assertSame([$objetivo->nombre], $respuesta->json('data.cupon.articulos'));
+        $this->assertSame([], $respuesta->json('data.cupon.articulos_bonificados'));
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.cupon.descuento'), 0.01);
+
+        // Con el artículo objetivo en el carrito: descuenta y lo marca bonificado.
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $objetivo->id, 'cantidad' => 1]],
+            'cupon_codigo' => $cupon->codigo,
+        ])->assertOk();
+
+        $this->assertSame([$objetivo->id], $respuesta->json('data.cupon.articulos_bonificados'));
+        $this->assertEqualsWithDelta(500.0, (float) $respuesta->json('data.cupon.descuento'), 0.01);
+    }
+
     // ==================== FORMA DE PAGO EN COTIZACIÓN/ALTA (paridad panel) ====================
 
     /** FP efectivo habilitada en sucursal con descuento del 10%. */
@@ -1469,6 +1616,288 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertEqualsWithDelta(500.0, (float) $pedido->costo_envio, 0.01);
         $this->assertEqualsWithDelta(-100.0, (float) $pedido->ajuste_forma_pago, 0.01, 'El ajuste es -10% de los productos, sin el envío');
         $this->assertEqualsWithDelta(1400.0, (float) $pedido->total_final, 0.01);
+    }
+
+    // ==================== MULTI-PAGO (RF-T18 F2) ====================
+
+    /** FP Transferencia (sin vuelto) habilitada en la sucursal de test. */
+    protected function formaPagoTransferenciaEnSucursal(float $ajuste = 0): \App\Models\FormaPago
+    {
+        $concepto = \App\Models\ConceptoPago::firstOrCreate(
+            ['codigo' => 'TRANSFERENCIA'],
+            ['nombre' => 'Transferencia', 'permite_cuotas' => false, 'permite_vuelto' => false, 'activo' => true, 'orden' => 2],
+        );
+
+        $fp = \App\Models\FormaPago::create([
+            'nombre' => 'Transferencia',
+            'codigo' => 'transferencia',
+            'concepto' => 'transferencia',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => $ajuste,
+            'activo' => true,
+        ]);
+        $fp->sucursales()->attach($this->sucursalId, ['activo' => true]);
+
+        return $fp;
+    }
+
+    public function test_cotizar_con_dos_fp_desglosa_el_ajuste_por_porcion(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+            ],
+        ])->assertOk();
+
+        // $1000 de bienes: efectivo cubre $600 (−10% → −$60), transferencia
+        // $400 sin ajuste. total_a_pagar = 540 + 400 = 940.
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.total_final'), 0.01);
+        $this->assertNull($respuesta->json('data.forma_pago'));
+
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertCount(2, $pagos);
+        $this->assertEqualsWithDelta(600.0, (float) $pagos[0]['monto_base'], 0.01);
+        $this->assertEqualsWithDelta(-60.0, (float) $pagos[0]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(540.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertTrue((bool) $pagos[0]['permite_vuelto']);
+        $this->assertEqualsWithDelta(400.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(940.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_cotizar_con_dos_fp_que_no_suman_el_total_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 300],
+            ],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'pagos_invalidos');
+    }
+
+    public function test_cotizar_con_segundo_pago_sin_monto_cubre_el_resto(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id], // sin monto = el resto
+            ],
+        ])->assertOk();
+
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertEqualsWithDelta(400.0, (float) $pagos[1]['monto_base'], 0.01, 'El resto ($1000 − $600) lo calculó el core');
+        $this->assertEqualsWithDelta(940.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_cotizar_con_fp_repetida_en_el_desglose_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $efectivo->id, 'monto' => 400],
+            ],
+        ])
+            ->assertStatus(422)
+            ->assertJsonPath('error.code', 'pagos_invalidos');
+    }
+
+    public function test_cotizar_dos_fp_con_envio_excluye_el_envio_de_la_base_del_ajuste(): void
+    {
+        // D17 proporcional: $1000 de bienes + $500 de envío. Efectivo cubre
+        // $900 (60% del pedido) → su base de ajuste son $600 de bienes → −$60.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'costo_envio' => 500,
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 900],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 600],
+            ],
+        ])->assertOk();
+
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertEqualsWithDelta(-60.0, (float) $pagos[0]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(840.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(600.0, (float) $pagos[1]['monto_final'], 0.01);
+        // total_a_pagar con `pagos` + `costo_envio` INCLUYE el envío.
+        $this->assertEqualsWithDelta(1440.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_pedido_con_dos_fp_registra_dos_pagos_planificados_como_el_panel(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', array_merge(
+            $this->payloadPedido($articulo->id),
+            ['pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600, 'paga_con' => 1000],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+            ]],
+        ))->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        $this->assertEqualsWithDelta(-60.0, (float) $pedido->ajuste_forma_pago, 0.01);
+        $this->assertEqualsWithDelta(940.0, (float) $pedido->total_final, 0.01);
+
+        $pagos = $pedido->pagos()->orderBy('id')->get();
+        $this->assertCount(2, $pagos);
+
+        $pagoEfectivo = $pagos->firstWhere('forma_pago_id', $efectivo->id);
+        $this->assertSame(\App\Models\PedidoDeliveryPago::ESTADO_PLANIFICADO, $pagoEfectivo->estado);
+        $this->assertEqualsWithDelta(600.0, (float) $pagoEfectivo->monto_base, 0.01);
+        $this->assertEqualsWithDelta(-60.0, (float) $pagoEfectivo->monto_ajuste, 0.01);
+        $this->assertEqualsWithDelta(540.0, (float) $pagoEfectivo->monto_final, 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $pagoEfectivo->monto_recibido, 0.01);
+        $this->assertEqualsWithDelta(460.0, (float) $pagoEfectivo->vuelto, 0.01);
+
+        $pagoTransferencia = $pagos->firstWhere('forma_pago_id', $transferencia->id);
+        $this->assertSame(\App\Models\PedidoDeliveryPago::ESTADO_PLANIFICADO, $pagoTransferencia->estado);
+        $this->assertEqualsWithDelta(400.0, (float) $pagoTransferencia->monto_final, 0.01);
+        $this->assertNull($pagoTransferencia->monto_recibido);
+    }
+
+    public function test_pedido_con_dos_fp_y_paga_con_insuficiente_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', array_merge(
+            $this->payloadPedido($articulo->id),
+            ['pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600, 'paga_con' => 500],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+            ]],
+        ))->assertStatus(422);
+    }
+
+    // ==================== DATOS DEL CLIENTE (RF-T19 F3) ====================
+
+    public function test_tienda_show_expone_config_de_checkout(): void
+    {
+        // Defaults: comportamiento idéntico a hoy.
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.checkout.pedir_email', 'opcional')
+            ->assertJsonPath('data.checkout.pedir_cumpleanios', false)
+            ->assertJsonPath('data.checkout.pedir_entre_calles', 'opcional');
+
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'checkout' => ['pedir_email' => 'obligatorio', 'pedir_cumpleanios' => true],
+            ]),
+        ]);
+
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.checkout.pedir_email', 'obligatorio')
+            ->assertJsonPath('data.checkout.pedir_cumpleanios', true);
+    }
+
+    public function test_pedido_sin_email_con_config_obligatorio_da_422(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'checkout' => ['pedir_email' => 'obligatorio'],
+            ]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        unset($payload['cliente']['email']);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertStatus(422);
+
+        $payload['cliente']['email'] = 'cliente@test.com';
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+    }
+
+    public function test_pedido_con_fecha_nacimiento_la_persiste_en_cliente_y_consumidor(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        [$consumidor, $cliente, $token] = $this->consumidorConClienteYPuntos();
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['cliente']['fecha_nacimiento'] = '1990-05-04';
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $this->assertSame('1990-05-04', $cliente->fresh()->fecha_nacimiento?->format('Y-m-d'), 'Se persiste en el cliente tenant');
+        $this->assertSame('1990-05-04', $consumidor->fresh()->fecha_nacimiento?->format('Y-m-d'), 'Se copia a la cuenta global');
+    }
+
+    public function test_entre_calles_obligatorio_bloquea_y_se_persiste_en_la_referencia(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode([
+                'checkout' => ['pedir_entre_calles' => 'obligatorio'],
+            ]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        // Sin entre calles → 422 con motivo.
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))
+            ->assertStatus(422);
+
+        // Con entre calles → se persiste DENTRO de la referencia de entrega.
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['direccion']['entre_calles'] = 'Av. Norte y Calle Sur';
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertStringContainsString('Av. Norte y Calle Sur', (string) $pedido->direccion_referencia);
+        $this->assertStringContainsString('3B', (string) $pedido->direccion_referencia, 'La referencia original se conserva');
+    }
+
+    public function test_pedido_con_fecha_nacimiento_futura_da_422(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['cliente']['fecha_nacimiento'] = now()->addYear()->format('Y-m-d');
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertStatus(422);
     }
 
     // ==================== PUNTOS (RF-T8/RF-T9, Fase 3 tienda) ====================

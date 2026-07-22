@@ -57,6 +57,8 @@ class ConfiguracionDelivery extends Component
         // precarga el calendario ANTES de persistir)
         'programadosAparecenMinAntes', 'encargosDias', 'encargosHorarios',
         'encargosFeriados', 'encargosAnticipacionHoras', 'encargosMaxDias',
+        // RF-T19 — datos del cliente en el checkout de la tienda
+        'checkoutPedirEmail', 'checkoutPedirCumpleanios', 'checkoutPedirEntreCalles',
     ];
 
     // ==================== CONFIG SUCURSAL (RF-05) ====================
@@ -87,6 +89,15 @@ class ConfiguracionDelivery extends Component
     public bool $imprimirComandaAlAceptar = false;
 
     public string $timeoutAceptacionMin = '';
+
+    /** RF-T19: email en el checkout de la tienda — no | opcional | obligatorio */
+    public string $checkoutPedirEmail = 'opcional';
+
+    /** RF-T19: pedir cumpleaños en el checkout (nunca obligatorio) */
+    public bool $checkoutPedirCumpleanios = false;
+
+    /** RF-T19: entre calles del delivery — no | opcional | obligatorio */
+    public string $checkoutPedirEntreCalles = 'opcional';
 
     /** @var array<int, bool> día (1=lunes .. 7=domingo) => laboral */
     public array $diasLaborales = [];
@@ -312,6 +323,9 @@ class ConfiguracionDelivery extends Component
         $this->aceptacionPedidosExternos = (string) $config['aceptacion_pedidos_externos'];
         $this->imprimirComandaAlAceptar = (bool) $config['imprimir_comanda_al_aceptar'];
         $this->timeoutAceptacionMin = $config['timeout_aceptacion_min'] !== null ? (string) $config['timeout_aceptacion_min'] : '';
+        $this->checkoutPedirEmail = (string) ($config['checkout']['pedir_email'] ?? 'opcional');
+        $this->checkoutPedirCumpleanios = (bool) ($config['checkout']['pedir_cumpleanios'] ?? false);
+        $this->checkoutPedirEntreCalles = (string) ($config['checkout']['pedir_entre_calles'] ?? 'opcional');
 
         $this->diasLaborales = [];
         foreach (range(1, 7) as $dia) {
@@ -434,6 +448,16 @@ class ConfiguracionDelivery extends Component
                 'feriados' => array_values($this->encargosFeriados),
                 'anticipacion_horas' => max(0, (int) $this->encargosAnticipacionHoras),
                 'max_dias_adelante' => max(1, (int) $this->encargosMaxDias),
+            ],
+            // Datos del cliente en el checkout (RF-T19)
+            'checkout' => [
+                'pedir_email' => in_array($this->checkoutPedirEmail, ['no', 'opcional', 'obligatorio'], true)
+                    ? $this->checkoutPedirEmail
+                    : 'opcional',
+                'pedir_cumpleanios' => $this->checkoutPedirCumpleanios,
+                'pedir_entre_calles' => in_array($this->checkoutPedirEntreCalles, ['no', 'opcional', 'obligatorio'], true)
+                    ? $this->checkoutPedirEntreCalles
+                    : 'opcional',
             ],
         ]);
 

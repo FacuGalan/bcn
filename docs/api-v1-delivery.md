@@ -66,12 +66,32 @@ pago declarables**:
 }
 ```
 
+**Checkout** *(aditivo 2026-07-21, RF-T19)*: `GET /tiendas/{slug}` suma
+`checkout: { pedir_email: "no"|"opcional"|"obligatorio", pedir_cumpleanios:
+bool, pedir_entre_calles: "no"|"opcional"|"obligatorio" }` — qué datos del
+cliente pide el paso "tus datos" de la tienda. `entre_calles` (solo delivery)
+viaja como `direccion.entre_calles` en `POST /pedidos`; con config
+"obligatorio" y sin dato → 422. El core lo persiste DENTRO de la referencia
+de entrega ("Entre calles: X · {referencia}"), visible en panel y comanda. Con
+`pedir_email: "obligatorio"` el alta sin email (de payload o de la cuenta del
+consumidor) da 422. El cumpleaños NUNCA es obligatorio: la tienda lo muestra
+con la leyenda "se solicita para participar de promociones y descuentos" y
+viaja como `cliente.fecha_nacimiento` (date, pasada) en `POST /pedidos`; el
+core lo persiste en el cliente del comercio y, con Bearer, también en la
+cuenta global del consumidor (`GET /consumidores/me` lo devuelve para
+pre-llenar).
+
 `formas_pago` son las declarables **contra entrega/retiro** (el pago online
 integrado es otro circuito, pendiente en el spec de integraciones);
 `permite_vuelto: true` habilita el campo `paga_con` del alta de pedido.
 `ajuste_porcentaje` es el descuento (negativo) o recargo (positivo) de esa FP
 — mostrarlo junto a la opción ("Efectivo −10%"); el monto exacto lo calcula
 `carrito/cotizar` con `forma_pago_id`.
+
+*(Aditivo 2026-07-21, RF-T18)* la lista viene ordenada por el `orden` que el
+comercio definió en el panel (la tienda la muestra tal cual llega, sin
+reordenar) y excluye las FP marcadas como no disponibles en tienda online
+para esa sucursal (filtro server-side; el shape de cada ítem no cambia).
 
 **Analytics, tema y comportamiento** (aditivo 2026-07-17, RF-T7 + RF-T6):
 
@@ -179,6 +199,11 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   categoría) y especiales automáticas (NxM/combos/grupos) del canal tienda.
   Alimenta el aviso "Promociones de hoy" de la home (visible según
   `tema.promos.mostrar_home`). Vacío ⇒ sin aviso.
+- *(Aditivo 2026-07-21, RF-T21)* cada promo genérica suma `precio_fijo`
+  (number|null — el precio fijo de la promo/combo, para destacarlo) y
+  `condiciones` (list<string> legibles y listas para mostrar: mínimos de
+  cantidad/total, forma de pago, categoría, mecánica NxM "Llevás 3, pagás
+  2", días y horario). Lista vacía ⇒ promo sin condiciones.
 
 **Galería y badges por artículo** (aditivo 2026-07-20, RF-T14):
 
@@ -286,6 +311,14 @@ muestra en el checkout. **Nunca calcular precios localmente.**
 `total_final`, `cupon`, `forma_pago`, `total_a_pagar`, `desglose_iva`. El
 costo de envío va aparte (endpoint anterior) y lo suma el alta del pedido.
 
+`cupon` *(enriquecido aditivo 2026-07-22)*: `{ id, codigo, descripcion,
+descuento, aplica_a, articulos, articulos_bonificados }`. `aplica_a` es
+`total` o `articulos`; con `articulos`, `articulos` son los NOMBRES de los
+artículos objetivo del cupón y `articulos_bonificados` los IDs que efectivamente
+matchearon en el carrito. Un cupón de artículos puntuales sin match cotiza OK
+con `descuento: 0` y `articulos_bonificados: []` — la tienda debe avisar para
+qué artículo es el cupón en vez de aplicarlo en silencio.
+
 `forma_pago_id` (opcional): la FP que el consumidor piensa declarar. Participa
 del precio con los **mismos cálculos del panel**: promociones y listas de
 precios condicionadas por forma de pago, cupones restringidos a FP, y el
@@ -313,6 +346,44 @@ monto pagado sin puntos × multiplicador de la FP ÷ monto_por_punto, con el
 redondeo de la config; sin envío). El crédito verdadero lo hace la conversión
 a venta.
 
+**Multi-pago** *(aditivo 2026-07-21, RF-T18)*: `pagos` (opcional, hasta **2**
+FP) reemplaza a `forma_pago_id` (si viajan ambos, gana `pagos`). Cada ítem
+lleva el **monto que esa FP cubre SIN su ajuste** (los ajustes los calcula y
+devuelve el core, sumados encima). `costo_envio` (opcional) es la cotización
+que la tienda ya obtuvo de `/envios/cotizar`, para desglosar el total completo:
+
+```json
+{ "pagos": [ { "forma_pago_id": 1, "monto": 6000 },
+             { "forma_pago_id": 3, "monto": 4000 } ],
+  "costo_envio": 500 }
+```
+
+Reglas: los montos deben **sumar `total_final` + `costo_envio`** (±0.05, si no
+422 `pagos_invalidos`); a lo sumo UN pago puede viajar **sin `monto`** y cubre
+EL RESTO (recomendado: la tienda manda el monto de la primera FP y la segunda
+sin monto — nunca calcula el resto localmente); FP repetida → 422; ambas FP
+deben ser declarables en la tienda. La **primera FP es la principal**: participa del precio como la FP
+única (promos/listas condicionadas por FP, cupones restringidos). El ajuste de
+CADA FP se calcula sobre **su porción** con la regla del panel, excluyendo el
+envío proporcionalmente de la base (D17). Respuesta: `forma_pago` viene null y
+se suma `pagos[]`; **`total_a_pagar` = Σ monto_final e INCLUYE el
+`costo_envio` informado** (a diferencia del modo single-FP):
+
+```json
+"pagos": [
+  { "forma_pago_id": 1, "nombre": "Efectivo", "monto_base": 6000,
+    "ajuste_porcentaje": -10, "monto_ajuste": -572.73, "monto_final": 5427.27,
+    "permite_vuelto": true },
+  { "forma_pago_id": 3, "nombre": "Transferencia", "monto_base": 4000,
+    "ajuste_porcentaje": 0, "monto_ajuste": 0, "monto_final": 4000,
+    "permite_vuelto": false }
+],
+"total_a_pagar": 9427.27
+```
+
+Limitación v1: `pagos` + `usar_puntos` → 422 (el canje de puntos sigue
+disponible solo con FP única).
+
 ### `POST /v1/tiendas/{slug}/pedidos`
 Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
 ```json
@@ -326,6 +397,12 @@ Alta de pedido (throttle 15/min). Mismo payload del carrito **+**:
   "datos_fiscales": { "cuit": "20-...-3" }
 }
 ```
+`items[].observaciones` *(aditivo 2026-07-22)*: aclaración del cliente POR
+ÍTEM (string, máx 255 — ej. "sin pepino"). Se persiste en el renglón del
+pedido, se imprime en la comanda y se muestra en el panel; el seguimiento
+(`GET /pedidos/{token}`) la devuelve en `items[].observaciones` (re-pedir la
+conserva).
+
 `entrega` (opcional — "¿cuándo lo querés?"):
 - `franja` (solo modo `franjas`): un `hora` de `GET /franjas`; inventada o
   vencida → 422. Sin franja: default "lo antes posible" si la config lo
@@ -346,6 +423,16 @@ en el panel (`monto_base + monto_ajuste = monto_final`). El **envío queda
 fuera** de la base del ajuste (es un valor fijo): efectivo −10% sobre $1000 de
 productos + $500 de envío = $1400. Checkout con la misma FP y pedido muestran
 el MISMO total.
+
+**Multi-pago** *(aditivo 2026-07-21, RF-T18)*: `pagos` (hasta 2, mismas reglas
+que en `carrito/cotizar`; con `pagos`, el `pago` singular se ignora) admite
+`paga_con` POR pago (solo FP con `permite_vuelto`; menor a su `monto_final` →
+422). Los montos deben sumar `total_final` de bienes **+ el costo de envío que
+cotiza el alta** (mismo valor de `/envios/cotizar`). El pedido queda con N
+pagos **planificados** idénticos a un pedido cargado a mano en el panel
+(desglose `monto_base/monto_ajuste/monto_final/monto_recibido/vuelto` por FP)
+y `total_final` = Σ `monto_final`. Limitación v1: incompatible con
+`usar_puntos` (422).
 
 Reglas:
 - Tienda cerrada (calendario/horarios) → 422.

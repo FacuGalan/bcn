@@ -1978,6 +1978,8 @@ class PedidoDeliveryService
             'invitado_at' => $detalle['invitado_at'] ?? null,
             'monto_invitado' => $detalle['monto_invitado'] ?? 0,
             'precio_unitario_original' => $detalle['precio_unitario_original'] ?? null,
+            // Aclaración del cliente por ítem (tienda online: "sin pepino").
+            'observaciones' => $detalle['observaciones'] ?? null,
         ]);
 
         if (! empty($detalle['_promociones_item'])) {

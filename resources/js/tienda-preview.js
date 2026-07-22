@@ -25,6 +25,11 @@ document.addEventListener('alpine:init', () => {
     window.Alpine.data('tiendaPreview', () => ({
         open: false,
 
+        // RF-T22: modo de color FORZADO en el visor (null = auto del
+        // dispositivo). El toggle sol/luna lo alterna y viaja en el estado
+        // del preview — la tienda setea data-modo en :root.
+        modoVisor: null,
+
         init() {
             this.origenTienda = this.$el.dataset.origenTienda || null;
             this.logoUrl = this.$el.dataset.logoUrl || null;
@@ -129,7 +134,15 @@ document.addEventListener('alpine:init', () => {
                 },
                 logoUrl: this.logoUrl,
                 portadaUrl: this.portadaUrl,
+                // RF-T22: modo forzado del visor (null = auto).
+                modo: this.modoVisor,
             }, this.origenTienda);
+        },
+
+        // RF-T22: alterna claro/oscuro en el iframe (primer click = oscuro).
+        toggleModoVisor() {
+            this.modoVisor = this.modoVisor === 'oscuro' ? 'claro' : 'oscuro';
+            this.enviarEstado();
         },
 
         enviarEstadoDebounced() {

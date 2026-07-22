@@ -100,6 +100,11 @@ class PlantillasComanda
                 $nom = $opc->nombre_opcional ?? 'Opcional';
                 $out .= '  + '.$cant.'x '.$nom.self::LF;
             }
+
+            // Aclaración del cliente por ítem (tienda online: "sin pepino").
+            if (! empty($detalle->observaciones)) {
+                $out .= '  * '.$detalle->observaciones.self::LF;
+            }
         }
 
         if (! empty($pedido->observaciones)) {
@@ -154,6 +159,11 @@ class PlantillasComanda
                 $cant = $opc->cantidad ?? 1;
                 $nom = $opc->nombre_opcional ?? 'Opcional';
                 $items .= '<div style="padding-left:1em">+ '.e((string) $cant).'x '.e($nom).'</div>';
+            }
+
+            // Aclaración del cliente por ítem (tienda online: "sin pepino").
+            if (! empty($detalle->observaciones)) {
+                $items .= '<div style="padding-left:1em;font-style:italic">* '.e($detalle->observaciones).'</div>';
             }
         }
 

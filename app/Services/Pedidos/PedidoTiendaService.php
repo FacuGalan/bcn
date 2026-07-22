@@ -64,6 +64,22 @@ class PedidoTiendaService
             throw new Exception(__('El take-away está deshabilitado en esta sucursal'));
         }
 
+        // Email obligatorio según config del checkout (RF-T19). El email del
+        // consumidor logueado satisface el requisito (viene de su cuenta).
+        if (($config['checkout']['pedir_email'] ?? 'opcional') === 'obligatorio'
+            && empty($payload['cliente']['email'])
+            && empty($consumidor?->email)) {
+            throw new Exception(__('El email es obligatorio para pedir en esta tienda'));
+        }
+
+        // Entre calles (RF-T19): solo delivery; obligatorio según config.
+        $entreCalles = trim((string) ($payload['direccion']['entre_calles'] ?? ''));
+        if ($tipo === PedidoDelivery::TIPO_DELIVERY
+            && ($config['checkout']['pedir_entre_calles'] ?? 'opcional') === 'obligatorio'
+            && $entreCalles === '') {
+            throw new Exception(__('Indicá entre qué calles está la dirección'));
+        }
+
         // Envío (RF-06): con georreferenciación, coordenadas obligatorias y
         // fuera de alcance BLOQUEA (la API pública nunca fuerza).
         $costoEnvio = 0.0;
@@ -91,9 +107,19 @@ class PedidoTiendaService
         // artículos no pedibles (RF-16/RF-17). La FP declarada participa del
         // precio (promos/listas por FP + ajuste por FP), igual que en el panel.
         $clienteId = $this->resolverClienteId($sucursal, $consumidor);
-        $formaPagoId = isset($payload['pago']['forma_pago_id'])
-            ? (int) $payload['pago']['forma_pago_id']
-            : null;
+
+        // Multi-pago (RF-T18): la PRIMERA FP es la principal (participa del
+        // precio como la FP única); la segunda solo aporta su ajuste sobre su
+        // porción. Con `pagos`, el `pago` singular se ignora. Incompatible
+        // con canje de puntos en v1.
+        $pagosInput = isset($payload['pagos']) ? array_values($payload['pagos']) : null;
+        if ($pagosInput && ! empty($payload['usar_puntos'])) {
+            throw new Exception(__('El canje de puntos no se puede combinar con dos formas de pago'));
+        }
+
+        $formaPagoId = $pagosInput
+            ? (int) ($pagosInput[0]['forma_pago_id'] ?? 0)
+            : (isset($payload['pago']['forma_pago_id']) ? (int) $payload['pago']['forma_pago_id'] : null);
         $resultado = $this->cotizador->cotizar(
             $sucursal,
             $tipo,
@@ -103,6 +129,20 @@ class PedidoTiendaService
             $formaPagoId ?: null,
         );
         $ajusteFormaPago = $this->cotizador->ajusteFormaPagoMonto();
+
+        // Desglose multi-pago: los montos deben cubrir bienes + envío; el
+        // ajuste del pedido pasa a ser la SUMA de los ajustes por porción
+        // (misma regla del panel — reemplaza al ajuste single-FP de arriba).
+        $pagosDesglosados = null;
+        if ($pagosInput) {
+            $pagosDesglosados = $this->cotizador->desglosarPagos(
+                $sucursal,
+                $pagosInput,
+                round((float) ($resultado['total_final'] ?? 0) + $costoEnvio, 2),
+                $costoEnvio,
+            );
+            $ajusteFormaPago = round(array_sum(array_column($pagosDesglosados, 'monto_ajuste')), 2);
+        }
 
         // Canje de puntos (RF-T9, Fase 3): pago por el MÁXIMO sobre el total
         // de bienes + ajuste FP (SIN envío — los puntos nunca cubren el
@@ -165,7 +205,13 @@ class PedidoTiendaService
             'datos_fiscales_snapshot' => $payload['datos_fiscales'] ?? null,
             // Dirección (snapshot RF-04) + envío.
             'direccion_entrega' => $tipo === PedidoDelivery::TIPO_DELIVERY ? ($payload['direccion']['direccion'] ?? null) : null,
-            'direccion_referencia' => $payload['direccion']['referencia'] ?? null,
+            // Entre calles (RF-T19): viaja aparte en el contrato y se persiste
+            // DENTRO de la referencia de entrega (visible en kanban/detalle/
+            // comanda sin tocar el esquema).
+            'direccion_referencia' => collect([
+                $entreCalles !== '' ? __('Entre calles: :calles', ['calles' => $entreCalles]) : null,
+                $payload['direccion']['referencia'] ?? null,
+            ])->filter()->implode(' · ') ?: null,
             'localidad_entrega_id' => $payload['direccion']['localidad_id'] ?? null,
             'latitud' => $payload['direccion']['latitud'] ?? null,
             'longitud' => $payload['direccion']['longitud'] ?? null,
@@ -179,9 +225,15 @@ class PedidoTiendaService
             '_actualizar_direccion_cliente' => false, // el consumidor gestiona sus direcciones globales
         ];
 
-        $detalles = $this->construirDetalles($resultado);
+        $detalles = $this->construirDetalles($resultado, array_values($payload['items']));
 
         $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $aceptacionManual);
+
+        // Cumpleaños (RF-T19): se persiste en el cliente tenant y, si el
+        // pedido es de consumidor logueado, también en su cuenta GLOBAL
+        // (pre-llena el checkout de otras tiendas). Invitado sin cliente:
+        // no hay dónde guardarlo (la tienda lo recuerda en su cookie).
+        $this->persistirFechaNacimiento($payload, $clienteId, $consumidor);
 
         // Pago con puntos (RF-T9): pago PLANIFICADO bajo la FP interna "Canje
         // Puntos" (solo_sistema) — la conversión a venta lo copia y ahí
@@ -191,14 +243,20 @@ class PedidoTiendaService
         // Pago declarado contra entrega/retiro (planificado, D14): "pago con
         // efectivo, con $X" queda en el pedido — el panel/vuelta lo confirma.
         // Con canje de puntos, la FP declarada cubre el RESTO del total.
-        $this->registrarPagoDeclarado(
-            $sucursal,
-            $pedido,
-            $payload['pago'] ?? null,
-            $ajusteFormaPago,
-            $this->cotizador->ajusteFormaPagoPorcentaje(),
-            (float) ($canjePuntos['monto'] ?? 0),
-        );
+        // Multi-pago (RF-T18): N pagos planificados en el MISMO formato que
+        // el desglose del alta manual (WithPagosDesglose → agregarPago).
+        if ($pagosDesglosados) {
+            $this->registrarPagosDesglosados($pedido, $pagosDesglosados);
+        } else {
+            $this->registrarPagoDeclarado(
+                $sucursal,
+                $pedido,
+                $payload['pago'] ?? null,
+                $ajusteFormaPago,
+                $this->cotizador->ajusteFormaPagoPorcentaje(),
+                (float) ($canjePuntos['monto'] ?? 0),
+            );
+        }
 
         // Aceptación automática (D14): comandar solo (marca los renglones y
         // transiciona a en_preparacion; la impresión física sigue el circuito
@@ -385,6 +443,58 @@ class PedidoTiendaService
     }
 
     /**
+     * Cumpleaños declarado en el checkout (RF-T19): actualiza cliente tenant
+     * y cuenta global del consumidor. Nunca borra (solo setea si vino).
+     */
+    protected function persistirFechaNacimiento(array $payload, ?int $clienteId, ?Consumidor $consumidor): void
+    {
+        $fecha = $payload['cliente']['fecha_nacimiento'] ?? null;
+        if (! $fecha) {
+            return;
+        }
+
+        try {
+            if ($clienteId && ($cliente = Cliente::find($clienteId))) {
+                $cliente->update(['fecha_nacimiento' => $fecha]);
+            }
+
+            if ($consumidor) {
+                $consumidor->update(['fecha_nacimiento' => $fecha]);
+            }
+        } catch (Exception $e) {
+            // El cumpleaños nunca frena un pedido ya creado.
+            Log::warning('No se pudo persistir fecha_nacimiento del checkout', [
+                'cliente_id' => $clienteId,
+                'consumidor_id' => $consumidor?->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Registra los pagos del multi-pago (RF-T18) como PLANIFICADOS, uno por
+     * FP, con el desglose ya calculado por CotizadorCarritoTienda —
+     * exactamente el mismo formato que un pedido cargado a mano en el panel
+     * (WithPagosDesglose): monto_base + monto_ajuste = monto_final, y
+     * monto_recibido/vuelto si declaró "con cuánto paga" (efectivo).
+     */
+    protected function registrarPagosDesglosados(PedidoDelivery $pedido, array $pagos): void
+    {
+        foreach ($pagos as $pago) {
+            $this->pedidoService->agregarPago($pedido, [
+                'forma_pago_id' => $pago['forma_pago_id'],
+                'monto_base' => $pago['monto_base'],
+                'ajuste_porcentaje' => $pago['ajuste_porcentaje'],
+                'monto_ajuste' => $pago['monto_ajuste'],
+                'monto_final' => $pago['monto_final'],
+                'monto_recibido' => $pago['paga_con'],
+                'vuelto' => $pago['vuelto'],
+                'planificado' => true,
+            ]);
+        }
+    }
+
+    /**
      * D11: cliente tenant del consumidor para este comercio. Con mapping →
      * ese cliente; sin mapping y alta automática ON → crea cliente + mapping;
      * sin mapping y OFF → null (el pedido vive con consumidor_id + snapshot).
@@ -442,7 +552,7 @@ class PedidoTiendaService
      * Renglones para PedidoDeliveryService::crearPedido a partir del
      * resultado del cotizador (promos por línea atribuidas por el motor).
      */
-    protected function construirDetalles(array $resultado): array
+    protected function construirDetalles(array $resultado, array $itemsPayload = []): array
     {
         $items = $this->cotizador->itemsCotizados();
         $detalles = [];
@@ -483,6 +593,9 @@ class PedidoTiendaService
                 'tiene_promocion' => ! empty($promocionesComunes) || ! empty($promocionesEspeciales),
                 'total' => $precioUnitario * $cantidad,
                 'opcionales' => $item['opcionales'] ?? [],
+                // Aclaración del cliente por ítem (mismo índice: el cotizador
+                // preserva el orden del payload).
+                'observaciones' => trim((string) ($itemsPayload[$index]['observaciones'] ?? '')) ?: null,
                 '_promociones_item' => [
                     'promociones_comunes' => $promocionesComunes,
                     'promociones_especiales' => $promocionesEspeciales,

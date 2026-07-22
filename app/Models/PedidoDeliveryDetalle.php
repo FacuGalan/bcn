@@ -60,6 +60,7 @@ class PedidoDeliveryDetalle extends Model
         'invitado_at',
         'monto_invitado',
         'precio_unitario_original',
+        'observaciones',
     ];
 
     protected $casts = [

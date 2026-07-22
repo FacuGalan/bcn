@@ -37,13 +37,19 @@ class PedidoPublicoController extends Controller
             'items' => 'required|array|min:1|max:100',
             'items.*.articulo_id' => 'required|integer',
             'items.*.cantidad' => 'required|numeric|min:0.001',
+            // Aclaración del cliente por ítem (aditivo 2026-07-22): "sin pepino".
+            'items.*.observaciones' => 'nullable|string|max:255',
             'items.*.opcionales' => 'nullable|array',
             'items.*.opcionales.*.opcional_id' => 'required|integer',
             'items.*.opcionales.*.cantidad' => 'nullable|numeric|min:0.001',
             'cliente.nombre' => ($consumidor ? 'nullable' : 'required').'|string|max:150',
             'cliente.telefono' => 'nullable|string|max:30',
             'cliente.email' => 'nullable|email|max:150',
+            // RF-T19: cumpleaños OPCIONAL siempre (la tienda lo pide solo si
+            // la config lo activa; se persiste en cliente y cuenta global).
+            'cliente.fecha_nacimiento' => 'nullable|date|before:today',
             'direccion.direccion' => 'required_if:tipo,delivery|string|max:255',
+            'direccion.entre_calles' => 'nullable|string|max:150',
             'direccion.referencia' => 'nullable|string|max:255',
             'direccion.latitud' => 'nullable|numeric|between:-90,90',
             'direccion.longitud' => 'nullable|numeric|between:-180,180',
@@ -63,6 +69,12 @@ class PedidoPublicoController extends Controller
             // GET /tiendas/{slug} y, para efectivo, "¿con cuánto pagás?".
             'pago.forma_pago_id' => 'nullable|integer',
             'pago.paga_con' => 'nullable|numeric|min:0',
+            // Multi-pago (RF-T18): hasta 2 FP con el monto (sin ajuste) que
+            // cubre cada una. Si viaja, `pago` singular se ignora.
+            'pagos' => 'nullable|array|min:1|max:2',
+            'pagos.*.forma_pago_id' => 'required|integer',
+            'pagos.*.monto' => 'nullable|numeric|min:0.01',
+            'pagos.*.paga_con' => 'nullable|numeric|min:0',
             // Canje de puntos (RF-T9, Fase 3): pago por el máximo canjeable.
             // Solo tiene efecto con Bearer de consumidor con cliente.
             'usar_puntos' => 'nullable|boolean',
@@ -142,6 +154,9 @@ class PedidoPublicoController extends Controller
                         'articulo_id' => (int) $d->articulo_id,
                         'nombre' => $d->articulo?->nombre,
                         'cantidad' => (float) $d->cantidad,
+                        // Aclaración del cliente (aditivo 2026-07-22): el
+                        // seguimiento la muestra y re-pedir la conserva.
+                        'observaciones' => $d->observaciones,
                         'opcionales' => $d->opcionales->map(fn ($op) => [
                             'opcional_id' => (int) $op->opcional_id,
                             'nombre' => $op->nombre_opcional,

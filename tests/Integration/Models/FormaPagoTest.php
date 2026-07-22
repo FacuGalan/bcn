@@ -155,4 +155,20 @@ class FormaPagoTest extends TestCase
         $this->assertTrue($fp->tieneIntegracion());
         $this->assertSame($mp->id, $fp->integracionPrincipal()->id);
     }
+
+    public function test_es_declarable_en_tienda_respeta_disponible_en_tienda(): void
+    {
+        $fp = $this->crearFormaPago();
+        $fp->sucursales()->attach($this->sucursalId, ['activo' => true]);
+
+        $this->assertTrue($fp->esDeclarableEnTienda($this->sucursalId), 'Habilitada y disponible (default) es declarable');
+
+        $fp->sucursales()->updateExistingPivot($this->sucursalId, ['disponible_en_tienda' => false]);
+
+        $this->assertFalse($fp->esDeclarableEnTienda($this->sucursalId), 'Con disponible_en_tienda=false deja de ser declarable');
+
+        $fp->sucursales()->updateExistingPivot($this->sucursalId, ['disponible_en_tienda' => true, 'activo' => false]);
+
+        $this->assertFalse($fp->esDeclarableEnTienda($this->sucursalId), 'Disponible pero no habilitada en la sucursal tampoco es declarable');
+    }
 }

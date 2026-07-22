@@ -141,6 +141,12 @@ class Sucursal extends Model
             'anticipacion_horas' => 24,      // mínimo de anticipación
             'max_dias_adelante' => 30,       // ventana hacia adelante
         ],
+        // Datos del cliente en el checkout de la tienda (RF-T19)
+        'checkout' => [
+            'pedir_email' => 'opcional',     // no | opcional | obligatorio
+            'pedir_cumpleanios' => false,    // nunca obligatorio (leyenda de promos)
+            'pedir_entre_calles' => 'opcional', // no | opcional | obligatorio (solo delivery)
+        ],
     ];
 
     /**
@@ -434,6 +440,12 @@ class Sucursal extends Model
         $config['encargos'] = array_merge(
             self::CONFIG_DELIVERY_DEFAULTS['encargos'],
             is_array($guardada['encargos'] ?? null) ? $guardada['encargos'] : [],
+        );
+
+        // Sub-objeto `checkout` (RF-T19): mismo criterio que `encargos`.
+        $config['checkout'] = array_merge(
+            self::CONFIG_DELIVERY_DEFAULTS['checkout'],
+            is_array($guardada['checkout'] ?? null) ? $guardada['checkout'] : [],
         );
 
         return $config;

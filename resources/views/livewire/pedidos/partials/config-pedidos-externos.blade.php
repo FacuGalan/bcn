@@ -22,4 +22,33 @@
             <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Imprimir comanda al aceptar') }}</span>
         </label>
     </div>
+
+    {{-- Datos del cliente en el checkout (RF-T19) --}}
+    <div class="border-t border-gray-200 dark:border-gray-700 pt-3">
+        <h3 class="text-xs font-semibold text-gray-900 dark:text-white mb-2">{{ __('Datos del cliente en el checkout') }}</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+                <label for="cd-pedir-email" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Email') }}</label>
+                <select id="cd-pedir-email" wire:model.live="checkoutPedirEmail"
+                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                    <option value="no">{{ __('No pedir') }}</option>
+                    <option value="opcional">{{ __('Pedir (opcional)') }}</option>
+                    <option value="obligatorio">{{ __('Pedir (obligatorio)') }}</option>
+                </select>
+            </div>
+            <div>
+                <label for="cd-entre-calles" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Entre calles (solo delivery)') }}</label>
+                <select id="cd-entre-calles" wire:model.live="checkoutPedirEntreCalles"
+                    class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm">
+                    <option value="no">{{ __('No pedir') }}</option>
+                    <option value="opcional">{{ __('Pedir (opcional)') }}</option>
+                    <option value="obligatorio">{{ __('Pedir (obligatorio)') }}</option>
+                </select>
+            </div>
+            <label class="flex items-end gap-2 cursor-pointer pb-1">
+                <input type="checkbox" wire:model.live="checkoutPedirCumpleanios" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Pedir fecha de cumpleaños (siempre opcional, con leyenda de promociones)') }}</span>
+            </label>
+        </div>
+    </div>
 </div>

@@ -282,10 +282,24 @@ class FormaPago extends Model
     }
 
     /**
+     * ¿La FP se ofrece en la TIENDA online de esta sucursal? (RF-T18)
+     * Requiere pivot habilitado (activo) Y con disponible_en_tienda.
+     */
+    public function estaDisponibleEnTiendaEnSucursal(int $sucursalId): bool
+    {
+        return $this->sucursales()
+            ->where('sucursal_id', $sucursalId)
+            ->wherePivot('activo', true)
+            ->wherePivot('disponible_en_tienda', true)
+            ->exists();
+    }
+
+    /**
      * ¿El consumidor de la TIENDA puede declarar esta FP para pagar contra
      * entrega/retiro? Regla ÚNICA (la usan la cotización y el alta de pedidos
-     * externos): activa, habilitada en la sucursal, no mixta, no interna del
-     * sistema, y no cuenta corriente / puntos (requieren cliente).
+     * externos): activa, habilitada en la sucursal Y marcada como disponible
+     * en tienda (RF-T18), no mixta, no interna del sistema, y no cuenta
+     * corriente / puntos (requieren cliente).
      */
     public function esDeclarableEnTienda(int $sucursalId): bool
     {
@@ -295,7 +309,7 @@ class FormaPago extends Model
             && ! $this->solo_sistema
             && ! $this->es_mixta
             && ! in_array($conceptoCodigo, ['CTA_CTE', 'CUENTA_CORRIENTE', 'PUNTOS'], true)
-            && $this->estaHabilitadaEnSucursal($sucursalId);
+            && $this->estaDisponibleEnTiendaEnSucursal($sucursalId);
     }
 
     /**

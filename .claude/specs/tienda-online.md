@@ -656,6 +656,305 @@ detalle; reporte suma cantidades correctas por día/artículo excluyendo
 cancelados; tienda cerrada + encargos ⇒ solo flujo encargo; contract
 tests de la tienda verdes; smoke de los componentes nuevos.
 
+### RF-T17: Carrito reordenado + dirección con Google Maps — APROBADO (2026-07-21)
+
+Cross-repo (mayormente bcn-tienda). El carrito pasa a concentrar TODA la
+decisión de compra; el checkout queda para identidad del cliente y
+confirmación (ver RF-T19/T20).
+
+**Orden nuevo de secciones del carrito** (`Carrito.php` + blade):
+
+1. Artículos pedidos (como hoy).
+2. Selector delivery / retiro en el local (se mueve arriba de lo demás).
+3. Dirección de entrega — SOLO visible con delivery (hoy vive en el
+   checkout; SE MUEVE al carrito).
+4. Cupón.
+5. Formas de pago (RF-T18: desplegable + 2 FP).
+
+La aclaración de precios del carrito pasa a decir: "los precios pueden
+variar según el tipo de entrega y la forma de pago seleccionadas".
+
+**Dirección con Google Maps (paridad con alta de pedidos delivery del
+panel — `ManejaDomicilio` + `domicilio-mapa.js` + spec
+`domicilio-google-maps.md`):**
+
+- Botón "Usar mi ubicación actual" PRIMERO: geolocation → reverse
+  geocoding → coordenadas + texto legible de la dirección (hoy solo
+  guarda lat/lng sin texto).
+- Input de dirección con `PlaceAutocompleteElement` de Google: al elegir
+  una sugerencia se obtienen coordenadas + texto legible. El texto es
+  SIEMPRE editable a mano (el valor editado no pisa las coordenadas).
+- Botón "Abrir mapa": modal con el punto en el mapa y
+  `AdvancedMarkerElement` arrastrable; mover el pin actualiza
+  coordenadas y re-resuelve el texto (igual que el modal del panel).
+- Direcciones guardadas del consumidor logueado: siguen como chips (hoy),
+  arriba del input.
+- bcn-tienda porta su propio `Alpine.data` (espejo de
+  `domicilio-mapa.js`, en `resources/js/`, patrón bundle) y usa
+  `GOOGLE_MAPS_API_KEY` propio (`.env` de bcn-tienda,
+  `config/services.php`). SIN key ⇒ degradación al comportamiento
+  actual (input texto + "usar mi ubicación" sin reverse geocoding).
+- El payload de `POST /pedidos` NO cambia (ya acepta
+  `direccion.{texto,referencia,lat,lng}`); el core no necesita cambios
+  para este RF.
+
+**Criterios:** carrito en el orden 1-5; dirección solo con delivery;
+autocomplete setea lat/lng + texto; pin arrastrable actualiza ambos;
+texto editable siempre; sin key la tienda funciona como hoy; contract
+tests sin cambios (no cambia el contrato); smoke Livewire de Carrito.
+
+### RF-T18: Formas de pago en tienda — orden, disponibilidad por sucursal y pago con 2 FP — APROBADO (2026-07-21)
+
+Cross-repo. La FP se elige en el carrito (desplegable) y el pedido puede
+declararse con HASTA 2 formas de pago, con los mismos ajustes
+(descuentos/recargos por FP) y promociones que calcula el sistema.
+
+**Core — disponibilidad y orden (decisión usuario: POR SUCURSAL):**
+
+- Migración tenant ADITIVA: columna `disponible_en_tienda` tinyint(1)
+  default 1 en el pivot `formas_pago_sucursales` (+ regenerar
+  `tenant_tables.sql`). Fila ausente en el pivot = disponible (default
+  aditivo: nada cambia para comercios existentes).
+- `FormaPago::esDeclarableEnTienda(sucursalId)` suma el filtro del flag;
+  `TiendaController::formasPagoPublicas()` pasa de `orderBy('nombre')` a
+  `orderBy('orden')` (columna existente, ya gestionada por el modal de
+  orden del ABM).
+- UI panel: en `GestionarFormasPago`, sección por sucursal existente del
+  pivot (activo / ajuste override) suma el toggle "Disponible en tienda
+  online". (Es el lugar donde ya se administra la relación FP×sucursal;
+  ConfiguracionTienda solo la referencia con un link.)
+
+**Core — cotización y alta con 2 FP (contrato ADITIVO, máx 2 en v1):**
+
+- `POST carrito/cotizar`: campo nuevo `pagos: [{forma_pago_id, monto}]`
+  (si viene, `forma_pago_id` singular se ignora; singular sigue vigente
+  para compat). El core valida: FPs declarables en tienda, montos > 0,
+  suma = total a pagar (tolerancia de redondeo); calcula el ajuste de
+  CADA FP sobre su monto con la MISMA lógica de `WithAjusteFormaPago` /
+  `WithPagosDesglose` del panel (paridad exacta) y devuelve desglose:
+  `pagos: [{forma_pago_id, nombre, monto_base, ajuste_porcentaje,
+  monto_ajuste, monto_final}]` + `total_a_pagar` recalculado. Promos y
+  cupones siguen calculándose como hoy (motor único
+  `CotizadorCarritoTienda`).
+- `POST /pedidos`: campo nuevo `pagos: [{forma_pago_id, monto,
+  paga_con?}]` (compat: `pago.{forma_pago_id, paga_con}` sigue
+  funcionando = 1 FP). `PedidoTiendaService::registrarPagoDeclarado()`
+  guarda N pagos PLANIFICADOS vía `PedidoDeliveryService::agregarPago()`
+  — MISMO formato que el alta manual (`forma_pago_id, monto_base,
+  ajuste_porcentaje, monto_ajuste, monto_final, monto_recibido, vuelto,
+  planificado`). El panel los ve idénticos a un pedido cargado a mano.
+- Contrato `docs/api-v1-delivery.md` actualizado (aditivo, sin romper
+  v1). Fixtures/contract tests de bcn-tienda actualizados.
+
+**bcn-tienda — selector:**
+
+- Reemplazar radios por DESPLEGABLE (respeta el orden que manda la API).
+- Botón "Usar 2 formas de pago": habilita segundo desplegable + un input
+  de monto por cada FP. La suma debe dar el total; al editar un monto el
+  otro se autocompleta con el resto. Cada cambio re-cotiza
+  (`carrito/cotizar` con `pagos[]`) y muestra el desglose por FP
+  (ajustes, descuentos/recargos) que respondió el core — la tienda NUNCA
+  calcula.
+
+**Criterios:** FP con flag OFF en la sucursal no aparece en la tienda;
+orden respetado; cotización con 2 FP devuelve el mismo resultado que el
+panel para el mismo carrito (test de paridad en el core); suma ≠ total ⇒
+422 claro; pedido con 2 FP queda con 2 pagos planificados idénticos al
+alta manual (test de service); singular `pago`/`forma_pago_id` sigue
+funcionando (compat, contract test); smoke del ABM FP con el toggle.
+
+### RF-T19: Datos del cliente configurables (email / cumpleaños) — APROBADO (2026-07-21)
+
+Cross-repo. Con RF-T17/T18 el checkout queda en: paso "tus datos" (este
+RF) → promesa → confirmación (RF-T20).
+
+**Core — config por sucursal (patrón claves aditivas en
+`config_delivery`, como encargos RF-T16; editable en
+`ConfiguracionDelivery` con auto-guardado RF-T15):**
+
+- `checkout.pedir_email`: `'no' | 'opcional' | 'obligatorio'` (default =
+  comportamiento actual de la API: opcional).
+- `checkout.pedir_cumpleanios`: bool (default false).
+- `GET /tiendas/{slug}` expone `checkout: {pedir_email,
+  pedir_cumpleanios}` (aditivo).
+
+**Core — fecha de nacimiento:**
+
+- Migración tenant ADITIVA: `clientes.fecha_nacimiento` DATE NULL (+
+  regenerar tenant_tables.sql).
+- Migración config ADITIVA: `consumidores.fecha_nacimiento` DATE NULL.
+- `POST /pedidos`: `cliente.fecha_nacimiento` opcional (date, pasado).
+  Se persiste en el cliente tenant; si el pedido es de consumidor
+  logueado, se copia también a su cuenta global (para pre-llenar en
+  otras tiendas). `GET /consumidor` (me) expone `fecha_nacimiento`.
+- Validación server-side: si `pedir_email = 'obligatorio'`, el alta
+  exige email (422). El cumpleaños NUNCA es obligatorio.
+
+**bcn-tienda — paso "tus datos":**
+
+- Email visible según config (oculto / opcional / requerido).
+- Cumpleaños visible solo si `pedir_cumpleanios`, siempre opcional, con
+  leyenda: "Se solicita para participar de promociones y descuentos".
+- Consumidor logueado: campos pre-llenados desde su cuenta.
+
+**Criterios:** cada combinación de config muestra/exige lo correcto
+(tienda + validación core en paridad); cumpleaños se guarda en cliente
+tenant y en consumidor global si hay Bearer; defaults ⇒ comportamiento
+idéntico a hoy; contract tests con el bloque `checkout` nuevo; smoke de
+ConfiguracionDelivery con las keys nuevas.
+
+### RF-T20: Checkout estético — promesa, pago y resumen final — APROBADO (2026-07-21)
+
+Solo bcn-tienda (la cotización ya devuelve todo lo necesario).
+
+- **Promesa ("cuándo")**: reemplazar radios planos por cards/segmented
+  moderno (design system de la tienda, tema-aware), mostrando la promesa
+  de tiempo de forma destacada.
+- **Pago**: sección rediseñada. Con 2 FP muestra claramente el valor a
+  abonar con CADA una (nombre, monto final, ajuste si hubo). Input "¿Con
+  cuánto pagás?" por cada FP de efectivo (`permite_vuelto`) para
+  calcular el vuelto (el vuelto se muestra por FP). Estética moderna.
+- **Confirmación final**: al final de todo, resumen COMPLETO del
+  carrito: ítems, subtotal, descuentos aplicados, promociones que
+  participan (nombre y monto), cupón, puntos, costo de envío, desglose
+  por forma de pago y total a pagar — todos los montos tal como los
+  respondió la cotización.
+
+**Criterios:** vuelto correcto por FP efectivo; resumen muestra CADA
+promo/descuento con su monto (lo que devuelve `carrito/cotizar`); dark
+mode + móvil verificados; smoke Livewire Checkout.
+
+### RF-T21: Banner "Promociones de hoy" — popover con precio fijo y condiciones — APROBADO (2026-07-21)
+
+Cross-repo. Hoy el banner (RF-T13) es un acordeón que EMPUJA el
+contenido y la API solo manda `nombre` + `descripcion`.
+
+**Core (`CatalogoTiendaService::promocionesGenericas()`, aditivo):**
+
+- Cada promo suma: `precio_fijo` (number|null — PromocionEspecial de
+  precio fijo), `condiciones` (list<string> legibles generadas de las
+  condiciones estructuradas: NxM, mínimo de unidades/monto, días,
+  horario, forma de pago, categoría, etc.). Contrato actualizado.
+
+**bcn-tienda (`secciones/promos.blade.php`):**
+
+- Reemplazar el acordeón por un BOTÓN chico pero llamativo (pill con el
+  count, color acento, micro-animación sutil) que NO empuja el layout:
+  abre un POPOVER/overlay moderno (Alpine, `position: absolute`/fixed +
+  transición; en móvil bottom-sheet) con la lista de promos.
+- Cada promo: nombre, descripción, PRECIO FIJO destacado si lo tiene, y
+  sus condiciones como chips/lista secundaria.
+
+**Criterios:** el contenido de la página NO se desplaza al abrir; promo
+de precio fijo muestra el precio; condiciones legibles correctas (test
+del service de catálogo); tema claro/oscuro + móvil; contract tests con
+los campos nuevos.
+
+### RF-T22: Colores personalizados legibles en dark mode — APROBADO (2026-07-21)
+
+Cross-repo. Problema: un color personalizado del tema se emite como
+paleta FIJA en ambos modos (`TiendaActual::temaCss()`), pero los tokens
+NO personalizados siguen siendo adaptativos. Caso típico: el comercio
+define fondo de tarjetas CLARO, no toca el texto → en la preview (modo
+claro) se ve negro sobre claro, pero el dark mode real pone la tinta
+blanca → ilegible. Solución en DOS frentes (decisión 2026-07-21):
+
+**bcn-tienda — auto-contraste (garantía de legibilidad):**
+
+- En `temaCssVars()`: si el comercio personalizó un token de FONDO
+  (`fondo`/superficie, `tarjetas`/superficie-alta) y NO personalizó su
+  par de TEXTO, derivar `tinta`/`tinta-suave` (y `borde`) por
+  luminancia/contraste del fondo elegido (umbral por luminancia
+  relativa, salida oscura o clara) y emitirlos FIJOS para ambos modos
+  — el fondo custom arrastra su par de texto. Si el comercio
+  personalizó también el texto, se respeta lo suyo (no se pisa).
+- Unit tests del cálculo (fondo claro ⇒ tinta oscura; fondo oscuro ⇒
+  tinta clara; texto custom ⇒ intacto).
+
+**Core — toggle de modo en el visor del panel (visibilidad):**
+
+- El visor en vivo (RF-T12) suma toggle sol/luna "Ver en modo oscuro":
+  fuerza el modo del iframe de preview. Lado tienda: en modo preview se
+  acepta el parámetro (query `?modo=claro|oscuro` del visor) que setea
+  `data-modo` en `:root` — la infraestructura `data-modo` YA existe
+  (`app.css`, `comportamiento.modo_color`).
+- Nice-to-have (si es barato en F4): aviso de contraste insuficiente en
+  el panel cuando texto y fondo personalizados no contrastan.
+
+**Criterios:** fondo claro custom + dark mode del cliente ⇒ texto
+legible (fijo); toggle del visor muestra ambos modos sin recargar la
+config; tienda sin personalización ⇒ CERO cambios (adaptativa como
+hoy).
+
+### RF-T23: Autocompletado del checkout por cookie (invitados) — APROBADO (2026-07-21)
+
+Solo bcn-tienda (sin cambios de contrato). Al CONFIRMARSE un pedido, la
+tienda guarda en una cookie first-party (cifrada por Laravel, larga
+duración ~6 meses) los datos del comprador: `nombre, telefono, email,
+fecha_nacimiento?, direccion {texto, referencia, lat, lng}`.
+
+- Objetivo doble: no volver a tipear nada en el próximo pedido
+  (principalmente INVITADOS sin cuenta) y evitar llamadas de gusto a la
+  API de Maps (texto + coordenadas ya resueltos viajan en la cookie).
+- La cookie es del dominio de la tienda (un deploy, N tiendas) ⇒ vale
+  ENTRE tiendas de distintos comercios: los datos personales se
+  pre-llenan siempre.
+- La DIRECCIÓN pre-llenada se valida SIEMPRE contra el rango de entrega
+  de la tienda actual (cotización de envío existente, que ya rechaza
+  fuera de zona): si no está en rango, se muestra aviso "esta dirección
+  está fuera de la zona de entrega de esta tienda, ingresá otra" y se
+  deja el selector de dirección editable (RF-T17).
+- Consumidor LOGUEADO: sus direcciones guardadas y datos de cuenta
+  tienen prioridad; la cookie es el fallback para invitados.
+- El pedido confirmado ACTUALIZA la cookie (última dirección usada
+  gana).
+
+**Criterios:** segundo pedido invitado ⇒ todo pre-llenado sin tocar
+Maps; dirección fuera de zona en otra tienda ⇒ aviso y no bloquea
+elegir otra; logueado ⇒ prioridad de la cuenta; cookie cifrada
+(EncryptCookies) y solo lectura server-side.
+
+### Fases RF-T17..T23 (cada una = un PR mergeable; core primero)
+
+- **F1 (core)**: RF-T18 lado core — migración pivot + filtro + orden +
+  toggle en ABM + contrato. — ✅ COMPLETA (2026-07-21, rama
+  `feat/tienda-checkout-operacion`; tests FormaPagoTest +
+  ApiV1DeliveryTest + SmokeConfiguracion verdes).
+- **F2 (core)**: RF-T18 multi-pago — cotizar/alta con `pagos[]`,
+  `registrarPagoDeclarado` N pagos, tests de paridad, contrato. —
+  ✅ COMPLETA (2026-07-21; desglosarPagos en CotizadorCarritoTienda como
+  fuente única, FP principal = pagos[0], envío excluido proporcional
+  D17, limitación v1: sin usar_puntos con 2 FP).
+- **F3 (core)**: RF-T19 lado core — keys checkout + migraciones
+  fecha_nacimiento (tenant + config) + exposición + validaciones +
+  contrato. — ✅ COMPLETA (2026-07-21; config en ConfiguracionDelivery
+  con auto-save, GET /consumidores/me expone fecha_nacimiento,
+  centinela de TestCase actualizado).
+- **F4 (core)**: RF-T21 lado core (promos enriquecidas + contrato) +
+  RF-T22 toggle sol/luna en el visor (+ aviso de contraste si es
+  barato). — ✅ COMPLETA (2026-07-21). Ajuste vs diseño: el modo del
+  visor viaja por el canal postMessage del preview (campo `modo` en
+  `tienda-preview-estado`), NO por query `?modo=` — sin recarga del
+  iframe; la tienda lo aplica en F6. El aviso de contraste quedó para
+  F6 (con el cálculo de luminancia ya del lado tienda).
+- **F5 (tienda)**: RF-T17 + RF-T18 lado tienda — carrito reordenado,
+  dirección Maps, desplegable FP + 2 FP, fixtures/contract tests. —
+  ✅ COMPLETA (2026-07-21, rama tienda `feat/checkout-operacion`;
+  sugerencias con dropdown propio sobre AutocompleteSuggestion — el
+  web component no permite pre-llenar texto; la 2da FP viaja SIN monto
+  y el resto lo asigna el core, ajuste aditivo del contrato).
+- **F6 (tienda)**: RF-T19/T20/T21 lado tienda (paso datos, promesa,
+  pago, resumen final, popover promos) + RF-T22 auto-contraste y
+  modo del preview + RF-T23 cookie de autocompletado. — ✅ COMPLETA
+  (2026-07-21). Ajuste vs diseño RF-T22: cualquier fondo/texto custom
+  CONGELA superficies+tintas para ambos modos (no solo el par tocado)
+  — evita mezclas custom/adaptativo ilegibles; el modo del visor va
+  por postMessage (`estado.modo` → data-modo), no query param.
+- **F7**: cierre — traducciones (es/en/pt), docs (@docs-sync),
+  validación en vivo del usuario. — EN CURSO (2026-07-21: traducciones
+  y docs listos en cada fase; PRs core #177 y tienda #16 abiertos;
+  FALTA la validación en vivo del usuario y el merge).
+
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
 `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas

@@ -118,10 +118,11 @@ abstract class TestCase extends BaseTestCase
             );
 
             // Centinela adicional: último cambio estructural en CONFIG
-            // (tiendas.logo_path, RF-T11). Si falta, hay migraciones pendientes.
+            // (consumidores.fecha_nacimiento, RF-T19). Si falta, hay
+            // migraciones pendientes.
             $existsTiendas = DB::connection('config')->select(
                 'SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
-                ['config_test', 'tiendas', 'logo_path']
+                ['config_test', 'consumidores', 'fecha_nacimiento']
             );
 
             if (($exists[0]->cnt ?? 0) > 0 && ($existsTiendas[0]->cnt ?? 0) > 0) {
