@@ -626,4 +626,114 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
             'La promesa existente no debe recalcularse al editar sin tocarla',
         );
     }
+
+    // ========== MULTI-PAGO: BIENES-PRIMERO + PROMOS POR FP (RF-01/RF-03) ==========
+
+    /** FP Transferencia global (sin vuelto, ajuste configurable). */
+    protected function crearFormaPagoTransferencia(float $ajuste = 0): FormaPago
+    {
+        $concepto = \App\Models\ConceptoPago::firstOrCreate(
+            ['codigo' => 'TRANSFERENCIA'],
+            ['nombre' => 'Transferencia', 'permite_cuotas' => false, 'permite_vuelto' => false, 'activo' => true, 'orden' => 2],
+        );
+
+        return FormaPago::create([
+            'nombre' => 'Transferencia',
+            'codigo' => 'transferencia',
+            'concepto' => 'transferencia',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => $ajuste,
+            'activo' => true,
+        ]);
+    }
+
+    public function test_desglose_dos_fp_asigna_bienes_primero_con_tope(): void
+    {
+        // Paridad con la tienda (test_cotizar_dos_fp_con_envio_excluye_el_
+        // envio_de_la_base_del_ajuste): $1000 de bienes + $500 de envío,
+        // efectivo −10% por $900 y transferencia por el resto. El efectivo
+        // absorbe bienes hasta su monto → base $900 → −$90 (no el prorrateo
+        // proporcional viejo de −$60). Total pagos: 810 + 600 = 1410.
+        ['concepto' => $concepto] = $this->crearFormaPagoEfectivo();
+        $efectivo = FormaPago::create([
+            'nombre' => 'Efectivo 10% off',
+            'codigo' => 'efectivo_desc',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => -10,
+            'activo' => true,
+        ]);
+        $transferencia = $this->crearFormaPagoTransferencia();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
+            ->set('cajaSeleccionada', $caja->id)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalDireccion')
+            ->set('domDireccion', 'Av. Siempreviva 742')
+            ->call('confirmarDireccion')
+            ->set('costoEnvio', 500)
+            ->call('abrirModalDesglose')
+            ->set('nuevoPago.forma_pago_id', (string) $efectivo->id)
+            ->set('nuevoPago.monto', '900')
+            ->call('agregarAlDesglose')
+            ->set('nuevoPago.forma_pago_id', (string) $transferencia->id)
+            ->call('agregarAlDesglose')
+            ->assertNotDispatched('toast-error');
+
+        $pagos = $componente->get('desglosePagos');
+        $this->assertCount(2, $pagos);
+        $this->assertEqualsWithDelta(-90.0, (float) $pagos[0]['monto_ajuste'], 0.01, 'Base = min(monto, bienes): 10% de $900');
+        $this->assertEqualsWithDelta(810.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $pagos[1]['monto_ajuste'], 0.01, 'La transferencia queda en bienes restantes + envío, sin ajuste');
+        $this->assertEqualsWithDelta(600.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(1410.0, (float) $componente->get('totalConAjustes'), 0.01, 'Mismo total que la cotización de la tienda');
+    }
+
+    public function test_promo_solo_efectivo_cae_y_vuelve_al_mutar_el_desglose(): void
+    {
+        // RF-01 lado panel: la promo condicionada a efectivo aplica con la FP
+        // única; al armar un desglose que usa OTRA FP la promo cae (total
+        // sube y el pendiente se ajusta) y al quitar ese pago vuelve.
+        ['formaPago' => $efectivo] = $this->crearFormaPagoEfectivo();
+        $transferencia = $this->crearFormaPagoTransferencia();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+
+        $promo = \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Solo efectivo 5%',
+            'tipo' => 'descuento_porcentaje', 'valor' => 5, 'prioridad' => 1,
+            'combinable' => true, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+        $promo->condiciones()->create([
+            'tipo_condicion' => 'por_forma_pago',
+            'forma_pago_id' => $efectivo->id,
+        ]);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->set('formaPagoId', (string) $efectivo->id);
+
+        $this->assertEqualsWithDelta(950.0, (float) $componente->get('resultado')['total_final'], 0.01, 'Con la FP única la promo aplica');
+
+        // Desglose con transferencia: el set pasa a [transferencia] → cae.
+        $componente->call('abrirModalDesglose')
+            ->set('nuevoPago.forma_pago_id', (string) $transferencia->id)
+            ->set('nuevoPago.monto', '400')
+            ->call('agregarAlDesglose')
+            ->assertNotDispatched('toast-error');
+
+        $this->assertEqualsWithDelta(1000.0, (float) $componente->get('resultado')['total_final'], 0.01, 'Con una FP fuera de la promo, la promo cae');
+        $this->assertEqualsWithDelta(600.0, (float) $componente->get('montoPendienteDesglose'), 0.01, 'El pendiente absorbe el delta: 950 − 400 + 50');
+
+        // Quitar el pago: el contexto vuelve a la FP única → la promo vuelve.
+        $componente->call('eliminarDelDesglose', 0);
+
+        $this->assertEqualsWithDelta(950.0, (float) $componente->get('resultado')['total_final'], 0.01);
+        $this->assertEqualsWithDelta(950.0, (float) $componente->get('montoPendienteDesglose'), 0.01);
+    }
 }

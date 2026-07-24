@@ -1814,11 +1814,24 @@ trait WithCalculoVenta
      * beneficios (promos/listas condicionadas por FP). Con pago dividido una
      * promo restringida a FP aplica solo si TODAS las FP declaradas están
      * habilitadas (misma regla anti-abuso que los cupones,
-     * CuponService::validarFormasPagoCupon). Default: la FP única del host;
-     * los hosts multi-pago (delivery, cotizador tienda) lo overridean.
+     * CuponService::validarFormasPagoCupon).
+     *
+     * Default: el set del desglose multi-FP si el host lo tiene armado
+     * (WithPagosDesglose), si no la FP única seleccionada. El cotizador de
+     * la tienda lo overridea con las FP declaradas por el consumidor.
      */
     protected function formasPagoContexto(): array
     {
+        if (property_exists($this, 'desglosePagos') && ! empty($this->desglosePagos)) {
+            $ids = array_values(array_filter(array_unique(array_map(
+                fn ($p) => (int) ($p['forma_pago_id'] ?? 0),
+                $this->desglosePagos,
+            ))));
+            if ($ids !== []) {
+                return $ids;
+            }
+        }
+
         return $this->formaPagoId ? [(int) $this->formaPagoId] : [];
     }
 

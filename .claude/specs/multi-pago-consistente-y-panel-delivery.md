@@ -274,7 +274,7 @@ efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
 4. Tests: promo cae con FP mixta, aplica con ambas habilitadas,
    orden-independencia, lista condicionada, single-FP sin regresión.
 
-### Fase 2: Base del ajuste bienes-primero (RF-03) [PENDIENTE]
+### Fase 2: Base del ajuste bienes-primero (RF-03) [COMPLETO — 2026-07-24]
 1. `AsignadorBasesAjustePagos` (nuevo, unit tests puros).
 2. `CotizadorCarritoTienda::desglosarPagos` lo consume.
 3. Panel: `WithPagosDesglose` re-asigna bases del desglose completo al

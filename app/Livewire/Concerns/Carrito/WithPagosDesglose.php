@@ -1393,6 +1393,10 @@ trait WithPagosDesglose
             $this->montoPendienteDesglose = 0;
         }
 
+        // El set de FPs del desglose cambió: revalidar los beneficios
+        // condicionados por FP (promos/listas) con el set completo (RF-01).
+        $this->revalidarBeneficiosPorFormasPago();
+
         // Recalcular el monto fiscal
         $this->calcularMontoFacturaFiscal();
         $this->recalcularTotalConAjustes();
@@ -1437,6 +1441,11 @@ trait WithPagosDesglose
 
         unset($this->desglosePagos[$index]);
         $this->desglosePagos = array_values($this->desglosePagos);
+
+        // El set de FPs del desglose cambió: una promo condicionada puede
+        // volver a aplicar (RF-01).
+        $this->revalidarBeneficiosPorFormasPago();
+
         $this->recalcularTotalConAjustes();
 
         // Recalcular el monto fiscal
@@ -1448,6 +1457,10 @@ trait WithPagosDesglose
      */
     protected function recalcularTotalConAjustes(): void
     {
+        // Hook RF-03: el host puede re-asignar las bases del ajuste de TODOS
+        // los pagos antes de sumar (delivery: bienes-primero con tope).
+        $this->reasignarBasesAjustePagosDesglose();
+
         // totalConAjustes = bienes + ajustes FP/cuotas, SIN la percepción (que se
         // muestra como línea aparte y se suma en el "total a pagar"). Por eso se
         // descuenta la percepción ya distribuida en cada monto_final.
@@ -1458,6 +1471,50 @@ trait WithPagosDesglose
 
         // Recalcular el desglose de IVA con los ajustes de pagos mixtos
         $this->recalcularDesgloseIvaMixto();
+    }
+
+    /**
+     * Hook RF-03 (spec multi-pago-consistente): re-asigna la base del ajuste
+     * de CADA pago del desglose cuando una porción del total no debe recibir
+     * ajustes (delivery: el envío es un valor fijo — los bienes se asignan
+     * bienes-primero con tope vía AsignadorBasesAjustePagos). Default: no-op
+     * (en venta/mostrador la base es el monto completo del pago).
+     */
+    protected function reasignarBasesAjustePagosDesglose(): void {}
+
+    /**
+     * Revalida los beneficios condicionados por FP cuando cambia el SET de
+     * formas de pago del desglose (RF-01): recalcula la venta — el contexto
+     * de promos/listas usa formasPagoContexto(), que con desglose armado
+     * lleva TODAS las FP — y ajusta el pendiente por el delta del total
+     * (una promo que cae agranda lo que falta cubrir; una que vuelve lo
+     * achica). El host puede vetarlo (delivery en cobro rápido: no hay
+     * carrito que recalcular).
+     */
+    protected function revalidarBeneficiosPorFormasPago(): void
+    {
+        if (! $this->puedeRevalidarBeneficiosPorFormasPago()
+            || ! is_array($this->resultado)
+            || empty($this->items)) {
+            return;
+        }
+
+        $totalAntes = round((float) ($this->resultado['total_final'] ?? 0), 2);
+        $this->calcularVenta();
+        $delta = round((float) ($this->resultado['total_final'] ?? 0) - $totalAntes, 2);
+
+        if (abs($delta) >= 0.01) {
+            $this->montoPendienteDesglose = max(0, round($this->montoPendienteDesglose + $delta, 2));
+        }
+    }
+
+    /**
+     * Hook: la revalidación no corre en cobro rápido (se cobra un saldo de
+     * un pedido ya confirmado — no hay carrito que recalcular).
+     */
+    protected function puedeRevalidarBeneficiosPorFormasPago(): bool
+    {
+        return ! (property_exists($this, 'modoCobroRapido') && $this->modoCobroRapido);
     }
 
     /**
@@ -1638,6 +1695,9 @@ trait WithPagosDesglose
             $this->totalConAjustes = 0;
             // Limpiar valores mixtos del desglose de IVA
             $this->limpiarDesgloseIvaMixto();
+            // Sin desglose, el contexto vuelve a la FP única: los beneficios
+            // condicionados por FP que el desglose había tirado vuelven (RF-01).
+            $this->revalidarBeneficiosPorFormasPago();
         }
         $this->resetNuevoPago();
     }

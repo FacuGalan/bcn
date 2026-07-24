@@ -270,9 +270,9 @@ class CotizadorCarritoTienda
     /**
      * Desglosa el pago declarado en hasta 2 FP (RF-T18): valida declarabilidad
      * y que los montos cubran el total, y calcula el ajuste de CADA FP sobre
-     * su porción con la MISMA regla del panel (WithPagosDesglose::
-     * agregarAlDesglose + exclusión proporcional del envío de la base del
-     * ajuste, D17 — espejo de NuevoPedidoDelivery::baseAjustePagoDesglose).
+     * su porción de BIENES asignada bienes-primero con tope
+     * (AsignadorBasesAjustePagos, RF-03) — la MISMA regla que el panel
+     * delivery. El envío (valor fijo, D17) queda fuera de toda base.
      *
      * `$pagosInput` = [['forma_pago_id' => int, 'monto' => num, 'paga_con' => ?num], ...]
      * `$totalACubrir` = lo que las FP deben cubrir SIN sus ajustes
@@ -325,12 +325,8 @@ class CotizadorCarritoTienda
             throw new Exception(__('Los montos de las formas de pago no suman el total del pedido'));
         }
 
-        // Exclusión proporcional del envío de la base del ajuste (D17): el
-        // envío es un valor fijo, sin descuentos ni recargos por FP.
-        $factorBase = $costoEnvio > 0
-            ? max(0, ($totalACubrir - $costoEnvio) / $totalACubrir)
-            : 1.0;
-
+        // Preparación de cada pago (validación + datos de FP); el ajuste se
+        // calcula después, con las bases asignadas bienes-primero.
         $pagos = [];
         foreach ($pagosInput as $input) {
             $monto = round((float) ($input['monto'] ?? 0), 2);
@@ -349,27 +345,43 @@ class CotizadorCarritoTienda
                 ->where('sucursal_id', (int) $sucursal->id)
                 ->value('ajuste_porcentaje') ?? $formaPago->ajuste_porcentaje ?? 0);
 
-            $baseAjuste = round($monto * $factorBase, 2);
-            $montoAjuste = round($baseAjuste * ($ajustePorcentaje / 100), 2) + 0;
-            $montoFinal = round($monto + $montoAjuste, 2);
-
-            $permiteVuelto = (bool) ($formaPago->conceptoPago?->permite_vuelto ?? false);
-            $pagaCon = isset($input['paga_con']) ? round((float) $input['paga_con'], 2) : null;
-            if ($pagaCon !== null && ! $permiteVuelto) {
-                $pagaCon = null; // "paga con" solo tiene sentido con efectivo
-            }
-            if ($pagaCon !== null && $pagaCon > 0 && $pagaCon < $montoFinal) {
-                throw new Exception(__('El monto declarado no cubre lo que pagás con :fp', ['fp' => $formaPago->nombre]));
-            }
-
             $pagos[] = [
                 'forma_pago_id' => (int) $formaPago->id,
                 'nombre' => $formaPago->nombre,
-                'monto_base' => $monto,
+                'monto' => $monto,
                 'ajuste_porcentaje' => $ajustePorcentaje,
+                'permite_vuelto' => (bool) ($formaPago->conceptoPago?->permite_vuelto ?? false),
+                'paga_con' => isset($input['paga_con']) ? round((float) $input['paga_con'], 2) : null,
+            ];
+        }
+
+        // Base del ajuste de cada pago: los BIENES (total sin envío) se
+        // asignan bienes-primero con tope (RF-03 — reemplaza al prorrateo
+        // proporcional): el descuento de una FP aplica sobre lo que esa FP
+        // cubre de mercadería, nunca sobre el envío (valor fijo, D17) ni
+        // más allá del total de bienes. Misma regla que el panel delivery.
+        $pagos = AsignadorBasesAjustePagos::asignar($pagos, round($totalACubrir - $costoEnvio, 2));
+
+        foreach ($pagos as $i => $pago) {
+            $montoAjuste = round($pago['base_ajuste'] * ($pago['ajuste_porcentaje'] / 100), 2) + 0;
+            $montoFinal = round($pago['monto'] + $montoAjuste, 2);
+
+            $pagaCon = $pago['paga_con'];
+            if ($pagaCon !== null && ! $pago['permite_vuelto']) {
+                $pagaCon = null; // "paga con" solo tiene sentido con efectivo
+            }
+            if ($pagaCon !== null && $pagaCon > 0 && $pagaCon < $montoFinal) {
+                throw new Exception(__('El monto declarado no cubre lo que pagás con :fp', ['fp' => $pago['nombre']]));
+            }
+
+            $pagos[$i] = [
+                'forma_pago_id' => $pago['forma_pago_id'],
+                'nombre' => $pago['nombre'],
+                'monto_base' => $pago['monto'],
+                'ajuste_porcentaje' => $pago['ajuste_porcentaje'],
                 'monto_ajuste' => $montoAjuste,
                 'monto_final' => $montoFinal,
-                'permite_vuelto' => $permiteVuelto,
+                'permite_vuelto' => $pago['permite_vuelto'],
                 'paga_con' => $pagaCon && $pagaCon > 0 ? $pagaCon : null,
                 'vuelto' => $pagaCon && $pagaCon > $montoFinal ? round($pagaCon - $montoFinal, 2) : 0,
             ];

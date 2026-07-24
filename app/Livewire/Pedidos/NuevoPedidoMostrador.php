@@ -2262,6 +2262,9 @@ class NuevoPedidoMostrador extends Component
             $this->montoPendienteDesglose = 0;
             $this->totalConAjustes = 0;
             $this->limpiarDesgloseIvaMixto();
+            // Sin desglose, el contexto vuelve a la FP única: los beneficios
+            // condicionados por FP que el desglose había tirado vuelven (RF-01).
+            $this->revalidarBeneficiosPorFormasPago();
         }
         $this->resetNuevoPago();
     }

@@ -1730,8 +1730,10 @@ class ApiV1DeliveryTest extends TestCase
 
     public function test_cotizar_dos_fp_con_envio_excluye_el_envio_de_la_base_del_ajuste(): void
     {
-        // D17 proporcional: $1000 de bienes + $500 de envío. Efectivo cubre
-        // $900 (60% del pedido) → su base de ajuste son $600 de bienes → −$60.
+        // Bienes-primero con tope (RF-03): $1000 de bienes + $500 de envío.
+        // El efectivo (−10%) absorbe bienes hasta su monto → base $900 →
+        // −$90; la transferencia toma los $100 de bienes restantes (0%) y el
+        // envío queda sin ajuste para nadie.
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
         $efectivo = $this->formaPagoConDescuento(-10);
         $transferencia = $this->formaPagoTransferenciaEnSucursal();
@@ -1747,11 +1749,46 @@ class ApiV1DeliveryTest extends TestCase
         ])->assertOk();
 
         $pagos = $respuesta->json('data.pagos');
-        $this->assertEqualsWithDelta(-60.0, (float) $pagos[0]['monto_ajuste'], 0.01);
-        $this->assertEqualsWithDelta(840.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(-90.0, (float) $pagos[0]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(810.0, (float) $pagos[0]['monto_final'], 0.01);
         $this->assertEqualsWithDelta(600.0, (float) $pagos[1]['monto_final'], 0.01);
         // total_a_pagar con `pagos` + `costo_envio` INCLUYE el envío.
-        $this->assertEqualsWithDelta(1440.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+        $this->assertEqualsWithDelta(1410.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_cotizar_dos_fp_con_envio_topa_el_descuento_en_los_bienes(): void
+    {
+        // Escenario del usuario (spec): artículo $1000 + envío $1000, efectivo
+        // −10% cubre $1000 → base = TODOS los bienes ($1000) → −$100 (nunca
+        // los $48,72 del prorrateo viejo ni más que los bienes). Pagando
+        // $1500 en efectivo la base sigue topada en $1000.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $mitad = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'costo_envio' => 1000,
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 1000],
+                ['forma_pago_id' => $transferencia->id],
+            ],
+        ])->assertOk();
+        $this->assertEqualsWithDelta(-100.0, (float) $mitad->json('data.pagos.0.monto_ajuste'), 0.01);
+        $this->assertEqualsWithDelta(1900.0, (float) $mitad->json('data.total_a_pagar'), 0.01);
+
+        $sobrado = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'costo_envio' => 1000,
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 1500],
+                ['forma_pago_id' => $transferencia->id],
+            ],
+        ])->assertOk();
+        $this->assertEqualsWithDelta(-100.0, (float) $sobrado->json('data.pagos.0.monto_ajuste'), 0.01, 'La base topa en los bienes aunque el efectivo cubra parte del envío');
+        $this->assertEqualsWithDelta(1900.0, (float) $sobrado->json('data.total_a_pagar'), 0.01);
     }
 
     public function test_pedido_con_dos_fp_registra_dos_pagos_planificados_como_el_panel(): void

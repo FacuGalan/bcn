@@ -1170,9 +1170,13 @@ class NuevoPedidoDelivery extends Component
 
     /**
      * Override del hook del trait WithPagosDesglose: el envío es un valor FIJO
-     * — el ajuste % de cada pago del desglose se calcula excluyendo la porción
-     * de envío en forma proporcional (cada pago cubre bienes y envío en la
-     * misma proporción). En cobro rápido el saldo no se puede descomponer.
+     * — la base del ajuste de cada pago sale de asignar los BIENES
+     * bienes-primero con tope (RF-03, AsignadorBasesAjustePagos; misma regla
+     * que el cotizador de la tienda). Este hook da solo la PRIMERA
+     * aproximación del pago recién agregado (bienes aún sin asignar); la
+     * fuente de verdad es reasignarBasesAjustePagosDesglose(), que corre en
+     * recalcularTotalConAjustes() y corrige TODO el desglose.
+     * En cobro rápido el saldo no se puede descomponer.
      */
     protected function baseAjustePagoDesglose(float $montoBase): float
     {
@@ -1186,7 +1190,72 @@ class NuevoPedidoDelivery extends Component
             return $montoBase;
         }
 
-        return round($montoBase * (($total - $envio) / $total), 2);
+        $bienesSinAsignar = round(($total - $envio) - array_sum(array_map(
+            fn ($p) => (float) ($p['base_ajuste'] ?? 0),
+            $this->desglosePagos,
+        )), 2);
+
+        return round(min($montoBase, max(0, $bienesSinAsignar)), 2);
+    }
+
+    /**
+     * Override del hook RF-03: re-asigna las bases del ajuste de TODO el
+     * desglose con la regla bienes-primero con tope (greedy por ajuste
+     * ascendente, orden-independiente) y recalcula ajuste/final/vuelto de
+     * cada pago. El envío (valor fijo) nunca recibe descuentos ni recargos.
+     */
+    protected function reasignarBasesAjustePagosDesglose(): void
+    {
+        if ($this->modoCobroRapido || empty($this->desglosePagos) || ! is_array($this->resultado)) {
+            return;
+        }
+
+        $envio = $this->montoEnvioVigente();
+        if ($envio <= 0) {
+            return; // sin envío la base es el monto completo (regla del trait)
+        }
+
+        $bienes = round(max(0, (float) ($this->resultado['total_final'] ?? 0) - $envio), 2);
+
+        $asignados = \App\Services\Pedidos\AsignadorBasesAjustePagos::asignar(
+            array_map(fn ($p) => [
+                'monto' => (float) ($p['monto_base'] ?? 0),
+                'ajuste_porcentaje' => (float) ($p['ajuste_porcentaje'] ?? 0),
+            ], array_values($this->desglosePagos)),
+            $bienes,
+        );
+
+        foreach (array_values(array_keys($this->desglosePagos)) as $i => $key) {
+            $pago = $this->desglosePagos[$key];
+            $baseAjuste = (float) $asignados[$i]['base_ajuste'];
+            $montoAjuste = round($baseAjuste * (((float) ($pago['ajuste_porcentaje'] ?? 0)) / 100), 2) + 0;
+            $montoConAjuste = round((float) $pago['monto_base'] + $montoAjuste, 2);
+
+            $montoFinal = $montoConAjuste;
+            if ((float) ($pago['recargo_cuotas'] ?? 0) > 0) {
+                $montoRecargo = round(($baseAjuste + $montoAjuste) * (((float) $pago['recargo_cuotas']) / 100), 2);
+                $montoFinal = round($montoConAjuste + $montoRecargo, 2);
+                $this->desglosePagos[$key]['monto_recargo_cuotas'] = $montoRecargo;
+            }
+
+            $finalAnterior = round((float) ($pago['monto_final'] ?? 0), 2);
+            $this->desglosePagos[$key]['base_ajuste'] = $baseAjuste;
+            $this->desglosePagos[$key]['monto_ajuste'] = $montoAjuste;
+            $this->desglosePagos[$key]['monto_final'] = $montoFinal;
+
+            // monto_recibido: si era el auto-completado (= final anterior, sin
+            // vuelto declarado) lo sincronizamos; si el operador declaró un
+            // "paga con" real, lo respetamos y recalculamos el vuelto.
+            $recibido = $pago['monto_recibido'] ?? null;
+            if ($recibido !== null) {
+                if (abs((float) $recibido - $finalAnterior) < 0.005) {
+                    $this->desglosePagos[$key]['monto_recibido'] = $montoFinal;
+                    $this->desglosePagos[$key]['vuelto'] = 0;
+                } else {
+                    $this->desglosePagos[$key]['vuelto'] = max(0, round((float) $recibido - $montoFinal, 2));
+                }
+            }
+        }
     }
 
     protected function cargarListasPrecios(): void
@@ -3085,6 +3154,9 @@ class NuevoPedidoDelivery extends Component
             $this->montoPendienteDesglose = 0;
             $this->totalConAjustes = 0;
             $this->limpiarDesgloseIvaMixto();
+            // Sin desglose, el contexto vuelve a la FP única: los beneficios
+            // condicionados por FP que el desglose había tirado vuelven (RF-01).
+            $this->revalidarBeneficiosPorFormasPago();
         }
         $this->resetNuevoPago();
     }
