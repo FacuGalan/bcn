@@ -115,12 +115,14 @@ class CotizacionController extends Controller
             }
         }
 
-        // Multi-pago (RF-T18): la PRIMERA FP es la principal — participa del
-        // precio (promos/listas condicionadas por FP + restricción de cupón)
-        // igual que la FP única; la segunda solo aporta su ajuste sobre su
-        // porción. Incompatible con canje de puntos en v1.
+        // Multi-pago (RF-T18): TODAS las FP declaradas participan del precio
+        // — una promo/lista/cupón condicionada por FP aplica solo si acepta
+        // el set completo (regla anti-abuso, espejo de cupones). El resultado
+        // no depende del orden de los pagos. Incompatible con canje de
+        // puntos en v1.
         $pagosInput = isset($datos['pagos']) ? array_values($datos['pagos']) : null;
         $formaPagoId = isset($datos['forma_pago_id']) ? (int) $datos['forma_pago_id'] : null;
+        $formasPago = $formaPagoId;
         if ($pagosInput) {
             if (! empty($datos['usar_puntos'])) {
                 abort(response()->json(['error' => [
@@ -129,7 +131,7 @@ class CotizacionController extends Controller
                     'details' => null,
                 ]], 422));
             }
-            $formaPagoId = (int) $pagosInput[0]['forma_pago_id'];
+            $formasPago = array_map(fn ($p) => (int) $p['forma_pago_id'], $pagosInput);
         }
 
         $resultado = $cotizador->cotizar(
@@ -138,7 +140,7 @@ class CotizacionController extends Controller
             $datos['items'],
             $datos['cupon_codigo'] ?? null,
             $clienteId,
-            $formaPagoId,
+            $formasPago,
         );
 
         $totalAPagar = (float) ($resultado['total_a_pagar'] ?? ($resultado['total_final'] ?? 0));

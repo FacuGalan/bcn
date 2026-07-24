@@ -64,6 +64,13 @@ class CotizadorCarritoTienda
 
     public ?int $formaPagoId = null;
 
+    /**
+     * Set COMPLETO de FP declaradas (multi-pago RF-T18): participa del
+     * contexto de promos/listas/cupón. Con 2 FP, `formaPagoId` queda null
+     * (el ajuste no sale del camino single-FP sino de desglosarPagos).
+     */
+    public array $formasPagoIds = [];
+
     public bool $formaPagoPermiteCuotas = false;
 
     public ?int $clienteSeleccionado = null;
@@ -132,6 +139,12 @@ class CotizadorCarritoTienda
     /** Stub: la tienda no ofrece cuotas (pago contra entrega). */
     protected function cargarCuotasFormaPago(): void {}
 
+    /** Override del trait: el contexto de beneficios lleva TODAS las FP declaradas. */
+    protected function formasPagoContexto(): array
+    {
+        return $this->formasPagoIds;
+    }
+
     // ==================== API ====================
 
     /**
@@ -152,7 +165,7 @@ class CotizadorCarritoTienda
         array $itemsInput,
         ?string $cuponCodigo = null,
         ?int $clienteId = null,
-        ?int $formaPagoId = null,
+        int|array|null $formaPago = null,
     ): array {
         if (! in_array($tipo, [PedidoDelivery::TIPO_DELIVERY, PedidoDelivery::TIPO_TAKE_AWAY], true)) {
             throw new Exception("Tipo de pedido inválido: '{$tipo}'");
@@ -167,15 +180,24 @@ class CotizadorCarritoTienda
         $this->formaVentaId = $this->resolverFormaVentaId($tipo);
         $this->canalVentaId = $this->resolverCanalVentaId();
 
-        // Forma de pago declarada: participa del precio con los MISMOS cálculos
-        // del panel (promos/listas condicionadas por FP + ajuste por FP).
-        if ($formaPagoId !== null) {
-            $formaPago = FormaPago::find($formaPagoId);
-            if (! $formaPago || ! $formaPago->esDeclarableEnTienda((int) $sucursal->id)) {
+        // Formas de pago declaradas (una o el set del multi-pago RF-T18):
+        // participan del precio con los MISMOS cálculos del panel (promos y
+        // listas condicionadas por FP contra TODAS las declaradas + ajuste
+        // por FP). Con una sola FP, `formaPagoId` habilita además el camino
+        // single-FP del ajuste (WithAjusteFormaPago); con 2, el ajuste sale
+        // exclusivamente de desglosarPagos.
+        $formasPagoIds = array_values(array_unique(array_map(
+            'intval',
+            $formaPago === null ? [] : (array) $formaPago,
+        )));
+        foreach ($formasPagoIds as $fpId) {
+            $fp = FormaPago::find($fpId);
+            if (! $fp || ! $fp->esDeclarableEnTienda((int) $sucursal->id)) {
                 throw new Exception(__('La forma de pago elegida no está disponible en esta tienda'));
             }
-            $this->formaPagoId = (int) $formaPago->id;
         }
+        $this->formasPagoIds = $formasPagoIds;
+        $this->formaPagoId = count($formasPagoIds) === 1 ? $formasPagoIds[0] : null;
 
         // Lista de precios: el resolutor automático con el contexto de la
         // tienda (aplica listas condicionadas por forma de venta / canal / FP).
@@ -185,6 +207,7 @@ class CotizadorCarritoTienda
                 'forma_venta_id' => $this->formaVentaId,
                 'canal_venta_id' => $this->canalVentaId,
                 'forma_pago_id' => $this->formaPagoId,
+                'formas_pago_ids' => $this->formasPagoIds,
             ],
             null,
             $clienteId,
@@ -534,15 +557,16 @@ class CotizadorCarritoTienda
         $cupon = $validacion['cupon'];
 
         // Cupón restringido a formas de pago: con FP declarada se valida acá
-        // (mismo criterio que el cobro del POS); sin FP declarada se rechaza
-        // si el cupón tiene restricción — la tienda pide elegir la FP primero
-        // (no se puede prometer un descuento que después no aplique).
+        // (mismo criterio que el cobro del POS) contra TODAS las FP del pago
+        // (multi-pago incluido); sin FP declarada se rechaza si el cupón
+        // tiene restricción — la tienda pide elegir la FP primero (no se
+        // puede prometer un descuento que después no aplique).
         if ($cupon->tieneRestriccionFormasPago()) {
-            if (! $this->formaPagoId) {
+            if ($this->formasPagoIds === []) {
                 throw new Exception(__('El cupón :code requiere elegir la forma de pago', ['code' => $cupon->codigo]));
             }
 
-            $validacionFP = $this->cuponService->validarFormasPagoCupon($cupon, [$this->formaPagoId]);
+            $validacionFP = $this->cuponService->validarFormasPagoCupon($cupon, $this->formasPagoIds);
             if (empty($validacionFP['valid'])) {
                 throw new Exception($validacionFP['message'] ?? __('Cupón inválido para esa forma de pago'));
             }
