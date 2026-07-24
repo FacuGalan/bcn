@@ -212,6 +212,11 @@ class CotizacionController extends Controller
                     'nombre' => $p['nombre'],
                     'monto_base' => $p['monto_base'],
                     'ajuste_porcentaje' => $p['ajuste_porcentaje'],
+                    // Aditivo RF-06: lo que ESTA FP genera por su % (para que
+                    // la tienda explique "Efectivo genera −$100"); el ajuste
+                    // APLICADO a cada pago sigue en monto_ajuste (con pago
+                    // "resto", los generados se trasladan ahí).
+                    'ajuste_generado' => $p['ajuste_generado'],
                     'monto_ajuste' => $p['monto_ajuste'],
                     'monto_final' => $p['monto_final'],
                     'permite_vuelto' => $p['permite_vuelto'],

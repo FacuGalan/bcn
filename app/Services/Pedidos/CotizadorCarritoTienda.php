@@ -280,9 +280,16 @@ class CotizadorCarritoTienda
      * `$costoEnvio` = porción de envío incluida en `$totalACubrir` (excluida
      *   proporcionalmente de la base del ajuste de cada pago).
      *
+     * Traslado del ajuste (RF-06): con un pago "resto" (sin monto), los
+     * pagos declarados se cobran por su monto exacto y el ajuste que generan
+     * (`ajuste_generado`) se aplica al resto (`monto_ajuste` del resto =
+     * propio + trasladados). Sin pago resto, cada ajuste aplica sobre su
+     * propio pago. Siempre: monto_base + monto_ajuste = monto_final y
+     * Σ ajuste_generado = Σ monto_ajuste.
+     *
      * @return list<array{forma_pago_id: int, nombre: string, monto_base: float,
-     *   ajuste_porcentaje: float, monto_ajuste: float, monto_final: float,
-     *   permite_vuelto: bool, paga_con: float|null, vuelto: float}>
+     *   ajuste_porcentaje: float, ajuste_generado: float, monto_ajuste: float,
+     *   monto_final: float, permite_vuelto: bool, paga_con: float|null, vuelto: float}>
      *
      * @throws Exception con mensaje claro (la API lo devuelve como 422)
      */
@@ -362,9 +369,51 @@ class CotizadorCarritoTienda
         // más allá del total de bienes. Misma regla que el panel delivery.
         $pagos = AsignadorBasesAjustePagos::asignar($pagos, round($totalACubrir - $costoEnvio, 2));
 
+        // Traslado del ajuste al pago RESTO (RF-06, decisión usuario
+        // 2026-07-24): un pago con monto DECLARADO se cobra tal cual lo
+        // declaró el consumidor ("pago con un billete de $1000" → paga
+        // $1000) y el ajuste que GENERA (su % sobre su porción de bienes)
+        // se traslada al pago sin monto, que cubre el resto ya ajustado.
+        // Sin pago resto (todos declarados), cada ajuste aplica sobre su
+        // propio pago (comportamiento histórico). `ajuste_generado` viaja
+        // en cada pago para que la tienda explique el origen del descuento.
+        $restoIndex = $sinMonto !== [] ? $sinMonto[0] : null;
+        $ajusteTrasladado = 0.0;
+
         foreach ($pagos as $i => $pago) {
-            $montoAjuste = round($pago['base_ajuste'] * ($pago['ajuste_porcentaje'] / 100), 2) + 0;
-            $montoFinal = round($pago['monto'] + $montoAjuste, 2);
+            $ajusteGenerado = round($pago['base_ajuste'] * ($pago['ajuste_porcentaje'] / 100), 2) + 0;
+            $pagos[$i]['ajuste_generado'] = $ajusteGenerado;
+
+            if ($restoIndex !== null && $i !== $restoIndex) {
+                $pagos[$i]['monto_ajuste'] = 0.0;
+                $ajusteTrasladado += $ajusteGenerado;
+            } else {
+                $pagos[$i]['monto_ajuste'] = $ajusteGenerado;
+            }
+        }
+
+        if ($restoIndex !== null) {
+            $ajusteResto = round($pagos[$restoIndex]['monto_ajuste'] + $ajusteTrasladado, 2) + 0;
+
+            // Edge: si el descuento trasladado supera al resto, el resto
+            // queda en $0 y el excedente vuelve al (único) pago declarado —
+            // nunca un pago negativo.
+            $excedente = round($pagos[$restoIndex]['monto'] + $ajusteResto, 2);
+            if ($excedente < 0) {
+                $ajusteResto = round(-$pagos[$restoIndex]['monto'], 2);
+                foreach ($pagos as $i => $pago) {
+                    if ($i !== $restoIndex) {
+                        $pagos[$i]['monto_ajuste'] = round($pagos[$i]['monto_ajuste'] + $excedente, 2) + 0;
+                        break;
+                    }
+                }
+            }
+
+            $pagos[$restoIndex]['monto_ajuste'] = $ajusteResto;
+        }
+
+        foreach ($pagos as $i => $pago) {
+            $montoFinal = round($pago['monto'] + $pago['monto_ajuste'], 2);
 
             $pagaCon = $pago['paga_con'];
             if ($pagaCon !== null && ! $pago['permite_vuelto']) {
@@ -379,7 +428,8 @@ class CotizadorCarritoTienda
                 'nombre' => $pago['nombre'],
                 'monto_base' => $pago['monto'],
                 'ajuste_porcentaje' => $pago['ajuste_porcentaje'],
-                'monto_ajuste' => $montoAjuste,
+                'ajuste_generado' => $pago['ajuste_generado'],
+                'monto_ajuste' => round($pago['monto_ajuste'], 2) + 0,
                 'monto_final' => $montoFinal,
                 'permite_vuelto' => $pago['permite_vuelto'],
                 'paga_con' => $pagaCon && $pagaCon > 0 ? $pagaCon : null,

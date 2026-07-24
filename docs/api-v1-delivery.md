@@ -375,23 +375,35 @@ mismo shape, RF-01/RF-03 del spec multi-pago-consistente)*:
   tope**: los bienes (total sin envío) se asignan a los pagos priorizando la
   FP de mayor descuento, con tope en el monto de cada pago y sin superar
   nunca el total de bienes; el envío (valor fijo, D17) no recibe descuentos
-  ni recargos. Ej.: bienes $1000 + envío $500, efectivo −10% por $900 →
-  ajuste **−$90** (10% de los $900 de bienes que cubre). *(Antes: prorrateo
-  proporcional del envío — el mismo caso daba −$60.)* La regla es idéntica a
-  la del panel delivery (fuente única `AsignadorBasesAjustePagos`).
+  ni recargos — vale también para RECARGOS (una FP con recargo que solo
+  cubre envío no recarga nada, igual que en single-FP). Ej.: bienes $1000 +
+  envío $500, efectivo −10% por $900 → genera **−$90** (10% de los $900 de
+  bienes que cubre). *(Antes: prorrateo proporcional del envío — el mismo
+  caso daba −$60.)* La regla es idéntica a la del panel delivery (fuente
+  única `AsignadorBasesAjustePagos`).
+- **Traslado del ajuste al pago "resto"** *(2026-07-24)*: un pago con monto
+  DECLARADO se cobra por su monto exacto ("pago con un billete de $1000" →
+  `monto_final` **$1000**) y el ajuste que **genera** (campo aditivo
+  `ajuste_generado`) se aplica al pago SIN monto, que cubre el resto ya
+  ajustado (`monto_ajuste` del resto = propio + trasladados). Si el pago con
+  ajuste ES el resto, se lo aplica a sí mismo (no hay siguiente). Sin pago
+  resto (ambos montos declarados), cada ajuste aplica sobre su propio pago.
+  Invariantes: `monto_base + monto_ajuste = monto_final` y
+  `Σ ajuste_generado = Σ monto_ajuste`.
 
 Respuesta: `forma_pago` viene null y se suma `pagos[]`; **`total_a_pagar` =
 Σ monto_final e INCLUYE el `costo_envio` informado** (a diferencia del modo
-single-FP):
+single-FP). Ej. (bienes $9500 + envío $500, efectivo $6000 declarado −10% y
+transferencia el resto):
 
 ```json
 "pagos": [
   { "forma_pago_id": 1, "nombre": "Efectivo", "monto_base": 6000,
-    "ajuste_porcentaje": -10, "monto_ajuste": -600, "monto_final": 5400,
-    "permite_vuelto": true },
+    "ajuste_porcentaje": -10, "ajuste_generado": -600, "monto_ajuste": 0,
+    "monto_final": 6000, "permite_vuelto": true },
   { "forma_pago_id": 3, "nombre": "Transferencia", "monto_base": 4000,
-    "ajuste_porcentaje": 0, "monto_ajuste": 0, "monto_final": 4000,
-    "permite_vuelto": false }
+    "ajuste_porcentaje": 0, "ajuste_generado": 0, "monto_ajuste": -600,
+    "monto_final": 3400, "permite_vuelto": false }
 ],
 "total_a_pagar": 9400
 ```

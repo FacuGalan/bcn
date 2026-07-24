@@ -310,6 +310,32 @@ efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
 
 ---
 
+## RF-06 (agregado 2026-07-24, feedback post-validación): traslado del ajuste al pago "resto"
+
+- El cálculo del ajuste no cambia (RF-03), cambia la ASIGNACIÓN: un pago con
+  monto DECLARADO se cobra por su monto exacto (el billete de $1000 sigue
+  siendo $1000) y el ajuste que genera se traslada al pago sin monto (el
+  "resto"), que queda ya ajustado. Efectivo $1000 + otra FP → $1000 y $900.
+- Si el pago con ajuste ES el resto, se lo aplica a sí mismo ("te queda por
+  pagar $900 en efectivo"). Sin pago resto (todos declarados), comportamiento
+  histórico (cada uno sobre sí). Edge: descuento trasladado > resto → el
+  resto queda en $0 y el excedente vuelve al pago declarado (nunca negativo).
+- Contrato: campo aditivo `ajuste_generado` por pago (para que la tienda
+  explique "Efectivo genera −$100"); invariantes base+ajuste=final y
+  Σ generado = Σ aplicado.
+- **Decisión usuario (2026-07-24)**: los RECARGOS también aplican solo sobre
+  artículos (simétrico al descuento y al single-FP) — una FP con recargo que
+  cubre solo envío recarga $0.
+- Alcance v1: tienda + core (`CotizadorCarritoTienda::desglosarPagos`). El
+  panel (N pagos) generaliza a futuro con la misma regla ("los ajustes los
+  absorbe el pago que cubre el resto") cuando se reoptimice la ventana de
+  desglose — pendiente declarado por el usuario.
+- Lado tienda (bcn-tienda): los blades de carrito/checkout muestran
+  `ajuste_generado` ("genera −$X") en la FP que origina el descuento y
+  `monto_ajuste` en la que lo recibe.
+
+---
+
 ## Notas y Decisiones
 
 - 2026-07-24 — **D1**: la asignación de bienes a pagos es greedy por
