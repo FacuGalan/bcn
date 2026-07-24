@@ -1693,11 +1693,33 @@
 
                     {{-- Totales (desglose) --}}
                     <div class="border-t border-gray-200 dark:border-gray-700 pt-4">
+                        @php
+                            // RF-04 (spec multi-pago-consistente): el envío está
+                            // materializado como renglón-concepto DENTRO de subtotal
+                            // (D17) — acá se desglosa como línea propia.
+                            $envioDetalle = round(max(0, (float) $pedidoDetalle->costo_envio), 2);
+                        @endphp
                         <dl class="space-y-1 text-sm">
-                            <div class="flex justify-between">
-                                <dt class="text-gray-500 dark:text-gray-400">{{ __('Subtotal') }}</dt>
-                                <dd class="text-gray-900 dark:text-gray-100">${{ number_format($pedidoDetalle->subtotal, 2, ',', '.') }}</dd>
-                            </div>
+                            @if($envioDetalle > 0)
+                                <div class="flex justify-between">
+                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('Subtotal artículos') }}</dt>
+                                    <dd class="text-gray-900 dark:text-gray-100">${{ number_format($pedidoDetalle->subtotal - $envioDetalle, 2, ',', '.') }}</dd>
+                                </div>
+                                <div class="flex justify-between">
+                                    <dt class="text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                        {{ __('Envío') }}
+                                        @if($pedidoDetalle->costo_envio_manual)
+                                            <span class="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">{{ __('manual') }}</span>
+                                        @endif
+                                    </dt>
+                                    <dd class="text-sky-600 dark:text-sky-400">+${{ number_format($envioDetalle, 2, ',', '.') }}</dd>
+                                </div>
+                            @else
+                                <div class="flex justify-between">
+                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('Subtotal') }}</dt>
+                                    <dd class="text-gray-900 dark:text-gray-100">${{ number_format($pedidoDetalle->subtotal, 2, ',', '.') }}</dd>
+                                </div>
+                            @endif
                             @if((float) $pedidoDetalle->iva > 0)
                                 <div class="flex justify-between">
                                     <dt class="text-gray-500 dark:text-gray-400">{{ __('IVA') }}</dt>
@@ -1721,7 +1743,7 @@
                             </div>
                             @if((float) $pedidoDetalle->ajuste_forma_pago !== 0.0)
                                 <div class="flex justify-between">
-                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('Ajuste forma de pago') }}</dt>
+                                    <dt class="text-gray-500 dark:text-gray-400">{{ __('Ajuste forma de pago') }}@if($envioDetalle > 0) <span class="text-xs">({{ __('s/ artículos') }})</span>@endif</dt>
                                     <dd class="{{ $pedidoDetalle->ajuste_forma_pago < 0 ? 'text-red-600 dark:text-red-400' : 'text-green-600 dark:text-green-400' }}">
                                         {{ $pedidoDetalle->ajuste_forma_pago < 0 ? '-' : '+' }}${{ number_format(abs($pedidoDetalle->ajuste_forma_pago), 2, ',', '.') }}
                                     </dd>

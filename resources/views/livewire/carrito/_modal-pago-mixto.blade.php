@@ -70,6 +70,13 @@
 
                 {{-- Contenido --}}
                 <div class="px-3 py-3 space-y-3 max-h-[70vh] overflow-y-auto">
+                    @php
+                        // Delivery (RF-04): el envío es fijo — se aclara que los
+                        // descuentos/recargos por FP aplican solo a los artículos.
+                        $envioModal = (isset($costoEnvio) && isset($tipo) && $tipo === \App\Models\PedidoDelivery::TIPO_DELIVERY && ! ($modoCobroRapido ?? false))
+                            ? round(max(0, (float) $costoEnvio), 2)
+                            : 0.0;
+                    @endphp
                     {{-- Resumen del total --}}
                     <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 flex justify-between items-center">
                         <div>
@@ -81,6 +88,14 @@
                                     $@precio($resultado['total_final'] ?? 0)
                                 @endif
                             </div>
+                            @if(!$invitarTodo && $envioModal > 0)
+                                <div class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                                    $@precio(round(($resultado['total_final'] ?? 0) - $envioModal, 2)) {{ __('de artículos') }} + $@precio($envioModal) {{ __('de envío') }}
+                                </div>
+                                <div class="text-[10px] text-sky-600 dark:text-sky-400 italic">
+                                    {{ __('El envío no recibe descuentos ni recargos por forma de pago') }}
+                                </div>
+                            @endif
                         </div>
                         @if($invitarTodo)
                             <div class="text-right">
@@ -227,6 +242,15 @@
                                                         <span class="mx-1">→</span>
                                                         <span class="{{ $pago['monto_ajuste'] > 0 ? 'text-red-600' : 'text-green-600' }}">
                                                             {{ $pago['monto_ajuste'] > 0 ? '+' : '' }}$@precio($pago['monto_ajuste'])
+                                                        </span>
+                                                        @if($envioModal > 0 && isset($pago['base_ajuste']))
+                                                            <span class="text-xs text-gray-400 dark:text-gray-500">
+                                                                ({{ $pago['ajuste_porcentaje'] > 0 ? '+' : '' }}{{ $pago['ajuste_porcentaje'] }}% {{ __('s/') }} $@precio($pago['base_ajuste']) {{ __('de artículos') }})
+                                                            </span>
+                                                        @endif
+                                                    @elseif($envioModal > 0 && $pago['ajuste_porcentaje'] != 0 && ($pago['base_ajuste'] ?? null) === 0.0)
+                                                        <span class="text-xs text-gray-400 dark:text-gray-500">
+                                                            ({{ __('sin ajuste: este pago cubre solo envío') }})
                                                         </span>
                                                     @endif
                                                 </div>

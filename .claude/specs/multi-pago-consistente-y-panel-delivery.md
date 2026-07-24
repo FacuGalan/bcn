@@ -282,7 +282,7 @@ efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
    FPs (cierra RF-01 lado panel).
 4. Tests de paridad tienda ↔ panel con el escenario de los criterios.
 
-### Fase 3: UX panel delivery (RF-04) [PENDIENTE]
+### Fase 3: UX panel delivery (RF-04) [COMPLETO — 2026-07-24]
 1. Totales de alta/edición con subtotal artículos + envío.
 2. Fila `Envío` en detalle (`pedidos-delivery.blade.php`).
 3. Leyendas de base del ajuste en el modal de desglose.

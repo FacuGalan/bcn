@@ -52,15 +52,43 @@
             </div>
         @endif
 
-        <div class="flex justify-between items-center font-semibold border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
-            <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Total productos') }}:</span>
-            <span class="text-sm text-gray-900 dark:text-white">$@precio($resultado['total_final'] ?? 0)</span>
-        </div>
+        @php
+            // Delivery (RF-04 spec multi-pago-consistente): el envío es un valor
+            // FIJO incluido en total_final por el wrapper calcularVenta — se
+            // desglosa como línea propia. Venta/mostrador no tienen $costoEnvio.
+            $envioResumen = (isset($costoEnvio) && isset($tipo) && $tipo === \App\Models\PedidoDelivery::TIPO_DELIVERY && ! ($modoCobroRapido ?? false))
+                ? round(max(0, (float) $costoEnvio), 2)
+                : 0.0;
+            $totalArticulosResumen = round((float) ($resultado['total_final'] ?? 0) - $envioResumen, 2);
+        @endphp
+
+        @if($envioResumen > 0)
+            <div class="flex justify-between items-center font-semibold border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
+                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Total artículos') }}:</span>
+                <span class="text-sm text-gray-900 dark:text-white">$@precio($totalArticulosResumen)</span>
+            </div>
+            <div class="flex justify-between items-center text-sky-600 dark:text-sky-400">
+                <span class="text-xs flex items-center gap-1">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0"/></svg>
+                    {{ __('Envío') }} ({{ __('fijo, sin ajustes') }}):
+                </span>
+                <span class="text-sm font-medium">+$@precio($envioResumen)</span>
+            </div>
+            <div class="flex justify-between items-center font-semibold">
+                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Total pedido') }}:</span>
+                <span class="text-sm text-gray-900 dark:text-white">$@precio($resultado['total_final'] ?? 0)</span>
+            </div>
+        @else
+            <div class="flex justify-between items-center font-semibold border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
+                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Total productos') }}:</span>
+                <span class="text-sm text-gray-900 dark:text-white">$@precio($resultado['total_final'] ?? 0)</span>
+            </div>
+        @endif
 
         {{-- Ajuste por forma de pago --}}
         @if($ajusteFormaPagoInfo['porcentaje'] != 0 && !$ajusteFormaPagoInfo['es_mixta'])
             <div class="flex justify-between items-center {{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? 'text-red-600' : 'text-green-600' }}">
-                <span class="text-xs">{{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? __('Recargo') : __('Descuento') }} {{ $ajusteFormaPagoInfo['nombre'] }} ({{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? '+' : '' }}{{ $ajusteFormaPagoInfo['porcentaje'] }}%):</span>
+                <span class="text-xs">{{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? __('Recargo') : __('Descuento') }} {{ $ajusteFormaPagoInfo['nombre'] }} ({{ $ajusteFormaPagoInfo['porcentaje'] > 0 ? '+' : '' }}{{ $ajusteFormaPagoInfo['porcentaje'] }}%@if($envioResumen > 0) {{ __('s/ artículos') }}@endif):</span>
                 <span class="text-sm font-medium">{{ $ajusteFormaPagoInfo['monto'] > 0 ? '+' : '' }}$@precio($ajusteFormaPagoInfo['monto'])</span>
             </div>
         @endif
