@@ -422,10 +422,6 @@ class NuevoPedidoDelivery extends Component
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
         $this->cargarFormasPagoSucursal();
-        // En cobro rapido no usamos el panel tactil (solo se muestra el modal).
-        if (! $this->modoCobroRapido) {
-            $this->cargarCatalogoTactil();
-        }
         $this->listaPrecioId = $this->obtenerIdListaBase();
 
         // Forma de venta AUTOMÁTICA según tipo (seeds DELIVERY/TAKEAWAY): las
@@ -439,6 +435,14 @@ class NuevoPedidoDelivery extends Component
 
         if ($pedidoId !== null) {
             $this->cargarPedidoParaEditar($pedidoId);
+        }
+
+        // Catálogo táctil al FINAL del mount: el precio del snapshot se
+        // resuelve con la lista/forma de venta ya definidas (incluida la
+        // lista del pedido en edición) — RF-05. En cobro rapido no usamos el
+        // panel tactil (solo se muestra el modal).
+        if (! $this->modoCobroRapido) {
+            $this->cargarCatalogoTactil();
         }
 
         if ($this->modoCobroRapido) {
@@ -542,9 +546,13 @@ class NuevoPedidoDelivery extends Component
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'color', 'icono']);
 
-        // Precio base del artículo como referencia visual. Al hacer click,
-        // seleccionarArticulo aplica precios según la lista del pedido.
-        // withCount marca tiene_opcionales sin hidratar las relaciones.
+        // Precio EFECTIVO del artículo (override por sucursal + lista activa
+        // por forma de venta DELIVERY/TAKEAWAY), resuelto con la MISMA cadena
+        // que aplica seleccionarArticulo (obtenerPrecioConLista) — lo que se
+        // ve en la grilla es lo que se agrega (RF-05, fix del precio
+        // fallback). Costo por artículo en mount aceptado: mismo patrón que
+        // CatalogoTiendaService. withCount marca tiene_opcionales sin
+        // hidratar las relaciones.
         $articulos = \App\Models\Articulo::query()
             ->where('activo', true)
             ->whereNotNull('categoria_id')
@@ -571,7 +579,7 @@ class NuevoPedidoDelivery extends Component
                     'id' => (int) $a->id,
                     'nombre' => $a->nombre,
                     'codigo' => $a->codigo,
-                    'precio' => (float) ($a->precio_base ?? 0),
+                    'precio' => (float) ($this->obtenerPrecioConLista($a)['precio'] ?? $a->precio_base ?? 0),
                     'es_pesable' => (bool) $a->pesable,
                     'tiene_opcionales' => (int) ($a->grupos_opcionales_count ?? 0) > 0,
                     'imagen_url' => $a->imagenUrl(),
@@ -579,6 +587,41 @@ class NuevoPedidoDelivery extends Component
                 ])->values()->toArray(),
             ];
         })->filter()->values()->toArray();
+    }
+
+    /**
+     * Recalcula SOLO los precios del snapshot táctil (RF-05) cuando cambia el
+     * contexto de precios (delivery ↔ take-away activa otra lista por forma
+     * de venta) y avisa a Alpine con el mapa {articulo_id: precio} — la
+     * grilla vive en el navegador (seed único de @js en x-data) y no se
+     * re-renderiza sola.
+     */
+    protected function refrescarPreciosCatalogoTactil(): void
+    {
+        if (empty($this->catalogoTactil)) {
+            return;
+        }
+
+        $ids = collect($this->catalogoTactil)
+            ->flatMap(fn ($cat) => array_column($cat['articulos'] ?? [], 'id'))
+            ->unique()->values();
+
+        $precios = \App\Models\Articulo::query()
+            ->whereIn('id', $ids)
+            ->get(['id', 'precio_base', 'categoria_id'])
+            ->mapWithKeys(fn ($a) => [
+                (int) $a->id => (float) ($this->obtenerPrecioConLista($a)['precio'] ?? $a->precio_base ?? 0),
+            ])->toArray();
+
+        foreach ($this->catalogoTactil as $ci => $cat) {
+            foreach ($cat['articulos'] ?? [] as $ai => $art) {
+                if (isset($precios[$art['id']])) {
+                    $this->catalogoTactil[$ci]['articulos'][$ai]['precio'] = $precios[$art['id']];
+                }
+            }
+        }
+
+        $this->dispatch('catalogo-tactil-precios', precios: $precios);
     }
 
     /**
@@ -757,6 +800,9 @@ class NuevoPedidoDelivery extends Component
         $this->aplicarFormaVentaPorTipo();
         $this->actualizarPreciosItems();
         $this->calcularVenta();
+        // La grilla táctil muestra el precio efectivo por lista (RF-05): al
+        // cambiar el tipo puede cambiar la lista activa por forma de venta.
+        $this->refrescarPreciosCatalogoTactil();
         $this->advertirArticulosNoDisponibles();
     }
 
@@ -1169,10 +1215,12 @@ class NuevoPedidoDelivery extends Component
     }
 
     /**
-     * Override del hook del trait WithPagosDesglose: el envío es un valor FIJO
-     * — el ajuste % de cada pago del desglose se calcula excluyendo la porción
-     * de envío en forma proporcional (cada pago cubre bienes y envío en la
-     * misma proporción). En cobro rápido el saldo no se puede descomponer.
+     * Override del hook del trait WithPagosDesglose. RF-06 (traslado): el
+     * ajuste del pago recién agregado NO se auto-aplica — lo ingresado es lo
+     * que se cobra; reasignarBasesAjustePagosDesglose() corre enseguida
+     * (via recalcularTotalConAjustes) y deja TODO el desglose consistente
+     * (el pago que cierra absorbe los ajustes generados).
+     * En cobro rápido el saldo no se puede descomponer (base = monto).
      */
     protected function baseAjustePagoDesglose(float $montoBase): float
     {
@@ -1180,13 +1228,180 @@ class NuevoPedidoDelivery extends Component
             return $montoBase;
         }
 
-        $total = (float) ($this->resultado['total_final'] ?? 0);
-        $envio = $this->montoEnvioVigente();
-        if ($total <= 0 || $envio <= 0) {
-            return $montoBase;
+        return 0.0;
+    }
+
+    /**
+     * Override del hook RF-03/RF-06: paridad EXACTA con la tienda.
+     *
+     * Semántica de traslado (RF-06): lo que el operador INGRESA por FP es lo
+     * que se COBRA con esa FP ("paga con un billete de $1000" → $1000). El
+     * ajuste que cada pago GENERA (su % sobre su porción de bienes,
+     * bienes-primero con tope vía AsignadorBasesAjustePagos; el envío nunca
+     * recibe ajustes) no se descuenta de ese pago: reduce el PENDIENTE, y el
+     * pago que CIERRA el desglose lo absorbe (espejo del pago "resto" de la
+     * tienda: monto_base = ingresado − ajustes, monto_final = ingresado).
+     *
+     * El pendiente se recalcula acá de forma integral (total + ajustes −
+     * cobrado), incluyendo el ajuste HIPOTÉTICO de la FP candidata del modal
+     * — así "asignar pendiente" ya ofrece el monto final correcto.
+     */
+    protected function reasignarBasesAjustePagosDesglose(): void
+    {
+        if ($this->modoCobroRapido || ! is_array($this->resultado) || ! $this->mostrarModalPago && empty($this->desglosePagos)) {
+            return;
         }
 
-        return round($montoBase * (($total - $envio) / $total), 2);
+        $total = round((float) ($this->resultado['total_final'] ?? 0), 2); // bienes + envío
+        $bienes = round(max(0, $total - $this->montoEnvioVigente()), 2);
+
+        $keys = array_values(array_keys($this->desglosePagos));
+
+        // Lo ingresado (= lo que se cobra) por pago; se fija la primera vez
+        // que el pago pasa por acá (al agregarse o al hidratar un pedido).
+        foreach ($keys as $key) {
+            if (! isset($this->desglosePagos[$key]['monto_ingresado'])) {
+                $this->desglosePagos[$key]['monto_ingresado'] = round(
+                    (float) ($this->desglosePagos[$key]['monto_final'] ?? $this->desglosePagos[$key]['monto_base'] ?? 0)
+                    - (float) ($this->desglosePagos[$key]['monto_recargo_cuotas'] ?? 0),
+                    2,
+                );
+            }
+        }
+
+        $ingresados = array_map(fn ($key) => (float) $this->desglosePagos[$key]['monto_ingresado'], $keys);
+        $cobrado = round(array_sum($ingresados), 2);
+
+        // FP candidata del modal (aún sin monto): su ajuste hipotético sobre
+        // el remanente participa del pendiente. No participa del desglose.
+        $candidata = null;
+        if ($this->mostrarModalPago) {
+            $candidataId = (int) ($this->nuevoPago['forma_pago_id'] ?? 0);
+            $yaEnDesglose = in_array($candidataId, array_map(
+                fn ($key) => (int) ($this->desglosePagos[$key]['forma_pago_id'] ?? 0),
+                $keys,
+            ), true);
+            if ($candidataId && ! $yaEnDesglose && $total - $cobrado > 0.01) {
+                $fpCandidata = collect($this->formasPagoSucursal)->firstWhere('id', $candidataId);
+                if ($fpCandidata) {
+                    $candidata = [
+                        'monto' => round($total - $cobrado, 2),
+                        'ajuste_porcentaje' => (float) ($fpCandidata['ajuste_porcentaje'] ?? 0),
+                    ];
+                }
+            }
+        }
+
+        // Bases bienes-primero: pagos reales (coverage = ingresado; para el
+        // que cierra, el asignador topa solo en bienes así que el ingresado
+        // alcanza como proxy) + candidata hipotética al final.
+        $entradaAsignador = array_map(fn ($key) => [
+            'monto' => (float) $this->desglosePagos[$key]['monto_ingresado'],
+            'ajuste_porcentaje' => (float) ($this->desglosePagos[$key]['ajuste_porcentaje'] ?? 0),
+        ], $keys);
+        if ($candidata !== null) {
+            $entradaAsignador[] = $candidata;
+        }
+
+        $asignados = \App\Services\Pedidos\AsignadorBasesAjustePagos::asignar($entradaAsignador, $bienes);
+
+        $poolReal = 0.0;      // ajustes generados por pagos YA agregados
+        $poolCandidata = 0.0; // ajuste hipotético de la candidata (solo pendiente)
+        foreach ($asignados as $i => $asignado) {
+            $generado = round($asignado['base_ajuste'] * ($asignado['ajuste_porcentaje'] / 100), 2) + 0;
+            if ($i < count($keys)) {
+                $key = $keys[$i];
+                $this->desglosePagos[$key]['base_ajuste'] = (float) $asignado['base_ajuste'];
+                $this->desglosePagos[$key]['ajuste_generado'] = $generado;
+                $poolReal = round($poolReal + $generado, 2);
+            } else {
+                $poolCandidata = $generado;
+            }
+        }
+
+        // Pendiente integral: lo que falta COBRAR (total + ajustes − cobrado).
+        $pendiente = round($total + $poolReal + $poolCandidata - $cobrado, 2);
+        $completo = $pendiente <= 0.01;
+        $ultimoKey = $keys === [] ? null : $keys[count($keys) - 1];
+
+        foreach ($keys as $key) {
+            $pago = $this->desglosePagos[$key];
+            $ingresado = (float) $pago['monto_ingresado'];
+
+            // El pago que CIERRA absorbe el pool (paridad con el "resto" de
+            // la tienda); los demás se cobran tal cual, sin ajuste propio.
+            $absorbe = $completo && $key === $ultimoKey;
+            $montoAjuste = $absorbe ? round($poolReal, 2) + 0 : 0.0;
+            $montoBase = round($ingresado - $montoAjuste, 2);
+
+            $montoFinal = $ingresado;
+            if ((float) ($pago['recargo_cuotas'] ?? 0) > 0) {
+                $montoRecargo = round(($montoBase + $montoAjuste) * (((float) $pago['recargo_cuotas']) / 100), 2);
+                $montoFinal = round($ingresado + $montoRecargo, 2);
+                $this->desglosePagos[$key]['monto_recargo_cuotas'] = $montoRecargo;
+            }
+
+            $finalAnterior = round((float) ($pago['monto_final'] ?? 0), 2);
+            $this->desglosePagos[$key]['monto_base'] = $montoBase;
+            $this->desglosePagos[$key]['monto_ajuste'] = $montoAjuste;
+            $this->desglosePagos[$key]['monto_final'] = $montoFinal;
+
+            // monto_recibido: si era el auto-completado (= final anterior, sin
+            // vuelto declarado) lo sincronizamos; si el operador declaró un
+            // "paga con" real, lo respetamos y recalculamos el vuelto.
+            $recibido = $pago['monto_recibido'] ?? null;
+            if ($recibido !== null) {
+                if (abs((float) $recibido - $finalAnterior) < 0.005) {
+                    $this->desglosePagos[$key]['monto_recibido'] = $montoFinal;
+                    $this->desglosePagos[$key]['vuelto'] = 0;
+                } else {
+                    $this->desglosePagos[$key]['vuelto'] = max(0, round((float) $recibido - $montoFinal, 2));
+                }
+            }
+        }
+
+        $this->montoPendienteDesglose = max(0, $pendiente);
+    }
+
+    /**
+     * Override del hook RF-06: al elegir la FP candidata en el modal se
+     * revalidan promos/listas con el set candidato (una promo "solo
+     * efectivo" cae ANTES de asignar el monto) y se refresca el pendiente.
+     */
+    protected function alCambiarFormaPagoCandidataDesglose(): void
+    {
+        if ($this->modoCobroRapido || ! $this->mostrarModalPago) {
+            return;
+        }
+
+        $this->revalidarBeneficiosPorFormasPago();
+        $this->recalcularTotalConAjustes();
+    }
+
+    /**
+     * Override RF-06: el contexto de beneficios incluye la FP CANDIDATA del
+     * modal de desglose (además de las ya agregadas) — la promo cae/vuelve
+     * apenas el operador la elige, no recién al agregar el pago.
+     */
+    protected function formasPagoContexto(): array
+    {
+        $ids = array_values(array_filter(array_unique(array_map(
+            fn ($p) => (int) ($p['forma_pago_id'] ?? 0),
+            $this->desglosePagos,
+        ))));
+
+        if ($this->mostrarModalPago && ! $this->modoCobroRapido) {
+            $candidata = (int) ($this->nuevoPago['forma_pago_id'] ?? 0);
+            if ($candidata && ! in_array($candidata, $ids, true)) {
+                $ids[] = $candidata;
+            }
+        }
+
+        if ($ids !== []) {
+            return $ids;
+        }
+
+        return $this->formaPagoId ? [(int) $this->formaPagoId] : [];
     }
 
     protected function cargarListasPrecios(): void
@@ -3085,6 +3300,9 @@ class NuevoPedidoDelivery extends Component
             $this->montoPendienteDesglose = 0;
             $this->totalConAjustes = 0;
             $this->limpiarDesgloseIvaMixto();
+            // Sin desglose, el contexto vuelve a la FP única: los beneficios
+            // condicionados por FP que el desglose había tirado vuelven (RF-01).
+            $this->revalidarBeneficiosPorFormasPago();
         }
         $this->resetNuevoPago();
     }

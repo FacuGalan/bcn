@@ -1708,6 +1708,13 @@ class ApiV1DeliveryTest extends TestCase
 
         $pagos = $respuesta->json('data.pagos');
         $this->assertEqualsWithDelta(400.0, (float) $pagos[1]['monto_base'], 0.01, 'El resto ($1000 − $600) lo calculó el core');
+        // Traslado del ajuste (RF-06): el efectivo se cobra tal cual lo
+        // declaró ($600) y su descuento (−$60) se aplica al resto.
+        $this->assertEqualsWithDelta(-60.0, (float) $pagos[0]['ajuste_generado'], 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $pagos[0]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(600.0, (float) $pagos[0]['monto_final'], 0.01, 'Lo declarado es lo que paga');
+        $this->assertEqualsWithDelta(-60.0, (float) $pagos[1]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(340.0, (float) $pagos[1]['monto_final'], 0.01);
         $this->assertEqualsWithDelta(940.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
     }
 
@@ -1730,8 +1737,10 @@ class ApiV1DeliveryTest extends TestCase
 
     public function test_cotizar_dos_fp_con_envio_excluye_el_envio_de_la_base_del_ajuste(): void
     {
-        // D17 proporcional: $1000 de bienes + $500 de envío. Efectivo cubre
-        // $900 (60% del pedido) → su base de ajuste son $600 de bienes → −$60.
+        // Bienes-primero con tope (RF-03): $1000 de bienes + $500 de envío.
+        // El efectivo (−10%) absorbe bienes hasta su monto → base $900 →
+        // −$90; la transferencia toma los $100 de bienes restantes (0%) y el
+        // envío queda sin ajuste para nadie.
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
         $efectivo = $this->formaPagoConDescuento(-10);
         $transferencia = $this->formaPagoTransferenciaEnSucursal();
@@ -1747,11 +1756,105 @@ class ApiV1DeliveryTest extends TestCase
         ])->assertOk();
 
         $pagos = $respuesta->json('data.pagos');
-        $this->assertEqualsWithDelta(-60.0, (float) $pagos[0]['monto_ajuste'], 0.01);
-        $this->assertEqualsWithDelta(840.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(-90.0, (float) $pagos[0]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(810.0, (float) $pagos[0]['monto_final'], 0.01);
         $this->assertEqualsWithDelta(600.0, (float) $pagos[1]['monto_final'], 0.01);
         // total_a_pagar con `pagos` + `costo_envio` INCLUYE el envío.
-        $this->assertEqualsWithDelta(1440.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+        $this->assertEqualsWithDelta(1410.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_cotizar_dos_fp_con_envio_topa_el_descuento_en_los_bienes(): void
+    {
+        // Escenario del usuario (spec): artículo $1000 + envío $1000, efectivo
+        // −10% cubre $1000 → genera −$100 (base = TODOS los bienes; nunca los
+        // $48,72 del prorrateo viejo ni más que los bienes). El descuento se
+        // TRASLADA al resto (RF-06): efectivo paga $1000 tal cual y la otra
+        // FP $900. Pagando $1500 en efectivo la base sigue topada en $1000.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $mitad = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'costo_envio' => 1000,
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 1000],
+                ['forma_pago_id' => $transferencia->id],
+            ],
+        ])->assertOk();
+        $this->assertEqualsWithDelta(-100.0, (float) $mitad->json('data.pagos.0.ajuste_generado'), 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $mitad->json('data.pagos.0.monto_final'), 0.01, 'El billete de $1000 sigue siendo $1000');
+        $this->assertEqualsWithDelta(900.0, (float) $mitad->json('data.pagos.1.monto_final'), 0.01, 'El descuento se aplica al resto');
+        $this->assertEqualsWithDelta(1900.0, (float) $mitad->json('data.total_a_pagar'), 0.01);
+
+        $sobrado = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'costo_envio' => 1000,
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 1500],
+                ['forma_pago_id' => $transferencia->id],
+            ],
+        ])->assertOk();
+        $this->assertEqualsWithDelta(-100.0, (float) $sobrado->json('data.pagos.0.ajuste_generado'), 0.01, 'La base topa en los bienes aunque el efectivo cubra parte del envío');
+        $this->assertEqualsWithDelta(1500.0, (float) $sobrado->json('data.pagos.0.monto_final'), 0.01);
+        $this->assertEqualsWithDelta(400.0, (float) $sobrado->json('data.pagos.1.monto_final'), 0.01);
+        $this->assertEqualsWithDelta(1900.0, (float) $sobrado->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_recargo_del_resto_respeta_que_el_envio_no_recibe_ajustes(): void
+    {
+        // Débito +10% cubriendo SOLO envío (los bienes los absorbió el
+        // efectivo): recargo $0 (decisión usuario 2026-07-24, simétrico al
+        // caso single-FP) pero el descuento trasladado del efectivo SÍ lo
+        // baja: paga $900, no $1000.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $debito = $this->formaPagoTransferenciaEnSucursal(10);
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'costo_envio' => 1000,
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 1000],
+                ['forma_pago_id' => $debito->id],
+            ],
+        ])->assertOk();
+
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertEqualsWithDelta(1000.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $pagos[1]['ajuste_generado'], 0.01, 'El débito cubre solo envío → su recargo no tiene base');
+        $this->assertEqualsWithDelta(-100.0, (float) $pagos[1]['monto_ajuste'], 0.01, 'Recibe el descuento trasladado del efectivo');
+        $this->assertEqualsWithDelta(900.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(1900.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_el_pago_resto_con_descuento_se_lo_aplica_a_si_mismo(): void
+    {
+        // Si el pago con descuento ES el resto, no hay "siguiente" al que
+        // trasladar: se aplica sobre sí mismo (te queda por pagar $900 en
+        // efectivo) — comportamiento histórico.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'costo_envio' => 1000,
+            'pagos' => [
+                ['forma_pago_id' => $transferencia->id, 'monto' => 1000],
+                ['forma_pago_id' => $efectivo->id],
+            ],
+        ])->assertOk();
+
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertEqualsWithDelta(1000.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $pagos[1]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(900.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(1900.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
     }
 
     public function test_pedido_con_dos_fp_registra_dos_pagos_planificados_como_el_panel(): void
@@ -1790,6 +1893,34 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertNull($pagoTransferencia->monto_recibido);
     }
 
+    public function test_pedido_con_pago_resto_persiste_el_traslado_del_ajuste(): void
+    {
+        // El repartidor debe salir sabiendo que cobra $600 en efectivo (lo
+        // declarado) y $340 en transferencia (resto − descuento trasladado).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', array_merge(
+            $this->payloadPedido($articulo->id),
+            ['pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600, 'paga_con' => 600],
+                ['forma_pago_id' => $transferencia->id],
+            ]],
+        ))->assertCreated();
+
+        $pedido = PedidoDelivery::with('pagos')->find($respuesta->json('data.id'));
+        $this->assertEqualsWithDelta(940.0, (float) $pedido->total_final, 0.01);
+
+        $pagoEfectivo = $pedido->pagos->firstWhere('forma_pago_id', $efectivo->id);
+        $this->assertEqualsWithDelta(600.0, (float) $pagoEfectivo->monto_final, 0.01, 'Cobra exactamente lo declarado');
+        $this->assertEqualsWithDelta(0.0, (float) $pagoEfectivo->vuelto, 0.01, 'Paga con $600 justos → sin vuelto');
+
+        $pagoTransferencia = $pedido->pagos->firstWhere('forma_pago_id', $transferencia->id);
+        $this->assertEqualsWithDelta(-60.0, (float) $pagoTransferencia->monto_ajuste, 0.01);
+        $this->assertEqualsWithDelta(340.0, (float) $pagoTransferencia->monto_final, 0.01);
+    }
+
     public function test_pedido_con_dos_fp_y_paga_con_insuficiente_da_422(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
@@ -1803,6 +1934,179 @@ class ApiV1DeliveryTest extends TestCase
                 ['forma_pago_id' => $transferencia->id, 'monto' => 400],
             ]],
         ))->assertStatus(422);
+    }
+
+    // ============ PROMOS/LISTAS POR FP CON PAGO DIVIDIDO (RF-01/02) ============
+
+    /** Promo común % restringida a las FP dadas (condiciones por_forma_pago). */
+    protected function promoRestringidaAFp(float $valor, \App\Models\FormaPago ...$formasPago): \App\Models\Promocion
+    {
+        $promo = \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Promo solo FP',
+            'tipo' => 'descuento_porcentaje', 'valor' => $valor, 'prioridad' => 1,
+            'combinable' => true, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+        foreach ($formasPago as $fp) {
+            $promo->condiciones()->create([
+                'tipo_condicion' => 'por_forma_pago',
+                'forma_pago_id' => $fp->id,
+            ]);
+        }
+
+        return $promo;
+    }
+
+    public function test_promo_restringida_a_fp_no_aplica_con_pago_dividido_mixto(): void
+    {
+        // Promo 5% "solo efectivo": con la FP única aplica; dividiendo el pago
+        // con una FP fuera de la promo NO (todas las FP deben estar
+        // habilitadas — misma regla anti-abuso que los cupones).
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+        $this->promoRestringidaAFp(5, $efectivo);
+
+        $soloEfectivo = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'forma_pago_id' => $efectivo->id,
+        ])->assertOk();
+        $this->assertEqualsWithDelta(950.0, (float) $soloEfectivo->json('data.total_final'), 0.01, 'Con FP única la promo aplica');
+
+        $dividido = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id],
+            ],
+        ])->assertOk();
+        $this->assertEqualsWithDelta(1000.0, (float) $dividido->json('data.total_final'), 0.01, 'Con pago mixto la promo NO aplica');
+        $this->assertSame([], $dividido->json('data.promociones_aplicadas'));
+    }
+
+    public function test_promo_restringida_a_fp_es_orden_independiente_con_pago_dividido(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+        $this->promoRestringidaAFp(5, $efectivo);
+
+        $payload = fn (array $pagos) => [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => $pagos,
+        ];
+
+        $efectivoPrimero = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', $payload([
+            ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+            ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+        ]))->assertOk();
+        $transferenciaPrimero = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', $payload([
+            ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+            ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+        ]))->assertOk();
+
+        $this->assertEqualsWithDelta(
+            (float) $efectivoPrimero->json('data.total_final'),
+            (float) $transferenciaPrimero->json('data.total_final'),
+            0.001,
+            'El orden de los pagos no puede cambiar el total',
+        );
+        $this->assertEqualsWithDelta(
+            (float) $efectivoPrimero->json('data.total_a_pagar'),
+            (float) $transferenciaPrimero->json('data.total_a_pagar'),
+            0.001,
+        );
+    }
+
+    public function test_promo_aplica_con_pago_dividido_si_acepta_ambas_fp(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+        $this->promoRestringidaAFp(5, $efectivo, $transferencia);
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id],
+            ],
+        ])->assertOk();
+
+        // Ambas FP habilitadas → promo aplica: bienes $950; efectivo −10%
+        // sobre sus $600 genera −$60 que se traslada al resto (RF-06):
+        // efectivo paga $600 tal cual y la transferencia $350 − $60 = $290.
+        $this->assertEqualsWithDelta(950.0, (float) $respuesta->json('data.total_final'), 0.01);
+        $pagos = $respuesta->json('data.pagos');
+        $this->assertEqualsWithDelta(-60.0, (float) $pagos[0]['ajuste_generado'], 0.01);
+        $this->assertEqualsWithDelta(600.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(350.0, (float) $pagos[1]['monto_base'], 0.01);
+        $this->assertEqualsWithDelta(290.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(890.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+    }
+
+    public function test_lista_condicionada_por_fp_no_aplica_con_pago_dividido_mixto(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(0);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+
+        $lista = \App\Models\ListaPrecio::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Solo Efectivo',
+            'ajuste_porcentaje' => -20, 'redondeo' => 'ninguno',
+            'aplica_promociones' => true, 'promociones_alcance' => 'todos',
+            'es_lista_base' => false, 'prioridad' => 1, 'activo' => true,
+        ]);
+        $lista->condiciones()->create([
+            'tipo_condicion' => 'por_forma_pago',
+            'forma_pago_id' => $efectivo->id,
+        ]);
+
+        $soloEfectivo = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'forma_pago_id' => $efectivo->id,
+        ])->assertOk();
+        $this->assertEqualsWithDelta(800.0, (float) $soloEfectivo->json('data.total_final'), 0.01, 'Con FP única la lista condicionada aplica');
+
+        $dividido = $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1]],
+            'pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id],
+            ],
+        ])->assertOk();
+        $this->assertEqualsWithDelta(1000.0, (float) $dividido->json('data.total_final'), 0.01, 'Con pago mixto la lista condicionada NO aplica');
+    }
+
+    public function test_pedido_con_pago_dividido_mixto_persiste_el_total_sin_promo_restringida(): void
+    {
+        // Paridad cotizar ↔ alta: el POST /pedidos aplica la MISMA regla.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $efectivo = $this->formaPagoConDescuento(-10);
+        $transferencia = $this->formaPagoTransferenciaEnSucursal();
+        $this->promoRestringidaAFp(5, $efectivo);
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', array_merge(
+            $this->payloadPedido($articulo->id),
+            ['pagos' => [
+                ['forma_pago_id' => $efectivo->id, 'monto' => 600],
+                ['forma_pago_id' => $transferencia->id, 'monto' => 400],
+            ]],
+        ))->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        // Sin promo (FP mixta): bienes $1000; ajuste = −10% de los $600 de
+        // efectivo = −$60; total_final = $940.
+        $this->assertEqualsWithDelta(1000.0, (float) $pedido->total, 0.01);
+        $this->assertEqualsWithDelta(-60.0, (float) $pedido->ajuste_forma_pago, 0.01);
+        $this->assertEqualsWithDelta(940.0, (float) $pedido->total_final, 0.01);
+        $this->assertSame(0, $pedido->promociones()->count(), 'La promo restringida no se persiste con pago mixto');
     }
 
     // ==================== DATOS DEL CLIENTE (RF-T19 F3) ====================

@@ -108,17 +108,18 @@ class PedidoTiendaService
         // precio (promos/listas por FP + ajuste por FP), igual que en el panel.
         $clienteId = $this->resolverClienteId($sucursal, $consumidor);
 
-        // Multi-pago (RF-T18): la PRIMERA FP es la principal (participa del
-        // precio como la FP única); la segunda solo aporta su ajuste sobre su
-        // porción. Con `pagos`, el `pago` singular se ignora. Incompatible
-        // con canje de puntos en v1.
+        // Multi-pago (RF-T18): TODAS las FP declaradas participan del precio
+        // — promos/listas/cupón condicionadas por FP validan contra el set
+        // completo (regla anti-abuso, espejo de cupones), orden-independiente.
+        // Con `pagos`, el `pago` singular se ignora. Incompatible con canje
+        // de puntos en v1.
         $pagosInput = isset($payload['pagos']) ? array_values($payload['pagos']) : null;
         if ($pagosInput && ! empty($payload['usar_puntos'])) {
             throw new Exception(__('El canje de puntos no se puede combinar con dos formas de pago'));
         }
 
-        $formaPagoId = $pagosInput
-            ? (int) ($pagosInput[0]['forma_pago_id'] ?? 0)
+        $formasPago = $pagosInput
+            ? array_map(fn ($p) => (int) ($p['forma_pago_id'] ?? 0), $pagosInput)
             : (isset($payload['pago']['forma_pago_id']) ? (int) $payload['pago']['forma_pago_id'] : null);
         $resultado = $this->cotizador->cotizar(
             $sucursal,
@@ -126,7 +127,7 @@ class PedidoTiendaService
             $payload['items'],
             $payload['cupon_codigo'] ?? null,
             $clienteId,
-            $formaPagoId ?: null,
+            $formasPago ?: null,
         );
         $ajusteFormaPago = $this->cotizador->ajusteFormaPagoMonto();
 

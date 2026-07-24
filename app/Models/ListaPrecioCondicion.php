@@ -130,13 +130,26 @@ class ListaPrecioCondicion extends Model
      */
     protected function evaluarFormaPago(array $contexto): bool
     {
-        $formaPagoId = $contexto['forma_pago_id'] ?? null;
+        // Con pago dividido (`formas_pago_ids`), TODAS las FP declaradas
+        // deben coincidir con la condición — una lista condicionada por FP
+        // no aplica si parte del pago usa otra FP (espejo de la regla de
+        // promos/cupones). Con una sola FP el comportamiento es el histórico.
+        $declaradas = $contexto['formas_pago_ids']
+            ?? (isset($contexto['forma_pago_id']) && $contexto['forma_pago_id'] !== null
+                ? [$contexto['forma_pago_id']]
+                : []);
 
-        if ($formaPagoId === null) {
+        if ($declaradas === []) {
             return false;
         }
 
-        return $this->forma_pago_id === (int) $formaPagoId;
+        foreach ($declaradas as $formaPagoId) {
+            if ($this->forma_pago_id !== (int) $formaPagoId) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**

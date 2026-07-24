@@ -84,6 +84,7 @@ trait WithCalculoVenta
         // Validar condiciones de la lista
         $contexto = [
             'forma_pago_id' => $this->formaPagoId,
+            'formas_pago_ids' => $this->formasPagoContexto(),
             'forma_venta_id' => $this->formaVentaId,
             'canal_venta_id' => $this->canalVentaId,
         ];
@@ -227,6 +228,7 @@ trait WithCalculoVenta
             'forma_venta_id' => $this->formaVentaId,
             'canal_venta_id' => $this->canalVentaId,
             'forma_pago_id' => $this->formaPagoId,
+            'formas_pago_ids' => $this->formasPagoContexto(),
             'fecha' => now()->format('Y-m-d'),
             'dia_semana' => (int) now()->dayOfWeek,
             'hora' => now()->format('H:i:s'),
@@ -799,10 +801,11 @@ trait WithCalculoVenta
             }
         }
 
-        // Verificar formas de pago
+        // Verificar formas de pago: con pago dividido, TODAS las FP declaradas
+        // deben estar habilitadas en la promo (regla cupones, anti-abuso).
         $fpIds = $promo->formas_pago_ids ?? ($promo->forma_pago_id ? [$promo->forma_pago_id] : []);
         if (! empty($fpIds)) {
-            if (empty($contexto['forma_pago_id']) || ! in_array($contexto['forma_pago_id'], $fpIds)) {
+            if (! $this->formasPagoCumplenRestriccion($contexto, $fpIds)) {
                 return false;
             }
         }
@@ -1448,13 +1451,11 @@ trait WithCalculoVenta
             }
         }
 
-        // Verificar forma de pago: si la promoción requiere formas de pago específicas
+        // Verificar forma de pago: si la promoción requiere formas de pago
+        // específicas, TODAS las FP declaradas deben estar habilitadas (con
+        // pago dividido incluida la segunda FP — regla cupones, anti-abuso).
         if (! empty($promo['formas_pago_ids'])) {
-            if (! empty($contexto['forma_pago_id'])) {
-                if (! in_array($contexto['forma_pago_id'], $promo['formas_pago_ids'])) {
-                    return false;
-                }
-            } else {
+            if (! $this->formasPagoCumplenRestriccion($contexto, $promo['formas_pago_ids'])) {
                 return false;
             }
         }
@@ -1806,5 +1807,51 @@ trait WithCalculoVenta
         }
 
         return $resultado;
+    }
+
+    /**
+     * Set COMPLETO de formas de pago declaradas para el contexto de
+     * beneficios (promos/listas condicionadas por FP). Con pago dividido una
+     * promo restringida a FP aplica solo si TODAS las FP declaradas están
+     * habilitadas (misma regla anti-abuso que los cupones,
+     * CuponService::validarFormasPagoCupon).
+     *
+     * Default: el set del desglose multi-FP si el host lo tiene armado
+     * (WithPagosDesglose), si no la FP única seleccionada. El cotizador de
+     * la tienda lo overridea con las FP declaradas por el consumidor.
+     */
+    protected function formasPagoContexto(): array
+    {
+        if (property_exists($this, 'desglosePagos') && ! empty($this->desglosePagos)) {
+            $ids = array_values(array_filter(array_unique(array_map(
+                fn ($p) => (int) ($p['forma_pago_id'] ?? 0),
+                $this->desglosePagos,
+            ))));
+            if ($ids !== []) {
+                return $ids;
+            }
+        }
+
+        return $this->formaPagoId ? [(int) $this->formaPagoId] : [];
+    }
+
+    /**
+     * Normaliza las FP declaradas de un contexto de venta (set nuevo o FP
+     * singular legacy) y evalúa la restricción "todas ∈ permitidas".
+     * Comparación no estricta vía array_diff (los ids pueden llegar string).
+     */
+    protected function formasPagoCumplenRestriccion(array $contexto, array $fpIdsPermitidas): bool
+    {
+        $declaradas = $contexto['formas_pago_ids']
+            ?? (empty($contexto['forma_pago_id']) ? [] : [$contexto['forma_pago_id']]);
+
+        if ($declaradas === []) {
+            return false;
+        }
+
+        return array_diff(
+            array_map('intval', $declaradas),
+            array_map('intval', $fpIdsPermitidas),
+        ) === [];
     }
 }

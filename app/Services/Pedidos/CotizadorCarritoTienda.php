@@ -64,6 +64,13 @@ class CotizadorCarritoTienda
 
     public ?int $formaPagoId = null;
 
+    /**
+     * Set COMPLETO de FP declaradas (multi-pago RF-T18): participa del
+     * contexto de promos/listas/cupón. Con 2 FP, `formaPagoId` queda null
+     * (el ajuste no sale del camino single-FP sino de desglosarPagos).
+     */
+    public array $formasPagoIds = [];
+
     public bool $formaPagoPermiteCuotas = false;
 
     public ?int $clienteSeleccionado = null;
@@ -132,6 +139,12 @@ class CotizadorCarritoTienda
     /** Stub: la tienda no ofrece cuotas (pago contra entrega). */
     protected function cargarCuotasFormaPago(): void {}
 
+    /** Override del trait: el contexto de beneficios lleva TODAS las FP declaradas. */
+    protected function formasPagoContexto(): array
+    {
+        return $this->formasPagoIds;
+    }
+
     // ==================== API ====================
 
     /**
@@ -152,7 +165,7 @@ class CotizadorCarritoTienda
         array $itemsInput,
         ?string $cuponCodigo = null,
         ?int $clienteId = null,
-        ?int $formaPagoId = null,
+        int|array|null $formaPago = null,
     ): array {
         if (! in_array($tipo, [PedidoDelivery::TIPO_DELIVERY, PedidoDelivery::TIPO_TAKE_AWAY], true)) {
             throw new Exception("Tipo de pedido inválido: '{$tipo}'");
@@ -167,15 +180,24 @@ class CotizadorCarritoTienda
         $this->formaVentaId = $this->resolverFormaVentaId($tipo);
         $this->canalVentaId = $this->resolverCanalVentaId();
 
-        // Forma de pago declarada: participa del precio con los MISMOS cálculos
-        // del panel (promos/listas condicionadas por FP + ajuste por FP).
-        if ($formaPagoId !== null) {
-            $formaPago = FormaPago::find($formaPagoId);
-            if (! $formaPago || ! $formaPago->esDeclarableEnTienda((int) $sucursal->id)) {
+        // Formas de pago declaradas (una o el set del multi-pago RF-T18):
+        // participan del precio con los MISMOS cálculos del panel (promos y
+        // listas condicionadas por FP contra TODAS las declaradas + ajuste
+        // por FP). Con una sola FP, `formaPagoId` habilita además el camino
+        // single-FP del ajuste (WithAjusteFormaPago); con 2, el ajuste sale
+        // exclusivamente de desglosarPagos.
+        $formasPagoIds = array_values(array_unique(array_map(
+            'intval',
+            $formaPago === null ? [] : (array) $formaPago,
+        )));
+        foreach ($formasPagoIds as $fpId) {
+            $fp = FormaPago::find($fpId);
+            if (! $fp || ! $fp->esDeclarableEnTienda((int) $sucursal->id)) {
                 throw new Exception(__('La forma de pago elegida no está disponible en esta tienda'));
             }
-            $this->formaPagoId = (int) $formaPago->id;
         }
+        $this->formasPagoIds = $formasPagoIds;
+        $this->formaPagoId = count($formasPagoIds) === 1 ? $formasPagoIds[0] : null;
 
         // Lista de precios: el resolutor automático con el contexto de la
         // tienda (aplica listas condicionadas por forma de venta / canal / FP).
@@ -185,6 +207,7 @@ class CotizadorCarritoTienda
                 'forma_venta_id' => $this->formaVentaId,
                 'canal_venta_id' => $this->canalVentaId,
                 'forma_pago_id' => $this->formaPagoId,
+                'formas_pago_ids' => $this->formasPagoIds,
             ],
             null,
             $clienteId,
@@ -247,9 +270,9 @@ class CotizadorCarritoTienda
     /**
      * Desglosa el pago declarado en hasta 2 FP (RF-T18): valida declarabilidad
      * y que los montos cubran el total, y calcula el ajuste de CADA FP sobre
-     * su porción con la MISMA regla del panel (WithPagosDesglose::
-     * agregarAlDesglose + exclusión proporcional del envío de la base del
-     * ajuste, D17 — espejo de NuevoPedidoDelivery::baseAjustePagoDesglose).
+     * su porción de BIENES asignada bienes-primero con tope
+     * (AsignadorBasesAjustePagos, RF-03) — la MISMA regla que el panel
+     * delivery. El envío (valor fijo, D17) queda fuera de toda base.
      *
      * `$pagosInput` = [['forma_pago_id' => int, 'monto' => num, 'paga_con' => ?num], ...]
      * `$totalACubrir` = lo que las FP deben cubrir SIN sus ajustes
@@ -257,9 +280,16 @@ class CotizadorCarritoTienda
      * `$costoEnvio` = porción de envío incluida en `$totalACubrir` (excluida
      *   proporcionalmente de la base del ajuste de cada pago).
      *
+     * Traslado del ajuste (RF-06): con un pago "resto" (sin monto), los
+     * pagos declarados se cobran por su monto exacto y el ajuste que generan
+     * (`ajuste_generado`) se aplica al resto (`monto_ajuste` del resto =
+     * propio + trasladados). Sin pago resto, cada ajuste aplica sobre su
+     * propio pago. Siempre: monto_base + monto_ajuste = monto_final y
+     * Σ ajuste_generado = Σ monto_ajuste.
+     *
      * @return list<array{forma_pago_id: int, nombre: string, monto_base: float,
-     *   ajuste_porcentaje: float, monto_ajuste: float, monto_final: float,
-     *   permite_vuelto: bool, paga_con: float|null, vuelto: float}>
+     *   ajuste_porcentaje: float, ajuste_generado: float, monto_ajuste: float,
+     *   monto_final: float, permite_vuelto: bool, paga_con: float|null, vuelto: float}>
      *
      * @throws Exception con mensaje claro (la API lo devuelve como 422)
      */
@@ -302,12 +332,8 @@ class CotizadorCarritoTienda
             throw new Exception(__('Los montos de las formas de pago no suman el total del pedido'));
         }
 
-        // Exclusión proporcional del envío de la base del ajuste (D17): el
-        // envío es un valor fijo, sin descuentos ni recargos por FP.
-        $factorBase = $costoEnvio > 0
-            ? max(0, ($totalACubrir - $costoEnvio) / $totalACubrir)
-            : 1.0;
-
+        // Preparación de cada pago (validación + datos de FP); el ajuste se
+        // calcula después, con las bases asignadas bienes-primero.
         $pagos = [];
         foreach ($pagosInput as $input) {
             $monto = round((float) ($input['monto'] ?? 0), 2);
@@ -326,27 +352,86 @@ class CotizadorCarritoTienda
                 ->where('sucursal_id', (int) $sucursal->id)
                 ->value('ajuste_porcentaje') ?? $formaPago->ajuste_porcentaje ?? 0);
 
-            $baseAjuste = round($monto * $factorBase, 2);
-            $montoAjuste = round($baseAjuste * ($ajustePorcentaje / 100), 2) + 0;
-            $montoFinal = round($monto + $montoAjuste, 2);
-
-            $permiteVuelto = (bool) ($formaPago->conceptoPago?->permite_vuelto ?? false);
-            $pagaCon = isset($input['paga_con']) ? round((float) $input['paga_con'], 2) : null;
-            if ($pagaCon !== null && ! $permiteVuelto) {
-                $pagaCon = null; // "paga con" solo tiene sentido con efectivo
-            }
-            if ($pagaCon !== null && $pagaCon > 0 && $pagaCon < $montoFinal) {
-                throw new Exception(__('El monto declarado no cubre lo que pagás con :fp', ['fp' => $formaPago->nombre]));
-            }
-
             $pagos[] = [
                 'forma_pago_id' => (int) $formaPago->id,
                 'nombre' => $formaPago->nombre,
-                'monto_base' => $monto,
+                'monto' => $monto,
                 'ajuste_porcentaje' => $ajustePorcentaje,
-                'monto_ajuste' => $montoAjuste,
+                'permite_vuelto' => (bool) ($formaPago->conceptoPago?->permite_vuelto ?? false),
+                'paga_con' => isset($input['paga_con']) ? round((float) $input['paga_con'], 2) : null,
+            ];
+        }
+
+        // Base del ajuste de cada pago: los BIENES (total sin envío) se
+        // asignan bienes-primero con tope (RF-03 — reemplaza al prorrateo
+        // proporcional): el descuento de una FP aplica sobre lo que esa FP
+        // cubre de mercadería, nunca sobre el envío (valor fijo, D17) ni
+        // más allá del total de bienes. Misma regla que el panel delivery.
+        $pagos = AsignadorBasesAjustePagos::asignar($pagos, round($totalACubrir - $costoEnvio, 2));
+
+        // Traslado del ajuste al pago RESTO (RF-06, decisión usuario
+        // 2026-07-24): un pago con monto DECLARADO se cobra tal cual lo
+        // declaró el consumidor ("pago con un billete de $1000" → paga
+        // $1000) y el ajuste que GENERA (su % sobre su porción de bienes)
+        // se traslada al pago sin monto, que cubre el resto ya ajustado.
+        // Sin pago resto (todos declarados), cada ajuste aplica sobre su
+        // propio pago (comportamiento histórico). `ajuste_generado` viaja
+        // en cada pago para que la tienda explique el origen del descuento.
+        $restoIndex = $sinMonto !== [] ? $sinMonto[0] : null;
+        $ajusteTrasladado = 0.0;
+
+        foreach ($pagos as $i => $pago) {
+            $ajusteGenerado = round($pago['base_ajuste'] * ($pago['ajuste_porcentaje'] / 100), 2) + 0;
+            $pagos[$i]['ajuste_generado'] = $ajusteGenerado;
+
+            if ($restoIndex !== null && $i !== $restoIndex) {
+                $pagos[$i]['monto_ajuste'] = 0.0;
+                $ajusteTrasladado += $ajusteGenerado;
+            } else {
+                $pagos[$i]['monto_ajuste'] = $ajusteGenerado;
+            }
+        }
+
+        if ($restoIndex !== null) {
+            $ajusteResto = round($pagos[$restoIndex]['monto_ajuste'] + $ajusteTrasladado, 2) + 0;
+
+            // Edge: si el descuento trasladado supera al resto, el resto
+            // queda en $0 y el excedente vuelve al (único) pago declarado —
+            // nunca un pago negativo.
+            $excedente = round($pagos[$restoIndex]['monto'] + $ajusteResto, 2);
+            if ($excedente < 0) {
+                $ajusteResto = round(-$pagos[$restoIndex]['monto'], 2);
+                foreach ($pagos as $i => $pago) {
+                    if ($i !== $restoIndex) {
+                        $pagos[$i]['monto_ajuste'] = round($pagos[$i]['monto_ajuste'] + $excedente, 2) + 0;
+                        break;
+                    }
+                }
+            }
+
+            $pagos[$restoIndex]['monto_ajuste'] = $ajusteResto;
+        }
+
+        foreach ($pagos as $i => $pago) {
+            $montoFinal = round($pago['monto'] + $pago['monto_ajuste'], 2);
+
+            $pagaCon = $pago['paga_con'];
+            if ($pagaCon !== null && ! $pago['permite_vuelto']) {
+                $pagaCon = null; // "paga con" solo tiene sentido con efectivo
+            }
+            if ($pagaCon !== null && $pagaCon > 0 && $pagaCon < $montoFinal) {
+                throw new Exception(__('El monto declarado no cubre lo que pagás con :fp', ['fp' => $pago['nombre']]));
+            }
+
+            $pagos[$i] = [
+                'forma_pago_id' => $pago['forma_pago_id'],
+                'nombre' => $pago['nombre'],
+                'monto_base' => $pago['monto'],
+                'ajuste_porcentaje' => $pago['ajuste_porcentaje'],
+                'ajuste_generado' => $pago['ajuste_generado'],
+                'monto_ajuste' => round($pago['monto_ajuste'], 2) + 0,
                 'monto_final' => $montoFinal,
-                'permite_vuelto' => $permiteVuelto,
+                'permite_vuelto' => $pago['permite_vuelto'],
                 'paga_con' => $pagaCon && $pagaCon > 0 ? $pagaCon : null,
                 'vuelto' => $pagaCon && $pagaCon > $montoFinal ? round($pagaCon - $montoFinal, 2) : 0,
             ];
@@ -534,15 +619,16 @@ class CotizadorCarritoTienda
         $cupon = $validacion['cupon'];
 
         // Cupón restringido a formas de pago: con FP declarada se valida acá
-        // (mismo criterio que el cobro del POS); sin FP declarada se rechaza
-        // si el cupón tiene restricción — la tienda pide elegir la FP primero
-        // (no se puede prometer un descuento que después no aplique).
+        // (mismo criterio que el cobro del POS) contra TODAS las FP del pago
+        // (multi-pago incluido); sin FP declarada se rechaza si el cupón
+        // tiene restricción — la tienda pide elegir la FP primero (no se
+        // puede prometer un descuento que después no aplique).
         if ($cupon->tieneRestriccionFormasPago()) {
-            if (! $this->formaPagoId) {
+            if ($this->formasPagoIds === []) {
                 throw new Exception(__('El cupón :code requiere elegir la forma de pago', ['code' => $cupon->codigo]));
             }
 
-            $validacionFP = $this->cuponService->validarFormasPagoCupon($cupon, [$this->formaPagoId]);
+            $validacionFP = $this->cuponService->validarFormasPagoCupon($cupon, $this->formasPagoIds);
             if (empty($validacionFP['valid'])) {
                 throw new Exception($validacionFP['message'] ?? __('Cupón inválido para esa forma de pago'));
             }

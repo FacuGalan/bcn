@@ -301,10 +301,6 @@ class NuevoPedidoMostrador extends Component
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
         $this->cargarFormasPagoSucursal();
-        // En cobro rapido no usamos el panel tactil (solo se muestra el modal).
-        if (! $this->modoCobroRapido) {
-            $this->cargarCatalogoTactil();
-        }
         $this->listaPrecioId = $this->obtenerIdListaBase();
 
         $local = collect($this->formasVenta)->firstWhere('codigo', 'local');
@@ -317,6 +313,14 @@ class NuevoPedidoMostrador extends Component
 
         if ($pedidoId !== null) {
             $this->cargarPedidoParaEditar($pedidoId);
+        }
+
+        // Catálogo táctil al FINAL del mount: el precio del snapshot se
+        // resuelve con la lista/contexto ya definidos (incluida la lista del
+        // pedido en edición) — RF-05. En cobro rapido no usamos el panel
+        // tactil (solo se muestra el modal).
+        if (! $this->modoCobroRapido) {
+            $this->cargarCatalogoTactil();
         }
 
         if ($this->modoCobroRapido) {
@@ -419,8 +423,11 @@ class NuevoPedidoMostrador extends Component
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'color', 'icono']);
 
-        // Precio base del artículo como referencia visual. Al hacer click,
-        // seleccionarArticulo aplica precios según la lista del pedido.
+        // Precio EFECTIVO del artículo (override por sucursal + lista activa),
+        // resuelto con la MISMA cadena que aplica seleccionarArticulo
+        // (obtenerPrecioConLista) — lo que se ve en la grilla es lo que se
+        // agrega (RF-05, fix del precio fallback). Costo por artículo en
+        // mount aceptado: mismo patrón que CatalogoTiendaService.
         // withCount marca tiene_opcionales sin hidratar las relaciones.
         $articulos = \App\Models\Articulo::query()
             ->where('activo', true)
@@ -448,7 +455,7 @@ class NuevoPedidoMostrador extends Component
                     'id' => (int) $a->id,
                     'nombre' => $a->nombre,
                     'codigo' => $a->codigo,
-                    'precio' => (float) ($a->precio_base ?? 0),
+                    'precio' => (float) ($this->obtenerPrecioConLista($a)['precio'] ?? $a->precio_base ?? 0),
                     'es_pesable' => (bool) $a->pesable,
                     'tiene_opcionales' => (int) ($a->grupos_opcionales_count ?? 0) > 0,
                     'imagen_url' => $a->imagenUrl(),
@@ -2262,6 +2269,9 @@ class NuevoPedidoMostrador extends Component
             $this->montoPendienteDesglose = 0;
             $this->totalConAjustes = 0;
             $this->limpiarDesgloseIvaMixto();
+            // Sin desglose, el contexto vuelve a la FP única: los beneficios
+            // condicionados por FP que el desglose había tirado vuelven (RF-01).
+            $this->revalidarBeneficiosPorFormasPago();
         }
         $this->resetNuevoPago();
     }
