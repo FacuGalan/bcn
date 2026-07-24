@@ -916,7 +916,9 @@ trait WithPagosDesglose
         if ($fp['es_moneda_extranjera'] ?? false) {
             $totalVenta = $this->resultado['total_final'] ?? 0;
             $ajuste = $this->ajusteFormaPagoInfo['porcentaje'];
-            $montoAjuste = round($this->baseAjustePagoDesglose((float) $totalVenta) * ($ajuste / 100), 2);
+            // Pago ÚNICO que cubre todo: absorbe su propio ajuste (RF-07) —
+            // base = total sin la porción excluida (delivery: envío).
+            $montoAjuste = round(max(0, (float) $totalVenta - $this->montoExcluidoDeAjustesDesglose()) * ($ajuste / 100), 2);
             // El total a pagar incluye la percepción fiscal (Fase 5b): se inyecta en
             // el pago al procesar, pero el cliente la paga ahora → mostrarla en el modal.
             $totalConAjuste = round($totalVenta + $montoAjuste + ($this->percepcionMonto ?? 0), 2);
@@ -1164,8 +1166,23 @@ trait WithPagosDesglose
         $this->alCambiarFormaPagoCandidataDesglose();
     }
 
-    /** Hook RF-06: default no-op (delivery lo overridea). */
-    protected function alCambiarFormaPagoCandidataDesglose(): void {}
+    /**
+     * RF-06/RF-07: al ELEGIR la FP candidata en el modal se revalidan
+     * promos/listas con el set candidato (una promo "solo efectivo" cae
+     * ANTES de asignar el monto) y se refresca el pendiente (incluido el
+     * ajuste hipotético de esa FP). Aplica a todos los hosts; en cobro
+     * rápido no corre.
+     */
+    protected function alCambiarFormaPagoCandidataDesglose(): void
+    {
+        $cobroRapido = property_exists($this, 'modoCobroRapido') && $this->modoCobroRapido;
+        if ($cobroRapido || ! $this->mostrarModalPago) {
+            return;
+        }
+
+        $this->revalidarBeneficiosPorFormasPago();
+        $this->recalcularTotalConAjustes();
+    }
 
     /**
      * Cuando cambia el monto en el nuevo pago, recalcular cuotas
@@ -1419,14 +1436,20 @@ trait WithPagosDesglose
     }
 
     /**
-     * Base sobre la que se calcula el ajuste % (y el recargo de cuotas) de un
-     * pago del desglose. Hook overrideable por el host: delivery excluye
-     * proporcionalmente el costo de envío (valor fijo, sin recargos ni
-     * descuentos por forma de pago). Default: el monto completo.
+     * Base del ajuste del pago RECIÉN agregado. RF-07 (traslado): el ajuste
+     * no se auto-aplica al pago — lo ingresado es lo que se cobra;
+     * reasignarBasesAjustePagosDesglose() corre enseguida (vía
+     * recalcularTotalConAjustes) y deja TODO el desglose consistente. En
+     * cobro rápido se mantiene el comportamiento histórico (base = monto:
+     * el saldo no se descompone y no hay reasignación).
      */
     protected function baseAjustePagoDesglose(float $montoBase): float
     {
-        return $montoBase;
+        if (property_exists($this, 'modoCobroRapido') && $this->modoCobroRapido) {
+            return $montoBase;
+        }
+
+        return 0.0;
     }
 
     /**
@@ -1484,13 +1507,202 @@ trait WithPagosDesglose
     }
 
     /**
-     * Hook RF-03 (spec multi-pago-consistente): re-asigna la base del ajuste
-     * de CADA pago del desglose cuando una porción del total no debe recibir
-     * ajustes (delivery: el envío es un valor fijo — los bienes se asignan
-     * bienes-primero con tope vía AsignadorBasesAjustePagos). Default: no-op
-     * (en venta/mostrador la base es el monto completo del pago).
+     * RF-06/RF-07 (spec multi-pago-consistente): recalcula TODO el desglose
+     * con la semántica de TRASLADO — lo INGRESADO por FP es lo que se COBRA
+     * ("paga con un billete de $1000" → $1000); el ajuste que cada pago
+     * GENERA (su % sobre su porción de bienes, bienes-primero con tope vía
+     * AsignadorBasesAjustePagos) reduce el PENDIENTE, y el pago que CIERRA
+     * el desglose lo absorbe (monto_base = ingresado − ajustes,
+     * monto_final = ingresado). El pendiente incluye el ajuste HIPOTÉTICO de
+     * la FP candidata del modal, así "asignar pendiente" ofrece el monto
+     * final correcto.
+     *
+     * Aplica a TODOS los hosts (venta, mostrador, delivery). El host puede
+     * excluir una porción fija de la base de ajustes vía
+     * montoExcluidoDeAjustesDesglose() (delivery: el envío). En cobro rápido
+     * no corre (el saldo no se descompone).
+     *
+     * Preserva por pago: recargo de cuotas (sobre su propio pago) y la
+     * percepción fiscal ya distribuida (Fase 5b) — ambas viajan ENCIMA del
+     * monto ingresado en monto_final.
      */
-    protected function reasignarBasesAjustePagosDesglose(): void {}
+    protected function reasignarBasesAjustePagosDesglose(): void
+    {
+        $cobroRapido = property_exists($this, 'modoCobroRapido') && $this->modoCobroRapido;
+        if ($cobroRapido || ! is_array($this->resultado)) {
+            return;
+        }
+        if (! $this->mostrarModalPago && empty($this->desglosePagos)) {
+            return;
+        }
+
+        $total = round((float) ($this->resultado['total_final'] ?? 0), 2);
+        $bienes = round(max(0, $total - $this->montoExcluidoDeAjustesDesglose()), 2);
+
+        $keys = array_values(array_keys($this->desglosePagos));
+
+        // Lo ingresado (= lo que se cobra, sin recargo de cuotas ni
+        // percepción) por pago; se fija la primera vez que el pago pasa por
+        // acá (al agregarse o al hidratar un pedido/venta existente).
+        foreach ($keys as $key) {
+            if (! isset($this->desglosePagos[$key]['monto_ingresado'])) {
+                $this->desglosePagos[$key]['monto_ingresado'] = round(
+                    (float) ($this->desglosePagos[$key]['monto_final'] ?? $this->desglosePagos[$key]['monto_base'] ?? 0)
+                    - (float) ($this->desglosePagos[$key]['monto_recargo_cuotas'] ?? 0)
+                    - (float) ($this->desglosePagos[$key]['percepcion'] ?? 0),
+                    2,
+                );
+            }
+        }
+
+        $ingresados = array_map(fn ($key) => (float) $this->desglosePagos[$key]['monto_ingresado'], $keys);
+        $cobrado = round(array_sum($ingresados), 2);
+
+        // FP candidata del modal (aún sin monto): su ajuste hipotético sobre
+        // el remanente participa del pendiente. No participa del desglose.
+        $candidata = null;
+        if ($this->mostrarModalPago) {
+            $candidataId = (int) ($this->nuevoPago['forma_pago_id'] ?? 0);
+            $yaEnDesglose = in_array($candidataId, array_map(
+                fn ($key) => (int) ($this->desglosePagos[$key]['forma_pago_id'] ?? 0),
+                $keys,
+            ), true);
+            if ($candidataId && ! $yaEnDesglose && $total - $cobrado > 0.01) {
+                $fpCandidata = collect($this->formasPagoSucursal)->firstWhere('id', $candidataId);
+                if ($fpCandidata) {
+                    $candidata = [
+                        'monto' => round($total - $cobrado, 2),
+                        'ajuste_porcentaje' => (float) ($fpCandidata['ajuste_porcentaje'] ?? 0),
+                    ];
+                }
+            }
+        }
+
+        // ¿El desglose CIERRA con el último pago? Régimen de cierre (exacto,
+        // mismo modelo que el pago "resto" de la tienda): la BASE del último
+        // pago es lo que FALTA cancelar (total − Σ ingresados de los demás);
+        // con esa base se derivan los ajustes y el último debe haber
+        // ingresado base + ajustes. Si no coincide (pago parcial), régimen
+        // abierto: cada pago cubre su ingresado y el pool queda en el
+        // pendiente. Esto evita el punto fijo de "el descuento del que
+        // cierra reduce su propia cobertura".
+        $completo = false;
+        $poolReal = 0.0;      // ajustes generados por pagos YA agregados
+        $poolCandidata = 0.0; // ajuste hipotético de la candidata (solo pendiente)
+        $ultimoKey = $keys === [] ? null : $keys[count($keys) - 1];
+        $baseUltima = 0.0;
+        $asignados = [];
+
+        if ($ultimoKey !== null) {
+            $ingresadoUltimo = (float) $this->desglosePagos[$ultimoKey]['monto_ingresado'];
+            $baseUltima = round($total - ($cobrado - $ingresadoUltimo), 2);
+
+            if ($baseUltima > 0) {
+                $entradaCierre = array_map(fn ($key) => [
+                    'monto' => $key === $ultimoKey ? $baseUltima : (float) $this->desglosePagos[$key]['monto_ingresado'],
+                    'ajuste_porcentaje' => (float) ($this->desglosePagos[$key]['ajuste_porcentaje'] ?? 0),
+                ], $keys);
+                $asignadosCierre = \App\Services\Pedidos\AsignadorBasesAjustePagos::asignar($entradaCierre, $bienes);
+
+                $poolCierre = 0.0;
+                foreach ($asignadosCierre as $asignado) {
+                    $poolCierre = round($poolCierre + round($asignado['base_ajuste'] * ($asignado['ajuste_porcentaje'] / 100), 2), 2);
+                }
+
+                if (abs($ingresadoUltimo - round($baseUltima + $poolCierre, 2)) <= 0.05) {
+                    $completo = true;
+                    $poolReal = $poolCierre;
+                    $asignados = $asignadosCierre;
+                }
+            }
+        }
+
+        if (! $completo) {
+            // Régimen abierto: coverage = ingresado de cada pago + candidata
+            // hipotética por el remanente.
+            $entradaAsignador = array_map(fn ($key) => [
+                'monto' => (float) $this->desglosePagos[$key]['monto_ingresado'],
+                'ajuste_porcentaje' => (float) ($this->desglosePagos[$key]['ajuste_porcentaje'] ?? 0),
+            ], $keys);
+            if ($candidata !== null) {
+                $entradaAsignador[] = $candidata;
+            }
+
+            $asignados = \App\Services\Pedidos\AsignadorBasesAjustePagos::asignar($entradaAsignador, $bienes);
+
+            foreach ($asignados as $i => $asignado) {
+                $generado = round($asignado['base_ajuste'] * ($asignado['ajuste_porcentaje'] / 100), 2) + 0;
+                if ($i >= count($keys)) {
+                    $poolCandidata = $generado;
+                }
+            }
+        }
+
+        foreach ($keys as $i => $key) {
+            $generado = round($asignados[$i]['base_ajuste'] * ($asignados[$i]['ajuste_porcentaje'] / 100), 2) + 0;
+            $this->desglosePagos[$key]['base_ajuste'] = (float) $asignados[$i]['base_ajuste'];
+            $this->desglosePagos[$key]['ajuste_generado'] = $generado;
+            if (! $completo) {
+                $poolReal = round($poolReal + $generado, 2);
+            }
+        }
+
+        // Pendiente integral: lo que falta COBRAR (total + ajustes − cobrado).
+        $pendiente = $completo ? 0.0 : round($total + $poolReal + $poolCandidata - $cobrado, 2);
+
+        foreach ($keys as $key) {
+            $pago = $this->desglosePagos[$key];
+            $ingresado = (float) $pago['monto_ingresado'];
+
+            // El pago que CIERRA absorbe el pool (paridad con el "resto" de
+            // la tienda); los demás se cobran tal cual, sin ajuste propio.
+            // El ajuste del que cierra se deriva de ingresado − base para
+            // que base + ajuste = final quede EXACTO (el pool puede diferir
+            // en centavos por redondeo).
+            $absorbe = $completo && $key === $ultimoKey;
+            $montoBase = $absorbe ? $baseUltima : $ingresado;
+            $montoAjuste = $absorbe ? round($ingresado - $baseUltima, 2) + 0 : 0.0;
+
+            $montoFinal = $ingresado;
+            if ((float) ($pago['recargo_cuotas'] ?? 0) > 0) {
+                $montoRecargo = round(($montoBase + $montoAjuste) * (((float) $pago['recargo_cuotas']) / 100), 2);
+                $montoFinal = round($ingresado + $montoRecargo, 2);
+                $this->desglosePagos[$key]['monto_recargo_cuotas'] = $montoRecargo;
+            }
+
+            // Percepción fiscal (Fase 5b) ya distribuida: viaja encima.
+            $montoFinal = round($montoFinal + (float) ($pago['percepcion'] ?? 0), 2);
+
+            $finalAnterior = round((float) ($pago['monto_final'] ?? 0), 2);
+            $this->desglosePagos[$key]['monto_base'] = $montoBase;
+            $this->desglosePagos[$key]['monto_ajuste'] = $montoAjuste;
+            $this->desglosePagos[$key]['monto_final'] = $montoFinal;
+
+            // monto_recibido: si era el auto-completado (= final anterior, sin
+            // vuelto declarado) lo sincronizamos; si el operador declaró un
+            // "paga con" real, lo respetamos y recalculamos el vuelto.
+            $recibido = $pago['monto_recibido'] ?? null;
+            if ($recibido !== null) {
+                if (abs((float) $recibido - $finalAnterior) < 0.005) {
+                    $this->desglosePagos[$key]['monto_recibido'] = $montoFinal;
+                    $this->desglosePagos[$key]['vuelto'] = 0;
+                } else {
+                    $this->desglosePagos[$key]['vuelto'] = max(0, round((float) $recibido - $montoFinal, 2));
+                }
+            }
+        }
+
+        $this->montoPendienteDesglose = max(0, $pendiente);
+    }
+
+    /**
+     * Hook RF-07: porción del total que NO recibe ajustes por FP (valor
+     * fijo). Default 0; delivery la overridea con el costo de envío (D17).
+     */
+    protected function montoExcluidoDeAjustesDesglose(): float
+    {
+        return 0.0;
+    }
 
     /**
      * Revalida los beneficios condicionados por FP cuando cambia el SET de
@@ -1782,9 +1994,11 @@ trait WithPagosDesglose
             return;
         }
 
-        // Calcular base sin ajuste para registro correcto
+        // Calcular base sin ajuste para registro correcto. Pago ÚNICO que
+        // cubre todo: absorbe su propio ajuste (RF-07) — base = total sin la
+        // porción excluida (delivery: envío).
         $totalBase = $this->resultado['total_final'] ?? 0;
-        $montoAjuste = round($this->baseAjustePagoDesglose((float) $totalBase) * ($ajuste / 100), 2);
+        $montoAjuste = round(max(0, (float) $totalBase - $this->montoExcluidoDeAjustesDesglose()) * ($ajuste / 100), 2);
 
         $this->desglosePagos = [[
             'forma_pago_id' => $fp['id'],
