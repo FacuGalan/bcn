@@ -362,23 +362,38 @@ Reglas: los montos deben **sumar `total_final` + `costo_envio`** (±0.05, si no
 422 `pagos_invalidos`); a lo sumo UN pago puede viajar **sin `monto`** y cubre
 EL RESTO (recomendado: la tienda manda el monto de la primera FP y la segunda
 sin monto — nunca calcula el resto localmente); FP repetida → 422; ambas FP
-deben ser declarables en la tienda. La **primera FP es la principal**: participa del precio como la FP
-única (promos/listas condicionadas por FP, cupones restringidos). El ajuste de
-CADA FP se calcula sobre **su porción** con la regla del panel, excluyendo el
-envío proporcionalmente de la base (D17). Respuesta: `forma_pago` viene null y
-se suma `pagos[]`; **`total_a_pagar` = Σ monto_final e INCLUYE el
-`costo_envio` informado** (a diferencia del modo single-FP):
+deben ser declarables en la tienda.
+
+**Semántica del precio con 2 FP** *(cambio de comportamiento 2026-07-24 —
+mismo shape, RF-01/RF-03 del spec multi-pago-consistente)*:
+- **TODAS las FP declaradas participan del precio**: una promo, lista de
+  precios o cupón condicionado por FP aplica solo si acepta el **set
+  completo** (misma regla anti-abuso que los cupones en el POS). El resultado
+  NO depende del orden de los pagos. *(Antes: solo `pagos[0]` participaba y
+  el orden cambiaba el total.)*
+- **Base del ajuste de cada FP = su porción de BIENES, bienes-primero con
+  tope**: los bienes (total sin envío) se asignan a los pagos priorizando la
+  FP de mayor descuento, con tope en el monto de cada pago y sin superar
+  nunca el total de bienes; el envío (valor fijo, D17) no recibe descuentos
+  ni recargos. Ej.: bienes $1000 + envío $500, efectivo −10% por $900 →
+  ajuste **−$90** (10% de los $900 de bienes que cubre). *(Antes: prorrateo
+  proporcional del envío — el mismo caso daba −$60.)* La regla es idéntica a
+  la del panel delivery (fuente única `AsignadorBasesAjustePagos`).
+
+Respuesta: `forma_pago` viene null y se suma `pagos[]`; **`total_a_pagar` =
+Σ monto_final e INCLUYE el `costo_envio` informado** (a diferencia del modo
+single-FP):
 
 ```json
 "pagos": [
   { "forma_pago_id": 1, "nombre": "Efectivo", "monto_base": 6000,
-    "ajuste_porcentaje": -10, "monto_ajuste": -572.73, "monto_final": 5427.27,
+    "ajuste_porcentaje": -10, "monto_ajuste": -600, "monto_final": 5400,
     "permite_vuelto": true },
   { "forma_pago_id": 3, "nombre": "Transferencia", "monto_base": 4000,
     "ajuste_porcentaje": 0, "monto_ajuste": 0, "monto_final": 4000,
     "permite_vuelto": false }
 ],
-"total_a_pagar": 9427.27
+"total_a_pagar": 9400
 ```
 
 Limitación v1: `pagos` + `usar_puntos` → 422 (el canje de puntos sigue

@@ -1,13 +1,18 @@
 # Multi-pago consistente + desglose delivery en panel + fix precio táctil - Especificación
 
-## Estado: EN REVISIÓN
+## Estado: IMPLEMENTADO — 2026-07-24 (PR pendiente de merge)
 
 > Spec creado 2026-07-24 a partir del bug reportado en la tienda (promo 5%
 > efectivo + descuento 10% efectivo con pago dividido). Cubre 4 sub-features:
 > RF-01/02 (validación de promos/listas por FP con multi-pago), RF-03 (base
 > del ajuste FP bienes-primero con tope), RF-04 (desglose visible de envío en
 > panel delivery), RF-05 (fix precio fallback en catálogo táctil).
-> Esperando aprobación del usuario para `/sdd-apply`.
+> Fases 1-5 COMPLETAS en branch `feat/multi-pago-consistente`. Suite
+> completa: 1410 passed / 1 skipped. Validación en vivo de la API contra el
+> core local: los 4 escenarios del usuario dan los números esperados
+> ($1855 single-FP sin regresión; $1900 con pago dividido, orden-independiente,
+> tope en bienes). Pendiente: validación visual del usuario (panel delivery +
+> táctil) y merge.
 
 ---
 
@@ -235,31 +240,34 @@ Claves nuevas (es/en/pt, orden alfabético):
 Escenario base: artículo $1000, envío $1000, promo 5% restringida a
 efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
 
-- [ ] **1 FP efectivo (tienda y panel)**: total $1855 (sin regresión).
-- [ ] **2 FP, efectivo $1000 + resto otra**: promo NO aplica; ajuste
-      efectivo = −$100 (base $1000 = min(monto, bienes)); total $1900.
-      Mismo resultado en tienda y en panel delivery.
-- [ ] **Orden invertido de los pagos**: mismo resultado exacto (orden-
-      independencia).
-- [ ] **2 FP ambas habilitadas en la promo**: promo aplica (−$50); ajuste
-      efectivo = −$95 (base $950); paridad tienda/panel.
-- [ ] **Pago efectivo $1500 (cubre bienes y parte del envío)**: base del
-      ajuste = bienes completos ($950 o $1000 según promo), nunca más.
-- [ ] **Listas condicionadas por FP**: con 2 FP donde una no cumple la
-      condición, la lista condicionada NO aplica y cae a la siguiente.
-- [ ] **Cupones**: comportamiento actual intacto (ya validaban todas las FP).
-- [ ] **Panel alta/edición delivery**: se ve `Subtotal artículos` + `Envío`
-      + `Total`; el modal de desglose explica la base de cada ajuste.
-- [ ] **Detalle del pedido en panel**: fila `Envío` visible; subtotal de
-      bienes = subtotal − envío.
-- [ ] **Táctil (mostrador y delivery)**: el precio de la grilla coincide
-      SIEMPRE con el precio al agregar (sucursal con override + lista
-      Delivery activa).
-- [ ] **Single-FP en venta/mostrador**: cero cambios de totales (regresión).
-- [ ] Contrato `docs/api-v1-delivery.md` actualizado con la nota de
-      comportamiento multi-FP.
-- [ ] Pint + suites de pedidos/tienda verdes; smoke tests de los
-      componentes tocados.
+- [x] **1 FP efectivo (tienda y panel)**: total $1855 (sin regresión).
+      Evidencia: cotizar en vivo (demo) + `test_promo_restringida_a_fp_no_aplica…` (rama single-FP).
+- [x] **2 FP, efectivo $1000 + resto otra**: promo NO aplica; ajuste
+      efectivo = −$100; total $1900. Evidencia: en vivo +
+      `test_cotizar_dos_fp_con_envio_topa_el_descuento_en_los_bienes` (tienda)
+      + `test_desglose_dos_fp_asigna_bienes_primero_con_tope` (panel).
+- [x] **Orden invertido de los pagos**: mismo resultado. Evidencia: en vivo +
+      `test_promo_restringida_a_fp_es_orden_independiente…` + unit del asignador.
+- [x] **2 FP ambas habilitadas en la promo**: promo aplica; base $950 → −$95
+      (efectivo $1000 topa en bienes). Evidencia: `test_promo_aplica_con_pago_dividido_si_acepta_ambas_fp`
+      (variante $600: −$60 sobre su porción).
+- [x] **Pago efectivo $1500**: base = bienes completos, nunca más. Evidencia:
+      en vivo (−$100) + test tienda.
+- [x] **Listas condicionadas por FP**: `test_lista_condicionada_por_fp_no_aplica_con_pago_dividido_mixto`.
+- [x] **Cupones**: intactos (ya validaban todas las FP); cotizador ahora les
+      pasa el set completo en vez de `pagos[0]`. Suites de cupones verdes.
+- [x] **Panel alta/edición delivery**: filas nuevas en `_resumen-totales` +
+      leyendas en `_modal-pago-mixto` (render cubierto por suites Livewire;
+      validación visual del usuario pendiente).
+- [x] **Detalle del pedido en panel**: fila `Envío` (+badge manual) en
+      `pedidos-delivery.blade.php`.
+- [x] **Táctil**: `CatalogoTactilPrecioTest` (3 tests: mostrador, delivery,
+      refresh por cambio de tipo) — grilla == precio al agregar.
+- [x] **Single-FP en venta/mostrador**: suite completa 1410 passed / 1 skipped.
+- [x] Contrato `docs/api-v1-delivery.md` actualizado (semántica multi-FP,
+      sin cambio de shape).
+- [x] Pint verde en todos los archivos tocados; suites de pedidos/ventas/API
+      verdes.
 
 ---
 
@@ -294,7 +302,7 @@ efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
 3. Test: precio de grilla == precio al agregar (sucursal con override +
    lista delivery).
 
-### Fase 5: Contrato + docs + verificación [PENDIENTE]
+### Fase 5: Contrato + docs + verificación [COMPLETO — 2026-07-24]
 1. Nota de comportamiento en `docs/api-v1-delivery.md`.
 2. Validación en vivo (tienda :8001 contra core :8000) del escenario del
    usuario.
