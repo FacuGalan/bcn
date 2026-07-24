@@ -346,6 +346,91 @@ efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
 
 ---
 
+## Ampliación 2026-07-24 (post-merge #178/#34): desglose universal + rediseño visual
+
+### RF-07: Traslado del ajuste en TODOS los hosts del desglose (venta y mostrador)
+- La semántica RF-06 (lo ingresado es lo que se cobra; los ajustes generados
+  reducen el pendiente; el pago que cierra absorbe) sube de
+  `NuevoPedidoDelivery` al trait `WithPagosDesglose` como DEFAULT:
+  `NuevaVenta` y `NuevoPedidoMostrador` la heredan (sin envío, bienes =
+  total_final). Hook nuevo `montoExcluidoDeAjustesDesglose()` (default 0;
+  delivery → envío).
+- La revalidación al elegir la FP candidata (hook
+  `alCambiarFormaPagoCandidataDesglose`) también pasa a default del trait, y
+  `formasPagoContexto()` (WithCalculoVenta) considera la candidata en todos
+  los hosts.
+- **Cuidados**: percepción fiscal (Fase 5b) distribuida en `monto_final` de
+  pagos fiscales → el recálculo debe PRESERVAR la porción de percepción;
+  cuotas (recargo por pago se mantiene sobre su propio pago); moneda
+  extranjera (paths single-pago quedan idénticos por construcción);
+  `montoFacturaFiscal` (suma finales de pagos fiscales): al mover plata
+  entre FPs cambia qué monto queda bajo factura — consecuencia deseada de
+  la semántica nueva.
+- Cobro rápido: excluido en todos los hosts (saldo indivisible).
+
+### RF-08: Rediseño visual del modal de desglose (`_modal-pago-mixto`)
+- Modal más ancho; en desktop DOS columnas: izquierda total a cobrar +
+  pendiente + selector de FPs SIEMPRE visible; derecha los pagos agregados
+  (+percepción/totales). En móvil, apilado (selector primero).
+- Al completarse el desglose (pendiente 0) el selector se apaga (dim +
+  deshabilitado) con estado visual "desglose completo"; se reactiva al
+  quitar un pago.
+- Sin cambios de lógica: solo estructura/estética del blade compartido.
+
+### RF-09: Auditoría de los flujos de cobro restantes (informe, no cambio ciego)
+- `GestionarCobranzas` (cta cte): desglose PROPIO fuera del trait, sin
+  promos (cobra deuda ya generada) y con semántica monto_pagado vs
+  monto_para_deuda preexistente → auditar coherencia conceptual y reportar
+  hallazgos al usuario antes de tocar.
+- Botones de cobro separados (confirmar pagos planificados en
+  PedidosDelivery/PedidosMostrador): cobran montos persistidos sin
+  recalcular → verificar que no re-derivan ajustes.
+- `CambioFormaPagoService` (cambio de FP post-venta) y compras
+  (EditorCompra/pagos proveedores): verificar si les aplica la regla.
+
+### Plan (continúa numeración)
+- Fase 6: RF-07 en el trait + regresión ventas/mostrador/delivery [COMPLETO — 2026-07-24]
+  - Traslado y revalidación-por-candidata movidos al trait (defaults);
+    delivery solo conserva `montoExcluidoDeAjustesDesglose()` (envío).
+  - Régimen de CIERRE exacto: la base del pago que cierra = total − Σ
+    ingresados previos (evita el punto fijo "el descuento del que cierra
+    reduce su propia cobertura"); régimen ABIERTO con pool en el pendiente.
+  - Percepción fiscal y recargo de cuotas preservados ENCIMA del ingresado;
+    paths single-pago de moneda extranjera usan base directa (total −
+    excluido) y quedan idénticos.
+- Fase 7: RF-08 rediseño del modal [COMPLETO — 2026-07-24]
+  - `lg:max-w-5xl` + grilla 2 columnas (selector FP siempre visible a la
+    izquierda con estado "Desglose completo"; pagos + vuelto + fiscal a la
+    derecha; en móvil orden fuente actual). `npm run build` corrido.
+- Fase 8: RF-09 auditoría [COMPLETO — 2026-07-24] — informe:
+  - GestionarCobranzas: NO APLICA — modelo pronto-pago PROPIO sobre deuda
+    (sin promos); diverge del mental-model del desglose de venta pero es
+    legítimo. Decisión pendiente del usuario si se unifica a futuro.
+  - Confirmación de pagos planificados (delivery/mostrador + services):
+    COHERENTE — cobran monto_final persistido, sin re-derivar.
+  - **CambioFormaPagoService + Ventas::agregarAlDesgloseCambio: LÓGICA
+    VIEJA parcial** — ajuste per-pago auto-aplicado (total congelado,
+    tolerable) y **NO revalida promos/listas condicionadas por FP** al
+    cambiar la FP de una venta cobrada (ej.: venta con 10% "solo efectivo"
+    cambiada a tarjeta conserva el descuento). Gap real; requiere decisión
+    del usuario (revalidar vs alertar vs bloquear).
+  - Compras y WithCobroIntegracion/CobroService: NO APLICA / COHERENTE.
+
+### RF-10: Bloqueo del cambio de FP con promo condicionada [PENDIENTE — decisión tomada 2026-07-24]
+- **Decisión del usuario**: en `CambioFormaPagoService` (y su espejo
+  `Ventas::agregarAlDesgloseCambio`), si la venta tiene promociones/listas
+  cuyo descuento estuvo condicionado a una FP y el cambio intenta REMOVER o
+  reemplazar esa FP, se BLOQUEA el cambio con un mensaje claro: "no se puede
+  cambiar esta forma de pago porque la promo X dependía de ella — para
+  modificarla hay que cancelar la venta entera (y recargarla)".
+- Detección: la venta persiste sus promos aplicadas
+  (`venta_promociones`/detalle); cruzar sus `formas_pago_ids` (condiciones
+  por_forma_pago / formas_pago_ids de especiales) contra el set de FPs
+  resultante del cambio.
+- Implementar en la PRÓXIMA sesión (no incluido en el PR actual).
+
+---
+
 ## Notas y Decisiones
 
 - 2026-07-24 — **D1**: la asignación de bienes a pagos es greedy por
