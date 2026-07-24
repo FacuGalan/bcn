@@ -422,10 +422,6 @@ class NuevoPedidoDelivery extends Component
         $this->cargarConfiguracionSucursal();
         $this->cargarListasPrecios();
         $this->cargarFormasPagoSucursal();
-        // En cobro rapido no usamos el panel tactil (solo se muestra el modal).
-        if (! $this->modoCobroRapido) {
-            $this->cargarCatalogoTactil();
-        }
         $this->listaPrecioId = $this->obtenerIdListaBase();
 
         // Forma de venta AUTOMÁTICA según tipo (seeds DELIVERY/TAKEAWAY): las
@@ -439,6 +435,14 @@ class NuevoPedidoDelivery extends Component
 
         if ($pedidoId !== null) {
             $this->cargarPedidoParaEditar($pedidoId);
+        }
+
+        // Catálogo táctil al FINAL del mount: el precio del snapshot se
+        // resuelve con la lista/forma de venta ya definidas (incluida la
+        // lista del pedido en edición) — RF-05. En cobro rapido no usamos el
+        // panel tactil (solo se muestra el modal).
+        if (! $this->modoCobroRapido) {
+            $this->cargarCatalogoTactil();
         }
 
         if ($this->modoCobroRapido) {
@@ -542,9 +546,13 @@ class NuevoPedidoDelivery extends Component
             ->orderBy('nombre')
             ->get(['id', 'nombre', 'color', 'icono']);
 
-        // Precio base del artículo como referencia visual. Al hacer click,
-        // seleccionarArticulo aplica precios según la lista del pedido.
-        // withCount marca tiene_opcionales sin hidratar las relaciones.
+        // Precio EFECTIVO del artículo (override por sucursal + lista activa
+        // por forma de venta DELIVERY/TAKEAWAY), resuelto con la MISMA cadena
+        // que aplica seleccionarArticulo (obtenerPrecioConLista) — lo que se
+        // ve en la grilla es lo que se agrega (RF-05, fix del precio
+        // fallback). Costo por artículo en mount aceptado: mismo patrón que
+        // CatalogoTiendaService. withCount marca tiene_opcionales sin
+        // hidratar las relaciones.
         $articulos = \App\Models\Articulo::query()
             ->where('activo', true)
             ->whereNotNull('categoria_id')
@@ -571,7 +579,7 @@ class NuevoPedidoDelivery extends Component
                     'id' => (int) $a->id,
                     'nombre' => $a->nombre,
                     'codigo' => $a->codigo,
-                    'precio' => (float) ($a->precio_base ?? 0),
+                    'precio' => (float) ($this->obtenerPrecioConLista($a)['precio'] ?? $a->precio_base ?? 0),
                     'es_pesable' => (bool) $a->pesable,
                     'tiene_opcionales' => (int) ($a->grupos_opcionales_count ?? 0) > 0,
                     'imagen_url' => $a->imagenUrl(),
@@ -579,6 +587,41 @@ class NuevoPedidoDelivery extends Component
                 ])->values()->toArray(),
             ];
         })->filter()->values()->toArray();
+    }
+
+    /**
+     * Recalcula SOLO los precios del snapshot táctil (RF-05) cuando cambia el
+     * contexto de precios (delivery ↔ take-away activa otra lista por forma
+     * de venta) y avisa a Alpine con el mapa {articulo_id: precio} — la
+     * grilla vive en el navegador (seed único de @js en x-data) y no se
+     * re-renderiza sola.
+     */
+    protected function refrescarPreciosCatalogoTactil(): void
+    {
+        if (empty($this->catalogoTactil)) {
+            return;
+        }
+
+        $ids = collect($this->catalogoTactil)
+            ->flatMap(fn ($cat) => array_column($cat['articulos'] ?? [], 'id'))
+            ->unique()->values();
+
+        $precios = \App\Models\Articulo::query()
+            ->whereIn('id', $ids)
+            ->get(['id', 'precio_base', 'categoria_id'])
+            ->mapWithKeys(fn ($a) => [
+                (int) $a->id => (float) ($this->obtenerPrecioConLista($a)['precio'] ?? $a->precio_base ?? 0),
+            ])->toArray();
+
+        foreach ($this->catalogoTactil as $ci => $cat) {
+            foreach ($cat['articulos'] ?? [] as $ai => $art) {
+                if (isset($precios[$art['id']])) {
+                    $this->catalogoTactil[$ci]['articulos'][$ai]['precio'] = $precios[$art['id']];
+                }
+            }
+        }
+
+        $this->dispatch('catalogo-tactil-precios', precios: $precios);
     }
 
     /**
@@ -757,6 +800,9 @@ class NuevoPedidoDelivery extends Component
         $this->aplicarFormaVentaPorTipo();
         $this->actualizarPreciosItems();
         $this->calcularVenta();
+        // La grilla táctil muestra el precio efectivo por lista (RF-05): al
+        // cambiar el tipo puede cambiar la lista activa por forma de venta.
+        $this->refrescarPreciosCatalogoTactil();
         $this->advertirArticulosNoDisponibles();
     }
 

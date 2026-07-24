@@ -97,6 +97,14 @@
                 }
             }"
             @keydown.window.ctrl.b.prevent="tactil = !tactil"
+            {{-- RF-05: el server re-cotiza los precios de la grilla al cambiar
+                 la lista activa (delivery ↔ take-away) y los parchea acá --}}
+            @catalogo-tactil-precios.window="
+                const precios = $event.detail.precios || {};
+                catalogo.forEach(c => (c.articulos || []).forEach(a => {
+                    if (precios[a.id] !== undefined) a.precio = precios[a.id];
+                }));
+            "
         >
             {{-- Búsqueda / scan (siempre visible) --}}
             @include('livewire.carrito._busqueda-articulos', ['atajoBusqueda' => 'Ctrl+1'])

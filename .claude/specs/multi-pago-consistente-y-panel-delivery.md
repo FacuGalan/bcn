@@ -288,7 +288,7 @@ efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
 3. Leyendas de base del ajuste en el modal de desglose.
 4. Traducciones es/en/pt.
 
-### Fase 4: Fix precio táctil (RF-05) [PENDIENTE]
+### Fase 4: Fix precio táctil (RF-05) [COMPLETO — 2026-07-24]
 1. `cargarCatalogoTactil()` × 2 con precio efectivo (una pasada).
 2. Refresh del snapshot al cambiar lista activa.
 3. Test: precio de grilla == precio al agregar (sucursal con override +
