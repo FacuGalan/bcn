@@ -235,7 +235,8 @@
                                                     </div>
                                                 @endif
 
-                                                {{-- Detalles del monto --}}
+                                                {{-- Detalles del monto (RF-06: el pago declarado GENERA su ajuste
+                                                     — se traslada al pago que cierra el desglose, que lo absorbe) --}}
                                                 <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
                                                     <span>{{ __('Base') }}: $@precio($pago['monto_base'])</span>
                                                     @if($pago['monto_ajuste'] != 0)
@@ -243,11 +244,19 @@
                                                         <span class="{{ $pago['monto_ajuste'] > 0 ? 'text-red-600' : 'text-green-600' }}">
                                                             {{ $pago['monto_ajuste'] > 0 ? '+' : '' }}$@precio($pago['monto_ajuste'])
                                                         </span>
-                                                        @if($envioModal > 0 && isset($pago['base_ajuste']))
+                                                        @if(($pago['ajuste_generado'] ?? null) !== null && abs($pago['ajuste_generado'] - $pago['monto_ajuste']) > 0.009)
+                                                            <span class="text-xs text-gray-400 dark:text-gray-500">
+                                                                ({{ __('incluye ajustes de otras formas de pago') }})
+                                                            </span>
+                                                        @elseif($envioModal > 0 && isset($pago['base_ajuste']))
                                                             <span class="text-xs text-gray-400 dark:text-gray-500">
                                                                 ({{ $pago['ajuste_porcentaje'] > 0 ? '+' : '' }}{{ $pago['ajuste_porcentaje'] }}% {{ __('s/') }} $@precio($pago['base_ajuste']) {{ __('de artículos') }})
                                                             </span>
                                                         @endif
+                                                    @elseif((float) ($pago['ajuste_generado'] ?? 0) != 0)
+                                                        <span class="text-xs {{ ($pago['ajuste_generado'] ?? 0) < 0 ? 'text-green-600' : 'text-red-600' }}">
+                                                            ({{ __('genera') }} {{ ($pago['ajuste_generado'] ?? 0) > 0 ? '+' : '' }}$@precio($pago['ajuste_generado']) {{ __('para el resto') }})
+                                                        </span>
                                                     @elseif($envioModal > 0 && $pago['ajuste_porcentaje'] != 0 && ($pago['base_ajuste'] ?? null) === 0.0)
                                                         <span class="text-xs text-gray-400 dark:text-gray-500">
                                                             ({{ __('sin ajuste: este pago cubre solo envío') }})

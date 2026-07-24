@@ -1134,6 +1134,7 @@ trait WithPagosDesglose
             $this->cuotasDesgloseSelectorAbierto = false;
             $this->nuevoPago['tipo_cambio_tasa'] = null;
             $this->nuevoPago['monto_moneda_extranjera'] = null;
+            $this->alCambiarFormaPagoCandidataDesglose();
 
             return;
         }
@@ -1155,7 +1156,16 @@ trait WithPagosDesglose
         }
 
         $this->calcularCuotasDesglose();
+
+        // Hook RF-06: el host puede revalidar beneficios y refrescar el
+        // pendiente con la FP candidata ANTES de que el operador asigne el
+        // monto (delivery: una promo "solo efectivo" cae apenas se elige
+        // otra FP, y "asignar pendiente" ya muestra el número correcto).
+        $this->alCambiarFormaPagoCandidataDesglose();
     }
+
+    /** Hook RF-06: default no-op (delivery lo overridea). */
+    protected function alCambiarFormaPagoCandidataDesglose(): void {}
 
     /**
      * Cuando cambia el monto en el nuevo pago, recalcular cuotas

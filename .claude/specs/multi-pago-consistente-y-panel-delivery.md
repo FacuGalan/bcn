@@ -326,10 +326,20 @@ efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
 - **Decisión usuario (2026-07-24)**: los RECARGOS también aplican solo sobre
   artículos (simétrico al descuento y al single-FP) — una FP con recargo que
   cubre solo envío recarga $0.
-- Alcance v1: tienda + core (`CotizadorCarritoTienda::desglosarPagos`). El
-  panel (N pagos) generaliza a futuro con la misma regla ("los ajustes los
-  absorbe el pago que cubre el resto") cuando se reoptimice la ventana de
-  desglose — pendiente declarado por el usuario.
+- Alcance v1: tienda + core (`CotizadorCarritoTienda::desglosarPagos`) **y
+  el desglose del panel DELIVERY** (feedback en vivo del usuario: el panel
+  quedaba incoherente — el descuento pegado al efectivo, pendiente
+  desfasado al caer la promo). Implementación panel:
+  `NuevoPedidoDelivery::reasignarBasesAjustePagosDesglose` reescrito a
+  traslado (lo INGRESADO por FP es lo que se COBRA; los ajustes generados
+  reducen el PENDIENTE y el pago que CIERRA el desglose los absorbe, con
+  `monto_ingresado` persistido por pago) + hook nuevo
+  `alCambiarFormaPagoCandidataDesglose` (trait): al ELEGIR la FP candidata
+  en el modal se revalidan promos con el set candidato y el pendiente ya
+  incluye el ajuste hipotético de esa FP — "asignar pendiente" ofrece el
+  monto final correcto. Venta/mostrador (sin envío ni traslado) siguen
+  igual; la generalización a N pagos con la ventana rediseñada sigue
+  pendiente.
 - Lado tienda (bcn-tienda): los blades de carrito/checkout muestran
   `ajuste_generado` ("genera −$X") en la FP que origina el descuento y
   `monto_ajuste` en la que lo recibe.

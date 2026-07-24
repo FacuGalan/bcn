@@ -651,11 +651,10 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
 
     public function test_desglose_dos_fp_asigna_bienes_primero_con_tope(): void
     {
-        // Paridad con la tienda (test_cotizar_dos_fp_con_envio_excluye_el_
-        // envio_de_la_base_del_ajuste): $1000 de bienes + $500 de envío,
-        // efectivo −10% por $900 y transferencia por el resto. El efectivo
-        // absorbe bienes hasta su monto → base $900 → −$90 (no el prorrateo
-        // proporcional viejo de −$60). Total pagos: 810 + 600 = 1410.
+        // Paridad con la tienda (RF-03 + RF-06 traslado): $1000 de bienes +
+        // $500 de envío, efectivo −10% por $900 (genera −$90 sobre su porción
+        // de bienes, que NO se le descuenta a él) y transferencia por el
+        // resto ya ajustado ($510). Total pagos: 900 + 510 = 1410.
         ['concepto' => $concepto] = $this->crearFormaPagoEfectivo();
         $efectivo = FormaPago::create([
             'nombre' => 'Efectivo 10% off',
@@ -688,11 +687,106 @@ class NuevoPedidoDeliveryCobroTest extends TestCase
 
         $pagos = $componente->get('desglosePagos');
         $this->assertCount(2, $pagos);
-        $this->assertEqualsWithDelta(-90.0, (float) $pagos[0]['monto_ajuste'], 0.01, 'Base = min(monto, bienes): 10% de $900');
-        $this->assertEqualsWithDelta(810.0, (float) $pagos[0]['monto_final'], 0.01);
-        $this->assertEqualsWithDelta(0.0, (float) $pagos[1]['monto_ajuste'], 0.01, 'La transferencia queda en bienes restantes + envío, sin ajuste');
-        $this->assertEqualsWithDelta(600.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(-90.0, (float) $pagos[0]['ajuste_generado'], 0.01, 'Genera 10% de sus $900 de bienes');
+        $this->assertEqualsWithDelta(0.0, (float) $pagos[0]['monto_ajuste'], 0.01, 'Pero se cobra tal cual (RF-06)');
+        $this->assertEqualsWithDelta(900.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(-90.0, (float) $pagos[1]['monto_ajuste'], 0.01, 'El pago que cierra absorbe el descuento');
+        $this->assertEqualsWithDelta(510.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(600.0, (float) $pagos[1]['monto_base'], 0.01, 'base + ajuste = final');
+        $this->assertEqualsWithDelta(0.0, (float) $componente->get('montoPendienteDesglose'), 0.01);
         $this->assertEqualsWithDelta(1410.0, (float) $componente->get('totalConAjustes'), 0.01, 'Mismo total que la cotización de la tienda');
+    }
+
+    public function test_desglose_traslada_el_descuento_al_pago_que_cierra_como_la_tienda(): void
+    {
+        // Escenario canónico del usuario (RF-06): $1000 de bienes + $1000 de
+        // envío, "pago $1000 con un billete de efectivo" (−10%). El efectivo
+        // queda en $1000 (genera −$100) y el pendiente pasa a $900: la
+        // transferencia que cierra cobra $900. Paridad exacta con la tienda.
+        ['concepto' => $concepto] = $this->crearFormaPagoEfectivo();
+        $efectivo = FormaPago::create([
+            'nombre' => 'Efectivo 10% off',
+            'codigo' => 'efectivo_desc',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => -10,
+            'activo' => true,
+        ]);
+        $transferencia = $this->crearFormaPagoTransferencia();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
+            ->set('cajaSeleccionada', $caja->id)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalDireccion')
+            ->set('domDireccion', 'Av. Siempreviva 742')
+            ->call('confirmarDireccion')
+            ->set('costoEnvio', 1000)
+            ->call('abrirModalDesglose')
+            ->set('nuevoPago.forma_pago_id', (string) $efectivo->id)
+            ->set('nuevoPago.monto', '1000')
+            ->call('agregarAlDesglose');
+
+        // El descuento generado ya redujo el pendiente (no el efectivo).
+        $pagos = $componente->get('desglosePagos');
+        $this->assertEqualsWithDelta(1000.0, (float) $pagos[0]['monto_final'], 0.01, 'El billete de $1000 sigue siendo $1000');
+        $this->assertEqualsWithDelta(900.0, (float) $componente->get('montoPendienteDesglose'), 0.01, '2000 − 100 de descuento − 1000 cobrados');
+
+        // "Asignar pendiente" con la segunda FP cierra el desglose.
+        $componente->set('nuevoPago.forma_pago_id', (string) $transferencia->id)
+            ->call('agregarAlDesglose')
+            ->assertNotDispatched('toast-error');
+
+        $pagos = $componente->get('desglosePagos');
+        $this->assertEqualsWithDelta(900.0, (float) $pagos[1]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $pagos[1]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $pagos[1]['monto_base'], 0.01);
+        $this->assertEqualsWithDelta(1900.0, (float) $componente->get('totalConAjustes'), 0.01, 'Mismo total a pagar que la tienda');
+        $this->assertEqualsWithDelta(0.0, (float) $componente->get('montoPendienteDesglose'), 0.01);
+    }
+
+    public function test_una_sola_fp_por_el_total_desde_el_desglose_se_aplica_su_descuento(): void
+    {
+        // Con UNA sola FP que cubre todo desde el modal (asignar pendiente),
+        // no hay "siguiente": el pendiente ya viene con el ajuste hipotético
+        // de la FP candidata ($1855, no $1950) y el pago lo absorbe.
+        ['concepto' => $concepto] = $this->crearFormaPagoEfectivo();
+        $efectivo = FormaPago::create([
+            'nombre' => 'Efectivo 10% off',
+            'codigo' => 'efectivo_desc',
+            'concepto' => 'efectivo',
+            'concepto_pago_id' => $concepto->id,
+            'es_mixta' => false,
+            'permite_cuotas' => false,
+            'ajuste_porcentaje' => -10,
+            'activo' => true,
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 50);
+        $caja = $this->crearCajaAbierta($this->sucursalId);
+
+        $componente = Livewire::test(NuevoPedidoDelivery::class)
+            ->set('cajaSeleccionada', $caja->id)
+            ->call('seleccionarArticulo', $articulo->id)
+            ->call('abrirModalDireccion')
+            ->set('domDireccion', 'Av. Siempreviva 742')
+            ->call('confirmarDireccion')
+            ->set('costoEnvio', 500)
+            ->call('abrirModalDesglose')
+            ->set('nuevoPago.forma_pago_id', (string) $efectivo->id);
+
+        // 1000 bienes − 10% + 500 envío = 1400 (el hipotético ya descuenta).
+        $this->assertEqualsWithDelta(1400.0, (float) $componente->get('montoPendienteDesglose'), 0.01);
+
+        $componente->call('agregarAlDesglose')->assertNotDispatched('toast-error');
+
+        $pagos = $componente->get('desglosePagos');
+        $this->assertEqualsWithDelta(1400.0, (float) $pagos[0]['monto_final'], 0.01);
+        $this->assertEqualsWithDelta(-100.0, (float) $pagos[0]['monto_ajuste'], 0.01);
+        $this->assertEqualsWithDelta(1500.0, (float) $pagos[0]['monto_base'], 0.01, 'Cancela el total del pedido');
+        $this->assertEqualsWithDelta(1400.0, (float) $componente->get('totalConAjustes'), 0.01);
     }
 
     public function test_promo_solo_efectivo_cae_y_vuelve_al_mutar_el_desglose(): void

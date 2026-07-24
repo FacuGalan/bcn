@@ -1215,14 +1215,12 @@ class NuevoPedidoDelivery extends Component
     }
 
     /**
-     * Override del hook del trait WithPagosDesglose: el envío es un valor FIJO
-     * — la base del ajuste de cada pago sale de asignar los BIENES
-     * bienes-primero con tope (RF-03, AsignadorBasesAjustePagos; misma regla
-     * que el cotizador de la tienda). Este hook da solo la PRIMERA
-     * aproximación del pago recién agregado (bienes aún sin asignar); la
-     * fuente de verdad es reasignarBasesAjustePagosDesglose(), que corre en
-     * recalcularTotalConAjustes() y corrige TODO el desglose.
-     * En cobro rápido el saldo no se puede descomponer.
+     * Override del hook del trait WithPagosDesglose. RF-06 (traslado): el
+     * ajuste del pago recién agregado NO se auto-aplica — lo ingresado es lo
+     * que se cobra; reasignarBasesAjustePagosDesglose() corre enseguida
+     * (via recalcularTotalConAjustes) y deja TODO el desglose consistente
+     * (el pago que cierra absorbe los ajustes generados).
+     * En cobro rápido el saldo no se puede descomponer (base = monto).
      */
     protected function baseAjustePagoDesglose(float $montoBase): float
     {
@@ -1230,62 +1228,121 @@ class NuevoPedidoDelivery extends Component
             return $montoBase;
         }
 
-        $total = (float) ($this->resultado['total_final'] ?? 0);
-        $envio = $this->montoEnvioVigente();
-        if ($total <= 0 || $envio <= 0) {
-            return $montoBase;
-        }
-
-        $bienesSinAsignar = round(($total - $envio) - array_sum(array_map(
-            fn ($p) => (float) ($p['base_ajuste'] ?? 0),
-            $this->desglosePagos,
-        )), 2);
-
-        return round(min($montoBase, max(0, $bienesSinAsignar)), 2);
+        return 0.0;
     }
 
     /**
-     * Override del hook RF-03: re-asigna las bases del ajuste de TODO el
-     * desglose con la regla bienes-primero con tope (greedy por ajuste
-     * ascendente, orden-independiente) y recalcula ajuste/final/vuelto de
-     * cada pago. El envío (valor fijo) nunca recibe descuentos ni recargos.
+     * Override del hook RF-03/RF-06: paridad EXACTA con la tienda.
+     *
+     * Semántica de traslado (RF-06): lo que el operador INGRESA por FP es lo
+     * que se COBRA con esa FP ("paga con un billete de $1000" → $1000). El
+     * ajuste que cada pago GENERA (su % sobre su porción de bienes,
+     * bienes-primero con tope vía AsignadorBasesAjustePagos; el envío nunca
+     * recibe ajustes) no se descuenta de ese pago: reduce el PENDIENTE, y el
+     * pago que CIERRA el desglose lo absorbe (espejo del pago "resto" de la
+     * tienda: monto_base = ingresado − ajustes, monto_final = ingresado).
+     *
+     * El pendiente se recalcula acá de forma integral (total + ajustes −
+     * cobrado), incluyendo el ajuste HIPOTÉTICO de la FP candidata del modal
+     * — así "asignar pendiente" ya ofrece el monto final correcto.
      */
     protected function reasignarBasesAjustePagosDesglose(): void
     {
-        if ($this->modoCobroRapido || empty($this->desglosePagos) || ! is_array($this->resultado)) {
+        if ($this->modoCobroRapido || ! is_array($this->resultado) || ! $this->mostrarModalPago && empty($this->desglosePagos)) {
             return;
         }
 
-        $envio = $this->montoEnvioVigente();
-        if ($envio <= 0) {
-            return; // sin envío la base es el monto completo (regla del trait)
+        $total = round((float) ($this->resultado['total_final'] ?? 0), 2); // bienes + envío
+        $bienes = round(max(0, $total - $this->montoEnvioVigente()), 2);
+
+        $keys = array_values(array_keys($this->desglosePagos));
+
+        // Lo ingresado (= lo que se cobra) por pago; se fija la primera vez
+        // que el pago pasa por acá (al agregarse o al hidratar un pedido).
+        foreach ($keys as $key) {
+            if (! isset($this->desglosePagos[$key]['monto_ingresado'])) {
+                $this->desglosePagos[$key]['monto_ingresado'] = round(
+                    (float) ($this->desglosePagos[$key]['monto_final'] ?? $this->desglosePagos[$key]['monto_base'] ?? 0)
+                    - (float) ($this->desglosePagos[$key]['monto_recargo_cuotas'] ?? 0),
+                    2,
+                );
+            }
         }
 
-        $bienes = round(max(0, (float) ($this->resultado['total_final'] ?? 0) - $envio), 2);
+        $ingresados = array_map(fn ($key) => (float) $this->desglosePagos[$key]['monto_ingresado'], $keys);
+        $cobrado = round(array_sum($ingresados), 2);
 
-        $asignados = \App\Services\Pedidos\AsignadorBasesAjustePagos::asignar(
-            array_map(fn ($p) => [
-                'monto' => (float) ($p['monto_base'] ?? 0),
-                'ajuste_porcentaje' => (float) ($p['ajuste_porcentaje'] ?? 0),
-            ], array_values($this->desglosePagos)),
-            $bienes,
-        );
+        // FP candidata del modal (aún sin monto): su ajuste hipotético sobre
+        // el remanente participa del pendiente. No participa del desglose.
+        $candidata = null;
+        if ($this->mostrarModalPago) {
+            $candidataId = (int) ($this->nuevoPago['forma_pago_id'] ?? 0);
+            $yaEnDesglose = in_array($candidataId, array_map(
+                fn ($key) => (int) ($this->desglosePagos[$key]['forma_pago_id'] ?? 0),
+                $keys,
+            ), true);
+            if ($candidataId && ! $yaEnDesglose && $total - $cobrado > 0.01) {
+                $fpCandidata = collect($this->formasPagoSucursal)->firstWhere('id', $candidataId);
+                if ($fpCandidata) {
+                    $candidata = [
+                        'monto' => round($total - $cobrado, 2),
+                        'ajuste_porcentaje' => (float) ($fpCandidata['ajuste_porcentaje'] ?? 0),
+                    ];
+                }
+            }
+        }
 
-        foreach (array_values(array_keys($this->desglosePagos)) as $i => $key) {
+        // Bases bienes-primero: pagos reales (coverage = ingresado; para el
+        // que cierra, el asignador topa solo en bienes así que el ingresado
+        // alcanza como proxy) + candidata hipotética al final.
+        $entradaAsignador = array_map(fn ($key) => [
+            'monto' => (float) $this->desglosePagos[$key]['monto_ingresado'],
+            'ajuste_porcentaje' => (float) ($this->desglosePagos[$key]['ajuste_porcentaje'] ?? 0),
+        ], $keys);
+        if ($candidata !== null) {
+            $entradaAsignador[] = $candidata;
+        }
+
+        $asignados = \App\Services\Pedidos\AsignadorBasesAjustePagos::asignar($entradaAsignador, $bienes);
+
+        $poolReal = 0.0;      // ajustes generados por pagos YA agregados
+        $poolCandidata = 0.0; // ajuste hipotético de la candidata (solo pendiente)
+        foreach ($asignados as $i => $asignado) {
+            $generado = round($asignado['base_ajuste'] * ($asignado['ajuste_porcentaje'] / 100), 2) + 0;
+            if ($i < count($keys)) {
+                $key = $keys[$i];
+                $this->desglosePagos[$key]['base_ajuste'] = (float) $asignado['base_ajuste'];
+                $this->desglosePagos[$key]['ajuste_generado'] = $generado;
+                $poolReal = round($poolReal + $generado, 2);
+            } else {
+                $poolCandidata = $generado;
+            }
+        }
+
+        // Pendiente integral: lo que falta COBRAR (total + ajustes − cobrado).
+        $pendiente = round($total + $poolReal + $poolCandidata - $cobrado, 2);
+        $completo = $pendiente <= 0.01;
+        $ultimoKey = $keys === [] ? null : $keys[count($keys) - 1];
+
+        foreach ($keys as $key) {
             $pago = $this->desglosePagos[$key];
-            $baseAjuste = (float) $asignados[$i]['base_ajuste'];
-            $montoAjuste = round($baseAjuste * (((float) ($pago['ajuste_porcentaje'] ?? 0)) / 100), 2) + 0;
-            $montoConAjuste = round((float) $pago['monto_base'] + $montoAjuste, 2);
+            $ingresado = (float) $pago['monto_ingresado'];
 
-            $montoFinal = $montoConAjuste;
+            // El pago que CIERRA absorbe el pool (paridad con el "resto" de
+            // la tienda); los demás se cobran tal cual, sin ajuste propio.
+            $absorbe = $completo && $key === $ultimoKey;
+            $montoAjuste = $absorbe ? round($poolReal, 2) + 0 : 0.0;
+            $montoBase = round($ingresado - $montoAjuste, 2);
+
+            $montoFinal = $ingresado;
             if ((float) ($pago['recargo_cuotas'] ?? 0) > 0) {
-                $montoRecargo = round(($baseAjuste + $montoAjuste) * (((float) $pago['recargo_cuotas']) / 100), 2);
-                $montoFinal = round($montoConAjuste + $montoRecargo, 2);
+                $montoRecargo = round(($montoBase + $montoAjuste) * (((float) $pago['recargo_cuotas']) / 100), 2);
+                $montoFinal = round($ingresado + $montoRecargo, 2);
                 $this->desglosePagos[$key]['monto_recargo_cuotas'] = $montoRecargo;
             }
 
             $finalAnterior = round((float) ($pago['monto_final'] ?? 0), 2);
-            $this->desglosePagos[$key]['base_ajuste'] = $baseAjuste;
+            $this->desglosePagos[$key]['monto_base'] = $montoBase;
             $this->desglosePagos[$key]['monto_ajuste'] = $montoAjuste;
             $this->desglosePagos[$key]['monto_final'] = $montoFinal;
 
@@ -1302,6 +1359,49 @@ class NuevoPedidoDelivery extends Component
                 }
             }
         }
+
+        $this->montoPendienteDesglose = max(0, $pendiente);
+    }
+
+    /**
+     * Override del hook RF-06: al elegir la FP candidata en el modal se
+     * revalidan promos/listas con el set candidato (una promo "solo
+     * efectivo" cae ANTES de asignar el monto) y se refresca el pendiente.
+     */
+    protected function alCambiarFormaPagoCandidataDesglose(): void
+    {
+        if ($this->modoCobroRapido || ! $this->mostrarModalPago) {
+            return;
+        }
+
+        $this->revalidarBeneficiosPorFormasPago();
+        $this->recalcularTotalConAjustes();
+    }
+
+    /**
+     * Override RF-06: el contexto de beneficios incluye la FP CANDIDATA del
+     * modal de desglose (además de las ya agregadas) — la promo cae/vuelve
+     * apenas el operador la elige, no recién al agregar el pago.
+     */
+    protected function formasPagoContexto(): array
+    {
+        $ids = array_values(array_filter(array_unique(array_map(
+            fn ($p) => (int) ($p['forma_pago_id'] ?? 0),
+            $this->desglosePagos,
+        ))));
+
+        if ($this->mostrarModalPago && ! $this->modoCobroRapido) {
+            $candidata = (int) ($this->nuevoPago['forma_pago_id'] ?? 0);
+            if ($candidata && ! in_array($candidata, $ids, true)) {
+                $ids[] = $candidata;
+            }
+        }
+
+        if ($ids !== []) {
+            return $ids;
+        }
+
+        return $this->formaPagoId ? [(int) $this->formaPagoId] : [];
     }
 
     protected function cargarListasPrecios(): void
