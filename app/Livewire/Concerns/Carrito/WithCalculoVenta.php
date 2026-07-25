@@ -1822,14 +1822,27 @@ trait WithCalculoVenta
      */
     protected function formasPagoContexto(): array
     {
+        $ids = [];
         if (property_exists($this, 'desglosePagos') && ! empty($this->desglosePagos)) {
             $ids = array_values(array_filter(array_unique(array_map(
                 fn ($p) => (int) ($p['forma_pago_id'] ?? 0),
                 $this->desglosePagos,
             ))));
-            if ($ids !== []) {
-                return $ids;
+        }
+
+        // RF-07: la FP CANDIDATA del modal de desglose también participa —
+        // una promo "solo efectivo" cae apenas el operador la elige, antes
+        // de asignar el monto (salvo cobro rápido: el saldo no se recotiza).
+        if (property_exists($this, 'mostrarModalPago') && $this->mostrarModalPago
+            && ! (property_exists($this, 'modoCobroRapido') && $this->modoCobroRapido)) {
+            $candidata = (int) ($this->nuevoPago['forma_pago_id'] ?? 0);
+            if ($candidata && ! in_array($candidata, $ids, true)) {
+                $ids[] = $candidata;
             }
+        }
+
+        if ($ids !== []) {
+            return $ids;
         }
 
         return $this->formaPagoId ? [(int) $this->formaPagoId] : [];

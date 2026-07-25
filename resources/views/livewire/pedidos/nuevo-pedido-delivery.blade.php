@@ -811,18 +811,18 @@
 
             {{-- Footer fijo de la columna (acciones) --}}
             @php
-                // Total a cobrar para el botón verde (mismo cálculo que NuevaVenta).
+                // Total a cobrar para el botón verde: la MISMA fuente que la
+                // fila TOTAL del resumen (incluye envío y ajustes por FP).
+                // OJO: no usar los totales del desglose de IVA — cubren solo
+                // artículos y con desglose mixto se escalan por la proporción
+                // cobrado/base del desglose ENTERO (con envío daba $950 para
+                // un pedido de $1900: ni el total ni los artículos).
                 $totalACobrar = 0;
                 if (! empty($resultado)) {
-                    if (isset($resultado['desglose_iva'])) {
-                        $dgIva = $resultado['desglose_iva'];
-                        if (isset($dgIva['total_mixto'])) {
-                            $totalACobrar = $dgIva['total_mixto'];
-                        } elseif (isset($dgIva['total_con_ajuste_fp']) && $dgIva['total_con_ajuste_fp'] != ($dgIva['total'] ?? 0)) {
-                            $totalACobrar = $dgIva['total_con_ajuste_fp'];
-                        } else {
-                            $totalACobrar = $resultado['total_final'] ?? 0;
-                        }
+                    if (($ajusteFormaPagoInfo['es_mixta'] ?? false) && count($desglosePagos) > 0 && $montoPendienteDesglose <= 0.01 && $totalConAjustes > 0) {
+                        $totalACobrar = $totalConAjustes;
+                    } elseif (! ($ajusteFormaPagoInfo['es_mixta'] ?? false) && ($ajusteFormaPagoInfo['porcentaje'] ?? 0) != 0) {
+                        $totalACobrar = $ajusteFormaPagoInfo['total_con_ajuste'] ?? ($resultado['total_final'] ?? 0);
                     } else {
                         $totalACobrar = $resultado['total_final'] ?? 0;
                     }

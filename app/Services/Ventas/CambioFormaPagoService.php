@@ -5,7 +5,9 @@ namespace App\Services\Ventas;
 use App\Models\Caja;
 use App\Models\Cliente;
 use App\Models\ComprobanteFiscal;
+use App\Models\Cupon;
 use App\Models\FormaPago;
+use App\Models\ListaPrecioCondicion;
 use App\Models\MovimientoCaja;
 use App\Models\Venta;
 use App\Models\VentaPago;
@@ -97,6 +99,19 @@ class CambioFormaPagoService
                     ['nuevo' => '$'.number_format($sumaNueva, 2, ',', '.'), 'viejo' => '$'.number_format($montoViejo, 2, ',', '.')]
                 ));
             }
+
+            // RF-10: si un beneficio de la venta (promo/cupón/lista) estaba
+            // condicionado a formas de pago, el set RESULTANTE debe seguir
+            // cumpliéndolo — si no, se bloquea (cancelar la venta entera).
+            $fpResultantes = array_merge(
+                $venta->pagos()
+                    ->where('estado', VentaPago::ESTADO_ACTIVO)
+                    ->where('id', '!=', $pagoViejo->id)
+                    ->pluck('forma_pago_id')
+                    ->all(),
+                array_column($pagosCalculados, 'forma_pago_id'),
+            );
+            $this->validarBeneficiosCondicionadosPorFP($venta, $fpResultantes);
 
             // Calcular fiscalidad: comparar monto facturado viejo vs nuevo
             $montoFacturadoViejo = $pagoViejo->comprobante_fiscal_id ? $montoViejo : 0;
@@ -265,6 +280,14 @@ class CambioFormaPagoService
                 throw new Exception(__('No se puede modificar una venta cancelada'));
             }
 
+            // RF-10: la FP agregada también debe cumplir las restricciones de
+            // los beneficios condicionados (regla "todas las FP", espejo del
+            // desglose y de los cupones).
+            $this->validarBeneficiosCondicionadosPorFP($venta, array_merge(
+                $venta->pagos()->where('estado', VentaPago::ESTADO_ACTIVO)->pluck('forma_pago_id')->all(),
+                [(int) ($datosNuevoPago['forma_pago_id'] ?? 0)],
+            ));
+
             $pagoNuevo = $this->crearNuevoVentaPago(
                 $venta,
                 $datosNuevoPago,
@@ -372,6 +395,18 @@ class CambioFormaPagoService
             $venta = $pagoViejo->venta;
             $turnoOriginalId = $pagoViejo->cierre_turno_id;
             $esPostCierre = $turnoOriginalId !== null;
+
+            // RF-10: eliminar un pago del que dependía un beneficio
+            // condicionado por FP también se bloquea (el descuento ya
+            // impactó el total de la venta).
+            $this->validarBeneficiosCondicionadosPorFP(
+                $venta,
+                $venta->pagos()
+                    ->where('estado', VentaPago::ESTADO_ACTIVO)
+                    ->where('id', '!=', $pagoViejo->id)
+                    ->pluck('forma_pago_id')
+                    ->all(),
+            );
 
             $matriz = [
                 'delta_total' => true,
@@ -528,6 +563,95 @@ class CambioFormaPagoService
      *               'emitir_nc' (bool|'preguntar'), 'emitir_fc_nueva' (bool|'preguntar'),
      *               'preview_texto']
      */
+    /**
+     * RF-10 (spec multi-pago-consistente, decisión usuario 2026-07-24): si
+     * un beneficio de la venta estuvo CONDICIONADO a formas de pago —
+     * promoción común (condición por_forma_pago), promoción especial
+     * (formas_pago_ids), cupón restringido o lista de precios condicionada —
+     * el set de FPs RESULTANTE de la operación debe seguir cumpliendo la
+     * restricción con la regla "TODAS las FP permitidas" (espejo del
+     * desglose y de los cupones en el POS). Si no la cumple, se BLOQUEA: el
+     * beneficio ya impactó el total y los renglones de la venta, y
+     * recalcularlo acá violaría el invariante "el total no cambia" del
+     * cambio de FP. El camino válido es cancelar la venta completa y
+     * recargarla.
+     *
+     * @param  array  $fpIdsResultantes  FPs ACTIVAS que quedarían tras la operación
+     *
+     * @throws Exception con el detalle de los beneficios violados
+     */
+    protected function validarBeneficiosCondicionadosPorFP(Venta $venta, array $fpIdsResultantes): void
+    {
+        $fpIdsResultantes = array_values(array_unique(array_map('intval', array_filter($fpIdsResultantes))));
+
+        $cumple = function (array $permitidas) use ($fpIdsResultantes): bool {
+            if ($permitidas === []) {
+                return true; // sin restricción
+            }
+
+            return $fpIdsResultantes !== []
+                && array_diff($fpIdsResultantes, array_map('intval', $permitidas)) === [];
+        };
+
+        $violados = [];
+
+        // Promociones aplicadas (comunes y especiales) con restricción de FP.
+        $ventaPromos = $venta->promociones()
+            ->with(['promocion.condiciones', 'promocionEspecial'])
+            ->get();
+
+        foreach ($ventaPromos as $vp) {
+            if ($vp->promocion) {
+                $permitidas = $vp->promocion->condiciones
+                    ->where('tipo_condicion', 'por_forma_pago')
+                    ->pluck('forma_pago_id')->filter()->map(fn ($id) => (int) $id)->all();
+                $nombre = $vp->promocion->nombre;
+            } elseif ($vp->promocionEspecial) {
+                $pe = $vp->promocionEspecial;
+                $permitidas = array_map('intval', $pe->formas_pago_ids
+                    ?? ($pe->forma_pago_id ? [$pe->forma_pago_id] : []));
+                $nombre = $pe->nombre;
+            } elseif ($vp->forma_pago_id) {
+                // Snapshot: la promo se borró pero quedó registrada la FP
+                // que condicionó el beneficio.
+                $permitidas = [(int) $vp->forma_pago_id];
+                $nombre = $vp->descripcion_promocion ?: __('Promoción');
+            } else {
+                continue;
+            }
+
+            if (! $cumple($permitidas)) {
+                $violados[] = $nombre;
+            }
+        }
+
+        // Cupón restringido a formas de pago (misma regla del cobro).
+        if ($venta->cupon_id) {
+            $cupon = Cupon::find($venta->cupon_id);
+            if ($cupon && $cupon->tieneRestriccionFormasPago()
+                && ! ($fpIdsResultantes !== [] && $cupon->aceptaTodasFormasPago($fpIdsResultantes))) {
+                $violados[] = __('Cupón :codigo', ['codigo' => $cupon->codigo]);
+            }
+        }
+
+        // Lista de precios condicionada por FP (los precios salieron de ahí).
+        if ($venta->lista_precio_id) {
+            $condicionesFP = ListaPrecioCondicion::where('lista_precio_id', $venta->lista_precio_id)
+                ->where('tipo_condicion', 'por_forma_pago')
+                ->pluck('forma_pago_id')->filter()->map(fn ($id) => (int) $id)->all();
+            if (! $cumple($condicionesFP)) {
+                $violados[] = __('Lista de precios :lista', ['lista' => $venta->listaPrecio?->nombre ?? $venta->lista_precio_id]);
+            }
+        }
+
+        if ($violados !== []) {
+            throw new Exception(__(
+                'No se puede cambiar la forma de pago: :beneficios depende(n) de la forma de pago original de la venta. Para modificarla hay que cancelar la venta completa y volver a cargarla.',
+                ['beneficios' => implode(', ', array_unique($violados))]
+            ));
+        }
+    }
+
     public function calcularPreviewCambio(VentaPago $pagoViejo, array $pagosNuevos): array
     {
         $montoViejo = (float) $pagoViejo->monto_final;

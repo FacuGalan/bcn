@@ -47,8 +47,8 @@
             {{-- Centrado --}}
             <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            {{-- Modal --}}
-            <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+            {{-- Modal (RF-08: ancho en desktop para el layout de 2 columnas) --}}
+            <div class="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl lg:max-w-5xl sm:w-full">
                 {{-- Header --}}
                 <div class="bg-green-600 px-3 py-2 flex items-center justify-between">
                     <div class="flex items-center gap-2">
@@ -137,6 +137,11 @@
                         </div>
                     @endif
 
+                    {{-- RF-08: grilla de 2 columnas en desktop — izquierda el
+                         selector de FP SIEMPRE visible (estirado hasta el footer),
+                         derecha invitación + pagos agregados + vuelto + fiscal. --}}
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:items-stretch">
+                    <div class="space-y-3 lg:order-2 {{ $invitarTodo ? 'lg:col-span-2' : '' }}">
                     {{-- Switch "Invitar pedido completo" — visible siempre que el
                         usuario tenga el permiso del canal correspondiente (computed en
                         el trait WithInvitaciones) y haya items. Al activarse oculta el
@@ -372,11 +377,25 @@
                                 @endforeach
                             </div>
                         </div>
+                    @else
+                        {{-- Estado vacío (RF-08): todavía no se agregaron pagos --}}
+                        <div class="hidden lg:flex flex-col items-center justify-center border border-dashed border-gray-300 dark:border-gray-600 rounded-lg py-8 text-gray-400 dark:text-gray-500">
+                            <svg class="w-8 h-8 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="1.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2z"/>
+                            </svg>
+                            <span class="text-xs">{{ __('Los pagos que agregues van a aparecer acá') }}</span>
+                        </div>
                     @endif
+                    @endif {{-- /pagos agregados (!invitarTodo) --}}
+                    </div>{{-- /columna derecha (invitación + pagos) --}}
 
-                    {{-- Agregar forma de pago (solo si hay pendiente o es mixta) --}}
+                    @if(!$invitarTodo)
+                    {{-- Agregar forma de pago (RF-08: SIEMPRE visible, estirado
+                         hasta el footer; al completarse el desglose se reemplaza
+                         por el estado "completo" — quitando un pago se reactiva) --}}
+                    <div class="lg:order-1 flex flex-col gap-3">
                     @if($montoPendienteDesglose > 0.01)
-                        <div class="border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700"
+                        <div class="flex-1 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-2 bg-gray-50 dark:bg-gray-700"
                             x-data="{
                                 busqueda: '',
                                 fpSeleccionadaId: @entangle('nuevoPago.forma_pago_id').live,
@@ -463,8 +482,10 @@
                                             placeholder="{{ __('Buscar por ID, código o nombre...') }}">
                                     </div>
 
-                                    {{-- Grid de botones de formas de pago --}}
-                                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-40 overflow-y-auto" x-ref="gridFP">
+                                    {{-- Grid de botones de formas de pago (RF-08: sin tope
+                                         de alto — la columna se estira hasta el footer y el
+                                         scroll lo maneja el contenido del modal) --}}
+                                    <div class="grid grid-cols-3 sm:grid-cols-4 gap-1.5" x-ref="gridFP">
                                         <template x-for="(fp, idx) in filtradas" :key="fp.id">
                                             <button
                                                 type="button"
@@ -676,8 +697,19 @@
                                 </div>{{-- /x-data fpActual --}}
                             </template>
                         </div>
+                    @else
+                        {{-- Desglose completo (RF-08): el selector descansa --}}
+                        <div class="flex-1 flex flex-col items-center justify-center border-2 border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-900/20 rounded-lg p-4 text-center">
+                            <svg class="w-8 h-8 mx-auto mb-1 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                            <p class="text-sm font-semibold text-green-700 dark:text-green-300">{{ __('Desglose completo') }}</p>
+                            <p class="text-xs text-green-600 dark:text-green-400 mt-0.5">{{ __('Quitá un pago si necesitás cambiar la composición') }}</p>
+                        </div>
                     @endif
+                    </div>{{-- /columna selector FP --}}
 
+                    <div class="space-y-3 lg:order-3 lg:col-start-2">
                     {{-- Total vuelto general --}}
                     @php
                         $vueltoTotal = collect($desglosePagos)->sum('vuelto');
@@ -737,7 +769,9 @@
                             </div>
                         </div>
                     @endif
-                    @endif {{-- fin !$invitarTodo --}}
+                    </div>{{-- /columna vuelto + fiscal --}}
+                    @endif {{-- fin !$invitarTodo (selector + vuelto/fiscal) --}}
+                    </div>{{-- /grid 2 columnas --}}
                 </div>
 
                 {{-- Footer --}}

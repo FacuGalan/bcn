@@ -426,4 +426,133 @@ class CambioFormaPagoServiceTest extends TestCase
         ], 'pymes_tenant');
         $this->assertEquals(100.50, (float) $ajuste->fresh()->delta_total);
     }
+
+    // =========================================================================
+    // RF-10: bloqueo por beneficios condicionados a la forma de pago
+    // =========================================================================
+
+    protected function pagoActivoDe(\App\Models\Venta $venta, \App\Models\FormaPago $fp, float $monto = 1000): VentaPago
+    {
+        return VentaPago::create([
+            'venta_id' => $venta->id,
+            'forma_pago_id' => $fp->id,
+            'monto_base' => $monto,
+            'ajuste_porcentaje' => 0,
+            'monto_ajuste' => 0,
+            'monto_final' => $monto,
+            'saldo_pendiente' => 0,
+            'es_cuenta_corriente' => false,
+            'afecta_caja' => false,
+            'estado' => 'activo',
+        ]);
+    }
+
+    protected function promoCondicionadaAplicada(\App\Models\Venta $venta, \App\Models\FormaPago ...$fps): \App\Models\Promocion
+    {
+        $promo = \App\Models\Promocion::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Solo efectivo 10%',
+            'tipo' => 'descuento_porcentaje', 'valor' => 10, 'prioridad' => 1,
+            'combinable' => true, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+        foreach ($fps as $fp) {
+            $promo->condiciones()->create(['tipo_condicion' => 'por_forma_pago', 'forma_pago_id' => $fp->id]);
+        }
+        \App\Models\VentaPromocion::create([
+            'venta_id' => $venta->id,
+            'tipo_promocion' => 'promocion',
+            'promocion_id' => $promo->id,
+            'descripcion_promocion' => $promo->nombre,
+            'tipo_beneficio' => 'porcentaje',
+            'valor_beneficio' => 10,
+            'descuento_aplicado' => 100,
+        ]);
+
+        return $promo;
+    }
+
+    /** Usuario con permiso de modificar pagos (bypass de system admin). */
+    protected function usuarioConPermisoCambioFP(): User
+    {
+        $admin = User::factory()->create(['is_system_admin' => true]);
+        $admin->comercios()->syncWithoutDetaching([$this->comercio->id]);
+        $this->actingAs($admin);
+
+        return $admin;
+    }
+
+    public function test_bloquea_cambio_de_fp_si_una_promo_condicionada_depende_de_ella(): void
+    {
+        $admin = $this->usuarioConPermisoCambioFP();
+        $venta = $this->crearVentaBasica();
+        $efectivo = $this->crearFormaPagoEfectivo()['formaPago'];
+        $transferencia = \App\Models\FormaPago::create([
+            'nombre' => 'Transferencia', 'codigo' => 'transf', 'concepto' => 'transferencia',
+            'concepto_pago_id' => $efectivo->concepto_pago_id, 'es_mixta' => false,
+            'permite_cuotas' => false, 'ajuste_porcentaje' => 0, 'activo' => true,
+        ]);
+        $pago = $this->pagoActivoDe($venta, $efectivo);
+        $this->promoCondicionadaAplicada($venta, $efectivo);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageMatches('/cancelar la venta completa/');
+
+        $this->service->cambiarFormaPago($pago->id, [
+            ['forma_pago_id' => $transferencia->id, 'monto_base' => 1000, 'aplicar_ajuste' => false, 'facturar' => false],
+        ], 'Cambio de prueba RF-10', $admin->id);
+    }
+
+    public function test_bloquea_eliminar_el_pago_del_que_depende_la_promo(): void
+    {
+        $admin = $this->usuarioConPermisoCambioFP();
+        $venta = $this->crearVentaBasica();
+        $efectivo = $this->crearFormaPagoEfectivo()['formaPago'];
+        $pago = $this->pagoActivoDe($venta, $efectivo);
+        $this->promoCondicionadaAplicada($venta, $efectivo);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageMatches('/cancelar la venta completa/');
+
+        $this->service->eliminarPagoDeVenta($pago->id, 'Eliminación de prueba RF-10', $admin->id);
+    }
+
+    public function test_permite_el_cambio_si_la_fp_resultante_tambien_esta_habilitada(): void
+    {
+        // Guard directo (reflection): promo habilitada para AMBAS FP → el set
+        // resultante [transferencia] cumple y no bloquea.
+        $venta = $this->crearVentaBasica();
+        $efectivo = $this->crearFormaPagoEfectivo()['formaPago'];
+        $otra = \App\Models\FormaPago::create([
+            'nombre' => 'Transferencia', 'codigo' => 'transf', 'concepto' => 'transferencia',
+            'concepto_pago_id' => $efectivo->concepto_pago_id, 'es_mixta' => false,
+            'permite_cuotas' => false, 'ajuste_porcentaje' => 0, 'activo' => true,
+        ]);
+        $this->promoCondicionadaAplicada($venta, $efectivo, $otra);
+
+        $metodo = new \ReflectionMethod($this->service, 'validarBeneficiosCondicionadosPorFP');
+        $metodo->setAccessible(true);
+        $metodo->invoke($this->service, $venta->fresh(), [$otra->id]);
+
+        $this->assertTrue(true, 'No debe lanzar excepción');
+    }
+
+    public function test_bloquea_si_la_lista_de_precios_estaba_condicionada_a_la_fp(): void
+    {
+        $efectivo = $this->crearFormaPagoEfectivo()['formaPago'];
+        $lista = \App\Models\ListaPrecio::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Solo Efectivo',
+            'ajuste_porcentaje' => -20, 'redondeo' => 'ninguno',
+            'aplica_promociones' => true, 'promociones_alcance' => 'todos',
+            'es_lista_base' => false, 'prioridad' => 1, 'activo' => true,
+        ]);
+        $lista->condiciones()->create(['tipo_condicion' => 'por_forma_pago', 'forma_pago_id' => $efectivo->id]);
+        $venta = $this->crearVentaBasica(['lista_precio_id' => $lista->id]);
+
+        $metodo = new \ReflectionMethod($this->service, 'validarBeneficiosCondicionadosPorFP');
+        $metodo->setAccessible(true);
+
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessageMatches('/Lista de precios/');
+
+        $metodo->invoke($this->service, $venta, [999999]);
+    }
 }
