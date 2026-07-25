@@ -416,7 +416,16 @@ efectivo, efectivo con ajuste −10%, segunda FP sin ajuste y fuera de la promo.
     del usuario (revalidar vs alertar vs bloquear).
   - Compras y WithCobroIntegracion/CobroService: NO APLICA / COHERENTE.
 
-### RF-10: Bloqueo del cambio de FP con promo condicionada [PENDIENTE — decisión tomada 2026-07-24]
+### RF-10: Bloqueo del cambio de FP con promo condicionada [COMPLETO — 2026-07-24]
+
+> Implementado en `CambioFormaPagoService::validarBeneficiosCondicionadosPorFP`
+> (guard en cambiarFormaPago / agregarPagoAVenta / eliminarPagoDeVenta, ANTES
+> de mutar nada): cubre promos comunes (condición por_forma_pago), especiales
+> (formas_pago_ids), cupones restringidos y listas condicionadas; regla
+> "todas las FP resultantes ∈ permitidas". 4 tests nuevos. Además fix del
+> botón Confirmar del panel delivery (mostraba el total del desglose de IVA
+> escalado — $950 en un pedido de $1900; ahora usa la misma fuente que la
+> fila TOTAL del resumen).
 - **Decisión del usuario**: en `CambioFormaPagoService` (y su espejo
   `Ventas::agregarAlDesgloseCambio`), si la venta tiene promociones/listas
   cuyo descuento estuvo condicionado a una FP y el cambio intenta REMOVER o
