@@ -486,6 +486,14 @@ class PedidosDelivery extends Component
             $this->nuevosCount++;
         }
 
+        // RF-T27: borrador externo nuevo — la banda "por aceptar" se refresca
+        // sola con el re-render; este evento solo dispara el destello visual
+        // (la banda NO se auto-expande; el contador de "nuevos" del tablero
+        // es de pedidos confirmados y no se toca acá).
+        if ($tipo === \App\Events\Broadcasting\PedidoDeliveryBroadcast::TIPO_POR_ACEPTAR) {
+            $this->dispatch('pedido-por-aceptar', pedidoId: $pedidoId);
+        }
+
         // Notifica al frontend para resaltar visualmente la fila/card del pedido
         // hasta que el usuario interactue con ella (Alpine local, sin tocar
         // estado server-side). Aplica a TODOS los tipos: creado, estado_cambiado,

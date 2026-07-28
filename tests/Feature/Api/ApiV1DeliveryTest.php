@@ -857,6 +857,22 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertEqualsWithDelta(30, now()->diffInMinutes($pedido->hora_pactada_at), 2);
     }
 
+    public function test_alta_de_borrador_externo_broadcastea_por_aceptar(): void
+    {
+        // RF-T27: con aceptación manual el pedido nace borrador y antes no se
+        // emitía ningún broadcast — el panel no se enteraba sin refrescar.
+        \Illuminate\Support\Facades\Event::fake([\App\Events\Broadcasting\PedidoDeliveryBroadcast::class]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+
+        \Illuminate\Support\Facades\Event::assertDispatched(
+            \App\Events\Broadcasting\PedidoDeliveryBroadcast::class,
+            fn ($e) => $e->tipo === \App\Events\Broadcasting\PedidoDeliveryBroadcast::TIPO_POR_ACEPTAR
+                && $e->sucursalId === $this->sucursalId,
+        );
+    }
+
     public function test_aceptar_sin_parametros_respeta_la_franja_elegida_por_el_cliente(): void
     {
         // RF-T26: aceptar "como lo pidió" no pasa demora ni hora — la promesa

@@ -13,6 +13,9 @@ class PedidoDeliveryBroadcast extends TenantBroadcastEvent
 {
     public const TIPO_CREADO = 'creado';
 
+    /** Borrador externo (tienda/API) esperando aceptación (RF-T27). */
+    public const TIPO_POR_ACEPTAR = 'por_aceptar';
+
     public const TIPO_ESTADO_CAMBIADO = 'estado_cambiado';
 
     public const TIPO_PAGO_CAMBIADO = 'pago_cambiado';

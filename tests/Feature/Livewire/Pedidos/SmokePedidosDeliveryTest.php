@@ -261,6 +261,16 @@ class SmokePedidosDeliveryTest extends TestCase
         $this->assertTrue($pedido->hora_pactada_at->equalTo($hora), 'La hora elegida por el cliente no debe pisarse');
     }
 
+    public function test_broadcast_por_aceptar_dispara_el_destello_de_la_banda(): void
+    {
+        // RF-T27: el tipo por_aceptar re-renderiza (banda fresca) y emite el
+        // evento browser del destello, sin tocar el contador de "nuevos".
+        Livewire::test(PedidosDelivery::class)
+            ->call('onPedidoBroadcast', ['pedidoId' => 999, 'sucursalId' => $this->sucursalId, 'tipo' => 'por_aceptar'])
+            ->assertDispatched('pedido-por-aceptar')
+            ->assertSet('nuevosCount', 0);
+    }
+
     public function test_panel_rechaza_pedido_externo_con_motivo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);

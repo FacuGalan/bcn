@@ -265,15 +265,35 @@
         </div>
     </div>
 
-    {{-- ==================== POR ACEPTAR (D14/RF-12) ==================== --}}
+    {{-- ==================== POR ACEPTAR (D14/RF-12/RF-T27) ==================== --}}
     @if($pedidosPorAceptar->isNotEmpty())
-        <div class="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-md p-2.5 mb-2 flex-shrink-0 space-y-1.5">
-            <div class="flex items-center gap-2">
+        @php
+            // RF-T27: timeout vencido en ALGÚN pedido ⇒ indicador rojo visible
+            // aun con la banda plegada.
+            $hayAceptacionDemorada = $timeoutAceptacionMin > 0 && $pedidosPorAceptar->contains(
+                fn ($p) => $p->created_at->diffInMinutes(now()) >= $timeoutAceptacionMin
+            );
+        @endphp
+        <div x-data="{ abierto: false, destello: false }"
+            @pedido-por-aceptar.window="destello = true; setTimeout(() => destello = false, 4000)"
+            :class="destello ? 'ring-2 ring-orange-400 dark:ring-orange-500' : ''"
+            class="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-md p-2.5 mb-2 flex-shrink-0 space-y-1.5 transition-shadow">
+            {{-- Cabecera compacta: plegada por defecto, click expande (RF-T27) --}}
+            <button type="button" @click="abierto = !abierto" class="w-full flex items-center gap-2 text-left">
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-600 text-white text-xs font-bold rounded-full animate-pulse">
                     {{ $pedidosPorAceptar->count() }} {{ __('por aceptar') }}
                 </span>
-                <span class="text-xs text-orange-700 dark:text-orange-300">{{ __('Pedidos de la tienda/API esperando confirmación') }}</span>
-            </div>
+                <span class="text-xs text-orange-700 dark:text-orange-300 flex-1 min-w-0 truncate">{{ __('Pedidos de la tienda/API esperando confirmación') }}</span>
+                @if($hayAceptacionDemorada)
+                    <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 animate-pulse">
+                        {{ __('Demorado') }}
+                    </span>
+                @endif
+                <svg class="w-4 h-4 text-orange-600 dark:text-orange-300 transition-transform" :class="abierto ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+            </button>
+            <div x-show="abierto" x-cloak class="space-y-1.5">
             @foreach($pedidosPorAceptar as $pedidoPA)
                 @php
                     // D14: timeout de aceptación vencido ⇒ resaltar (no se cancela solo).
@@ -325,6 +345,7 @@
                     </div>
                 </div>
             @endforeach
+            </div>
         </div>
     @endif
 

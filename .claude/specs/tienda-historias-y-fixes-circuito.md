@@ -368,13 +368,19 @@ definitiva en implementación.)
    ✅ (2 tests service en ApiV1DeliveryTest + 1 Livewire en
    SmokePedidosDeliveryTest; suites completas verdes: 35 smoke + 91 API)
 
-### Fase 3 (core): Reverb + banda plegable [PENDIENTE]
+### Fase 3 (core): Reverb + banda plegable [COMPLETO]
 1. `TIPO_POR_ACEPTAR` + broadcast en borradores externos + broadcast al
-   rechazar.
+   rechazar. ✅ (2026-07-28; el rechazo YA broadcasteaba TIPO_CANCELADO
+   vía cancelarPedido — no hizo falta tocarlo)
 2. `onPedidoBroadcast()` maneja el tipo nuevo; banda plegable (Alpine),
    contador pulsante, destello al llegar nuevo.
+   ✅ (banda plegada por defecto con cabecera compacta: contador pulsante
+   + badge Demorado agregado si algún pedido venció el timeout; destello
+   via evento browser `pedido-por-aceptar` con estado Alpine — sobrevive
+   morphs; nuevosCount intacto)
 3. Tests: broadcast emitido al crear borrador externo (Event::fake sobre
-   el broadcast); smoke del componente.
+   el broadcast); smoke del componente. ✅ (128 tests verdes en las dos
+   suites completas)
 
 ### Fase 4 (core): Historias destacadas lado core [PENDIENTE]
 1. Migración `historias` en `config.tiendas` + fillable/cast + helper

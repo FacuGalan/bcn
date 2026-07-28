@@ -231,6 +231,11 @@ class PedidoDeliveryService
                 $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_CREADO);
 
                 $this->maybeImprimirComandaAutomatica($pedido);
+            } elseif ($pedido->origen !== PedidoDelivery::ORIGEN_PANEL) {
+                // RF-T27: el borrador externo (tienda/API por aceptar) también
+                // avisa en vivo — sin esto el panel no se entera hasta un F5,
+                // porque el broadcast vivía solo en la rama confirmada.
+                $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_POR_ACEPTAR);
             }
 
             Log::info('Pedido delivery creado', [
