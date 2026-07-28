@@ -109,8 +109,11 @@ para esa sucursal (filtro server-side; el shape de cada ítem no cambia).
     "radios": "md",                          // none|sm|md|lg|full
     "densidad": "normal",                    // compacta|normal|amplia
     "portada": {                             // (aditivo 2026-07-18, RF-T13)
-      "overlay": true,                       // false ⇒ portada cruda, sin fade del color primario
+      "overlay": false,                      // DEPRECADA (RF-T25, 2026-07-28): el core emite SIEMPRE false y la tienda la ignora (portada cruda). Se conserva por tolerancia (quitarla exige v2).
       "posicion": "center"                   // encuadre vertical: top|center|bottom (object-position)
+    },
+    "logo": {                                // (aditivo 2026-07-28, RF-T25)
+      "radio": "full"                        // forma del logo del hero: none|sm|md|lg|full. INDEPENDIENTE de "radios" (que aplica a tarjetas/carrito/UI). Default full = círculo (comportamiento previo). El anillo de historias (RF-T24) acompaña esta forma.
     },
     "textos": {
       "slogan": "",                          // hero, bajo el nombre ('' ⇒ no se muestra)
@@ -125,7 +128,7 @@ para esa sucursal (filtro server-side; el shape de cada ítem no cambia).
       "modo": "banner",                      // banner|tarjeta_grande|ninguno
       "adorno": "ninguno"                    // glow|badge|ambos|ninguno (solo aplica a tarjeta_grande)
     },
-    "promos": { "mostrar_home": false }      // true ⇒ mostrar aviso "Promociones de hoy" en la home
+    "promos": { "mostrar_home": false }      // true ⇒ agregar las promociones vigentes como PRIMER slide de las historias (RF-T24, 2026-07-28; antes pintaba el pill "Promociones de hoy" en la home, que se eliminó). También activa el anillo del logo aunque no haya fotos.
   },
   "comportamiento": {}                       // reservado (Principio 10); v1 sin seteos
 }
@@ -150,6 +153,23 @@ claves son contrato: agregar claves es aditivo; renombrar/quitar exige v2.
 
 URLs ABSOLUTAS (host del core) porque la tienda corre en otro origen.
 Imágenes re-encodeadas a WebP por el panel (logo ≤800px, portada ≤1600×900).
+
+**Historias destacadas** (aditivo 2026-07-28, RF-T24):
+
+```json
+{
+  "historias": [                             // [] ⇒ sin historias
+    { "id": "uuid", "url": "https://core.example/storage/tiendas/1/historias/uuid.webp" }
+  ]
+}
+```
+
+En orden de reproducción; WebP vertical ≤1080×1920, máximo 3. Con historias
+(o `tema.promos.mostrar_home` + promos vigentes de `GET /catalogo` →
+`promociones_genericas`), la tienda rodea el logo del hero con el anillo tipo
+historias; al tocarlo se abre el visor (promos como PRIMER slide, después las
+fotos). El estado visto/no visto es de la TIENDA (sesión server-side, misma
+vida que el carrito): la API no lo conoce.
 
 ### `GET /v1/tiendas/{slug}/franjas?tipo=delivery|take_away`
 Horarios de entrega/retiro de la JORNADA con lugar (modo `franjas`):

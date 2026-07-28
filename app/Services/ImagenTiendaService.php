@@ -33,6 +33,11 @@ class ImagenTiendaService
 
     public const PORTADA_MAX_ALTO = 900;
 
+    /** Historias: formato vertical tipo story (RF-T24). */
+    public const HISTORIA_MAX_ANCHO = 1080;
+
+    public const HISTORIA_MAX_ALTO = 1920;
+
     public const WEBP_QUALITY = 85;
 
     /** MIME types aceptados detectados por finfo (no por extensión). */
@@ -60,6 +65,92 @@ class ImagenTiendaService
     public function eliminarPortada(Tienda $tienda): void
     {
         $this->eliminar($tienda, 'portada_path');
+    }
+
+    /**
+     * Agrega una historia destacada (RF-T24): mismas defensas que logo y
+     * portada, formato vertical tipo story, tope Tienda::MAX_HISTORIAS.
+     * Devuelve la entrada agregada {id, path, orden}.
+     *
+     * @throws Exception si el archivo no valida o ya hay 3 historias.
+     */
+    public function agregarHistoria(Tienda $tienda, UploadedFile $file): array
+    {
+        $historias = $tienda->historias ?? [];
+
+        if (count($historias) >= Tienda::MAX_HISTORIAS) {
+            throw new Exception(__('Ya alcanzaste el máximo de :max historias.', ['max' => Tienda::MAX_HISTORIAS]));
+        }
+
+        $this->validar($file);
+
+        $id = Str::uuid()->toString();
+        $path = "tiendas/{$tienda->comercio_id}/historias/{$id}.webp";
+
+        try {
+            $manager = new ImageManager(new Driver);
+            $encoded = $manager->read($file->getRealPath())
+                ->scaleDown(width: self::HISTORIA_MAX_ANCHO, height: self::HISTORIA_MAX_ALTO)
+                ->toWebp(quality: self::WEBP_QUALITY);
+        } catch (\Throwable $e) {
+            Log::warning('ImagenTiendaService: fallo al decodificar historia', [
+                'tienda_id' => $tienda->id,
+                'error' => $e->getMessage(),
+            ]);
+            throw new Exception(__('La imagen no es válida o está corrupta.'));
+        }
+
+        Storage::disk('public')->put($path, (string) $encoded);
+
+        $entrada = [
+            'id' => $id,
+            'path' => $path,
+            'orden' => count($historias) + 1,
+        ];
+        $historias[] = $entrada;
+        $tienda->update(['historias' => array_values($historias)]);
+
+        return $entrada;
+    }
+
+    public function eliminarHistoria(Tienda $tienda, string $id): void
+    {
+        $historias = collect($tienda->historias ?? []);
+        $entrada = $historias->firstWhere('id', $id);
+
+        if ($entrada === null) {
+            return;
+        }
+
+        Storage::disk('public')->delete($entrada['path']);
+
+        // Re-numera el orden para que quede 1..N sin huecos.
+        $restantes = $historias->reject(fn (array $h) => $h['id'] === $id)
+            ->sortBy('orden')
+            ->values()
+            ->map(fn (array $h, int $i) => [...$h, 'orden' => $i + 1]);
+
+        $tienda->update(['historias' => $restantes->all()]);
+    }
+
+    /**
+     * Reordena las historias según la lista de ids recibida (ids ausentes
+     * conservan su posición relativa al final).
+     */
+    public function reordenarHistorias(Tienda $tienda, array $idsOrdenados): void
+    {
+        $historias = collect($tienda->historias ?? []);
+
+        $ordenadas = $historias
+            ->sortBy(function (array $h) use ($idsOrdenados) {
+                $pos = array_search($h['id'], $idsOrdenados, true);
+
+                return $pos === false ? PHP_INT_MAX : $pos;
+            })
+            ->values()
+            ->map(fn (array $h, int $i) => [...$h, 'orden' => $i + 1]);
+
+        $tienda->update(['historias' => $ordenadas->all()]);
     }
 
     /**

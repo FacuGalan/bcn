@@ -299,8 +299,11 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.tema.densidad', 'normal')
             // RF-T13: los sub-objetos nuevos viajan con defaults que replican
             // el comportamiento previo (tienda sin config = se ve igual).
-            ->assertJsonPath('data.tema.portada.overlay', true)
+            // RF-T25: overlay deprecado, siempre false (portada cruda);
+            // logo.radio nuevo con default full (círculo, comportamiento previo).
+            ->assertJsonPath('data.tema.portada.overlay', false)
             ->assertJsonPath('data.tema.portada.posicion', 'center')
+            ->assertJsonPath('data.tema.logo.radio', 'full')
             ->assertJsonPath('data.tema.textos.slogan', '')
             ->assertJsonPath('data.tema.textos.descripcion', '')
             ->assertJsonPath('data.tema.redes.facebook', '')
@@ -310,6 +313,11 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.tema.destacados.adorno', 'ninguno')
             ->assertJsonPath('data.tema.promos.mostrar_home', false)
             ->assertJsonPath('data.comportamiento', []);
+
+        // RF-T24: sin historias cargadas viaja [] (aditivo).
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.historias', []);
 
         // Con IDs + tema PARCIAL persistido: los IDs viajan y el tema mergea
         // sobre los defaults (solo pisa lo configurado).
@@ -346,6 +354,23 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertStringStartsWith('http', (string) $respuesta->json('data.logo_url'));
         $this->assertStringEndsWith('/storage/tiendas/1/logo-test.webp', (string) $respuesta->json('data.logo_url'));
         $this->assertStringEndsWith('/storage/tiendas/1/portada-test.webp', (string) $respuesta->json('data.portada_url'));
+    }
+
+    public function test_tienda_show_expone_historias_ordenadas_con_url_absoluta(): void
+    {
+        // RF-T24 (aditivo): historias en orden de reproducción, URL absoluta.
+        $this->tienda->update(['historias' => [
+            ['id' => 'bbb-2', 'path' => 'tiendas/1/historias/bbb.webp', 'orden' => 2],
+            ['id' => 'aaa-1', 'path' => 'tiendas/1/historias/aaa.webp', 'orden' => 1],
+        ]]);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test')->assertOk();
+
+        $this->assertCount(2, $respuesta->json('data.historias'));
+        $this->assertSame('aaa-1', $respuesta->json('data.historias.0.id'), 'Ordenadas por orden, no por posición en el JSON');
+        $this->assertSame('bbb-2', $respuesta->json('data.historias.1.id'));
+        $this->assertStringStartsWith('http', (string) $respuesta->json('data.historias.0.url'));
+        $this->assertStringEndsWith('/storage/tiendas/1/historias/aaa.webp', (string) $respuesta->json('data.historias.0.url'));
     }
 
     public function test_catalogo_etag_y_revalidacion_304(): void

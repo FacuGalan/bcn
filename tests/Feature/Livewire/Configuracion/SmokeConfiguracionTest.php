@@ -828,9 +828,9 @@ class SmokeConfiguracionTest extends TestCase
             ->set('fuente', 'poppins')
             ->set('radios', 'lg')
             ->set('densidad', 'compacta')
-            // RF-T13 — estética avanzada
-            ->set('portadaOverlay', false)
+            // RF-T13 — estética avanzada (RF-T25: overlay eliminado del form)
             ->set('portadaPosicion', 'top')
+            ->set('logoRadio', 'md')
             ->set('slogan', 'Las mejores pizzas')
             ->set('descripcion', 'Somos una pizzería familiar.')
             ->set('redFacebook', 'https://facebook.com/mipizzeria')
@@ -851,8 +851,10 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertSame('lg', $tienda->tema['radios']);
         $this->assertSame('compacta', $tienda->tema['densidad']);
         // RF-T13: los sub-objetos persisten con el shape del contrato.
+        // RF-T25: overlay deprecado — se emite SIEMPRE false por tolerancia.
         $this->assertFalse($tienda->tema['portada']['overlay']);
         $this->assertSame('top', $tienda->tema['portada']['posicion']);
+        $this->assertSame('md', $tienda->tema['logo']['radio']);
         $this->assertSame('Las mejores pizzas', $tienda->tema['textos']['slogan']);
         $this->assertSame('Somos una pizzería familiar.', $tienda->tema['textos']['descripcion']);
         $this->assertSame('https://facebook.com/mipizzeria', $tienda->tema['redes']['facebook']);
@@ -861,6 +863,66 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertSame('tarjeta_grande', $tienda->tema['destacados']['modo']);
         $this->assertSame('ambos', $tienda->tema['destacados']['adorno']);
         $this->assertTrue($tienda->tema['promos']['mostrar_home']);
+
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+    }
+
+    public function test_configuracion_tienda_historias_sube_reordena_y_elimina(): void
+    {
+        // RF-T24: historias destacadas — subir (pendiente hasta guardar),
+        // reordenar y eliminar (inmediatos), tope de 3.
+        \Illuminate\Support\Facades\Storage::fake('public');
+        \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
+        $tienda = \App\Models\Tienda::create([
+            'comercio_id' => $this->comercio->id,
+            'sucursal_id' => $this->sucursalId,
+            'slug' => 'tienda-historias-test',
+            'habilitada' => false,
+        ]);
+
+        Livewire::test(ConfiguracionTienda::class)
+            ->set('historiaUploads', [
+                \Illuminate\Http\UploadedFile::fake()->image('h1.jpg', 600, 900),
+                \Illuminate\Http\UploadedFile::fake()->image('h2.jpg', 600, 900),
+            ])
+            ->call('guardarTienda')
+            ->assertHasNoErrors();
+
+        $tienda->refresh();
+        $this->assertCount(2, $tienda->historias);
+        $this->assertSame([1, 2], array_column($tienda->historias, 'orden'));
+        foreach ($tienda->historias as $h) {
+            \Illuminate\Support\Facades\Storage::disk('public')->assertExists($h['path']);
+            $this->assertStringEndsWith('.webp', $h['path'], 'Re-encode a WebP como logo/portada');
+        }
+
+        [$primeraId, $segundaId] = array_column($tienda->historias, 'id');
+
+        // Mover la segunda un lugar a la izquierda: pasa a reproducirse primera.
+        Livewire::test(ConfiguracionTienda::class)->call('moverHistoria', $segundaId, -1);
+        $tienda->refresh();
+        $ordenadas = collect($tienda->historias)->sortBy('orden')->values();
+        $this->assertSame($segundaId, $ordenadas[0]['id']);
+        $this->assertSame($primeraId, $ordenadas[1]['id']);
+
+        // Tope: 2 persistidas + 2 nuevas > 3 → error sin persistir nada.
+        Livewire::test(ConfiguracionTienda::class)
+            ->set('historiaUploads', [
+                \Illuminate\Http\UploadedFile::fake()->image('h3.jpg'),
+                \Illuminate\Http\UploadedFile::fake()->image('h4.jpg'),
+            ])
+            ->call('guardarTienda')
+            ->assertHasErrors('historiaUploads');
+        $this->assertCount(2, $tienda->refresh()->historias);
+
+        // Eliminar re-numera 1..N y borra el archivo.
+        $pathSegunda = collect($tienda->historias)->firstWhere('id', $segundaId)['path'];
+        Livewire::test(ConfiguracionTienda::class)->call('eliminarHistoria', $segundaId);
+        $tienda->refresh();
+        $this->assertCount(1, $tienda->historias);
+        $this->assertSame($primeraId, $tienda->historias[0]['id']);
+        $this->assertSame(1, $tienda->historias[0]['orden']);
+        \Illuminate\Support\Facades\Storage::disk('public')->assertMissing($pathSegunda);
 
         \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
     }

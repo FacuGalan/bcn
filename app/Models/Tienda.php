@@ -41,8 +41,14 @@ class Tienda extends Model
         // RF-T13 — cada default replica el comportamiento previo al RF:
         // una tienda que no toca nada se ve EXACTAMENTE igual que antes.
         'portada' => [
-            'overlay' => true,        // fade con color primario sobre la portada
+            // DEPRECADA (RF-T25): la portada va siempre cruda. La clave se
+            // sigue emitiendo en false por tolerancia del contrato (quitarla
+            // exigiría v2); bcn-tienda la ignora.
+            'overlay' => false,
             'posicion' => 'center',   // encuadre vertical: top|center|bottom
+        ],
+        'logo' => [
+            'radio' => 'full',        // forma del logo: none|sm|md|lg|full (RF-T25)
         ],
         'textos' => [
             'slogan' => '',           // hero, bajo el nombre ('' = no se muestra)
@@ -95,13 +101,18 @@ class Tienda extends Model
         'tema',
         'logo_path',
         'portada_path',
+        'historias',
     ];
 
     protected $casts = [
         'habilitada' => 'boolean',
         'sucursal_id' => 'integer',
         'tema' => 'array',
+        'historias' => 'array',
     ];
+
+    /** Máximo de historias destacadas por tienda (RF-T24). */
+    public const MAX_HISTORIAS = 3;
 
     /** Tema efectivo: defaults del core con merge profundo del JSON persistido. */
     public function temaCompleto(): array
@@ -122,6 +133,22 @@ class Tienda extends Model
     public function portadaUrl(): ?string
     {
         return $this->portada_path ? '/storage/'.ltrim($this->portada_path, '/') : null;
+    }
+
+    /**
+     * Historias destacadas ordenadas, con URL root-relative (RF-T24).
+     * Shape de cada una: {id, path, orden} en BD → {id, url} para exponer.
+     */
+    public function historiasOrdenadas(): array
+    {
+        $historias = collect($this->historias ?? [])
+            ->sortBy('orden')
+            ->values();
+
+        return $historias->map(fn (array $h) => [
+            'id' => $h['id'],
+            'url' => '/storage/'.ltrim($h['path'], '/'),
+        ])->all();
     }
 
     public function comercio(): BelongsTo

@@ -129,14 +129,9 @@
                     </div>
                     @error('portadaUpload') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
 
-                    {{-- Overlay + encuadre de la portada (RF-T13) --}}
+                    {{-- Encuadre de la portada (RF-T13; el fade/overlay se quitó en RF-T25: portada siempre cruda) --}}
                     @if($portadaPreviewUrl)
                         <div class="mt-2 space-y-2">
-                            <label class="flex items-start gap-2 cursor-pointer">
-                                <input type="checkbox" wire:model.live="portadaOverlay" @disabled(! $puedeConfigurar)
-                                    class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
-                                <span class="text-xs text-gray-700 dark:text-gray-300">{{ __('Fundir la portada con el color de la tienda (fade)') }}</span>
-                            </label>
                             <div class="flex items-center gap-2">
                                 <span class="text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Encuadre') }}</span>
                                 <div class="inline-flex rounded-md border border-gray-300 dark:border-gray-600 overflow-hidden">
@@ -152,6 +147,73 @@
                     @endif
                 </div>
             </div>
+            {{-- ==================== HISTORIAS DESTACADAS (RF-T24) ==================== --}}
+            <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-1">
+                <h4 class="text-xs font-semibold text-gray-900 dark:text-white mb-1">{{ __('Historias destacadas') }}</h4>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Subí hasta 3 fotos: el logo de tu tienda se rodea con un anillo estilo historias y al tocarlo se reproducen. Las fotos nuevas se aplican al guardar.') }}</p>
+                <div class="flex flex-wrap items-start gap-3">
+                    @foreach($historiasActuales as $idx => $historia)
+                        <div class="w-20">
+                            <div class="relative">
+                                <img src="{{ $historia['url'] }}" alt="{{ __('Historia') }} {{ $idx + 1 }}" class="w-20 h-32 object-cover rounded-md border border-gray-300 dark:border-gray-600">
+                                <span class="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[10px] font-bold rounded">{{ $idx + 1 }}</span>
+                            </div>
+                            <div class="mt-1 flex justify-center gap-1">
+                                <button type="button" wire:click="moverHistoria('{{ $historia['id'] }}', -1)" @disabled(! $puedeConfigurar || $idx === 0)
+                                    class="p-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40" title="{{ __('Mover a la izquierda') }}">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+                                </button>
+                                <button type="button" wire:click="moverHistoria('{{ $historia['id'] }}', 1)" @disabled(! $puedeConfigurar || $idx === count($historiasActuales) - 1)
+                                    class="p-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40" title="{{ __('Mover a la derecha') }}">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                                </button>
+                                <button type="button" wire:click="eliminarHistoria('{{ $historia['id'] }}')" @disabled(! $puedeConfigurar)
+                                    class="p-1 rounded border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-40" title="{{ __('Eliminar') }}">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
+                    @foreach($historiaPreviewUrls as $idx => $previewUrl)
+                        <div class="w-20">
+                            <div class="relative">
+                                @if($previewUrl)
+                                    <img src="{{ $previewUrl }}" alt="{{ __('Historia pendiente') }}" class="w-20 h-32 object-cover rounded-md border-2 border-dashed border-bcn-primary/60">
+                                @else
+                                    <div class="w-20 h-32 rounded-md border-2 border-dashed border-bcn-primary/60 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400">{{ __('Pendiente') }}</div>
+                                @endif
+                                <span class="absolute top-1 left-1 px-1.5 py-0.5 bg-bcn-primary text-white text-[10px] font-bold rounded">{{ __('Nueva') }}</span>
+                            </div>
+                            <div class="mt-1 flex justify-center">
+                                <button type="button" wire:click="descartarHistoriaUpload({{ $idx }})" @disabled(! $puedeConfigurar)
+                                    class="p-1 rounded border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-40" title="{{ __('Descartar') }}">
+                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                </button>
+                            </div>
+                        </div>
+                    @endforeach
+                    @if(count($historiasActuales) + count($historiaPreviewUrls) < \App\Models\Tienda::MAX_HISTORIAS)
+                        <label class="w-20 h-32 flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md cursor-pointer text-gray-400 dark:text-gray-500 hover:border-bcn-primary hover:text-bcn-primary transition-colors {{ $puedeConfigurar ? '' : 'opacity-50 pointer-events-none' }}">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                            <span class="text-[10px] font-medium">{{ __('Agregar') }}</span>
+                            <input type="file" wire:model="historiaUploads" accept="image/*" multiple class="hidden" @disabled(! $puedeConfigurar)>
+                        </label>
+                    @endif
+                </div>
+                <div wire:loading wire:target="historiaUploads" class="mt-1 text-xs text-bcn-primary">{{ __('Subiendo imagen...') }}</div>
+                @error('historiaUploads') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                @error('historiaUploads.*') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('JPG, PNG o WebP. Máximo 5MB. Ideal vertical (1080×1920).') }}</p>
+                <label class="mt-2 flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" wire:model="promosMostrarHome" @disabled(! $puedeConfigurar)
+                        class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <span class="text-xs text-gray-700 dark:text-gray-300">
+                        {{ __('Mostrar también las promociones disponibles como historia') }}
+                        <span class="block text-gray-500 dark:text-gray-400">{{ __('Agrega una primera historia con las promociones vigentes del día y sus condiciones. También activa el anillo aunque no haya fotos.') }}</span>
+                    </span>
+                </label>
+            </div>
+
             <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 @foreach([
                     'colorPrimario' => __('Primario (botones)'),
@@ -172,7 +234,7 @@
                     </div>
                 @endforeach
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 <div>
                     <label for="ct-fuente" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Tipografía') }}</label>
                     <select id="ct-fuente" wire:model.live="fuente" @disabled(! $puedeConfigurar)
@@ -195,6 +257,18 @@
                         <option value="lg">{{ __('Amplios') }}</option>
                         <option value="full">{{ __('Redondos') }}</option>
                     </select>
+                </div>
+                <div>
+                    <label for="ct-logo-radio" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Forma del logo') }}</label>
+                    <select id="ct-logo-radio" wire:model.live="logoRadio" @disabled(! $puedeConfigurar)
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                        <option value="none">{{ __('Recto') }}</option>
+                        <option value="sm">{{ __('Suave') }}</option>
+                        <option value="md">{{ __('Medio') }}</option>
+                        <option value="lg">{{ __('Amplio') }}</option>
+                        <option value="full">{{ __('Redondo') }}</option>
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Los bordes redondeados generales aplican a tarjetas y carrito; el logo se controla acá.') }}</p>
                 </div>
                 <div>
                     <label for="ct-densidad" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Densidad del contenido') }}</label>
@@ -282,14 +356,6 @@
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Solo aplica a la tarjeta grande.') }}</p>
                     </div>
                 </div>
-                <label class="mt-2 flex items-start gap-2 cursor-pointer">
-                    <input type="checkbox" wire:model="promosMostrarHome" @disabled(! $puedeConfigurar)
-                        class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
-                    <span class="text-xs text-gray-700 dark:text-gray-300">
-                        {{ __('Mostrar aviso de "Promociones de hoy" en la página principal') }}
-                        <span class="block text-gray-500 dark:text-gray-400">{{ __('Lista las promociones vigentes de alcance general (combos, 2x1, descuentos por categoría).') }}</span>
-                    </span>
-                </label>
             </div>
         </div>
 

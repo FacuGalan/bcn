@@ -64,9 +64,10 @@ class ConfiguracionTienda extends Component
 
     // ==================== ESTÉTICA AVANZADA (RF-T13) ====================
 
-    public bool $portadaOverlay = true;
-
     public string $portadaPosicion = 'center';
+
+    /** Forma del logo, independiente de los bordes generales (RF-T25). */
+    public string $logoRadio = 'full';
 
     public string $slogan = '';
 
@@ -99,6 +100,17 @@ class ConfiguracionTienda extends Component
 
     public string $portadaPathActual = '';
 
+    // ==================== HISTORIAS DESTACADAS (RF-T24) ====================
+
+    /**
+     * Uploads pendientes de historias: como logo/portada, nada persiste
+     * hasta "Guardar apariencia". Input multiple → array de archivos.
+     */
+    public array $historiaUploads = [];
+
+    /** Historias persistidas para la vista: [{id, url}] en orden. */
+    public array $historiasActuales = [];
+
     public function mount(): void
     {
         $this->cargar();
@@ -126,6 +138,8 @@ class ConfiguracionTienda extends Component
             $this->portadaUpload = null;
             $this->logoPathActual = '';
             $this->portadaPathActual = '';
+            $this->historiaUploads = [];
+            $this->historiasActuales = [];
             $this->aplicarTema(Tienda::TEMA_DEFAULTS);
 
             return;
@@ -139,7 +153,21 @@ class ConfiguracionTienda extends Component
         $this->portadaUpload = null;
         $this->logoPathActual = (string) ($tienda->logo_path ?? '');
         $this->portadaPathActual = (string) ($tienda->portada_path ?? '');
+        $this->historiaUploads = [];
+        $this->historiasActuales = $this->mapHistorias($tienda);
         $this->aplicarTema($tienda->temaCompleto());
+    }
+
+    /** Historias persistidas en orden, con URL absoluta para la vista. */
+    protected function mapHistorias(Tienda $tienda): array
+    {
+        return collect($tienda->historias ?? [])
+            ->sortBy('orden')
+            ->values()
+            ->map(fn (array $h) => [
+                'id' => $h['id'],
+                'url' => asset('storage/'.ltrim($h['path'], '/')),
+            ])->all();
     }
 
     protected function tiendaActual(): ?Tienda
@@ -179,10 +207,12 @@ class ConfiguracionTienda extends Component
             : Tienda::TEMA_DEFAULTS['densidad'];
 
         // RF-T13 — estética avanzada (defaults = comportamiento previo).
-        $this->portadaOverlay = (bool) ($tema['portada']['overlay'] ?? true);
         $this->portadaPosicion = in_array($tema['portada']['posicion'] ?? '', Tienda::POSICIONES_PORTADA, true)
             ? $tema['portada']['posicion']
             : Tienda::TEMA_DEFAULTS['portada']['posicion'];
+        $this->logoRadio = in_array($tema['logo']['radio'] ?? '', Tienda::RADIOS_DISPONIBLES, true)
+            ? $tema['logo']['radio']
+            : Tienda::TEMA_DEFAULTS['logo']['radio'];
         $this->slogan = (string) ($tema['textos']['slogan'] ?? '');
         $this->descripcion = (string) ($tema['textos']['descripcion'] ?? '');
         $this->redFacebook = (string) ($tema['redes']['facebook'] ?? '');
@@ -312,6 +342,7 @@ class ConfiguracionTienda extends Component
             'metaPixelId' => ['nullable', 'string', 'max:30', 'regex:/^[0-9]+$/'],
             'logoUpload' => 'nullable|image|max:5120',
             'portadaUpload' => 'nullable|image|max:5120',
+            'historiaUploads.*' => 'nullable|image|max:5120',
             'colorPrimario' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
             'colorAcento' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
             'colorFondo' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
@@ -320,8 +351,8 @@ class ConfiguracionTienda extends Component
             'fuente' => 'required|in:'.implode(',', Tienda::FUENTES_DISPONIBLES),
             'radios' => 'required|in:'.implode(',', Tienda::RADIOS_DISPONIBLES),
             'densidad' => 'required|in:'.implode(',', Tienda::DENSIDADES_DISPONIBLES),
-            'portadaOverlay' => 'boolean',
             'portadaPosicion' => 'required|in:'.implode(',', Tienda::POSICIONES_PORTADA),
+            'logoRadio' => 'required|in:'.implode(',', Tienda::RADIOS_DISPONIBLES),
             'slogan' => 'nullable|string|max:120',
             'descripcion' => 'nullable|string|max:1000',
             'redFacebook' => ['nullable', 'string', 'max:255', 'regex:#^https://(www\.)?(facebook\.com|fb\.com)/.+#i'],
@@ -345,6 +376,12 @@ class ConfiguracionTienda extends Component
             return;
         }
 
+        if (count($this->historiasActuales) + count(array_filter($this->historiaUploads)) > Tienda::MAX_HISTORIAS) {
+            $this->addError('historiaUploads', __('Ya alcanzaste el máximo de :max historias.', ['max' => Tienda::MAX_HISTORIAS]));
+
+            return;
+        }
+
         try {
             $tienda->update([
                 'slug' => $this->slug,
@@ -364,9 +401,14 @@ class ConfiguracionTienda extends Component
                 $imagenes->actualizarPortada($tienda, $this->portadaUpload);
                 $this->portadaUpload = null;
             }
+            foreach (array_filter($this->historiaUploads) as $upload) {
+                $imagenes->agregarHistoria($tienda, $upload);
+            }
+            $this->historiaUploads = [];
             $tienda->refresh();
             $this->logoPathActual = (string) ($tienda->logo_path ?? '');
             $this->portadaPathActual = (string) ($tienda->portada_path ?? '');
+            $this->historiasActuales = $this->mapHistorias($tienda);
 
             // El visor recarga el iframe: lo persistido ya incluye todo.
             $this->dispatch('tienda-guardada');
@@ -441,6 +483,70 @@ class ConfiguracionTienda extends Component
         }
     }
 
+    // ==================== HISTORIAS DESTACADAS (RF-T24) ====================
+
+    /** Borra una historia YA persistida (inmediato, como eliminarLogo). */
+    public function eliminarHistoria(string $id): void
+    {
+        if (! $this->puedeGuardar()) {
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda) {
+            return;
+        }
+
+        try {
+            app(ImagenTiendaService::class)->eliminarHistoria($tienda, $id);
+            $this->historiasActuales = $this->mapHistorias($tienda->refresh());
+            $this->dispatch('tienda-guardada');
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
+    /** Descarta un upload pendiente (no se persistió nada). */
+    public function descartarHistoriaUpload(int $index): void
+    {
+        unset($this->historiaUploads[$index]);
+        $this->historiaUploads = array_values($this->historiaUploads);
+    }
+
+    /**
+     * Mueve una historia persistida un lugar hacia arriba (-1) o abajo (+1)
+     * en el orden de reproducción. Inmediato.
+     */
+    public function moverHistoria(string $id, int $direccion): void
+    {
+        if (! $this->puedeGuardar() || ! in_array($direccion, [-1, 1], true)) {
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda) {
+            return;
+        }
+
+        $ids = array_column($this->historiasActuales, 'id');
+        $pos = array_search($id, $ids, true);
+        $destino = $pos === false ? false : $pos + $direccion;
+
+        if ($pos === false || $destino < 0 || $destino >= count($ids)) {
+            return;
+        }
+
+        [$ids[$pos], $ids[$destino]] = [$ids[$destino], $ids[$pos]];
+
+        try {
+            app(ImagenTiendaService::class)->reordenarHistorias($tienda, $ids);
+            $this->historiasActuales = $this->mapHistorias($tienda->refresh());
+            $this->dispatch('tienda-guardada');
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
+
     public function restablecerTema(): void
     {
         // Restablece la ESTÉTICA; slogan/descripción/redes son contenido
@@ -467,9 +573,12 @@ class ConfiguracionTienda extends Component
             'radios' => $this->radios,
             'densidad' => $this->densidad,
             'portada' => [
-                'overlay' => $this->portadaOverlay,
+                // Deprecada RF-T25: siempre false (portada cruda); la clave
+                // se emite por tolerancia del contrato.
+                'overlay' => false,
                 'posicion' => $this->portadaPosicion,
             ],
+            'logo' => ['radio' => $this->logoRadio],
             'textos' => [
                 'slogan' => trim($this->slogan),
                 'descripcion' => trim($this->descripcion),
@@ -504,6 +613,17 @@ class ConfiguracionTienda extends Component
             // expiró — degradar a lo persistido.
             'logoPreviewUrl' => $this->previewUrl($this->logoUpload, $this->logoPathActual),
             'portadaPreviewUrl' => $this->previewUrl($this->portadaUpload, $this->portadaPathActual),
+            // Miniaturas de historias pendientes (RF-T24): temporaryUrl puede
+            // fallar si el tmp expiró — se omite la miniatura, no el upload.
+            'historiaPreviewUrls' => collect($this->historiaUploads)
+                ->filter()
+                ->map(function ($upload) {
+                    try {
+                        return $upload->temporaryUrl();
+                    } catch (Exception) {
+                        return null;
+                    }
+                })->all(),
         ]);
     }
 

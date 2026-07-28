@@ -100,8 +100,9 @@ Las promos ya viajan por `GET /catalogo` → `promociones_genericas`
   origen). Arriba: **barras de progreso**, una por historia. Navegación:
   tap mitad derecha avanza, mitad izquierda retrocede, **auto-avance cada
   5s** (la barra activa se llena en 5s), botón X y swipe-down cierran.
-- **Slides**: primero las fotos (en orden); si el toggle de promos está
-  activo y hay promos, **un único slide final "Promociones de hoy"** que
+- **Slides**: si el toggle de promos está
+  activo y hay promos, **un único slide "Promociones de hoy" que va
+  PRIMERO** (antes que las fotos; ajuste 2026-07-28 en validación) y que
   lista TODAS las promos con nombre, descripción, precio y sus
   **condiciones** (horarios válidos, formas de pago válidas, unidades
   requeridas, etc.) — estilizado con el tema (colores/fuente/radios).
@@ -382,6 +383,47 @@ definitiva en implementación.)
    el broadcast); smoke del componente. ✅ (128 tests verdes en las dos
    suites completas)
 
+<<<<<<< HEAD
+### Fase 4 (core): Historias destacadas lado core [COMPLETO]
+1. Migración `historias` en `config.tiendas` + fillable/cast + helper
+   `historiasOrdenadas()`. ✅ (2026-07-28; migrada también en *_test)
+2. `ImagenTiendaService`: agregar/eliminar/reordenar historia.
+   ✅ (agregarHistoria valida tope 3 + WebP 1080×1920; eliminar re-numera
+   orden 1..N; reordenar por lista de ids)
+3. `ConfiguracionTienda`: sección UI nueva + mudanza del toggle de promos.
+   ✅ (uploads pendientes hasta "Guardar apariencia" como logo/portada;
+   eliminar/mover son inmediatos y recargan el visor)
+4. API `show()`: clave `historias`. Contrato actualizado. Tests. ✅
+
+### Fase 5 (core): Estética lado core [COMPLETO]
+1. Quitar checkbox overlay (+ `TEMA_DEFAULTS` overlay=false fijo);
+   `tema.logo.radio` (default `full`) + selector "Forma del logo".
+   ✅ (2026-07-28; propiedad $portadaOverlay eliminada del componente;
+   tienda-preview.js del core actualizado: manda logo.radio y overlay
+   false fijo al visor)
+2. Contrato actualizado. Tests + smoke ConfiguracionTienda.
+   ✅ (141 tests verdes en las dos suites; assets compilados)
+
+### Fase 6 (tienda): Todo el lado bcn-tienda [COMPLETO]
+1. `TiendaActual`: `historias()` (con re-validación de URLs), var
+   `--tienda-radio-logo` en `temaCssVars()` (RADIOS_LOGO propio), se
+   eliminó `portadaOverlay()`; espejo en `preview.js`. ✅ (2026-07-28)
+2. Hero: anillo degradé primario→acento + glow latente (keyframe CSS con
+   guard prefers-reduced-motion), logo con `rounded-logo` (partial
+   compartido logo-hero), portada cruda, `mb-3` en la tarjeta (el aire va
+   ahí y no en la nav sticky de categorías). ✅
+3. Visor de historias (Alpine.data en bundle `historias.js`): expansión
+   desde el logo (transform-origin dinámico), barras de progreso,
+   auto-avance 5s, tap tercio-izquierdo/resto, Escape, swipe-down;
+   slide único de promos temado (gradiente + condiciones). Visto en
+   SESIÓN vía `Home::marcarHistoriasVistas()` ($wire, sin endpoint
+   nuevo) con fingerprint ids+promos. ✅
+4. Quitar pill de promos de la home. ✅ (sección `promos` eliminada de
+   config y el blade borrado)
+5. Contract tests + fixtures actualizados. ✅ (fixture tienda.json con
+   historias/logo/overlay=false; suite completa: 187 passed; Pint verde;
+   assets compilados)
+=======
 ### Fase 4 (core): Historias destacadas lado core [PENDIENTE]
 1. Migración `historias` en `config.tiendas` + fillable/cast + helper
    `historiasUrls()`.
@@ -403,6 +445,7 @@ definitiva en implementación.)
    slide de promos temado; endpoint interno "marcar visto".
 4. Quitar pill de promos de la home.
 5. Contract tests + fixtures actualizados.
+>>>>>>> origin/master
 
 ### Fase 7: Cierre [PENDIENTE]
 1. Traducciones (es/en/pt) en ambos repos.
