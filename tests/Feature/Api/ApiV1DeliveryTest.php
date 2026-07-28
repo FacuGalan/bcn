@@ -857,6 +857,46 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertEqualsWithDelta(30, now()->diffInMinutes($pedido->hora_pactada_at), 2);
     }
 
+    public function test_aceptar_sin_parametros_respeta_la_franja_elegida_por_el_cliente(): void
+    {
+        // RF-T26: aceptar "como lo pidió" no pasa demora ni hora — la promesa
+        // que eligió el cliente en la tienda NO debe pisarse.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        $hora = now()->addHours(2)->startOfMinute();
+        $pedido->update(['hora_pactada_at' => $hora, 'lo_antes_posible' => false]);
+
+        $this->service->aceptarPedidoExterno($pedido);
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertTrue(
+            $pedido->hora_pactada_at->equalTo($hora),
+            'Aceptar sin parámetros no debe pisar la franja elegida por el cliente',
+        );
+    }
+
+    public function test_aceptar_encargo_sin_parametros_no_le_calcula_hora_de_hoy(): void
+    {
+        // RF-T26: un encargo (programado_para) ya tiene su promesa — el
+        // cálculo automático por distancia no debe fijarle una hora de hoy.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        $cuando = now()->addDay()->setTime(20, 0);
+        $pedido->update(['programado_para' => $cuando, 'lo_antes_posible' => false]);
+
+        $this->service->aceptarPedidoExterno($pedido);
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertNull($pedido->hora_pactada_at, 'El encargo no debe recibir hora calculada por distancia');
+        $this->assertTrue($pedido->programado_para->equalTo($cuando));
+    }
+
     public function test_rechazar_pedido_externo_lo_cancela(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);

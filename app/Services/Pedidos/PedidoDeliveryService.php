@@ -832,7 +832,9 @@ class PedidoDeliveryService
             $pedido->refresh();
         }
 
-        if (! $pedido->hora_pactada_at && ! $pedido->lo_antes_posible && $pedido->tipo === PedidoDelivery::TIPO_DELIVERY) {
+        // Un encargo (programado_para) ya tiene su promesa: calcular hora por
+        // distancia acá la pisaría con una hora de hoy (RF-T26).
+        if (! $pedido->hora_pactada_at && ! $pedido->lo_antes_posible && ! $pedido->programado_para && $pedido->tipo === PedidoDelivery::TIPO_DELIVERY) {
             $sucursal = Sucursal::findOrFail($pedido->sucursal_id);
             $horaPactada = $this->envioService->calcularHoraPactada(
                 $sucursal,

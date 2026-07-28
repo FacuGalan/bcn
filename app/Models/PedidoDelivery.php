@@ -454,6 +454,37 @@ class PedidoDelivery extends Model
         return $this->estado_pedido === self::ESTADO_BORRADOR;
     }
 
+    /**
+     * Promesa de entrega que trae el pedido (elegida por el cliente en la
+     * tienda o fijada al aceptar): encargo > franja/hora pactada > ASAP.
+     * Null si el pedido no tiene ninguna promesa cargada (ej: integración
+     * B2B sin dato de entrega).
+     */
+    public function promesaClienteInfo(): ?array
+    {
+        if ($this->programado_para) {
+            return [
+                'tipo' => 'encargo',
+                'label' => __('Encargo').': '.$this->programado_para->format('d/m H:i'),
+            ];
+        }
+
+        if ($this->hora_pactada_at) {
+            return [
+                'tipo' => 'franja',
+                'label' => $this->hora_pactada_at->isToday()
+                    ? $this->hora_pactada_at->format('H:i')
+                    : $this->hora_pactada_at->format('d/m H:i'),
+            ];
+        }
+
+        if ($this->lo_antes_posible) {
+            return ['tipo' => 'asap', 'label' => __('Lo antes posible')];
+        }
+
+        return null;
+    }
+
     public function getEstaFacturadoAttribute(): bool
     {
         return $this->estado_pedido === self::ESTADO_FACTURADO;

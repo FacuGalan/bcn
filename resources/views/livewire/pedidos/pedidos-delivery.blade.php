@@ -295,6 +295,15 @@
                             · {{ __(\App\Models\PedidoDelivery::ORIGENES[$pedidoPA->origen] ?? $pedidoPA->origen) }}
                             · {{ $pedidoPA->created_at->diffForHumans(short: true) }}
                         </span>
+                        {{-- RF-T26: promesa elegida por el cliente en la tienda --}}
+                        @if($promesaPA = $pedidoPA->promesaClienteInfo())
+                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold align-middle {{ $promesaPA['tipo'] === 'asap' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200' }}">
+                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                {{ $promesaPA['label'] }}
+                            </span>
+                        @endif
                         @if($pedidoPA->direccion_entrega)
                             <span class="block text-xs text-gray-500 dark:text-gray-400 truncate">{{ $pedidoPA->direccion_entrega }}</span>
                         @endif
@@ -2170,6 +2179,20 @@
                         {{ __(\App\Models\PedidoDelivery::TIPOS[$aceptarInfo['tipo']] ?? $aceptarInfo['tipo']) }}
                         — <span class="font-bold">${{ number_format($aceptarInfo['total'], 2, ',', '.') }}</span>
                     </p>
+                    {{-- RF-T26: promesa elegida por el cliente en la tienda — aceptar tal cual, sin pisarla --}}
+                    @if(!empty($aceptarInfo['promesa_cliente']))
+                        <div class="rounded-md border border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-900/20 p-3 space-y-2">
+                            <p class="text-sm text-emerald-800 dark:text-emerald-200">
+                                {{ __('El cliente eligió') }}:
+                                <span class="font-bold">{{ $aceptarInfo['promesa_cliente']['label'] }}</span>
+                            </p>
+                            <button type="button" wire:click="confirmarAceptarComoPidio"
+                                class="w-full inline-flex justify-center items-center px-3 py-2 bg-emerald-600 rounded-md text-sm font-semibold text-white hover:bg-emerald-700">
+                                {{ __('Aceptar como lo pidió') }}
+                            </button>
+                        </div>
+                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">{{ __('¿No podés cumplirlo? Elegí otro horario:') }}</p>
+                    @endif
                     @if(($aceptarInfo['modo_promesa'] ?? 'manual') === 'franjas')
                         <p class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ __('¿Para qué horario?') }}</p>
                         @if(!empty($aceptarInfo['franjas']) || !empty($aceptarInfo['acepta_asap']))
@@ -2203,7 +2226,7 @@
                             @endforeach
                         </div>
                         <p class="text-[11px] text-gray-500 dark:text-gray-400">{{ __('El botón fija la hora pactada y se informa al consumidor.') }}</p>
-                    @else
+                    @elseif(empty($aceptarInfo['promesa_cliente']))
                         <p class="text-sm text-gray-600 dark:text-gray-300">{{ __('La hora pactada se calcula automáticamente por distancia.') }}</p>
                     @endif
                 </div>
@@ -2213,7 +2236,7 @@
                     class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                     {{ __('Cancelar') }}
                 </button>
-                @if(($aceptarInfo['modo_promesa'] ?? 'manual') === 'automatica')
+                @if(($aceptarInfo['modo_promesa'] ?? 'manual') === 'automatica' && empty($aceptarInfo['promesa_cliente']))
                     <button type="button" wire:click="confirmarAceptar"
                         class="px-4 py-2 bg-emerald-600 rounded-md text-sm font-semibold text-white hover:bg-emerald-700">
                         {{ __('Aceptar pedido') }}

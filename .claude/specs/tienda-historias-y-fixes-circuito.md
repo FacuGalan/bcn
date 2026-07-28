@@ -354,12 +354,19 @@ definitiva en implementación.)
    la conversión a venta lee la relación ya cubierta por tests D19 propios.
    Suite ApiV1DeliveryTest completa: 89 passed)
 
-### Fase 2 (core): Horario en el panel [PENDIENTE]
+### Fase 2 (core): Horario en el panel [COMPLETO]
 1. Banda por aceptar: mostrar promesa (franja/encargo/ASAP).
+   ✅ (2026-07-28: badge con reloj vía `PedidoDelivery::promesaClienteInfo()`)
 2. `abrirAceptar()` precarga promesa; modal "El cliente eligió: X"
    preseleccionado; `aceptarPedidoExterno()` no pisa si no hubo cambio;
    modo `automatica` respeta franja/encargo del pedido.
+   ✅ (bloque destacado + botón "Aceptar como lo pidió" →
+   `confirmarAceptarComoPidio()` llama al service SIN parámetros — el
+   service ya respetaba la promesa existente; guard nuevo: encargos no
+   reciben hora calculada por distancia)
 3. Tests de aceptación (con/sin cambio de horario, 3 modos).
+   ✅ (2 tests service en ApiV1DeliveryTest + 1 Livewire en
+   SmokePedidosDeliveryTest; suites completas verdes: 35 smoke + 91 API)
 
 ### Fase 3 (core): Reverb + banda plegable [PENDIENTE]
 1. `TIPO_POR_ACEPTAR` + broadcast en borradores externos + broadcast al

@@ -1657,8 +1657,34 @@ class PedidosDelivery extends Component
                 ], $envioService->franjasDisponibles($sucursal, $pedido->tipo))
                 : [],
             'acepta_asap' => (bool) ($config['acepta_lo_antes_posible'] ?? true),
+            // RF-T26: promesa que ya trae el pedido (elegida por el cliente
+            // en la tienda) — el modal la preselecciona y ofrece aceptar
+            // tal cual sin pisarla.
+            'promesa_cliente' => $pedido->promesaClienteInfo(),
         ];
         $this->showAceptarModal = true;
+    }
+
+    /**
+     * Acepta el pedido RESPETANDO la promesa que ya trae (franja, encargo o
+     * "lo antes posible" elegidos por el cliente en la tienda): no se pasa
+     * demora ni hora, así el service no toca hora_pactada_at /
+     * programado_para / lo_antes_posible (RF-T26).
+     */
+    public function confirmarAceptarComoPidio(): void
+    {
+        $pedido = PedidoDelivery::find($this->pedidoAceptarId);
+        if (! $pedido) {
+            return;
+        }
+
+        try {
+            $this->service->aceptarPedidoExterno($pedido);
+            $this->dispatch('toast-success', message: __('Pedido #:numero aceptado', ['numero' => $pedido->fresh()->numero_visible]));
+            $this->cerrarAceptar();
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
     }
 
     /**
