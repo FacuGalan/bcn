@@ -4833,6 +4833,10 @@ El consumidor puede dejar una nota puntual por cada renglon del carrito (ej. "si
 - **Seguimiento publico** (`GET /v1/tiendas/{slug}/pedidos/{token}`): cada item del array `items` suma `observaciones` (string o `null`) — permite que "re-pedir" desde el historial reconstruya el carrito con la misma aclaracion.
 - No existe columna equivalente en `pedidos_mostrador_detalle`: es una funcionalidad exclusiva de pedidos que entran por `pedidos_delivery` (delivery Y take-away de tienda/API), no de mostrador presencial.
 
+#### Opcionales de pedidos de tienda -- persistidos con su grupo (fix RF-T26 F1)
+
+`CotizadorCarritoTienda::construirItem()` arma los opcionales de cada item en el mismo **formato AGRUPADO** que usa el trait del panel `WithOpcionales` (`list<{grupo_id, grupo_nombre, tipo, selecciones: list<{opcional_id, nombre, cantidad, precio_extra}>}>`), agrupando las asignaciones validas (`ArticuloGrupoOpcional` del articulo en la sucursal de la tienda) por `grupo_opcional_id`. Antes del fix devolvia una lista PLANA (`[{opcional_id, descripcion, precio, cantidad}]`): `PedidoDeliveryService::guardarOpcionalesDetalle()` espera el shape agrupado porque `pedido_delivery_detalle_opcionales.grupo_opcional_id` es `NOT NULL` -- con la lista plana, cada opcional se descartaba EN SILENCIO al guardar (no lanzaba excepcion, simplemente no se persistia ninguna fila). El bug afectaba a TODO pedido creado desde la tienda/API con opcionales seleccionados: el detalle del panel, el seguimiento publico y la conversion a venta mostraban el item sin sus opcionales (y sin su precio extra reflejado en el desglose, aunque el TOTAL cobrado si los incluia porque el cotizador ya sumaba `precio_extra` a `precioOpcionales` antes de descartar el detalle). El precio (`precio_opcionales`) y el total del carrito nunca estuvieron mal calculados -- el bug era puramente de persistencia del detalle.
+
 #### Pedidos externos y aceptacion (D14)
 
 `config_delivery.aceptacion_pedidos_externos`:
@@ -4840,6 +4844,14 @@ El consumidor puede dejar una nota puntual por cada renglon del carrito (ej. "si
 - **`automatica`**: el pedido entra `confirmado` directo; si `imprimir_comanda_al_aceptar`, la comanda sale sola por la comandera.
 - El pedido por aceptar **no descuenta stock** (patron borrador); al aceptar se valida stock y se respetan los precios/promos ya COTIZADOS al crearlo (snapshot en los renglones).
 - Pago online acreditado: `afecta_caja=0` (se concilia por el circuito de integraciones de pago existente); una caja solo interviene si un operador cobra desde el panel.
+
+#### Promesa del cliente al aceptar pedidos externos (RF-T26 F2)
+
+`PedidoDelivery::promesaClienteInfo(): ?array` resuelve la promesa que YA trae el pedido (elegida por el cliente al pedir en la tienda), con prioridad `programado_para` (encargo) > `hora_pactada_at` (franja/hora pactada) > `lo_antes_posible` (ASAP); `null` si el pedido no tiene ninguna (ej. integracion B2B sin dato de entrega). Devuelve `{tipo: 'encargo'|'franja'|'asap', label}`.
+
+- **Panel** (`abrirAceptar()` en `PedidosDelivery`): arma `aceptarInfo['promesa_cliente']` con ese array. El modal "Aceptar pedido", si viene no-vacio, muestra "El cliente eligio: {label}" con un boton **"Aceptar como lo pidio"** (`confirmarAceptarComoPidio()`) que llama `aceptarPedidoExterno($pedido)` SIN demora ni hora -- el service no toca `hora_pactada_at`/`programado_para`/`lo_antes_posible`, respeta la promesa tal cual. Las opciones de demora/franja del modo de promesa configurado quedan debajo como alternativa (por si el operario no puede cumplirla).
+- **`PedidoDeliveryService::aceptarPedidoExterno()`**: el calculo de hora por distancia (modo `automatica`) ahora tambien excluye pedidos con `programado_para` seteado (ademas de los que ya tienen `hora_pactada_at`/`lo_antes_posible`) -- antes, un encargo aceptado en modo automatico se pisaba con una hora calculada para HOY, perdiendo la fecha futura elegida por el cliente.
+- **Vista** (`_badges-delivery` / franja "por aceptar"): cada pedido de la franja muestra la promesa (si tiene) junto al resto de sus datos, mismo `promesaClienteInfo()`.
 
 #### Consumidor ↔ Cliente (D11)
 
@@ -4930,7 +4942,8 @@ Base `/v1/consumidores`, sin `api.tenant` (la cuenta es cross-comercio, BD `conf
 #### Tiempo real (Reverb)
 
 - **Seguimiento publico** (canal PUBLICO, sin auth): `pedidos-delivery.seguimiento.{token_seguimiento}`, evento `SeguimientoActualizado` (`PedidoSeguimientoPublicoBroadcast`, `ShouldBroadcastNow`) con `{estado, estado_label, repartidor, hora_pactada_at, lo_antes_posible, at}` en cada cambio de estado de un pedido externo.
-- **Panel/integraciones** (canal privado del comercio): `comercios.{comercioId}.pedidos-delivery`, evento `PedidoDeliveryBroadcast` (`{pedidoId, sucursalId, tipo, at}`, tipos `creado`/`estado_cambiado`/`pago_cambiado`/`cancelado`/`convertido_venta`) — extiende `TenantBroadcastEvent`, mismo patron que `PedidoMostradorBroadcast`.
+- **Panel/integraciones** (canal privado del comercio): `comercios.{comercioId}.pedidos-delivery`, evento `PedidoDeliveryBroadcast` (`{pedidoId, sucursalId, tipo, at}`, tipos `creado`/`estado_cambiado`/`pago_cambiado`/`cancelado`/`convertido_venta`/`por_aceptar` (RF-T27)) — extiende `TenantBroadcastEvent`, mismo patron que `PedidoMostradorBroadcast`.
+  - **`por_aceptar`**: `PedidoDeliveryService::crearPedido()` lo dispara cuando el alta queda en `borrador` Y el `origen` NO es `panel` (tienda/API) — la rama `TIPO_CREADO` solo cubre pedidos NO-borrador, asi que sin este tipo el panel no se enteraba de un borrador externo nuevo hasta un F5. `PedidosDelivery::onPedidoBroadcast()` reacciona con `$this->dispatch('pedido-por-aceptar', pedidoId: ...)`, que en la vista dispara SOLO un destello visual (Alpine `ring` temporal de 4s en la cabecera de la franja "por aceptar") — la franja en si se re-renderiza sola por el poll/broadcast normal del componente, y NO se auto-expande (arranca plegada, ver seccion 15.1 del manual); el contador de "nuevos" del tablero (pedidos confirmados) no se toca por este tipo.
 
 #### Alta y publicacion de una tienda
 
