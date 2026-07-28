@@ -128,7 +128,7 @@ para esa sucursal (filtro server-side; el shape de cada ítem no cambia).
       "modo": "banner",                      // banner|tarjeta_grande|ninguno
       "adorno": "ninguno"                    // glow|badge|ambos|ninguno (solo aplica a tarjeta_grande)
     },
-    "promos": { "mostrar_home": false }      // true ⇒ agregar las promociones vigentes como ÚLTIMO slide de las historias (RF-T24, 2026-07-28; antes pintaba el pill "Promociones de hoy" en la home, que se eliminó). También activa el anillo del logo aunque no haya fotos.
+    "promos": { "mostrar_home": false }      // true ⇒ agregar las promociones vigentes como PRIMER slide de las historias (RF-T24, 2026-07-28; antes pintaba el pill "Promociones de hoy" en la home, que se eliminó). También activa el anillo del logo aunque no haya fotos.
   },
   "comportamiento": {}                       // reservado (Principio 10); v1 sin seteos
 }
@@ -167,8 +167,8 @@ Imágenes re-encodeadas a WebP por el panel (logo ≤800px, portada ≤1600×900
 En orden de reproducción; WebP vertical ≤1080×1920, máximo 3. Con historias
 (o `tema.promos.mostrar_home` + promos vigentes de `GET /catalogo` →
 `promociones_genericas`), la tienda rodea el logo del hero con el anillo tipo
-historias; al tocarlo se abre el visor (fotos primero, promos como último
-slide). El estado visto/no visto es de la TIENDA (sesión server-side, misma
+historias; al tocarlo se abre el visor (promos como PRIMER slide, después las
+fotos). El estado visto/no visto es de la TIENDA (sesión server-side, misma
 vida que el carrito): la API no lo conoce.
 
 ### `GET /v1/tiendas/{slug}/franjas?tipo=delivery|take_away`

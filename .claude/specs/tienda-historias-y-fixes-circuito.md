@@ -101,7 +101,8 @@ Las promos ya viajan por `GET /catalogo` → `promociones_genericas`
   tap mitad derecha avanza, mitad izquierda retrocede, **auto-avance cada
   5s** (la barra activa se llena en 5s), botón X y swipe-down cierran.
 - **Slides**: primero las fotos (en orden); si el toggle de promos está
-  activo y hay promos, **un único slide final "Promociones de hoy"** que
+  activo y hay promos, **un único slide "Promociones de hoy" que va
+  PRIMERO** (antes que las fotos; ajuste 2026-07-28 en validación) y que
   lista TODAS las promos con nombre, descripción, precio y sus
   **condiciones** (horarios válidos, formas de pago válidas, unidades
   requeridas, etc.) — estilizado con el tema (colores/fuente/radios).

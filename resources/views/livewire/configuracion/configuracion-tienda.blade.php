@@ -209,7 +209,7 @@
                         class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-xs text-gray-700 dark:text-gray-300">
                         {{ __('Mostrar también las promociones disponibles como historia') }}
-                        <span class="block text-gray-500 dark:text-gray-400">{{ __('Agrega un último slide con las promociones vigentes del día y sus condiciones. También activa el anillo aunque no haya fotos.') }}</span>
+                        <span class="block text-gray-500 dark:text-gray-400">{{ __('Agrega una primera historia con las promociones vigentes del día y sus condiciones. También activa el anillo aunque no haya fotos.') }}</span>
                     </span>
                 </label>
             </div>
