@@ -402,15 +402,25 @@ definitiva en implementación.)
 2. Contrato actualizado. Tests + smoke ConfiguracionTienda.
    ✅ (141 tests verdes en las dos suites; assets compilados)
 
-### Fase 6 (tienda): Todo el lado bcn-tienda [PENDIENTE]
-1. `TiendaActual`: `historias()`, `logoRadio()`, `--tienda-radio-logo`,
-   fingerprint de vistas en sesión; espejo en `preview.js`.
-2. Hero: anillo + glow (reduced-motion), radio del logo por var, portada
-   cruda (quitar overlay), espacio inferior extra.
-3. Visor de historias (Alpine): overlay, progreso, tap/auto-avance 5s,
-   slide de promos temado; endpoint interno "marcar visto".
-4. Quitar pill de promos de la home.
-5. Contract tests + fixtures actualizados.
+### Fase 6 (tienda): Todo el lado bcn-tienda [COMPLETO]
+1. `TiendaActual`: `historias()` (con re-validación de URLs), var
+   `--tienda-radio-logo` en `temaCssVars()` (RADIOS_LOGO propio), se
+   eliminó `portadaOverlay()`; espejo en `preview.js`. ✅ (2026-07-28)
+2. Hero: anillo degradé primario→acento + glow latente (keyframe CSS con
+   guard prefers-reduced-motion), logo con `rounded-logo` (partial
+   compartido logo-hero), portada cruda, `mb-3` en la tarjeta (el aire va
+   ahí y no en la nav sticky de categorías). ✅
+3. Visor de historias (Alpine.data en bundle `historias.js`): expansión
+   desde el logo (transform-origin dinámico), barras de progreso,
+   auto-avance 5s, tap tercio-izquierdo/resto, Escape, swipe-down;
+   slide único de promos temado (gradiente + condiciones). Visto en
+   SESIÓN vía `Home::marcarHistoriasVistas()` ($wire, sin endpoint
+   nuevo) con fingerprint ids+promos. ✅
+4. Quitar pill de promos de la home. ✅ (sección `promos` eliminada de
+   config y el blade borrado)
+5. Contract tests + fixtures actualizados. ✅ (fixture tienda.json con
+   historias/logo/overlay=false; suite completa: 187 passed; Pint verde;
+   assets compilados)
 
 ### Fase 7: Cierre [PENDIENTE]
 1. Traducciones (es/en/pt) en ambos repos.
