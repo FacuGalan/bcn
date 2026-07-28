@@ -231,6 +231,11 @@ class PedidoDeliveryService
                 $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_CREADO);
 
                 $this->maybeImprimirComandaAutomatica($pedido);
+            } elseif ($pedido->origen !== PedidoDelivery::ORIGEN_PANEL) {
+                // RF-T27: el borrador externo (tienda/API por aceptar) también
+                // avisa en vivo — sin esto el panel no se entera hasta un F5,
+                // porque el broadcast vivía solo en la rama confirmada.
+                $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_POR_ACEPTAR);
             }
 
             Log::info('Pedido delivery creado', [
@@ -832,7 +837,9 @@ class PedidoDeliveryService
             $pedido->refresh();
         }
 
-        if (! $pedido->hora_pactada_at && ! $pedido->lo_antes_posible && $pedido->tipo === PedidoDelivery::TIPO_DELIVERY) {
+        // Un encargo (programado_para) ya tiene su promesa: calcular hora por
+        // distancia acá la pisaría con una hora de hoy (RF-T26).
+        if (! $pedido->hora_pactada_at && ! $pedido->lo_antes_posible && ! $pedido->programado_para && $pedido->tipo === PedidoDelivery::TIPO_DELIVERY) {
             $sucursal = Sucursal::findOrFail($pedido->sucursal_id);
             $horaPactada = $this->envioService->calcularHoraPactada(
                 $sucursal,

@@ -668,6 +668,39 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('error.code', 'operacion_invalida');
     }
 
+    public function test_pedido_persiste_opcionales_con_grupo_y_el_seguimiento_los_devuelve(): void
+    {
+        // RF-T26: el cotizador emitía lista plana y guardarOpcionalesDetalle
+        // (formato agrupado) insertaba 0 filas en silencio.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioGlobal: 100, precioOverride: 250);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['items'][0]['opcionales'] = [['opcional_id' => $opcional->id, 'cantidad' => 2]];
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+
+        $pedido = PedidoDelivery::with('detalles.opcionales')->find($respuesta->json('data.id'));
+        $detalle = $pedido->detalles->firstWhere('articulo_id', $articulo->id);
+
+        $this->assertCount(1, $detalle->opcionales, 'El alta debe persistir las filas de opcionales');
+        $fila = $detalle->opcionales->first();
+        $this->assertSame($opcional->grupo_opcional_id, (int) $fila->grupo_opcional_id);
+        $this->assertSame($opcional->id, (int) $fila->opcional_id);
+        $this->assertSame('Extras Test', $fila->nombre_grupo);
+        $this->assertSame('Extra Queso Test', $fila->nombre_opcional);
+        $this->assertSame(2.0, (float) $fila->cantidad);
+        $this->assertSame(250.0, (float) $fila->precio_extra);
+        $this->assertSame(500.0, (float) $fila->subtotal_extra);
+
+        $token = $respuesta->json('data.token_seguimiento');
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.opcionales.0.opcional_id', $opcional->id)
+            ->assertJsonPath('data.items.0.opcionales.0.nombre', 'Extra Queso Test')
+            ->assertJsonPath('data.items.0.opcionales.0.cantidad', 2);
+    }
+
     // ==================== PÚBLICO: PEDIDOS (D14) ====================
 
     protected function payloadPedido(int $articuloId): array
@@ -822,6 +855,62 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertNotNull($pedido->numero);
         $this->assertNotNull($pedido->hora_pactada_at);
         $this->assertEqualsWithDelta(30, now()->diffInMinutes($pedido->hora_pactada_at), 2);
+    }
+
+    public function test_alta_de_borrador_externo_broadcastea_por_aceptar(): void
+    {
+        // RF-T27: con aceptación manual el pedido nace borrador y antes no se
+        // emitía ningún broadcast — el panel no se enteraba sin refrescar.
+        \Illuminate\Support\Facades\Event::fake([\App\Events\Broadcasting\PedidoDeliveryBroadcast::class]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+
+        \Illuminate\Support\Facades\Event::assertDispatched(
+            \App\Events\Broadcasting\PedidoDeliveryBroadcast::class,
+            fn ($e) => $e->tipo === \App\Events\Broadcasting\PedidoDeliveryBroadcast::TIPO_POR_ACEPTAR
+                && $e->sucursalId === $this->sucursalId,
+        );
+    }
+
+    public function test_aceptar_sin_parametros_respeta_la_franja_elegida_por_el_cliente(): void
+    {
+        // RF-T26: aceptar "como lo pidió" no pasa demora ni hora — la promesa
+        // que eligió el cliente en la tienda NO debe pisarse.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        $hora = now()->addHours(2)->startOfMinute();
+        $pedido->update(['hora_pactada_at' => $hora, 'lo_antes_posible' => false]);
+
+        $this->service->aceptarPedidoExterno($pedido);
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertTrue(
+            $pedido->hora_pactada_at->equalTo($hora),
+            'Aceptar sin parámetros no debe pisar la franja elegida por el cliente',
+        );
+    }
+
+    public function test_aceptar_encargo_sin_parametros_no_le_calcula_hora_de_hoy(): void
+    {
+        // RF-T26: un encargo (programado_para) ya tiene su promesa — el
+        // cálculo automático por distancia no debe fijarle una hora de hoy.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        $cuando = now()->addDay()->setTime(20, 0);
+        $pedido->update(['programado_para' => $cuando, 'lo_antes_posible' => false]);
+
+        $this->service->aceptarPedidoExterno($pedido);
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertNull($pedido->hora_pactada_at, 'El encargo no debe recibir hora calculada por distancia');
+        $this->assertTrue($pedido->programado_para->equalTo($cuando));
     }
 
     public function test_rechazar_pedido_externo_lo_cancela(): void

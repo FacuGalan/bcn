@@ -234,6 +234,43 @@ class SmokePedidosDeliveryTest extends TestCase
         $this->assertNotNull($pedido->hora_pactada_at);
     }
 
+    public function test_modal_aceptar_precarga_la_promesa_y_acepta_como_pidio(): void
+    {
+        // RF-T26: el modal muestra "El cliente eligió: X" y el botón
+        // "Aceptar como lo pidió" confirma sin pisar la hora elegida.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelivery(total: 500, overrides: ['origen' => PedidoDelivery::ORIGEN_TIENDA]),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 500)],
+            esBorrador: true,
+        );
+        $hora = now()->addHours(2)->startOfMinute();
+        $pedido->update(['hora_pactada_at' => $hora, 'lo_antes_posible' => false]);
+
+        $componente = Livewire::test(PedidosDelivery::class)
+            ->call('abrirAceptar', $pedido->id)
+            ->assertSet('showAceptarModal', true);
+
+        $info = $componente->get('aceptarInfo');
+        $this->assertSame('franja', $info['promesa_cliente']['tipo'] ?? null, 'El modal debe precargar la promesa del cliente');
+
+        $componente->call('confirmarAceptarComoPidio')->assertDispatched('toast-success');
+
+        $pedido->refresh();
+        $this->assertSame(PedidoDelivery::ESTADO_CONFIRMADO, $pedido->estado_pedido);
+        $this->assertTrue($pedido->hora_pactada_at->equalTo($hora), 'La hora elegida por el cliente no debe pisarse');
+    }
+
+    public function test_broadcast_por_aceptar_dispara_el_destello_de_la_banda(): void
+    {
+        // RF-T27: el tipo por_aceptar re-renderiza (banda fresca) y emite el
+        // evento browser del destello, sin tocar el contador de "nuevos".
+        Livewire::test(PedidosDelivery::class)
+            ->call('onPedidoBroadcast', ['pedidoId' => 999, 'sucursalId' => $this->sucursalId, 'tipo' => 'por_aceptar'])
+            ->assertDispatched('pedido-por-aceptar')
+            ->assertSet('nuevosCount', 0);
+    }
+
     public function test_panel_rechaza_pedido_externo_con_motivo(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);

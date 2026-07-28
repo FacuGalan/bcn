@@ -545,35 +545,57 @@ class CotizadorCarritoTienda
             // solo valen los opcionales ASIGNADOS al artículo en ESTA sucursal
             // y el precio es el de la asignación (override por artículo), no
             // el del catálogo global. Es también lo que publica el catálogo.
-            $opcionesValidas = ArticuloGrupoOpcional::query()
+            $asignaciones = ArticuloGrupoOpcional::query()
                 ->where('articulo_id', $articulo->id)
                 ->where('sucursal_id', $sucursal->id)
                 ->where('activo', true)
                 ->whereHas('grupoOpcional', fn ($q) => $q->where('activo', true))
                 ->with([
+                    'grupoOpcional:id,nombre,tipo',
                     'opciones' => fn ($q) => $q->where('activo', true)
                         ->where('disponible', true)
                         ->whereHas('opcional', fn ($q2) => $q2->where('activo', true))
                         ->with('opcional:id,nombre'),
                 ])
-                ->get()
-                ->flatMap->opciones
-                ->keyBy('opcional_id');
+                ->get();
 
+            // opcional_id => [opción, grupo]; si un opcional está asignado en
+            // dos grupos gana el último (mismo criterio que el keyBy previo).
+            $opcionesValidas = [];
+            foreach ($asignaciones as $asig) {
+                foreach ($asig->opciones as $opcion) {
+                    $opcionesValidas[$opcion->opcional_id] = ['opcion' => $opcion, 'grupo' => $asig->grupoOpcional];
+                }
+            }
+
+            // Formato AGRUPADO canónico (paridad WithOpcionales): es el shape
+            // que guardarOpcionalesDetalle persiste en
+            // pedido_delivery_detalle_opcionales (grupo_opcional_id NOT NULL);
+            // una lista plana acá se descarta en silencio al guardar.
+            $grupos = [];
             foreach ($opcionesInput as $opInput) {
-                $opcion = $opcionesValidas->get($opInput['opcional_id'] ?? 0);
-                if (! $opcion) {
+                $entrada = $opcionesValidas[$opInput['opcional_id'] ?? 0] ?? null;
+                if (! $entrada) {
                     throw new Exception("Opcional no disponible para '{$articulo->nombre}': ".($opInput['opcional_id'] ?? '?'));
                 }
+                $opcion = $entrada['opcion'];
+                $grupo = $entrada['grupo'];
                 $cantOp = (float) ($opInput['cantidad'] ?? 1);
-                $opcionales[] = [
+                $grupos[$grupo->id] ??= [
+                    'grupo_id' => $grupo->id,
+                    'grupo_nombre' => $grupo->nombre,
+                    'tipo' => $grupo->tipo,
+                    'selecciones' => [],
+                ];
+                $grupos[$grupo->id]['selecciones'][] = [
                     'opcional_id' => (int) $opcion->opcional_id,
-                    'descripcion' => $opcion->opcional->nombre,
-                    'precio' => (float) $opcion->precio_extra,
+                    'nombre' => $opcion->opcional->nombre,
                     'cantidad' => $cantOp,
+                    'precio_extra' => (float) $opcion->precio_extra,
                 ];
                 $precioOpcionales += (float) $opcion->precio_extra * $cantOp;
             }
+            $opcionales = array_values($grupos);
         }
 
         return [
