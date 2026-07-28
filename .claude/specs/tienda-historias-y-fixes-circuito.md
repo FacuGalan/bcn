@@ -382,17 +382,25 @@ definitiva en implementación.)
    el broadcast); smoke del componente. ✅ (128 tests verdes en las dos
    suites completas)
 
-### Fase 4 (core): Historias destacadas lado core [PENDIENTE]
+### Fase 4 (core): Historias destacadas lado core [COMPLETO]
 1. Migración `historias` en `config.tiendas` + fillable/cast + helper
-   `historiasUrls()`.
+   `historiasOrdenadas()`. ✅ (2026-07-28; migrada también en *_test)
 2. `ImagenTiendaService`: agregar/eliminar/reordenar historia.
+   ✅ (agregarHistoria valida tope 3 + WebP 1080×1920; eliminar re-numera
+   orden 1..N; reordenar por lista de ids)
 3. `ConfiguracionTienda`: sección UI nueva + mudanza del toggle de promos.
-4. API `show()`: clave `historias`. Contrato actualizado. Tests.
+   ✅ (uploads pendientes hasta "Guardar apariencia" como logo/portada;
+   eliminar/mover son inmediatos y recargan el visor)
+4. API `show()`: clave `historias`. Contrato actualizado. Tests. ✅
 
-### Fase 5 (core): Estética lado core [PENDIENTE]
+### Fase 5 (core): Estética lado core [COMPLETO]
 1. Quitar checkbox overlay (+ `TEMA_DEFAULTS` overlay=false fijo);
    `tema.logo.radio` (default `full`) + selector "Forma del logo".
+   ✅ (2026-07-28; propiedad $portadaOverlay eliminada del componente;
+   tienda-preview.js del core actualizado: manda logo.radio y overlay
+   false fijo al visor)
 2. Contrato actualizado. Tests + smoke ConfiguracionTienda.
+   ✅ (141 tests verdes en las dos suites; assets compilados)
 
 ### Fase 6 (tienda): Todo el lado bcn-tienda [PENDIENTE]
 1. `TiendaActual`: `historias()`, `logoRadio()`, `--tienda-radio-logo`,

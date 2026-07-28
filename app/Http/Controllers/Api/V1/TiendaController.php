@@ -77,6 +77,13 @@ class TiendaController extends Controller
                 // absoluta con el host real del request.
                 'logo_url' => $tienda->logoUrl() ? url($tienda->logoUrl()) : null,
                 'portada_url' => $tienda->portadaUrl() ? url($tienda->portadaUrl()) : null,
+                // RF-T24 (aditivo 2026-07-28): historias destacadas en orden
+                // de reproducción. [] = sin historias (el anillo puede activarse
+                // igual por tema.promos.mostrar_home + promos vigentes).
+                'historias' => array_map(
+                    fn (array $h) => ['id' => $h['id'], 'url' => url($h['url'])],
+                    $tienda->historiasOrdenadas(),
+                ),
                 // RF-T16 (aditivo 2026-07-20): encargos para día futuro. Con
                 // activo=true la tienda ofrece "Encargar para otro día"
                 // (fechas/slots en GET /encargos) incluso CERRADA.

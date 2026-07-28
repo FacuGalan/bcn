@@ -43,8 +43,9 @@ document.addEventListener('alpine:init', () => {
                 'colorTexto', 'fuente', 'radios', 'densidad',
                 // RF-T13 — tokens que también reflejan en vivo (layout del
                 // catálogo/destacados/promos son server-rendered: recargan
-                // al guardar, no viajan por acá).
-                'portadaOverlay', 'portadaPosicion', 'slogan', 'descripcion',
+                // al guardar, no viajan por acá). RF-T25: overlay eliminado
+                // (portada siempre cruda) y logoRadio nuevo.
+                'portadaPosicion', 'logoRadio', 'slogan', 'descripcion',
                 'redFacebook', 'redInstagram'];
             props.forEach((prop) => {
                 this[prop] = this.$wire.get(prop);
@@ -128,7 +129,8 @@ document.addEventListener('alpine:init', () => {
                     tipografia: { fuente: this.fuente },
                     radios: this.radios,
                     densidad: this.densidad,
-                    portada: { overlay: this.portadaOverlay, posicion: this.portadaPosicion },
+                    portada: { overlay: false, posicion: this.portadaPosicion },
+                    logo: { radio: this.logoRadio },
                     textos: { slogan: this.slogan, descripcion: this.descripcion },
                     redes: { facebook: this.redFacebook, instagram: this.redInstagram },
                 },
