@@ -955,6 +955,21 @@ elegir otra; logueado ⇒ prioridad de la cuenta; cookie cifrada
   y docs listos en cada fase; PRs core #177 y tienda #16 abiertos;
   FALTA la validación en vivo del usuario y el merge).
 
+### RF-T24..RF-T27: Historias destacadas + estética + fixes circuito — EN REVISIÓN (2026-07-28)
+
+Spec dedicado: `.claude/specs/tienda-historias-y-fixes-circuito.md`.
+
+- **RF-T24**: Historias destacadas (3 fotos + promos como historia; anillo
+  IG con glow en el logo del hero; visor con auto-avance 5s; visto/no visto
+  en sesión de la tienda, 2h).
+- **RF-T25**: Estética — quitar "fundir portada" (portada cruda,
+  `tema.portada.overlay` deprecada siempre false), `tema.logo.radio` propio
+  (default `full`), espacio entre tarjeta del comercio y categorías.
+- **RF-T26**: Fix opcionales (cotizador → formato agrupado canónico) y
+  horario (banda + modal precargado "El cliente eligió", no pisar promesa).
+- **RF-T27**: Reverb `TIPO_POR_ACEPTAR` para borradores externos + banda
+  por aceptar plegable con contador.
+
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
 `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas

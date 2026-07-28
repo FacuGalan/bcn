@@ -668,6 +668,39 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('error.code', 'operacion_invalida');
     }
 
+    public function test_pedido_persiste_opcionales_con_grupo_y_el_seguimiento_los_devuelve(): void
+    {
+        // RF-T26: el cotizador emitía lista plana y guardarOpcionalesDetalle
+        // (formato agrupado) insertaba 0 filas en silencio.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioGlobal: 100, precioOverride: 250);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['items'][0]['opcionales'] = [['opcional_id' => $opcional->id, 'cantidad' => 2]];
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+
+        $pedido = PedidoDelivery::with('detalles.opcionales')->find($respuesta->json('data.id'));
+        $detalle = $pedido->detalles->firstWhere('articulo_id', $articulo->id);
+
+        $this->assertCount(1, $detalle->opcionales, 'El alta debe persistir las filas de opcionales');
+        $fila = $detalle->opcionales->first();
+        $this->assertSame($opcional->grupo_opcional_id, (int) $fila->grupo_opcional_id);
+        $this->assertSame($opcional->id, (int) $fila->opcional_id);
+        $this->assertSame('Extras Test', $fila->nombre_grupo);
+        $this->assertSame('Extra Queso Test', $fila->nombre_opcional);
+        $this->assertSame(2.0, (float) $fila->cantidad);
+        $this->assertSame(250.0, (float) $fila->precio_extra);
+        $this->assertSame(500.0, (float) $fila->subtotal_extra);
+
+        $token = $respuesta->json('data.token_seguimiento');
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.items.0.opcionales.0.opcional_id', $opcional->id)
+            ->assertJsonPath('data.items.0.opcionales.0.nombre', 'Extra Queso Test')
+            ->assertJsonPath('data.items.0.opcionales.0.cantidad', 2);
+    }
+
     // ==================== PÚBLICO: PEDIDOS (D14) ====================
 
     protected function payloadPedido(int $articuloId): array
