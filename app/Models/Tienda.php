@@ -52,7 +52,7 @@ class Tienda extends Model
         ],
         'textos' => [
             'slogan' => '',           // hero, bajo el nombre ('' = no se muestra)
-            'descripcion' => '',      // sección propia de la home ('' = sin sección)
+            'descripcion' => '',      // panel "Información del comercio" (RF-T33, '' = no se muestra)
         ],
         'redes' => [
             'facebook' => '',         // URL del perfil ('' = sin botón)
@@ -60,10 +60,12 @@ class Tienda extends Model
         ],
         'catalogo' => [
             'layout' => 'grilla',     // grilla|lista
+            'categorias_plegables' => false, // RF-T31: títulos de categoría como acordeón
         ],
         'destacados' => [
             'modo' => 'banner',       // banner|tarjeta_grande|ninguno
-            'adorno' => 'ninguno',    // glow|badge|ambos|ninguno (solo tarjeta_grande)
+            'adorno' => 'ninguno',    // glow|badge|ambos|ninguno (tarjeta: en la card; banner: en el título, RF-T35)
+            'titulo' => '',           // RF-T35: título de la sección ('' = "Destacados")
         ],
         'promos' => [
             'mostrar_home' => false,  // aviso "Promociones de hoy" en la home

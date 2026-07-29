@@ -836,8 +836,10 @@ class SmokeConfiguracionTest extends TestCase
             ->set('redFacebook', 'https://facebook.com/mipizzeria')
             ->set('redInstagram', 'https://www.instagram.com/mipizzeria')
             ->set('catalogoLayout', 'lista')
+            ->set('categoriasPlegables', true)
             ->set('destacadosModo', 'tarjeta_grande')
             ->set('destacadosAdorno', 'ambos')
+            ->set('destacadosTitulo', 'Los hits de la casa')
             ->set('promosMostrarHome', true)
             ->call('guardarTienda')
             ->assertHasNoErrors();
@@ -860,8 +862,10 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertSame('https://facebook.com/mipizzeria', $tienda->tema['redes']['facebook']);
         $this->assertSame('https://www.instagram.com/mipizzeria', $tienda->tema['redes']['instagram']);
         $this->assertSame('lista', $tienda->tema['catalogo']['layout']);
+        $this->assertTrue($tienda->tema['catalogo']['categorias_plegables'], 'RF-T31');
         $this->assertSame('tarjeta_grande', $tienda->tema['destacados']['modo']);
         $this->assertSame('ambos', $tienda->tema['destacados']['adorno']);
+        $this->assertSame('Los hits de la casa', $tienda->tema['destacados']['titulo'], 'RF-T35');
         $this->assertTrue($tienda->tema['promos']['mostrar_home']);
 
         \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
@@ -869,8 +873,9 @@ class SmokeConfiguracionTest extends TestCase
 
     public function test_configuracion_tienda_historias_sube_reordena_y_elimina(): void
     {
-        // RF-T24: historias destacadas — subir (pendiente hasta guardar),
-        // reordenar y eliminar (inmediatos), tope de 3.
+        // RF-T34: historias destacadas — subida INMEDIATA (hook, sin pasar
+        // por Guardar), acumulación entre selecciones, reordenamiento por
+        // drag (endpoint del Sortable), tope de 3 y eliminación.
         \Illuminate\Support\Facades\Storage::fake('public');
         \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
         $tienda = \App\Models\Tienda::create([
@@ -880,48 +885,49 @@ class SmokeConfiguracionTest extends TestCase
             'habilitada' => false,
         ]);
 
-        Livewire::test(ConfiguracionTienda::class)
+        // Dos selecciones SUCESIVAS sin Guardar: el hook persiste cada tanda
+        // y vacía el array (antes la segunda selección pisaba la primera).
+        $componente = Livewire::test(ConfiguracionTienda::class)
             ->set('historiaUploads', [
                 \Illuminate\Http\UploadedFile::fake()->image('h1.jpg', 600, 900),
                 \Illuminate\Http\UploadedFile::fake()->image('h2.jpg', 600, 900),
             ])
-            ->call('guardarTienda')
+            ->assertHasNoErrors()
+            ->assertSet('historiaUploads', [])
+            ->set('historiaUploads', [
+                \Illuminate\Http\UploadedFile::fake()->image('h3.jpg', 600, 900),
+            ])
             ->assertHasNoErrors();
 
         $tienda->refresh();
-        $this->assertCount(2, $tienda->historias);
-        $this->assertSame([1, 2], array_column($tienda->historias, 'orden'));
+        $this->assertCount(3, $tienda->historias, 'RF-T34: 2 fotos + 1 más sin tocar Guardar = 3 persistidas');
+        $this->assertSame([1, 2, 3], array_column($tienda->historias, 'orden'));
         foreach ($tienda->historias as $h) {
             \Illuminate\Support\Facades\Storage::disk('public')->assertExists($h['path']);
             $this->assertStringEndsWith('.webp', $h['path'], 'Re-encode a WebP como logo/portada');
         }
 
-        [$primeraId, $segundaId] = array_column($tienda->historias, 'id');
+        [$primeraId, $segundaId, $terceraId] = array_column($tienda->historias, 'id');
 
-        // Mover la segunda un lugar a la izquierda: pasa a reproducirse primera.
-        Livewire::test(ConfiguracionTienda::class)->call('moverHistoria', $segundaId, -1);
+        // Tope: la 4ta se rechaza con toast (el service la bloquea) y no
+        // persiste nada.
+        $componente
+            ->set('historiaUploads', [\Illuminate\Http\UploadedFile::fake()->image('h4.jpg')])
+            ->assertDispatched('toast-error');
+        $this->assertCount(3, $tienda->refresh()->historias);
+
+        // Reordenar por drag: el endpoint recibe los ids en el orden nuevo.
+        $componente->call('reordenarHistorias', [$terceraId, $primeraId, $segundaId]);
         $tienda->refresh();
         $ordenadas = collect($tienda->historias)->sortBy('orden')->values();
-        $this->assertSame($segundaId, $ordenadas[0]['id']);
-        $this->assertSame($primeraId, $ordenadas[1]['id']);
-
-        // Tope: 2 persistidas + 2 nuevas > 3 → error sin persistir nada.
-        Livewire::test(ConfiguracionTienda::class)
-            ->set('historiaUploads', [
-                \Illuminate\Http\UploadedFile::fake()->image('h3.jpg'),
-                \Illuminate\Http\UploadedFile::fake()->image('h4.jpg'),
-            ])
-            ->call('guardarTienda')
-            ->assertHasErrors('historiaUploads');
-        $this->assertCount(2, $tienda->refresh()->historias);
+        $this->assertSame([$terceraId, $primeraId, $segundaId], $ordenadas->pluck('id')->all());
 
         // Eliminar re-numera 1..N y borra el archivo.
         $pathSegunda = collect($tienda->historias)->firstWhere('id', $segundaId)['path'];
-        Livewire::test(ConfiguracionTienda::class)->call('eliminarHistoria', $segundaId);
+        $componente->call('eliminarHistoria', $segundaId);
         $tienda->refresh();
-        $this->assertCount(1, $tienda->historias);
-        $this->assertSame($primeraId, $tienda->historias[0]['id']);
-        $this->assertSame(1, $tienda->historias[0]['orden']);
+        $this->assertCount(2, $tienda->historias);
+        $this->assertSame([1, 2], collect($tienda->historias)->sortBy('orden')->pluck('orden')->all());
         \Illuminate\Support\Facades\Storage::disk('public')->assertMissing($pathSegunda);
 
         \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();

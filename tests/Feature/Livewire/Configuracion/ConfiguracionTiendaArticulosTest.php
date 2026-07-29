@@ -100,6 +100,46 @@ class ConfiguracionTiendaArticulosTest extends TestCase
         $this->assertFalse($tipos->contains('inexistente'));
     }
 
+    public function test_badges_de_categoria_toggle_y_custom_persisten_con_maximo(): void
+    {
+        // RF-T36: espejo del editor de badges de artículo, sobre la categoría.
+        $categoria = Categoria::create(['nombre' => 'Pizzas Badge Test', 'activo' => true]);
+        $this->crearArticuloConStock($this->sucursalId, overrides: ['categoria_id' => $categoria->id]);
+
+        $componente = Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('toggleEditorBadgesCategoria', $categoria->id)
+            ->assertSet('categoriaBadges', $categoria->id)
+            ->call('toggleBadgeCategoria', 'sin_tacc')
+            ->call('toggleBadgeCategoria', 'vegano')
+            ->call('toggleBadgeCategoria', 'picante')
+            ->set('catBadgeCustom', 'De la casa')
+            ->assertDispatched('tienda-catalogo-cambiado');
+
+        $this->assertSame([
+            ['tipo' => 'sin_tacc', 'texto' => null],
+            ['tipo' => 'vegano', 'texto' => null],
+            ['tipo' => 'picante', 'texto' => null],
+            ['tipo' => 'custom', 'texto' => 'De la casa'],
+        ], $categoria->fresh()->badgesTienda());
+
+        // 5º badge: rechazado (máximo 4); tipo inválido se ignora; destildar
+        // libera cupo.
+        $componente->call('toggleBadgeCategoria', 'nuevo');
+        $this->assertCount(4, $categoria->fresh()->badgesTienda());
+
+        $componente->call('toggleBadgeCategoria', 'picante')
+            ->call('toggleBadgeCategoria', 'inexistente');
+        $tipos = collect($categoria->fresh()->badgesTienda())->pluck('tipo');
+        $this->assertFalse($tipos->contains('picante'));
+        $this->assertFalse($tipos->contains('inexistente'));
+
+        // Una categoría sin artículos visibles en la tienda no es editable.
+        $ajena = Categoria::create(['nombre' => 'Sin artículos', 'activo' => true]);
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('toggleEditorBadgesCategoria', $ajena->id)
+            ->assertSet('categoriaBadges', null);
+    }
+
     public function test_galeria_sube_quita_y_reordena(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId);

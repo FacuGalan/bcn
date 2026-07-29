@@ -1,6 +1,6 @@
 # Tienda — Ronda Crossmap 2 (RF-T28..T36) - Especificación
 
-## Estado: APROBADO — Fases 1 (PR #183) y 2 COMPLETAS — Fase 3 PENDIENTE
+## Estado: APROBADO — Fases 1 (PR #183), 2 (PR #184) y 3 COMPLETAS — Fase 4 (tienda) PENDIENTE
 
 > Escrita 2026-07-29 sobre 4 informes de exploración (promos core, panel tienda,
 > tienda pública, usa_delivery). APROBADA por Facu 2026-07-29: las 4 decisiones
@@ -354,7 +354,7 @@ La tienda (bcn-tienda) usa claves en español directo (sin archivos).
 3. Auto-encendido en `toggleTiendaOnline` + invalidación caché marketplace.
 4. API/contrato: `delivery_habilitado` aditivo. Tests.
 
-### Fase 3: Core — Panel tienda (RF-T33 core, T34, T35 core, T36 core, T31 core) [PENDIENTE]
+### Fase 3: Core — Panel tienda (RF-T33 core, T34, T35 core, T36 core, T31 core) [COMPLETO]
 1. Historias: hook inmediato + SortableJS + retirar flujo pendiente. Tests.
 2. Tema: `catalogo.categorias_plegables` + `destacados.titulo` + adorno con
    banner + validaciones + UI Presentación del catálogo.

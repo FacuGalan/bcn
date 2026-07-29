@@ -227,7 +227,18 @@ class ApiV1DeliveryTest extends TestCase
     {
         \Illuminate\Support\Facades\Cache::flush(); // catálogo cacheado 60s server-side
 
-        $conConfig = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        // RF-T36: la categoría con badges (saneados como los de artículo).
+        $categoria = \App\Models\Categoria::create([
+            'nombre' => 'Con Badges',
+            'activo' => true,
+            'badges_tienda' => [
+                ['tipo' => 'artesanal'],
+                ['tipo' => 'custom', 'texto' => 'Especialidad'],
+                ['tipo' => 'inventado'], // fuera del catálogo: el core sanea
+            ],
+        ]);
+
+        $conConfig = $this->crearArticuloConStock($this->sucursalId, cantidad: 10, overrides: ['categoria_id' => $categoria->id]);
         $sinConfig = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
 
         // Galería cargada fuera de orden: la API debe respetar `orden`.
@@ -264,6 +275,13 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertSame([], $vacio['imagenes']);
         $this->assertSame([], $vacio['badges']);
         $this->assertSame([], $vacio['alergenos']);
+
+        // RF-T36: badges de la categoría, saneados, en categorias[].
+        $catPayload = collect($respuesta->json('data.categorias'))->firstWhere('id', $categoria->id);
+        $this->assertSame([
+            ['tipo' => 'artesanal', 'texto' => null],
+            ['tipo' => 'custom', 'texto' => 'Especialidad'],
+        ], $catPayload['badges']);
     }
 
     public function test_invalidar_cache_del_catalogo_refresca_sin_esperar_ttl(): void

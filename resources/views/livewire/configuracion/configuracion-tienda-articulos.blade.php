@@ -44,14 +44,62 @@
                             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M7 4a1 1 0 110-2 1 1 0 010 2zm0 4a1 1 0 110-2 1 1 0 010 2zm0 4a1 1 0 110-2 1 1 0 010 2zm0 4a1 1 0 110-2 1 1 0 010 2zm6-12a1 1 0 110-2 1 1 0 010 2zm0 4a1 1 0 110-2 1 1 0 010 2zm0 4a1 1 0 110-2 1 1 0 010 2zm0 4a1 1 0 110-2 1 1 0 010 2z"/></svg>
                         </span>
                     @endif
-                    <button type="button" @click="abierta = ! abierta" class="flex-1 flex items-center justify-between gap-2 text-left">
-                        <span class="text-xs font-medium text-gray-900 dark:text-white">
+                    <button type="button" @click="abierta = ! abierta" class="flex-1 flex items-center justify-between gap-2 text-left min-w-0">
+                        <span class="text-xs font-medium text-gray-900 dark:text-white min-w-0">
                             {{ $grupo['nombre'] }}
                             <span class="font-normal text-gray-500 dark:text-gray-400">({{ $grupo['articulos']->count() }})</span>
+                            {{-- Badges de la categoría (RF-T36): chips read-only en el header --}}
+                            @if($grupo['badges'] !== [])
+                                <span class="ml-1 inline-flex flex-wrap gap-1 align-middle">
+                                    @foreach($grupo['badges'] as $badge)
+                                        @if($badge['tipo'] === 'custom')
+                                            <span class="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium {{ $estiloBadgeCustom }}">{{ $badge['texto'] }}</span>
+                                        @else
+                                            <span class="inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-medium {{ $estiloBadges[$badge['tipo']][1] ?? '' }}">
+                                                <span aria-hidden="true">{{ $estiloBadges[$badge['tipo']][0] ?? '' }}</span>{{ $badgesCatalogo[$badge['tipo']] ?? $badge['tipo'] }}
+                                            </span>
+                                        @endif
+                                    @endforeach
+                                </span>
+                            @endif
                         </span>
-                        <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform" :class="abierta ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                        <svg class="w-4 h-4 text-gray-400 dark:text-gray-500 transition-transform shrink-0" :class="abierta ? 'rotate-180' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                     </button>
+                    @if($puedeConfigurar && $grupo['id'] !== 0)
+                        <button type="button" wire:click="toggleEditorBadgesCategoria({{ $grupo['id'] }})"
+                            class="shrink-0 p-1 rounded transition-colors {{ $categoriaBadges === $grupo['id'] ? 'text-bcn-primary' : 'text-gray-400 dark:text-gray-500 hover:text-bcn-primary' }}"
+                            title="{{ __('Badges de la categoría') }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg>
+                        </button>
+                    @endif
                 </div>
+
+                {{-- Editor de badges de la categoría (RF-T36, guardado inmediato) --}}
+                @if($categoriaBadges === $grupo['id'] && $grupo['id'] !== 0)
+                    <div class="px-2 py-2 bg-white dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700/60 space-y-1.5">
+                        <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                            {{ __('Badges de la categoría') }}
+                            <span class="font-normal text-gray-500 dark:text-gray-400">({{ __('máximo :max', ['max' => $maxBadges]) }} — {{ __('la tienda los muestra junto al título del grupo') }})</span>
+                        </p>
+                        <div class="flex flex-wrap gap-1.5">
+                            @foreach($badgesCatalogo as $tipo => $label)
+                                @php($seleccionado = in_array($tipo, $catBadgesSel, true))
+                                <button type="button" wire:click="toggleBadgeCategoria('{{ $tipo }}')"
+                                    class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-full border transition-all {{ $seleccionado
+                                        ? ($estiloBadges[$tipo][1] ?? '').' border-transparent shadow-sm'
+                                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 grayscale opacity-75 hover:opacity-100 hover:grayscale-0' }}">
+                                    <span aria-hidden="true">{{ $estiloBadges[$tipo][0] ?? '' }}</span>{{ $label }}
+                                </button>
+                            @endforeach
+                        </div>
+                        <div>
+                            <input type="text" wire:model.live.debounce.800ms="catBadgeCustom" maxlength="30"
+                                placeholder="{{ __('Badge propio (ej: Receta de la casa)') }}"
+                                class="w-full sm:w-64 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            @error('catBadgeCustom') <p class="mt-1 text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                @endif
 
                 {{-- Artículos de la categoría --}}
                 <div x-show="abierta" class="divide-y divide-gray-100 dark:divide-gray-700/60" data-sortable-articulos>

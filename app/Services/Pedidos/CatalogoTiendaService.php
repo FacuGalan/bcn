@@ -209,6 +209,9 @@ class CatalogoTiendaService
                 'imagen_url' => $cat->imagen_path
                     ? url('/storage/'.ltrim($cat->imagen_path, '/'))
                     : null,
+                // RF-T36 (aditivo): badges saneados de la categoría, mismo
+                // shape que los de artículo.
+                'badges' => $cat->badgesTienda(),
             ])
             ->values()
             ->all();

@@ -281,6 +281,7 @@ CREATE TABLE `{{PREFIX}}categorias` (
   `color` varchar(7) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Color en hex para UI (#FF5733)',
   `icono` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nombre del icono (ej: heroicon-o-tag)',
   `imagen_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Imagen para el catalogo de la tienda (RF-17)',
+  `badges_tienda` json DEFAULT NULL COMMENT 'Badges de la tienda (RF-T36): tipos predefinidos + custom',
   `orden` int NOT NULL DEFAULT '0' COMMENT 'Orden de presentacion en catalogo tienda (RF-17)',
   `activo` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si está activa',
   `tipo_iva_id` bigint unsigned DEFAULT NULL COMMENT 'Tipo de IVA por defecto para conceptos de esta categoría',
