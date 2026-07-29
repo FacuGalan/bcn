@@ -79,9 +79,15 @@ class ConfiguracionTienda extends Component
 
     public string $catalogoLayout = 'grilla';
 
+    /** RF-T31: categorías del catálogo como acordeón plegable. */
+    public bool $categoriasPlegables = false;
+
     public string $destacadosModo = 'banner';
 
     public string $destacadosAdorno = 'ninguno';
+
+    /** RF-T35: título de la sección de destacados ('' = "Destacados"). */
+    public string $destacadosTitulo = '';
 
     public bool $promosMostrarHome = false;
 
@@ -100,11 +106,13 @@ class ConfiguracionTienda extends Component
 
     public string $portadaPathActual = '';
 
-    // ==================== HISTORIAS DESTACADAS (RF-T24) ====================
+    // ==================== HISTORIAS DESTACADAS (RF-T24 / RF-T34) ====================
 
     /**
-     * Uploads pendientes de historias: como logo/portada, nada persiste
-     * hasta "Guardar apariencia". Input multiple → array de archivos.
+     * Uploads de historias: subida INMEDIATA (RF-T34, patrón galería de
+     * artículos) — el hook updatedHistoriaUploads() procesa y VACÍA el array
+     * al llegar. Sin esto, Livewire reemplaza el array `multiple` en cada
+     * selección y las fotos anteriores se pisan.
      */
     public array $historiaUploads = [];
 
@@ -220,12 +228,14 @@ class ConfiguracionTienda extends Component
         $this->catalogoLayout = in_array($tema['catalogo']['layout'] ?? '', Tienda::LAYOUTS_CATALOGO, true)
             ? $tema['catalogo']['layout']
             : Tienda::TEMA_DEFAULTS['catalogo']['layout'];
+        $this->categoriasPlegables = (bool) ($tema['catalogo']['categorias_plegables'] ?? false);
         $this->destacadosModo = in_array($tema['destacados']['modo'] ?? '', Tienda::MODOS_DESTACADOS, true)
             ? $tema['destacados']['modo']
             : Tienda::TEMA_DEFAULTS['destacados']['modo'];
         $this->destacadosAdorno = in_array($tema['destacados']['adorno'] ?? '', Tienda::ADORNOS_DESTACADOS, true)
             ? $tema['destacados']['adorno']
             : Tienda::TEMA_DEFAULTS['destacados']['adorno'];
+        $this->destacadosTitulo = (string) ($tema['destacados']['titulo'] ?? '');
         $this->promosMostrarHome = (bool) ($tema['promos']['mostrar_home'] ?? false);
     }
 
@@ -342,7 +352,6 @@ class ConfiguracionTienda extends Component
             'metaPixelId' => ['nullable', 'string', 'max:30', 'regex:/^[0-9]+$/'],
             'logoUpload' => 'nullable|image|max:5120',
             'portadaUpload' => 'nullable|image|max:5120',
-            'historiaUploads.*' => 'nullable|image|max:5120',
             'colorPrimario' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
             'colorAcento' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
             'colorFondo' => ['required', 'regex:/^#[0-9a-f]{6}$/i'],
@@ -354,12 +363,14 @@ class ConfiguracionTienda extends Component
             'portadaPosicion' => 'required|in:'.implode(',', Tienda::POSICIONES_PORTADA),
             'logoRadio' => 'required|in:'.implode(',', Tienda::RADIOS_DISPONIBLES),
             'slogan' => 'nullable|string|max:120',
-            'descripcion' => 'nullable|string|max:1000',
+            'descripcion' => 'nullable|string|max:5000',
             'redFacebook' => ['nullable', 'string', 'max:255', 'regex:#^https://(www\.)?(facebook\.com|fb\.com)/.+#i'],
             'redInstagram' => ['nullable', 'string', 'max:255', 'regex:#^https://(www\.)?instagram\.com/.+#i'],
             'catalogoLayout' => 'required|in:'.implode(',', Tienda::LAYOUTS_CATALOGO),
+            'categoriasPlegables' => 'boolean',
             'destacadosModo' => 'required|in:'.implode(',', Tienda::MODOS_DESTACADOS),
             'destacadosAdorno' => 'required|in:'.implode(',', Tienda::ADORNOS_DESTACADOS),
+            'destacadosTitulo' => 'nullable|string|max:40',
             'promosMostrarHome' => 'boolean',
         ], [
             'slug.required' => __('Ingresá la dirección (slug) de la tienda'),
@@ -372,12 +383,6 @@ class ConfiguracionTienda extends Component
 
         if (Tienda::where('slug', $this->slug)->where('id', '!=', $tienda->id)->exists()) {
             $this->addError('slug', __('Esa dirección ya está en uso por otra tienda'));
-
-            return;
-        }
-
-        if (count($this->historiasActuales) + count(array_filter($this->historiaUploads)) > Tienda::MAX_HISTORIAS) {
-            $this->addError('historiaUploads', __('Ya alcanzaste el máximo de :max historias.', ['max' => Tienda::MAX_HISTORIAS]));
 
             return;
         }
@@ -401,14 +406,9 @@ class ConfiguracionTienda extends Component
                 $imagenes->actualizarPortada($tienda, $this->portadaUpload);
                 $this->portadaUpload = null;
             }
-            foreach (array_filter($this->historiaUploads) as $upload) {
-                $imagenes->agregarHistoria($tienda, $upload);
-            }
-            $this->historiaUploads = [];
             $tienda->refresh();
             $this->logoPathActual = (string) ($tienda->logo_path ?? '');
             $this->portadaPathActual = (string) ($tienda->portada_path ?? '');
-            $this->historiasActuales = $this->mapHistorias($tienda);
 
             // El visor recarga el iframe: lo persistido ya incluye todo.
             $this->dispatch('tienda-guardada');
@@ -483,7 +483,77 @@ class ConfiguracionTienda extends Component
         }
     }
 
-    // ==================== HISTORIAS DESTACADAS (RF-T24) ====================
+    // ==================== HISTORIAS DESTACADAS (RF-T24 / RF-T34) ====================
+
+    /**
+     * Subida INMEDIATA (RF-T34, espejo de updatedFotosUpload de la galería
+     * de artículos): valida, persiste cada archivo y vacía el array — el
+     * tope MAX_HISTORIAS lo valida acá (y el service lo garantiza).
+     */
+    public function updatedHistoriaUploads(): void
+    {
+        if (! $this->puedeGuardar()) {
+            $this->historiaUploads = [];
+
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda || $tienda->id !== $this->tiendaId) {
+            $this->historiaUploads = [];
+
+            return;
+        }
+
+        $this->validate(
+            ['historiaUploads.*' => 'image|max:5120'],
+            ['historiaUploads.*.image' => __('Formato de imagen no permitido. Aceptados: JPG, PNG, WebP.')],
+        );
+
+        $imagenes = app(ImagenTiendaService::class);
+        $procesadas = 0;
+
+        foreach (array_filter($this->historiaUploads) as $upload) {
+            try {
+                $imagenes->agregarHistoria($tienda, $upload);
+                $procesadas++;
+            } catch (Exception $e) {
+                $this->dispatch('toast-error', message: $e->getMessage());
+                break;
+            }
+        }
+
+        $this->historiaUploads = [];
+
+        if ($procesadas > 0) {
+            $this->historiasActuales = $this->mapHistorias($tienda->refresh());
+            $this->dispatch('tienda-guardada');
+        }
+    }
+
+    /**
+     * Reordena las historias persistidas (RF-T34, endpoint del SortableJS —
+     * reemplaza a las flechas). Inmediato.
+     */
+    public function reordenarHistorias(array $ids): void
+    {
+        if (! $this->puedeGuardar()) {
+            return;
+        }
+
+        $tienda = $this->tiendaActual();
+        if (! $tienda) {
+            return;
+        }
+
+        try {
+            app(ImagenTiendaService::class)->reordenarHistorias($tienda, array_map('strval', $ids));
+            $this->historiasActuales = $this->mapHistorias($tienda->refresh());
+            $this->dispatch('tienda-guardada');
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+        }
+    }
 
     /** Borra una historia YA persistida (inmediato, como eliminarLogo). */
     public function eliminarHistoria(string $id): void
@@ -499,47 +569,6 @@ class ConfiguracionTienda extends Component
 
         try {
             app(ImagenTiendaService::class)->eliminarHistoria($tienda, $id);
-            $this->historiasActuales = $this->mapHistorias($tienda->refresh());
-            $this->dispatch('tienda-guardada');
-        } catch (Exception $e) {
-            $this->dispatch('toast-error', message: $e->getMessage());
-        }
-    }
-
-    /** Descarta un upload pendiente (no se persistió nada). */
-    public function descartarHistoriaUpload(int $index): void
-    {
-        unset($this->historiaUploads[$index]);
-        $this->historiaUploads = array_values($this->historiaUploads);
-    }
-
-    /**
-     * Mueve una historia persistida un lugar hacia arriba (-1) o abajo (+1)
-     * en el orden de reproducción. Inmediato.
-     */
-    public function moverHistoria(string $id, int $direccion): void
-    {
-        if (! $this->puedeGuardar() || ! in_array($direccion, [-1, 1], true)) {
-            return;
-        }
-
-        $tienda = $this->tiendaActual();
-        if (! $tienda) {
-            return;
-        }
-
-        $ids = array_column($this->historiasActuales, 'id');
-        $pos = array_search($id, $ids, true);
-        $destino = $pos === false ? false : $pos + $direccion;
-
-        if ($pos === false || $destino < 0 || $destino >= count($ids)) {
-            return;
-        }
-
-        [$ids[$pos], $ids[$destino]] = [$ids[$destino], $ids[$pos]];
-
-        try {
-            app(ImagenTiendaService::class)->reordenarHistorias($tienda, $ids);
             $this->historiasActuales = $this->mapHistorias($tienda->refresh());
             $this->dispatch('tienda-guardada');
         } catch (Exception $e) {
@@ -587,10 +616,14 @@ class ConfiguracionTienda extends Component
                 'facebook' => trim($this->redFacebook),
                 'instagram' => trim($this->redInstagram),
             ],
-            'catalogo' => ['layout' => $this->catalogoLayout],
+            'catalogo' => [
+                'layout' => $this->catalogoLayout,
+                'categorias_plegables' => $this->categoriasPlegables,
+            ],
             'destacados' => [
                 'modo' => $this->destacadosModo,
                 'adorno' => $this->destacadosAdorno,
+                'titulo' => trim($this->destacadosTitulo),
             ],
             'promos' => ['mostrar_home' => $this->promosMostrarHome],
         ];
@@ -613,17 +646,6 @@ class ConfiguracionTienda extends Component
             // expiró — degradar a lo persistido.
             'logoPreviewUrl' => $this->previewUrl($this->logoUpload, $this->logoPathActual),
             'portadaPreviewUrl' => $this->previewUrl($this->portadaUpload, $this->portadaPathActual),
-            // Miniaturas de historias pendientes (RF-T24): temporaryUrl puede
-            // fallar si el tmp expiró — se omite la miniatura, no el upload.
-            'historiaPreviewUrls' => collect($this->historiaUploads)
-                ->filter()
-                ->map(function ($upload) {
-                    try {
-                        return $upload->temporaryUrl();
-                    } catch (Exception) {
-                        return null;
-                    }
-                })->all(),
         ]);
     }
 

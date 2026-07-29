@@ -147,52 +147,28 @@
                     @endif
                 </div>
             </div>
-            {{-- ==================== HISTORIAS DESTACADAS (RF-T24) ==================== --}}
+            {{-- ==================== HISTORIAS DESTACADAS (RF-T24 / RF-T34) ==================== --}}
             <div class="border-t border-gray-200 dark:border-gray-700 pt-2 mt-1">
                 <h4 class="text-xs font-semibold text-gray-900 dark:text-white mb-1">{{ __('Historias destacadas') }}</h4>
-                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Subí hasta 3 fotos: el logo de tu tienda se rodea con un anillo estilo historias y al tocarlo se reproducen. Las fotos nuevas se aplican al guardar.') }}</p>
+                <p class="text-xs text-gray-500 dark:text-gray-400 mb-2">{{ __('Subí hasta 3 fotos: el logo de tu tienda se rodea con un anillo estilo historias y al tocarlo se reproducen. Se suben al instante; arrastralas para cambiar el orden.') }}</p>
                 <div class="flex flex-wrap items-start gap-3">
-                    @foreach($historiasActuales as $idx => $historia)
-                        <div class="w-20">
-                            <div class="relative">
-                                <img src="{{ $historia['url'] }}" alt="{{ __('Historia') }} {{ $idx + 1 }}" class="w-20 h-32 object-cover rounded-md border border-gray-300 dark:border-gray-600">
-                                <span class="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[10px] font-bold rounded">{{ $idx + 1 }}</span>
+                    <div class="flex flex-wrap gap-3" data-sortable-historias x-init="initHistoriasSortable($el)">
+                        @foreach($historiasActuales as $idx => $historia)
+                            <div class="w-20" wire:key="historia-{{ $historia['id'] }}" data-historia-id="{{ $historia['id'] }}">
+                                <div class="relative {{ $puedeConfigurar ? 'cursor-grab touch-none' : '' }}" title="{{ $puedeConfigurar ? __('Arrastrar para reordenar') : '' }}">
+                                    <img src="{{ $historia['url'] }}" alt="{{ __('Historia') }} {{ $idx + 1 }}" class="w-20 h-32 object-cover rounded-md border border-gray-300 dark:border-gray-600 select-none" draggable="false">
+                                    <span class="absolute top-1 left-1 px-1.5 py-0.5 bg-black/60 text-white text-[10px] font-bold rounded">{{ $idx + 1 }}</span>
+                                </div>
+                                <div class="mt-1 flex justify-center">
+                                    <button type="button" wire:click="eliminarHistoria('{{ $historia['id'] }}')" @disabled(! $puedeConfigurar)
+                                        class="p-1 rounded border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-40" title="{{ __('Eliminar') }}">
+                                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                </div>
                             </div>
-                            <div class="mt-1 flex justify-center gap-1">
-                                <button type="button" wire:click="moverHistoria('{{ $historia['id'] }}', -1)" @disabled(! $puedeConfigurar || $idx === 0)
-                                    class="p-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40" title="{{ __('Mover a la izquierda') }}">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
-                                </button>
-                                <button type="button" wire:click="moverHistoria('{{ $historia['id'] }}', 1)" @disabled(! $puedeConfigurar || $idx === count($historiasActuales) - 1)
-                                    class="p-1 rounded border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40" title="{{ __('Mover a la derecha') }}">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                                </button>
-                                <button type="button" wire:click="eliminarHistoria('{{ $historia['id'] }}')" @disabled(! $puedeConfigurar)
-                                    class="p-1 rounded border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-40" title="{{ __('Eliminar') }}">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                    @endforeach
-                    @foreach($historiaPreviewUrls as $idx => $previewUrl)
-                        <div class="w-20">
-                            <div class="relative">
-                                @if($previewUrl)
-                                    <img src="{{ $previewUrl }}" alt="{{ __('Historia pendiente') }}" class="w-20 h-32 object-cover rounded-md border-2 border-dashed border-bcn-primary/60">
-                                @else
-                                    <div class="w-20 h-32 rounded-md border-2 border-dashed border-bcn-primary/60 flex items-center justify-center text-[10px] text-gray-500 dark:text-gray-400">{{ __('Pendiente') }}</div>
-                                @endif
-                                <span class="absolute top-1 left-1 px-1.5 py-0.5 bg-bcn-primary text-white text-[10px] font-bold rounded">{{ __('Nueva') }}</span>
-                            </div>
-                            <div class="mt-1 flex justify-center">
-                                <button type="button" wire:click="descartarHistoriaUpload({{ $idx }})" @disabled(! $puedeConfigurar)
-                                    class="p-1 rounded border border-red-300 dark:border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-40" title="{{ __('Descartar') }}">
-                                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                    @endforeach
-                    @if(count($historiasActuales) + count($historiaPreviewUrls) < \App\Models\Tienda::MAX_HISTORIAS)
+                        @endforeach
+                    </div>
+                    @if(count($historiasActuales) < \App\Models\Tienda::MAX_HISTORIAS)
                         <label class="w-20 h-32 flex flex-col items-center justify-center gap-1 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-md cursor-pointer text-gray-400 dark:text-gray-500 hover:border-bcn-primary hover:text-bcn-primary transition-colors {{ $puedeConfigurar ? '' : 'opacity-50 pointer-events-none' }}">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             <span class="text-[10px] font-medium">{{ __('Agregar') }}</span>
@@ -201,7 +177,6 @@
                     @endif
                 </div>
                 <div wire:loading wire:target="historiaUploads" class="mt-1 text-xs text-bcn-primary">{{ __('Subiendo imagen...') }}</div>
-                @error('historiaUploads') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                 @error('historiaUploads.*') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('JPG, PNG o WebP. Máximo 5MB. Ideal vertical (1080×1920).') }}</p>
                 <label class="mt-2 flex items-start gap-2 cursor-pointer">
@@ -293,8 +268,8 @@
                         @error('slogan') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                     </div>
                     <div class="sm:row-span-2">
-                        <label for="ct-descripcion" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Texto libre (sección propia en la página principal)') }}</label>
-                        <textarea id="ct-descripcion" rows="4" maxlength="1000" wire:model.live.debounce.500ms="descripcion" @disabled(! $puedeConfigurar)
+                        <label for="ct-descripcion" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Texto descriptivo (se muestra en «Información del comercio»)') }}</label>
+                        <textarea id="ct-descripcion" rows="8" maxlength="5000" wire:model.live.debounce.500ms="descripcion" @disabled(! $puedeConfigurar)
                             placeholder="{{ __('Contale a tus clientes sobre tu comercio, tu historia, tus horarios especiales...') }}"
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
                         @error('descripcion') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
@@ -346,14 +321,32 @@
                     </div>
                     <div>
                         <label for="ct-destacados-adorno" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Adorno del destacado') }}</label>
-                        <select id="ct-destacados-adorno" wire:model="destacadosAdorno" @disabled(! $puedeConfigurar || $destacadosModo !== 'tarjeta_grande')
+                        <select id="ct-destacados-adorno" wire:model="destacadosAdorno" @disabled(! $puedeConfigurar || $destacadosModo === 'ninguno')
                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-50">
                             <option value="ninguno">{{ __('Ninguno') }}</option>
                             <option value="glow">{{ __('Brillo alrededor (glow)') }}</option>
                             <option value="badge">{{ __('Badge con icono de destacado') }}</option>
                             <option value="ambos">{{ __('Brillo + badge') }}</option>
                         </select>
-                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Solo aplica a la tarjeta grande.') }}</p>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('En tarjeta grande decora la card; en banner, el título de la sección.') }}</p>
+                    </div>
+                    <div>
+                        <label for="ct-destacados-titulo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Título de la sección de destacados') }}</label>
+                        <input type="text" id="ct-destacados-titulo" wire:model="destacadosTitulo" maxlength="40" @disabled(! $puedeConfigurar)
+                            placeholder="{{ __('Destacados') }}"
+                            class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('Vacío: se usa "Destacados".') }}</p>
+                        @error('destacadosTitulo') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
+                    </div>
+                    <div class="sm:col-span-3">
+                        <label class="flex items-start gap-2 cursor-pointer">
+                            <input type="checkbox" wire:model="categoriasPlegables" @disabled(! $puedeConfigurar)
+                                class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                            <span class="text-xs text-gray-700 dark:text-gray-300">
+                                {{ __('Categorías desplegables') }}
+                                <span class="block text-gray-500 dark:text-gray-400">{{ __('Cada categoría del catálogo se puede plegar y desplegar tocando su título.') }}</span>
+                            </span>
+                        </label>
                     </div>
                 </div>
             </div>

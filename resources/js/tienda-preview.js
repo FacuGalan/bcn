@@ -81,6 +81,28 @@ document.addEventListener('alpine:init', () => {
 
         destroy() {
             window.removeEventListener('message', this._onMessage);
+            this._historiasSortable?.destroy();
+        },
+
+        // RF-T34: drag & drop de historias persistidas (espejo de
+        // initFotosSortable de tienda-articulos.js). Los ids son strings —
+        // no hay parseInt. El contenedor entra/sale del DOM con el morph:
+        // x-init lo registra en cada aparición y se destruye el anterior.
+        initHistoriasSortable(el) {
+            if (typeof window.Sortable === 'undefined') return;
+
+            this._historiasSortable?.destroy();
+            this._historiasSortable = window.Sortable.create(el, {
+                animation: 150,
+                draggable: '[data-historia-id]',
+                onEnd: (evt) => {
+                    if (evt.oldIndex === evt.newIndex) return;
+                    const ids = Array.from(el.querySelectorAll('[data-historia-id]'))
+                        .map((n) => n.dataset.historiaId)
+                        .filter(Boolean);
+                    if (ids.length) this.$wire.reordenarHistorias(ids);
+                },
+            });
         },
 
         // ── Mock del panel (CSS vars --tp-*) ──────────────────────────────

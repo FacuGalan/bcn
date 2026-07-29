@@ -129,16 +129,20 @@ para esa sucursal (filtro server-side; el shape de cada ítem no cambia).
     },
     "textos": {
       "slogan": "",                          // hero, bajo el nombre ('' ⇒ no se muestra)
-      "descripcion": ""                      // sección propia de la home ('' ⇒ sin sección)
+      "descripcion": ""                      // texto del panel "Información del comercio" ('' ⇒ no se muestra). RF-T33 (2026-07-29): DEJA de ser sección propia de la home; hasta 5000 chars, render con whitespace-pre-line
     },
     "redes": {
       "facebook": "",                        // URL del perfil ('' ⇒ sin botón en el hero)
       "instagram": ""
     },
-    "catalogo": { "layout": "grilla" },      // grilla|lista (renglón-tarjeta)
+    "catalogo": {
+      "layout": "grilla",                    // grilla|lista (renglón-tarjeta)
+      "categorias_plegables": false          // (aditivo 2026-07-29, RF-T31) true ⇒ los títulos de categoría son acordeón plegable; ausente/false = como siempre
+    },
     "destacados": {
       "modo": "banner",                      // banner|tarjeta_grande|ninguno
-      "adorno": "ninguno"                    // glow|badge|ambos|ninguno (solo aplica a tarjeta_grande)
+      "adorno": "ninguno",                   // glow|badge|ambos|ninguno. RF-T35 (2026-07-29): en tarjeta_grande decora la card (como siempre); en banner decora el TÍTULO del carrusel (los artículos del banner no llevan adorno)
+      "titulo": ""                           // (aditivo 2026-07-29, RF-T35) título de la sección ('' ⇒ "Destacados")
     },
     "promos": { "mostrar_home": false }      // true ⇒ agregar las promociones vigentes como PRIMER slide de las historias (RF-T24, 2026-07-28; antes pintaba el pill "Promociones de hoy" en la home, que se eliminó). También activa el anillo del logo aunque no haya fotos.
   },
@@ -264,6 +268,12 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   el comercio la cargó en el panel (campo por artículo, RF-T14); vacía ⇒
   la descripción operativa del artículo, como siempre (misma clave, sin
   cambio de shape).
+
+**Badges por categoría** (aditivo 2026-07-29, RF-T36): cada elemento de
+`categorias[]` suma `badges: [{ "tipo", "texto" }]` con el MISMO catálogo,
+tope y semántica que los badges de artículo (RF-T14, arriba) — incluida la
+tolerancia a tipos desconocidos. La tienda los muestra como chips junto al
+título del grupo en el catálogo. `[]` ⇒ sin badges.
 
 **Encargos — pedidos para día futuro** (aditivo 2026-07-20, RF-T16):
 

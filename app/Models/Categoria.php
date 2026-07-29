@@ -44,8 +44,9 @@ class Categoria extends Model
         'descripcion',
         'color',
         'icono',
-        // Presentación en tienda (RF-17)
+        // Presentación en tienda (RF-17 / RF-T36)
         'imagen_path',
+        'badges_tienda',
         'orden',
         'activo',
         'tipo_iva_id',
@@ -57,7 +58,44 @@ class Categoria extends Model
         'activo' => 'boolean',
         'orden' => 'integer',
         'utilidad_porcentaje' => 'decimal:2',
+        'badges_tienda' => 'array',
     ];
+
+    /**
+     * Badges de tienda SANEADOS (RF-T36), espejo de Articulo::badgesTienda():
+     * mismo catálogo cerrado de tipos + custom, descarta entradas inválidas y
+     * corta en el máximo. Un JSON viejo/corrupto nunca rompe el catálogo.
+     *
+     * @return array<int, array{tipo: string, texto: string|null}>
+     */
+    public function badgesTienda(): array
+    {
+        $badges = [];
+
+        foreach ((array) ($this->badges_tienda ?? []) as $badge) {
+            if (! is_array($badge) || empty($badge['tipo'])) {
+                continue;
+            }
+
+            $tipo = (string) $badge['tipo'];
+            $texto = isset($badge['texto']) ? trim((string) $badge['texto']) : '';
+
+            if ($tipo === 'custom') {
+                if ($texto === '' || mb_strlen($texto) > Articulo::MAX_BADGE_CUSTOM_LARGO) {
+                    continue;
+                }
+                $badges[] = ['tipo' => 'custom', 'texto' => $texto];
+            } elseif (in_array($tipo, Articulo::BADGES_TIENDA, true)) {
+                $badges[] = ['tipo' => $tipo, 'texto' => null];
+            }
+
+            if (count($badges) >= Articulo::MAX_BADGES_TIENDA) {
+                break;
+            }
+        }
+
+        return $badges;
+    }
 
     // ==================== Relaciones ====================
 

@@ -44,6 +44,15 @@ class ConfiguracionTiendaArticulos extends Component
     /** Texto del badge custom del artículo abierto ('' = sin custom). */
     public string $badgeCustom = '';
 
+    /** Categoría con el editor de badges expandido (RF-T36, null = ninguna). */
+    public ?int $categoriaBadges = null;
+
+    /** Badges de la categoría abierta: tipos predefinidos seleccionados. */
+    public array $catBadgesSel = [];
+
+    /** Texto del badge custom de la categoría abierta ('' = sin custom). */
+    public string $catBadgeCustom = '';
+
     /** Alérgenos del artículo abierto: texto libre separado por comas. */
     public string $alergenos = '';
 
@@ -56,6 +65,7 @@ class ConfiguracionTiendaArticulos extends Component
     protected function onSucursalChanged($sucursalId = null, $sucursalNombre = null): void
     {
         $this->cerrarEditor();
+        $this->cerrarBadgesCategoria();
     }
 
     // ==================== DESTACADO ====================
@@ -258,6 +268,125 @@ class ConfiguracionTiendaArticulos extends Component
         $articulo->update(['badges_tienda' => $badges !== [] ? $badges : null]);
 
         $this->catalogoCambiado();
+    }
+
+    // ==================== BADGES DE CATEGORÍA (RF-T36) ====================
+
+    /** Abre/cierra el editor de badges de una categoría (espejo del de artículo). */
+    public function toggleEditorBadgesCategoria(int $categoriaId): void
+    {
+        if ($this->categoriaBadges === $categoriaId) {
+            $this->cerrarBadgesCategoria();
+
+            return;
+        }
+
+        $categoria = $this->categoriaVisible($categoriaId);
+        if (! $categoria) {
+            return;
+        }
+
+        $this->categoriaBadges = $categoria->id;
+        $this->catBadgesSel = [];
+        $this->catBadgeCustom = '';
+        foreach ($categoria->badgesTienda() as $badge) {
+            if ($badge['tipo'] === 'custom') {
+                $this->catBadgeCustom = (string) $badge['texto'];
+            } else {
+                $this->catBadgesSel[] = $badge['tipo'];
+            }
+        }
+    }
+
+    public function cerrarBadgesCategoria(): void
+    {
+        $this->categoriaBadges = null;
+        $this->catBadgesSel = [];
+        $this->catBadgeCustom = '';
+    }
+
+    public function toggleBadgeCategoria(string $tipo): void
+    {
+        if (! $this->autorizado() || ! in_array($tipo, Articulo::BADGES_TIENDA, true)) {
+            return;
+        }
+
+        if (in_array($tipo, $this->catBadgesSel, true)) {
+            $this->catBadgesSel = array_values(array_diff($this->catBadgesSel, [$tipo]));
+        } else {
+            if ($this->cantidadBadgesCategoria() >= Articulo::MAX_BADGES_TIENDA) {
+                $this->dispatch('toast-error', message: __('Máximo :max badges por categoría', ['max' => Articulo::MAX_BADGES_TIENDA]));
+
+                return;
+            }
+            $this->catBadgesSel[] = $tipo;
+        }
+
+        $this->persistirBadgesCategoria();
+    }
+
+    /** wire:model.live.debounce del input custom de la categoría. */
+    public function updatedCatBadgeCustom(): void
+    {
+        if (! $this->autorizado()) {
+            return;
+        }
+
+        $this->catBadgeCustom = trim($this->catBadgeCustom);
+
+        $this->validate(
+            ['catBadgeCustom' => 'nullable|string|max:'.Articulo::MAX_BADGE_CUSTOM_LARGO],
+            ['catBadgeCustom.max' => __('El badge propio admite hasta :max caracteres', ['max' => Articulo::MAX_BADGE_CUSTOM_LARGO])],
+        );
+
+        if ($this->catBadgeCustom !== '' && count($this->catBadgesSel) >= Articulo::MAX_BADGES_TIENDA) {
+            $this->dispatch('toast-error', message: __('Máximo :max badges por categoría', ['max' => Articulo::MAX_BADGES_TIENDA]));
+            $this->catBadgeCustom = '';
+
+            return;
+        }
+
+        $this->persistirBadgesCategoria();
+    }
+
+    protected function cantidadBadgesCategoria(): int
+    {
+        return count($this->catBadgesSel) + ($this->catBadgeCustom !== '' ? 1 : 0);
+    }
+
+    protected function persistirBadgesCategoria(): void
+    {
+        $categoria = $this->categoriaVisible((int) $this->categoriaBadges);
+        if (! $categoria) {
+            return;
+        }
+
+        $badges = array_map(fn (string $tipo) => ['tipo' => $tipo], $this->catBadgesSel);
+        if ($this->catBadgeCustom !== '') {
+            $badges[] = ['tipo' => 'custom', 'texto' => $this->catBadgeCustom];
+        }
+
+        $categoria->update(['badges_tienda' => $badges !== [] ? $badges : null]);
+
+        $this->catalogoCambiado();
+    }
+
+    /**
+     * La categoría SOLO si es visible en la grilla de la tienda (activa y con
+     * artículos visibles) — mismo criterio que arma los grupos del render.
+     */
+    protected function categoriaVisible(int $categoriaId): ?Categoria
+    {
+        if (! $categoriaId) {
+            return null;
+        }
+
+        $idsConArticulos = $this->queryVisibles()->pluck('categoria_id')->filter()->unique();
+
+        return Categoria::where('activo', true)
+            ->whereIn('id', $idsConArticulos)
+            ->where('id', $categoriaId)
+            ->first();
     }
 
     // ==================== ALÉRGENOS (RF-T14) ====================
@@ -511,6 +640,7 @@ class ConfiguracionTiendaArticulos extends Component
             ->map(fn (Categoria $cat) => [
                 'id' => (int) $cat->id,
                 'nombre' => $cat->nombre,
+                'badges' => $cat->badgesTienda(),
                 'articulos' => $porCategoria->get($cat->id, collect()),
             ])
             ->values();
@@ -520,6 +650,7 @@ class ConfiguracionTiendaArticulos extends Component
             $grupos->push([
                 'id' => 0,
                 'nombre' => __('Sin categoría'),
+                'badges' => [],
                 'articulos' => $porCategoria->get(0),
             ]);
         }
