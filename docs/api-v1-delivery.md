@@ -214,16 +214,20 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   tachado junto al precio de oferta. Deriva del mismo motor de precios
   (nunca lo calcula la tienda).
 - La respuesta suma `promociones_genericas: [{ "nombre", "descripcion" }]`:
-  promociones de alcance GENERAL vigentes HOY — comunes automáticas (sin
-  cupón) sin condición por artículo (cantidad, total, forma de pago,
-  categoría) y especiales automáticas (NxM/combos/grupos) del canal tienda.
-  Alimenta el aviso "Promociones de hoy" de la home (visible según
-  `tema.promos.mostrar_home`). Vacío ⇒ sin aviso.
+  promociones vigentes HOY — comunes automáticas (sin cupón) y especiales
+  automáticas (NxM/combos/grupos) del canal tienda. Alimenta el aviso
+  "Promociones de hoy" de la home (visible según
+  `tema.promos.mostrar_home`). Vacío ⇒ sin aviso. *(Cambio de contenido
+  2026-07-29: las comunes con condición por artículo, antes excluidas por
+  reflejarse en el precio tachado, ahora TAMBIÉN se listan — el comerciante
+  espera verlas en la historia de promos.)*
 - *(Aditivo 2026-07-21, RF-T21)* cada promo genérica suma `precio_fijo`
   (number|null — el precio fijo de la promo/combo, para destacarlo) y
   `condiciones` (list<string> legibles y listas para mostrar: mínimos de
   cantidad/total, forma de pago, categoría, mecánica NxM "Llevás 3, pagás
-  2", días y horario). Lista vacía ⇒ promo sin condiciones.
+  2", días y horario). Lista vacía ⇒ promo sin condiciones. *(Contenido
+  2026-07-29: se suma el ALCANCE — "Artículo: X" en comunes por artículo y
+  "Aplica a: A, B, C y N más" en especiales, con tope de 3 nombres.)*
 
 **Galería y badges por artículo** (aditivo 2026-07-20, RF-T14):
 

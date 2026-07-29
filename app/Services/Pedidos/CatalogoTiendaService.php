@@ -243,13 +243,17 @@ class CatalogoTiendaService
     }
 
     /**
-     * Promociones de alcance GENERAL vigentes hoy (RF-T13): las que NO se
-     * reflejan (o no completas) en el precio unitario del catálogo.
+     * Promociones vigentes hoy para el slide/aviso "Promociones de hoy"
+     * (RF-T13):
      *
-     * - Promocion común AUTOMÁTICA (sin cupón) sin condición por_articulo:
-     *   combos por cantidad/total/FP y descuentos por categoría.
+     * - Promocion común AUTOMÁTICA (sin cupón): TODAS, incluidas las de
+     *   condición por_articulo (2026-07-29: antes se excluían por estar
+     *   reflejadas en el precio tachado del catálogo, pero el comerciante
+     *   espera verlas en la historia de promos; su alcance sale como
+     *   condición legible "Artículo: X").
      * - PromocionEspecial AUTOMÁTICA (NxM, grupos): por naturaleza dependen
-     *   de la unión de varios artículos.
+     *   de la unión de varios artículos; su alcance se agrega como
+     *   condición legible "Aplica a: ...".
      *
      * Filtro "hoy": vigencia por fecha + día de semana. Las limitadas por
      * horario se listan igual (son "de hoy"; el detalle vive en descripcion).
@@ -267,8 +271,7 @@ class CatalogoTiendaService
             ->conUsosDisponibles()
             ->with('condiciones')
             ->get()
-            ->filter(fn (Promocion $p) => empty($p->dias_semana) || in_array($hoy, array_map('intval', $p->dias_semana), true))
-            ->filter(fn (Promocion $p) => ! $p->condiciones->contains('tipo_condicion', 'por_articulo'));
+            ->filter(fn (Promocion $p) => empty($p->dias_semana) || in_array($hoy, array_map('intval', $p->dias_semana), true));
 
         $especiales = PromocionEspecial::activas()
             ->vigentes()
@@ -323,7 +326,8 @@ class CatalogoTiendaService
 
     /**
      * Condiciones legibles de una promoción especial (RF-T21): la mecánica
-     * NxM ("Llevás 3, pagás 2" / unidades de regalo) + días/horario.
+     * NxM ("Llevás 3, pagás 2" / unidades de regalo) + el ALCANCE (a qué
+     * artículos/categorías aplica, 2026-07-29) + días/horario.
      *
      * @return list<string>
      */
@@ -340,11 +344,68 @@ class CatalogoTiendaService
             }
         }
 
-        return array_merge($condiciones, $this->restriccionDiasYHorario(
+        return array_merge($condiciones, $this->alcanceLegibleEspecial($p), $this->restriccionDiasYHorario(
             $p->dias_semana,
             $p->hora_desde,
             $p->hora_hasta,
         ));
+    }
+
+    /**
+     * Alcance legible de una promoción especial: a qué artículos (o
+     * categorías) aplica. NxM básico: los artículos/categorías elegidos
+     * (plural nuevo o singular legado). Avanzado y combo/menú: los
+     * artículos únicos de sus grupos. Sin alcance detectable ⇒ nada
+     * (promos por total, etc.).
+     *
+     * @return list<string>
+     */
+    protected function alcanceLegibleEspecial(PromocionEspecial $p): array
+    {
+        if ($p->esNxMBasico()) {
+            $articuloIds = array_values(array_filter(array_map('intval', (array) ($p->nxm_articulos_ids ?: [$p->nxm_articulo_id]))));
+            if ($articuloIds !== []) {
+                return $this->listaAplicaA(Articulo::whereIn('id', $articuloIds)->orderBy('nombre')->pluck('nombre')->all());
+            }
+
+            $categoriaIds = array_values(array_filter(array_map('intval', (array) ($p->nxm_categorias_ids ?: [$p->nxm_categoria_id]))));
+            if ($categoriaIds !== []) {
+                return $this->listaAplicaA(Categoria::whereIn('id', $categoriaIds)->orderBy('nombre')->pluck('nombre')->all());
+            }
+
+            return [];
+        }
+
+        // NxM avanzado / combo / menú: artículos únicos de todos los grupos.
+        $nombres = $p->grupos()->with('articulos')->get()
+            ->flatMap(fn ($g) => $g->articulos->pluck('nombre'))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+
+        return $this->listaAplicaA($nombres);
+    }
+
+    /**
+     * "Aplica a: A, B, C y N más" — tope de 3 nombres para que el chip de la
+     * historia no se vuelva un párrafo.
+     *
+     * @param  list<string>  $nombres
+     * @return list<string>
+     */
+    protected function listaAplicaA(array $nombres): array
+    {
+        if ($nombres === []) {
+            return [];
+        }
+
+        $lista = implode(', ', array_slice($nombres, 0, 3));
+        $resto = count($nombres) - 3;
+
+        return [$resto > 0
+            ? __('Aplica a: :lista y :n más', ['lista' => $lista, 'n' => $resto])
+            : __('Aplica a: :lista', ['lista' => $lista])];
     }
 
     /**
