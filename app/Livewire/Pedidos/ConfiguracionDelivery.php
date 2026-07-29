@@ -9,6 +9,7 @@ use App\Services\TenantService;
 use App\Services\TiendaService;
 use App\Traits\SucursalAware;
 use Exception;
+use Illuminate\Support\Facades\Cache;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
@@ -45,7 +46,7 @@ class ConfiguracionDelivery extends Component
      * (staging del repeater) y tiendaPublicada (la persiste el toggle).
      */
     protected const PROPS_AUTOGUARDADO = [
-        'usaDelivery', 'takeawayHabilitado', 'exigirRepartidor', 'usaEstadoListo',
+        'usaDelivery', 'deliveryHabilitado', 'takeawayHabilitado', 'exigirRepartidor', 'usaEstadoListo',
         'convertirVentaAlEntregar', 'conceptoCategoriaEnvioId',
         'usaNumeracionDisplay', 'numeracionDisplayModo', 'numeracionDisplayHoras',
         'alertaAmarillaMin', 'alertaRojaMin',
@@ -81,6 +82,9 @@ class ConfiguracionDelivery extends Component
      * "listo" nunca bloquea: se puede despachar desde preparación igual.
      */
     public bool $usaEstadoListo = true;
+
+    /** RF-T30: modalidad envío a domicilio, en paridad con take-away. */
+    public bool $deliveryHabilitado = true;
 
     public bool $takeawayHabilitado = true;
 
@@ -272,9 +276,28 @@ class ConfiguracionDelivery extends Component
             }
         }
 
-        $this->tiendaActual()?->update(['habilitada' => true]);
+        $tienda = $this->tiendaActual();
+        $tienda?->update(['habilitada' => true]);
         $this->tiendaPublicada = true;
         $this->tiendaPublicadaPersistida = true;
+
+        // RF-T30: publicar enciende el módulo de pedidos si estaba apagado —
+        // sin usa_delivery el middleware de la API devuelve 404 y la tienda
+        // queda publicada pero muerta. Se setea también el prop para que el
+        // auto-guardado no lo pise con el valor viejo.
+        $sucursal = Sucursal::find($this->sucursalActual());
+        if ($sucursal && ! $sucursal->usa_delivery) {
+            $sucursal->update(['usa_delivery' => true]);
+            $this->usaDelivery = true;
+            $this->dispatch('toast-success', message: __('Se habilitó el módulo de pedidos (la tienda online lo necesita)'));
+        }
+
+        // El marketplace cachea el snapshot ~5 min (incluye tiendas inválidas
+        // por usa_delivery apagado): invalidarlo para que liste ya.
+        if ($tienda) {
+            Cache::forget("marketplace_tienda_{$tienda->id}");
+        }
+
         $this->dispatch('toast-success', message: __('Tienda publicada'));
     }
 
@@ -319,6 +342,7 @@ class ConfiguracionDelivery extends Component
         $this->conceptoCategoriaEnvioId = $config['concepto_categoria_envio_id'] !== null ? (string) $config['concepto_categoria_envio_id'] : '';
         $this->exigirRepartidor = (bool) $config['exigir_repartidor'];
         $this->usaEstadoListo = (bool) ($config['usa_estado_listo'] ?? true);
+        $this->deliveryHabilitado = (bool) ($config['delivery_habilitado'] ?? true);
         $this->takeawayHabilitado = (bool) $config['takeaway_habilitado'];
         $this->aceptacionPedidosExternos = (string) $config['aceptacion_pedidos_externos'];
         $this->imprimirComandaAlAceptar = (bool) $config['imprimir_comanda_al_aceptar'];
@@ -424,6 +448,7 @@ class ConfiguracionDelivery extends Component
             'usa_numeracion_display' => $this->usaNumeracionDisplay,
             'numeracion_display_modo' => in_array($this->numeracionDisplayModo, ['diario', 'manual'], true) ? $this->numeracionDisplayModo : 'diario',
             'numeracion_display_horas' => $horasReset ?: [6],
+            'delivery_habilitado' => $this->deliveryHabilitado,
             'takeaway_habilitado' => $this->takeawayHabilitado,
             'aceptacion_pedidos_externos' => in_array($this->aceptacionPedidosExternos, ['manual', 'automatica'], true)
                 ? $this->aceptacionPedidosExternos

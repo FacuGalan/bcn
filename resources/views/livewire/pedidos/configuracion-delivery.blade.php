@@ -28,8 +28,18 @@
                 <label class="flex items-start gap-2 cursor-pointer">
                     <input type="checkbox" wire:model.live="usaDelivery" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-sm text-gray-700 dark:text-gray-300">
-                        {{ __('Habilitar delivery en esta sucursal') }}
-                        <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Activa el panel de pedidos delivery/take-away.') }}</span>
+                        {{ __('Habilitar módulo de pedidos') }}
+                        <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Activa el panel de pedidos, la tienda online y el marketplace (delivery y/o take-away).') }}</span>
+                        @if(! $usaDelivery && $tiendaPublicadaPersistida)
+                            <span class="block text-xs font-medium text-red-600 dark:text-red-400">{{ __('La tienda online quedará fuera de línea') }}</span>
+                        @endif
+                    </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" wire:model.live="deliveryHabilitado" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                        {{ __('Delivery habilitado') }}
+                        <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Permite pedidos con envío a domicilio.') }}</span>
                     </span>
                 </label>
                 <label class="flex items-start gap-2 cursor-pointer">

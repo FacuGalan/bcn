@@ -1,6 +1,6 @@
 # Tienda — Ronda Crossmap 2 (RF-T28..T36) - Especificación
 
-## Estado: APROBADO — Fase 1 COMPLETA (validada en vivo 2026-07-29) — Fase 2 PENDIENTE
+## Estado: APROBADO — Fases 1 (PR #183) y 2 COMPLETAS — Fase 3 PENDIENTE
 
 > Escrita 2026-07-29 sobre 4 informes de exploración (promos core, panel tienda,
 > tienda pública, usa_delivery). APROBADA por Facu 2026-07-29: las 4 decisiones
@@ -348,7 +348,7 @@ La tienda (bcn-tienda) usa claves en español directo (sin archivos).
 5. Tests: unit de evaluación (rangos, plural, retrocompat singular) +
    integración por circuito + ApiV1Delivery.
 
-### Fase 2: Core — Módulo pedidos y modalidades (RF-T30) [PENDIENTE]
+### Fase 2: Core — Módulo pedidos y modalidades (RF-T30) [COMPLETO]
 1. `CONFIG_DELIVERY_DEFAULTS` + tilde + labels + hint rojo.
 2. Validaciones de modalidad en services + `NuevoPedidoDelivery`.
 3. Auto-encendido en `toggleTiendaOnline` + invalidación caché marketplace.

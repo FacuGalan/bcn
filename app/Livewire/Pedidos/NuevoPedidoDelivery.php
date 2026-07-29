@@ -158,6 +158,9 @@ class NuevoPedidoDelivery extends Component
 
     public bool $sucursalUsaDelivery = false;
 
+    /** RF-T30: modalidad envío a domicilio, en paridad con take-away. */
+    public bool $deliveryHabilitado = true;
+
     public bool $takeawayHabilitado = true;
 
     public bool $georreferenciarPedidos = false;
@@ -717,6 +720,7 @@ class NuevoPedidoDelivery extends Component
             $this->sucursalUsaBeepers = false;
             $this->controlStock = 'permitir';
             $this->sucursalUsaDelivery = false;
+            $this->deliveryHabilitado = true;
             $this->takeawayHabilitado = true;
             $this->georreferenciarPedidos = false;
 
@@ -728,6 +732,7 @@ class NuevoPedidoDelivery extends Component
 
         $this->sucursalUsaDelivery = (bool) ($sucursal->usa_delivery ?? false);
         $config = $this->envioService->configDelivery($sucursal);
+        $this->deliveryHabilitado = (bool) ($config['delivery_habilitado'] ?? true);
         $this->takeawayHabilitado = (bool) ($config['takeaway_habilitado'] ?? true);
         $this->georreferenciarPedidos = (bool) ($config['georreferenciar_pedidos'] ?? false);
 
@@ -740,10 +745,14 @@ class NuevoPedidoDelivery extends Component
         $this->aceptaLoAntesPosible = (bool) ($config['acepta_lo_antes_posible'] ?? true);
         $this->cargarFranjasDisponibles();
 
-        // Si el take-away está deshabilitado y el tipo actual es take_away,
-        // volver a delivery (y viceversa cuando la sucursal no usa delivery).
+        // Si la modalidad del tipo actual está deshabilitada, saltar a la
+        // otra (RF-T30: delivery y take-away son espejo; con ambas apagadas
+        // se deja delivery y el service bloquea el alta).
         if ($this->tipo === PedidoDelivery::TIPO_TAKE_AWAY && ! $this->takeawayHabilitado) {
             $this->tipo = PedidoDelivery::TIPO_DELIVERY;
+        }
+        if ($this->tipo === PedidoDelivery::TIPO_DELIVERY && ! $this->deliveryHabilitado && $this->takeawayHabilitado) {
+            $this->tipo = PedidoDelivery::TIPO_TAKE_AWAY;
         }
     }
 
@@ -778,6 +787,13 @@ class NuevoPedidoDelivery extends Component
         if ($value === PedidoDelivery::TIPO_TAKE_AWAY && ! $this->takeawayHabilitado) {
             $this->tipo = PedidoDelivery::TIPO_DELIVERY;
             $this->dispatch('toast-error', message: __('El take-away está deshabilitado en esta sucursal'));
+
+            return;
+        }
+
+        if ($value === PedidoDelivery::TIPO_DELIVERY && ! $this->deliveryHabilitado) {
+            $this->tipo = PedidoDelivery::TIPO_TAKE_AWAY;
+            $this->dispatch('toast-error', message: __('El delivery está deshabilitado en esta sucursal'));
 
             return;
         }

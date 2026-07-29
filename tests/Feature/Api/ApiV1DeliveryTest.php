@@ -62,7 +62,7 @@ class ApiV1DeliveryTest extends TestCase
         $this->getJson('/api/v1/tiendas/tienda-test')
             ->assertOk()
             ->assertJsonPath('data.slug', 'tienda-test')
-            ->assertJsonStructure(['data' => ['nombre', 'abierta_ahora', 'takeaway_habilitado', 'horarios_atencion']]);
+            ->assertJsonStructure(['data' => ['nombre', 'abierta_ahora', 'delivery_habilitado', 'takeaway_habilitado', 'horarios_atencion']]);
     }
 
     public function test_tienda_inexistente_o_deshabilitada_da_404(): void
@@ -762,6 +762,29 @@ class ApiV1DeliveryTest extends TestCase
         $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
             ->assertOk()
             ->assertJsonPath('data.items.0.observaciones', 'Sin pepino, bien cocida');
+    }
+
+    public function test_pedido_delivery_con_modalidad_deshabilitada_es_rechazado(): void
+    {
+        // RF-T30: `delivery_habilitado: false` — la tienda lo expone, el alta
+        // delivery se rechaza y el take-away sigue operando (solo-take-away).
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode(['delivery_habilitado' => false]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $this->getJson('/api/v1/tiendas/tienda-test')
+            ->assertOk()
+            ->assertJsonPath('data.delivery_habilitado', false)
+            ->assertJsonPath('data.takeaway_habilitado', true);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))
+            ->assertStatus(422);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['tipo'] = 'take_away';
+        unset($payload['direccion']);
+        $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
     }
 
     public function test_pedido_externo_con_aceptacion_manual_entra_por_aceptar(): void

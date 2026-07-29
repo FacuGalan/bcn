@@ -83,6 +83,24 @@ class ConfiguracionDeliveryTiendaTest extends TestCase
         $component->assertSet('tiendaPublicadaPersistida', true);
     }
 
+    public function test_publicar_enciende_el_modulo_de_pedidos_si_estaba_apagado(): void
+    {
+        // RF-T30: sin usa_delivery el middleware de la API da 404 y la tienda
+        // queda publicada pero muerta — publicar lo enciende solo.
+        \App\Models\Sucursal::where('id', $this->sucursalId)->update(['usa_delivery' => false]);
+
+        Livewire::test(ConfiguracionDelivery::class)
+            ->assertSet('usaDelivery', false)
+            ->call('toggleTiendaOnline')
+            ->assertSet('tiendaPublicada', true)
+            ->assertSet('usaDelivery', true);
+
+        $this->assertTrue(
+            (bool) \App\Models\Sucursal::find($this->sucursalId)->usa_delivery,
+            'Publicar la tienda debe encender el módulo de pedidos',
+        );
+    }
+
     public function test_apagar_el_switch_despublica_al_instante(): void
     {
         Tienda::create([
@@ -107,12 +125,14 @@ class ConfiguracionDeliveryTiendaTest extends TestCase
         // Un checkbox: updated() → persistirConfig() directo a la BD.
         Livewire::test(ConfiguracionDelivery::class)
             ->set('takeawayHabilitado', false)
+            ->set('deliveryHabilitado', false)
             ->set('modoPromesa', 'automatica')
             ->set('demoraBaseMin', '25');
 
         $sucursal = \App\Models\Sucursal::find($this->sucursalId);
         $config = $sucursal->getConfigDelivery();
         $this->assertFalse((bool) $config['takeaway_habilitado']);
+        $this->assertFalse((bool) $config['delivery_habilitado']);
         $this->assertSame('automatica', $config['modo_promesa']);
         $this->assertSame(25, (int) $config['demora_base_min']);
     }

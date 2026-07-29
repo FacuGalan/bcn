@@ -81,6 +81,18 @@ core lo persiste en el cliente del comercio y, con Bearer, también en la
 cuenta global del consumidor (`GET /consumidores/me` lo devuelve para
 pre-llenar).
 
+**Modalidades** *(aditivo 2026-07-29, RF-T30)*: `GET /tiendas/{slug}` suma
+`delivery_habilitado` (bool), en paridad con el `takeaway_habilitado`
+existente: qué modalidades ofrece la sucursal. Una tienda solo-take-away es
+legítima — la tienda ofrece envío a domicilio solo con
+`delivery_habilitado: true` y retiro solo con `takeaway_habilitado: true`.
+`POST /pedidos` con un `tipo` de modalidad deshabilitada se rechaza
+server-side (mismo tratamiento que el take-away deshabilitado; `cotizar` no
+valida modalidad — cotiza igual, el bloqueo es del alta).
+La card del marketplace (`GET /v1/tiendas`) y `GET /delivery/config`
+(integraciones) suman el mismo campo. Campo ausente ⇒ asumir `true`
+(retrocompatibilidad).
+
 `formas_pago` son las declarables **contra entrega/retiro** (el pago online
 integrado es otro circuito, pendiente en el spec de integraciones);
 `permite_vuelto: true` habilita el campo `paga_con` del alta de pedido.
@@ -603,7 +615,8 @@ ordena por distancia; una tienda sin georreferenciar devuelve
 `alcance: "desconocido"` (no se inventa alcance, D5). Sin coordenadas lista
 todas en orden alfabético. Card: `{slug, nombre, comercio, rubro: {id,
 nombre}, logo_url, direccion, localidad, latitud, longitud, abierta_ahora,
-takeaway_habilitado, alcance, distancia_km}`. Los datos por tienda se
+delivery_habilitado, takeaway_habilitado, alcance, distancia_km}`. Los datos
+por tienda se
 cachean ~5 min. `logo_url` (RF-T11): prima el logo propio de la tienda
 (config del panel); fallback al logo de pantalla-cliente/empresa de la
 sucursal. Por el cache, un cambio de logo puede demorar ~5 min en verse.

@@ -405,13 +405,15 @@
             <div class="flex-1 overflow-y-auto space-y-2 pr-1 min-h-0">
                 {{-- Tipo de pedido (RF-02): segmented control --}}
                 <div class="bg-white dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700 p-1 flex gap-1">
-                    <button type="button" wire:click="$set('tipo', 'delivery')"
-                        class="flex-1 inline-flex justify-center items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors {{ $tipo === 'delivery' ? 'bg-cyan-600 text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
-                        </svg>
-                        {{ __('Delivery') }}
-                    </button>
+                    @if($deliveryHabilitado || $tipo === 'delivery')
+                        <button type="button" wire:click="$set('tipo', 'delivery')"
+                            class="flex-1 inline-flex justify-center items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors {{ $tipo === 'delivery' ? 'bg-cyan-600 text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0"/>
+                            </svg>
+                            {{ __('Delivery') }}
+                        </button>
+                    @endif
                     @if($takeawayHabilitado)
                         <button type="button" wire:click="$set('tipo', 'take_away')"
                             class="flex-1 inline-flex justify-center items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-colors {{ $tipo === 'take_away' ? 'bg-violet-600 text-white shadow' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700' }}">

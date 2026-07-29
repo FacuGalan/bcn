@@ -146,6 +146,35 @@ class PedidoDeliveryServiceTest extends TestCase
         );
     }
 
+    public function test_modalidad_delivery_deshabilitada_rechaza_delivery_pero_permite_take_away(): void
+    {
+        // RF-T30: `delivery_habilitado` en paridad con take-away — una
+        // sucursal solo-take-away es legítima.
+        $sucursal = Sucursal::find($this->sucursalId);
+        $sucursal->update(['config_delivery' => array_merge(
+            is_array($sucursal->config_delivery) ? $sucursal->config_delivery : [],
+            ['delivery_habilitado' => false],
+        )]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $pedido = $this->service->crearPedido(
+            data: $this->datosBaseDelivery(total: 1000, overrides: [
+                'tipo' => PedidoDelivery::TIPO_TAKE_AWAY,
+                'direccion_entrega' => null,
+            ]),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 1000)],
+        );
+        $this->assertSame(PedidoDelivery::TIPO_TAKE_AWAY, $pedido->tipo);
+
+        $this->expectException(Exception::class);
+        $this->expectExceptionMessage('no acepta pedidos delivery');
+
+        $this->service->crearPedido(
+            data: $this->datosBaseDelivery(),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 1000)],
+        );
+    }
+
     public function test_establecer_costo_envio_actualiza_renglon_por_delta(): void
     {
         $pedido = $this->pedidoDeliveryConfirmado(totalFinal: 1000, overrides: ['costo_envio' => 300]);

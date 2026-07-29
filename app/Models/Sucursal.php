@@ -98,6 +98,7 @@ class Sucursal extends Model
         'concepto_categoria_envio_id' => null, // categoría del renglón-concepto "Costo de envío" (D17)
         // Operatoria
         'exigir_repartidor' => true,         // listo → en_camino exige repartidor
+        'delivery_habilitado' => true,    // RF-T30: modalidad envío a domicilio (paridad con take-away)
         'takeaway_habilitado' => true,
         'usa_estado_listo' => true,          // OFF: columna Listo oculta; preparación pasa directo a envío/retiro
         // Conversión automática a venta al entregar — PROPIA de delivery
