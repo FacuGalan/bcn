@@ -218,4 +218,110 @@ class PromocionTest extends TestCase
 
         $this->assertEquals(2, $vigentes);
     }
+
+    // ==================== RF-T29: rangos min/max ====================
+
+    public function test_condicion_por_cantidad_evalua_rango(): void
+    {
+        $promo = $this->crearPromocion();
+        $condicion = $promo->condiciones()->create([
+            'tipo_condicion' => 'por_cantidad',
+            'cantidad_minima' => 2,
+            'cantidad_maxima' => 5,
+        ]);
+
+        $this->assertFalse($condicion->seCumple(['cantidad' => 1]), 'Bajo el mínimo no cumple');
+        $this->assertTrue($condicion->seCumple(['cantidad' => 2]), 'Borde inferior cumple');
+        $this->assertTrue($condicion->seCumple(['cantidad' => 5]), 'Borde superior cumple');
+        $this->assertFalse($condicion->seCumple(['cantidad' => 6]), 'Sobre el máximo no cumple');
+    }
+
+    public function test_condicion_sin_maximo_mantiene_comportamiento_legado(): void
+    {
+        $promo = $this->crearPromocion();
+        $condicion = $promo->condiciones()->create([
+            'tipo_condicion' => 'por_total_compra',
+            'monto_minimo' => 1000,
+        ]);
+
+        $this->assertTrue($condicion->seCumple(['total' => 999999]), 'Máximo NULL = sin tope');
+        $this->assertFalse($condicion->seCumple(['total' => 999]));
+    }
+
+    public function test_condicion_por_total_evalua_rango(): void
+    {
+        $promo = $this->crearPromocion();
+        $condicion = $promo->condiciones()->create([
+            'tipo_condicion' => 'por_total_compra',
+            'monto_minimo' => 1000,
+            'monto_maximo' => 5000,
+        ]);
+
+        $this->assertFalse($condicion->seCumple(['total' => 999]));
+        $this->assertTrue($condicion->seCumple(['total' => 3000]));
+        $this->assertFalse($condicion->seCumple(['total' => 5001]));
+    }
+
+    // ==================== RF-T28: OR dentro del tipo, AND entre tipos ====
+
+    public function test_validar_condiciones_or_dentro_del_tipo_and_entre_tipos(): void
+    {
+        // Promo con DOS formas de pago habilitadas (2 filas por_forma_pago) +
+        // cantidad mínima. El AND plano anterior exigía cumplir AMBAS filas
+        // de FP a la vez ⇒ jamás aplicaba (bug preexistente).
+        $fp1 = $this->crearFormaPagoEfectivo()['formaPago'];
+        $fp2 = $this->crearFormaPagoCC()['formaPago'];
+
+        $promo = $this->crearPromocion();
+        $promo->condiciones()->create(['tipo_condicion' => 'por_forma_pago', 'forma_pago_id' => $fp1->id]);
+        $promo->condiciones()->create(['tipo_condicion' => 'por_forma_pago', 'forma_pago_id' => $fp2->id]);
+        $promo->condiciones()->create(['tipo_condicion' => 'por_cantidad', 'cantidad_minima' => 2]);
+        $promo->load('condiciones');
+
+        $validar = new \ReflectionMethod(\App\Services\PrecioService::class, 'validarCondicionesPromocion');
+        $servicio = app(\App\Services\PrecioService::class);
+
+        // Una de las dos FP + cantidad OK ⇒ aplica (OR dentro de por_forma_pago).
+        $this->assertTrue($validar->invoke($servicio, $promo, ['forma_pago_id' => $fp1->id, 'cantidad' => 3]));
+        $this->assertTrue($validar->invoke($servicio, $promo, ['forma_pago_id' => $fp2->id, 'cantidad' => 3]));
+        // FP ajena ⇒ no aplica.
+        $this->assertFalse($validar->invoke($servicio, $promo, ['forma_pago_id' => 999999, 'cantidad' => 3]));
+        // Cantidad bajo el mínimo ⇒ no aplica aunque la FP esté (AND entre tipos).
+        $this->assertFalse($validar->invoke($servicio, $promo, ['forma_pago_id' => $fp1->id, 'cantidad' => 1]));
+    }
+
+    // ==================== RF-T28: especiales plurales ====================
+
+    public function test_promocion_especial_evalua_formas_venta_plurales_con_fallback(): void
+    {
+        $plural = \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Especial plural '.uniqid(),
+            'tipo' => \App\Models\PromocionEspecial::TIPO_NXM,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'nxm_lleva' => 2, 'nxm_paga' => 1,
+            'prioridad' => 1, 'activo' => true, 'usos_actuales' => 0,
+            'formas_venta_ids' => [10, 20],
+        ]);
+
+        $this->assertTrue($plural->cumpleCondiciones(['forma_venta_id' => 20]));
+        $this->assertFalse($plural->cumpleCondiciones(['forma_venta_id' => 30]));
+
+        // Registro LEGADO: solo el singular cargado ⇒ fallback como lista de uno.
+        $legada = \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId,
+            'nombre' => 'Especial legada '.uniqid(),
+            'tipo' => \App\Models\PromocionEspecial::TIPO_NXM,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'nxm_lleva' => 2, 'nxm_paga' => 1,
+            'prioridad' => 1, 'activo' => true, 'usos_actuales' => 0,
+            'canal_venta_id' => 5,
+        ]);
+
+        $this->assertSame([5], $legada->canalesVentaIds());
+        $this->assertTrue($legada->cumpleCondiciones(['canal_venta_id' => 5]));
+        $this->assertFalse($legada->cumpleCondiciones(['canal_venta_id' => 6]));
+        // Sin restricción de FV ⇒ cualquier forma de venta pasa.
+        $this->assertTrue($legada->cumpleCondiciones(['canal_venta_id' => 5, 'forma_venta_id' => 99]));
+    }
 }

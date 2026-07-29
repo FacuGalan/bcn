@@ -279,8 +279,10 @@ class CatalogoTiendaService
             ->where('modo_aplicacion', PromocionEspecial::MODO_AUTOMATICA)
             ->get()
             ->filter(fn (PromocionEspecial $p) => empty($p->dias_semana) || in_array($hoy, array_map('intval', $p->dias_semana), true))
-            // Con canal restringido, solo si es el canal TIENDA.
-            ->filter(fn (PromocionEspecial $p) => ! $p->canal_venta_id || (int) $p->canal_venta_id === (int) $canalVentaId);
+            // Con canal restringido, solo si incluye el canal TIENDA
+            // (RF-T28: canales múltiples, plural con fallback singular).
+            ->filter(fn (PromocionEspecial $p) => $p->canalesVentaIds() === []
+                || in_array((int) $canalVentaId, $p->canalesVentaIds(), true));
 
         return $comunes->map(fn ($p) => [
             'nombre' => (string) $p->nombre,

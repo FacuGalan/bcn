@@ -1626,6 +1626,26 @@ Promociones y descuentos. Cada promocion es especifica de una sucursal.
 | `usos_actuales` | int | Contador de usos |
 | `created_at`, `updated_at`, `deleted_at` | timestamp | Timestamps + soft delete |
 
+#### Tabla: `promociones_condiciones`
+Condiciones de una promocion COMUN. Una promocion puede tener N filas (una por condicion). Restriccion multiple (varias formas de pago, formas de venta o canales) = N filas del MISMO `tipo_condicion` (OR entre ellas); mínimo y máximo del mismo tipo (`por_total_compra`, `por_cantidad`) viven en LA MISMA fila (rango).
+
+| Columna | Tipo | Descripcion |
+|---|---|---|
+| `id` | bigint PK | ID unico |
+| `promocion_id` | bigint FK | Promocion comun (`promociones`) |
+| `tipo_condicion` | enum | `por_forma_pago`, `por_forma_venta`, `por_canal`, `por_total_compra`, `por_cantidad` |
+| `forma_pago_id` | bigint FK nullable | Forma de pago (una fila por FP seleccionada) |
+| `forma_venta_id` | bigint FK nullable | Forma de venta (una fila por FV seleccionada; RF-T28) |
+| `canal_venta_id` | bigint FK nullable | Canal de venta (una fila por canal seleccionado; RF-T28) |
+| `monto_minimo` | decimal(12,2) nullable | Monto minimo de la venta (fila `por_total_compra`) |
+| `monto_maximo` | decimal(12,2) nullable | Monto maximo de la venta, NULL = sin tope (fila `por_total_compra`; RF-T29) |
+| `cantidad_minima` | decimal(12,3) nullable | Cantidad minima de articulos (fila `por_cantidad`) |
+| `cantidad_maxima` | decimal(12,3) nullable | Cantidad maxima de articulos, NULL = sin tope (fila `por_cantidad`; RF-T29) |
+
+- Sin ninguna fila de un `tipo_condicion` dado ⇒ esa condicion no restringe (ej: sin filas `por_forma_venta` ⇒ aplica a todas las formas de venta).
+- Rango (`por_total_compra`/`por_cantidad`): el minimo y el maximo se evaluan juntos en la MISMA fila; cualquiera de los dos puede ser NULL. Comparar con `!== null`, nunca `empty()` (un tope en 0 seria un valor valido, aunque en la practica no se usa).
+- `PromocionCondicion::seCumple(array $contexto): bool` evalua una fila individual. `PromocionCondicion::obtenerDescripcion(): string` arma el texto legible para el listado del panel (rangos: "Total: entre $X y $Y", "Cantidad maxima: N", etc.).
+
 #### Tabla: `promociones_especiales`
 Promociones de tipo NxM (lleva 3 paga 2), Combo y Menu.
 
@@ -1649,9 +1669,13 @@ Promociones de tipo NxM (lleva 3 paga 2), Combo y Menu.
 | `precio_valor` | decimal(12,2) nullable | Valor del combo/menu |
 | `prioridad` | int | Prioridad |
 | Vigencia, dias_semana, horas | ... | Igual que promociones |
-| `forma_venta_id`, `canal_venta_id`, `forma_pago_id` | bigint FK nullable | Condiciones de aplicacion |
+| `forma_venta_id`, `canal_venta_id`, `forma_pago_id` | bigint FK nullable | Condiciones de aplicacion (singular legado, sigue vivo) |
+| `formas_venta_ids` | text nullable | Array JSON de IDs de forma de venta (seleccion multiple; RF-T28). Si NULL, cae al singular `forma_venta_id` |
+| `canales_venta_ids` | text nullable | Array JSON de IDs de canal de venta (seleccion multiple; RF-T28). Si NULL, cae al singular `canal_venta_id` |
 | `formas_pago_ids` | text nullable | Array JSON de IDs de formas de pago (seleccion multiple) |
 | `usos_maximos`, `usos_actuales` | int | Control de usos |
+
+No tienen monto/cantidad minima ni maxima (a diferencia de `promociones_condiciones`): su mecanica NxM/combo/menu ya define las cantidades (RF-T29, decision explicita).
 
 #### Tabla: `tipos_iva`
 Tipos de IVA segun AFIP (en tabla tenant, no en config).
@@ -3703,9 +3727,11 @@ El sistema de precios tiene **4 niveles de especificidad** (de mayor a menor):
 - Las promociones pueden ser **combinables** o **excluyentes**
 - Para combinables, se busca la mejor combinacion posible (exhaustiva 2^n para <=15 promos)
 - Limite de descuento: 70% maximo
-- Promociones comunes ahora soportan multiples articulos, categorias y formas de pago como condiciones (tabla `promocion_condiciones` con multiples rows por tipo)
-- Promociones especiales tienen columnas `formas_pago_ids`, `nxm_articulos_ids`, `nxm_categorias_ids` (TEXT con JSON arrays) para seleccion multiple. Se mantiene retrocompatibilidad con las columnas singulares (`forma_pago_id`, `nxm_articulo_id`, `nxm_categoria_id`)
+- Promociones comunes ahora soportan multiples articulos, categorias, formas de pago, formas de venta y canales como condiciones (tabla `promociones_condiciones` con multiples rows por tipo; ver 2.x Tabla `promociones_condiciones`)
+- Promociones especiales tienen columnas `formas_pago_ids`, `formas_venta_ids`, `canales_venta_ids`, `nxm_articulos_ids`, `nxm_categorias_ids` (TEXT con JSON arrays) para seleccion multiple. Se mantiene retrocompatibilidad con las columnas singulares (`forma_pago_id`, `forma_venta_id`, `canal_venta_id`, `nxm_articulo_id`, `nxm_categoria_id`) — patron plural/singular: helpers `PromocionEspecial::formasVentaIds()`/`canalesVentaIds()`/`formasPagoIds()` devuelven el plural, o el singular como lista de 1 si el plural es NULL; lista vacia = sin restriccion
 - Las validaciones usan `in_array()` en vez de comparacion directa para soportar seleccion multiple
+- **Evaluacion de condiciones (RF-T28, 2026-07-29)**: `PrecioService::validarCondicionesPromocion` agrupa las condiciones de una promocion COMUN por `tipo_condicion` y exige que se cumpla AL MENOS UNA fila de cada grupo (OR intra-tipo) Y que se cumplan TODOS los grupos presentes (AND inter-tipo). Antes evaluaba fila por fila con AND plano: una promocion con 2+ formas de pago (o forma de venta/canal) declaradas como filas separadas NUNCA podia aplicar por esta via (bug preexistente que afectaba el catalogo de la tienda online y la pantalla de consulta de precios). El mismo criterio (OR intra-tipo) se replico en todos los evaluadores paralelos: `PromocionCondicion::seCumple`, `WithCalculoVenta::promocionCumpleCondiciones`/`promocionEspecialCumpleCondiciones` (motor de NuevaVenta, mostrador, delivery y `CotizadorCarritoTienda`), `PromocionEspecial::cumpleCondiciones`, los simuladores (`WizardPromocion`, `SimuladorVenta`, `WizardPromocionEspecial`) y `CatalogoTiendaService::promocionesGenericas` (filtro de canal de promos especiales en el catalogo publico).
+- **Rango monto/cantidad (RF-T29, 2026-07-29)**: las promociones comunes evaluan monto y cantidad como RANGO (minimo Y maximo, ambos opcionales, NULL = sin tope) en la misma fila `por_total_compra`/`por_cantidad`. Comparacion siempre con `!== null` (nunca `empty()`). Aplica en `PromocionCondicion::seCumple`, `WithCalculoVenta::promocionCumpleCondiciones` y los simuladores (con razon legible "Monto maximo superado"/"Cantidad maxima superada" en `determinarRazonNoAplicada`). Las promociones ESPECIALES no tienen esta condicion (su mecanica NxM/combo/menu ya acota cantidades).
 
 **Listas estaticas** (`estatica = true`):
 - Al grabar o actualizar una lista estatica, `CongelarPreciosListaService::congelar(ListaPrecio): int` itera todos los articulos activos de la sucursal y aplica la jerarquia completa de ajustes (nivel articulo > nivel categoria > ajuste del encabezado), persistiendo el resultado como `precio_fijo` en `lista_precio_articulos`.

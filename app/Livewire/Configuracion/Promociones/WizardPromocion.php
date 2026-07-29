@@ -88,13 +88,17 @@ class WizardPromocion extends Component
     public $mostrarBuscadorArticuloAlcance = false;
 
     // Paso 4: Condiciones y restricciones
-    public $formaVentaId = null;
+    // RF-T28: FV y canal MÚLTIPLES (patrón formasPagoIds); vacío = todas/os.
+    public array $formasVentaIds = [];
 
-    public $canalVentaId = null;
+    public array $canalesVentaIds = [];
 
     public array $formasPagoIds = [];
 
+    // RF-T29: mínimos y máximos como RANGO (null = sin límite).
     public $montoMinimo = null;
+
+    public $montoMaximo = null;
 
     public $cantidadMinima = null;
 
@@ -235,10 +239,16 @@ class WizardPromocion extends Component
                     }
                     break;
                 case 'por_forma_venta':
-                    $this->formaVentaId = $condicion->forma_venta_id;
+                    // RF-T28: acumular (N filas) — pisar perdía selecciones
+                    // al re-guardar una promo multi-FV.
+                    if ($condicion->forma_venta_id) {
+                        $this->formasVentaIds[] = $condicion->forma_venta_id;
+                    }
                     break;
                 case 'por_canal':
-                    $this->canalVentaId = $condicion->canal_venta_id;
+                    if ($condicion->canal_venta_id) {
+                        $this->canalesVentaIds[] = $condicion->canal_venta_id;
+                    }
                     break;
                 case 'por_forma_pago':
                     if ($condicion->forma_pago_id) {
@@ -247,9 +257,11 @@ class WizardPromocion extends Component
                     break;
                 case 'por_total_compra':
                     $this->montoMinimo = $condicion->monto_minimo;
+                    $this->montoMaximo = $condicion->monto_maximo;
                     break;
                 case 'por_cantidad':
                     $this->cantidadMinima = $condicion->cantidad_minima;
+                    $this->cantidadMaxima = $condicion->cantidad_maxima;
                     break;
             }
         }
@@ -987,8 +999,11 @@ class WizardPromocion extends Component
                 ->pluck('forma_pago_id')->filter()->values()->toArray();
             $condicionMontoMinimo = $condiciones->firstWhere('tipo_condicion', 'por_total_compra');
             $condicionCantidadMinima = $condiciones->firstWhere('tipo_condicion', 'por_cantidad');
-            $condicionFormaVenta = $condiciones->firstWhere('tipo_condicion', 'por_forma_venta');
-            $condicionCanalVenta = $condiciones->firstWhere('tipo_condicion', 'por_canal');
+            // RF-T28: FV y canal múltiples (N filas → pluck, como FP).
+            $formasVentaIds = $condiciones->where('tipo_condicion', 'por_forma_venta')
+                ->pluck('forma_venta_id')->filter()->values()->toArray();
+            $canalesVentaIds = $condiciones->where('tipo_condicion', 'por_canal')
+                ->pluck('canal_venta_id')->filter()->values()->toArray();
 
             $todasPromociones[] = [
                 'id' => $promo->id,
@@ -1002,10 +1017,12 @@ class WizardPromocion extends Component
                 'articulos_ids' => $articulosIds,
                 'categorias_ids' => $categoriasIds,
                 'monto_minimo' => $condicionMontoMinimo?->monto_minimo,
+                'monto_maximo' => $condicionMontoMinimo?->monto_maximo,
                 'cantidad_minima' => $condicionCantidadMinima?->cantidad_minima,
+                'cantidad_maxima' => $condicionCantidadMinima?->cantidad_maxima,
                 'formas_pago_ids' => $formasPagoIds,
-                'forma_venta_id' => $condicionFormaVenta?->forma_venta_id,
-                'canal_venta_id' => $condicionCanalVenta?->canal_venta_id,
+                'formas_venta_ids' => $formasVentaIds,
+                'canales_venta_ids' => $canalesVentaIds,
             ];
         }
 
@@ -1022,10 +1039,12 @@ class WizardPromocion extends Component
             'articulos_ids' => $this->alcanceArticulos === 'seleccion' ? $this->articulosIds : [],
             'categorias_ids' => $this->alcanceArticulos === 'seleccion' ? $this->categoriasIds : [],
             'monto_minimo' => $this->montoMinimo,
+            'monto_maximo' => $this->montoMaximo,
             'cantidad_minima' => $this->cantidadMinima,
+            'cantidad_maxima' => $this->cantidadMaxima,
             'formas_pago_ids' => $this->formasPagoIds,
-            'forma_venta_id' => $this->formaVentaId,
-            'canal_venta_id' => $this->canalVentaId,
+            'formas_venta_ids' => $this->formasVentaIds,
+            'canales_venta_ids' => $this->canalesVentaIds,
         ];
 
         return $todasPromociones;
@@ -1151,9 +1170,23 @@ class WizardPromocion extends Component
             }
         }
 
+        // Monto máximo (RF-T29): NULL = sin tope.
+        if (($promo['monto_maximo'] ?? null) !== null) {
+            if ($contextoVenta['subtotal'] > (float) $promo['monto_maximo']) {
+                return false;
+            }
+        }
+
         // Verificar cantidad mínima
         if (! empty($promo['cantidad_minima'])) {
             if ($contextoVenta['cantidad_total'] < (float) $promo['cantidad_minima']) {
+                return false;
+            }
+        }
+
+        // Cantidad máxima (RF-T29)
+        if (($promo['cantidad_maxima'] ?? null) !== null) {
+            if ($contextoVenta['cantidad_total'] > (float) $promo['cantidad_maxima']) {
                 return false;
             }
         }
@@ -1169,24 +1202,18 @@ class WizardPromocion extends Component
             }
         }
 
-        // Verificar forma de venta
-        if (! empty($promo['forma_venta_id'])) {
-            if (! empty($contextoVenta['forma_venta_id'])) {
-                if ($promo['forma_venta_id'] != $contextoVenta['forma_venta_id']) {
-                    return false;
-                }
-            } else {
+        // Forma de venta (RF-T28, múltiples; fallback singular legado)
+        $formasVenta = $promo['formas_venta_ids'] ?? (! empty($promo['forma_venta_id']) ? [$promo['forma_venta_id']] : []);
+        if (! empty($formasVenta)) {
+            if (empty($contextoVenta['forma_venta_id']) || ! in_array((int) $contextoVenta['forma_venta_id'], array_map('intval', $formasVenta), true)) {
                 return false;
             }
         }
 
-        // Verificar canal de venta
-        if (! empty($promo['canal_venta_id'])) {
-            if (! empty($contextoVenta['canal_venta_id'])) {
-                if ($promo['canal_venta_id'] != $contextoVenta['canal_venta_id']) {
-                    return false;
-                }
-            } else {
+        // Canal de venta (RF-T28, múltiples)
+        $canales = $promo['canales_venta_ids'] ?? (! empty($promo['canal_venta_id']) ? [$promo['canal_venta_id']] : []);
+        if (! empty($canales)) {
+            if (empty($contextoVenta['canal_venta_id']) || ! in_array((int) $contextoVenta['canal_venta_id'], array_map('intval', $canales), true)) {
                 return false;
             }
         }
@@ -1401,22 +1428,24 @@ class WizardPromocion extends Component
             }
         }
 
-        // Verificar forma de venta
-        if (! empty($promo['forma_venta_id'])) {
+        // Forma de venta (RF-T28, múltiples; fallback singular legado)
+        $formasVenta = $promo['formas_venta_ids'] ?? (! empty($promo['forma_venta_id']) ? [$promo['forma_venta_id']] : []);
+        if (! empty($formasVenta)) {
             if (empty($contextoVenta['forma_venta_id'])) {
                 return __('Requiere forma de venta específica');
             }
-            if ($promo['forma_venta_id'] != $contextoVenta['forma_venta_id']) {
+            if (! in_array((int) $contextoVenta['forma_venta_id'], array_map('intval', $formasVenta), true)) {
                 return __('No aplica a esta forma de venta');
             }
         }
 
-        // Verificar canal de venta
-        if (! empty($promo['canal_venta_id'])) {
+        // Canal de venta (RF-T28, múltiples)
+        $canales = $promo['canales_venta_ids'] ?? (! empty($promo['canal_venta_id']) ? [$promo['canal_venta_id']] : []);
+        if (! empty($canales)) {
             if (empty($contextoVenta['canal_venta_id'])) {
                 return __('Requiere canal de venta específico');
             }
-            if ($promo['canal_venta_id'] != $contextoVenta['canal_venta_id']) {
+            if (! in_array((int) $contextoVenta['canal_venta_id'], array_map('intval', $canales), true)) {
                 return __('No aplica a este canal de venta');
             }
         }
@@ -1431,6 +1460,11 @@ class WizardPromocion extends Component
             }
         }
 
+        // Monto máximo (RF-T29)
+        if (($promo['monto_maximo'] ?? null) !== null && $contextoVenta['subtotal'] > (float) $promo['monto_maximo']) {
+            return __('Monto máximo superado (tope $:tope)', ['tope' => number_format((float) $promo['monto_maximo'], 0, ',', '.')]);
+        }
+
         // Verificar cantidad mínima
         if (! empty($promo['cantidad_minima'])) {
             $cantidadMinima = (float) $promo['cantidad_minima'];
@@ -1439,6 +1473,11 @@ class WizardPromocion extends Component
 
                 return __('Cantidad mínima no alcanzada (faltan :faltante unidades)', ['faltante' => $faltante]);
             }
+        }
+
+        // Cantidad máxima (RF-T29)
+        if (($promo['cantidad_maxima'] ?? null) !== null && $contextoVenta['cantidad_total'] > (float) $promo['cantidad_maxima']) {
+            return __('Cantidad máxima superada (tope :tope unidades)', ['tope' => (float) $promo['cantidad_maxima']]);
         }
 
         // Verificar si aplica a algún artículo
@@ -1646,11 +1685,12 @@ class WizardPromocion extends Component
             $this->simuladorSucursalId = $this->sucursalesSeleccionadas[0];
         }
         // Inicializar con los valores de restricciones si están definidos
-        if (empty($this->simuladorFormaVentaId) && $this->formaVentaId) {
-            $this->simuladorFormaVentaId = $this->formaVentaId;
+        // (RF-T28: múltiples ⇒ el simulador precarga la primera).
+        if (empty($this->simuladorFormaVentaId) && ! empty($this->formasVentaIds)) {
+            $this->simuladorFormaVentaId = $this->formasVentaIds[0];
         }
-        if (empty($this->simuladorCanalVentaId) && $this->canalVentaId) {
-            $this->simuladorCanalVentaId = $this->canalVentaId;
+        if (empty($this->simuladorCanalVentaId) && ! empty($this->canalesVentaIds)) {
+            $this->simuladorCanalVentaId = $this->canalesVentaIds[0];
         }
         if (empty($this->simuladorFormaPagoId) && ! empty($this->formasPagoIds)) {
             $this->simuladorFormaPagoId = $this->formasPagoIds[0];
@@ -1941,19 +1981,21 @@ class WizardPromocion extends Component
             ]);
         }
 
-        if ($this->formaVentaId) {
+        // RF-T28: FV y canal múltiples — una fila por selección (patrón FP).
+        // La evaluación agrupa por tipo con OR intra-tipo.
+        foreach ($this->formasVentaIds as $fvId) {
             PromocionCondicion::create([
                 'promocion_id' => $promocion->id,
                 'tipo_condicion' => 'por_forma_venta',
-                'forma_venta_id' => $this->formaVentaId,
+                'forma_venta_id' => $fvId,
             ]);
         }
 
-        if ($this->canalVentaId) {
+        foreach ($this->canalesVentaIds as $canalId) {
             PromocionCondicion::create([
                 'promocion_id' => $promocion->id,
                 'tipo_condicion' => 'por_canal',
-                'canal_venta_id' => $this->canalVentaId,
+                'canal_venta_id' => $canalId,
             ]);
         }
 
@@ -1965,19 +2007,22 @@ class WizardPromocion extends Component
             ]);
         }
 
-        if ($this->montoMinimo) {
+        // RF-T29: mínimo y máximo como RANGO en la MISMA fila.
+        if ($this->montoMinimo || $this->montoMaximo) {
             PromocionCondicion::create([
                 'promocion_id' => $promocion->id,
                 'tipo_condicion' => 'por_total_compra',
-                'monto_minimo' => $this->montoMinimo,
+                'monto_minimo' => $this->montoMinimo ?: null,
+                'monto_maximo' => $this->montoMaximo ?: null,
             ]);
         }
 
-        if ($this->cantidadMinima) {
+        if ($this->cantidadMinima || $this->cantidadMaxima) {
             PromocionCondicion::create([
                 'promocion_id' => $promocion->id,
                 'tipo_condicion' => 'por_cantidad',
-                'cantidad_minima' => $this->cantidadMinima,
+                'cantidad_minima' => $this->cantidadMinima ?: null,
+                'cantidad_maxima' => $this->cantidadMaxima ?: null,
             ]);
         }
     }

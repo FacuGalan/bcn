@@ -787,16 +787,19 @@ trait WithCalculoVenta
 
     protected function promocionEspecialCumpleCondiciones($promo, array $contexto): bool
     {
-        // Verificar forma de venta (si la promo requiere una específica)
-        if ($promo->forma_venta_id) {
-            if (empty($contexto['forma_venta_id']) || $promo->forma_venta_id != $contexto['forma_venta_id']) {
+        // Forma de venta (RF-T28, múltiples): plural con fallback singular
+        // (helpers del modelo); el valor del contexto debe estar en la lista.
+        $formasVenta = $promo->formasVentaIds();
+        if ($formasVenta !== []) {
+            if (empty($contexto['forma_venta_id']) || ! in_array((int) $contexto['forma_venta_id'], $formasVenta, true)) {
                 return false;
             }
         }
 
-        // Verificar canal de venta
-        if ($promo->canal_venta_id) {
-            if (empty($contexto['canal_venta_id']) || $promo->canal_venta_id != $contexto['canal_venta_id']) {
+        // Canal de venta (RF-T28, múltiples)
+        $canales = $promo->canalesVentaIds();
+        if ($canales !== []) {
+            if (empty($contexto['canal_venta_id']) || ! in_array((int) $contexto['canal_venta_id'], $canales, true)) {
                 return false;
             }
         }
@@ -1408,8 +1411,12 @@ trait WithCalculoVenta
         $condicionCantidadMinima = $condiciones->firstWhere('tipo_condicion', 'por_cantidad');
         $formasPagoIds = $condiciones->where('tipo_condicion', 'por_forma_pago')
             ->pluck('forma_pago_id')->filter()->values()->toArray();
-        $condicionFormaVenta = $condiciones->firstWhere('tipo_condicion', 'por_forma_venta');
-        $condicionCanalVenta = $condiciones->firstWhere('tipo_condicion', 'por_canal');
+        // RF-T28: FV y canal son N filas (múltiples) — pluck como FP, no
+        // firstWhere (que se quedaba con una sola).
+        $formasVentaIds = $condiciones->where('tipo_condicion', 'por_forma_venta')
+            ->pluck('forma_venta_id')->filter()->values()->toArray();
+        $canalesVentaIds = $condiciones->where('tipo_condicion', 'por_canal')
+            ->pluck('canal_venta_id')->filter()->values()->toArray();
 
         return [
             'id' => $promo->id,
@@ -1422,10 +1429,16 @@ trait WithCalculoVenta
             'articulos_ids' => $articulosIds,
             'categorias_ids' => $categoriasIds,
             'monto_minimo' => $condicionMontoMinimo?->monto_minimo,
+            // RF-T29: rango — máximos en la MISMA fila que el mínimo.
+            'monto_maximo' => $condicionMontoMinimo?->monto_maximo,
             'cantidad_minima' => $condicionCantidadMinima?->cantidad_minima,
+            'cantidad_maxima' => $condicionCantidadMinima?->cantidad_maxima,
             'formas_pago_ids' => $formasPagoIds,
-            'forma_venta_id' => $condicionFormaVenta?->forma_venta_id,
-            'canal_venta_id' => $condicionCanalVenta?->canal_venta_id,
+            'formas_venta_ids' => $formasVentaIds,
+            'canales_venta_ids' => $canalesVentaIds,
+            // Singulares legados: primer elemento (consumidores viejos).
+            'forma_venta_id' => $formasVentaIds[0] ?? null,
+            'canal_venta_id' => $canalesVentaIds[0] ?? null,
             'dias_semana' => $promo->dias_semana,
             'hora_desde' => $promo->hora_desde,
             'hora_hasta' => $promo->hora_hasta,
@@ -1444,9 +1457,24 @@ trait WithCalculoVenta
             }
         }
 
+        // Monto máximo (RF-T29): NULL = sin tope. Comparar con !== null (no
+        // empty): un tope de 0 sería un valor válido.
+        if (($promo['monto_maximo'] ?? null) !== null) {
+            if (($contexto['subtotal'] ?? 0) > (float) $promo['monto_maximo']) {
+                return false;
+            }
+        }
+
         // Verificar cantidad mínima
         if (! empty($promo['cantidad_minima'])) {
             if (($contexto['cantidad_total'] ?? 0) < (float) $promo['cantidad_minima']) {
+                return false;
+            }
+        }
+
+        // Cantidad máxima (RF-T29)
+        if (($promo['cantidad_maxima'] ?? null) !== null) {
+            if (($contexto['cantidad_total'] ?? 0) > (float) $promo['cantidad_maxima']) {
                 return false;
             }
         }
@@ -1460,24 +1488,20 @@ trait WithCalculoVenta
             }
         }
 
-        // Verificar forma de venta
-        if (! empty($promo['forma_venta_id'])) {
-            if (! empty($contexto['forma_venta_id'])) {
-                if ($promo['forma_venta_id'] != $contexto['forma_venta_id']) {
-                    return false;
-                }
-            } else {
+        // Forma de venta (RF-T28, múltiples): el valor del contexto (uno
+        // solo) tiene que estar en la lista permitida. Fallback al singular
+        // legado para arrays armados por consumidores viejos.
+        $formasVenta = $promo['formas_venta_ids'] ?? (! empty($promo['forma_venta_id']) ? [$promo['forma_venta_id']] : []);
+        if (! empty($formasVenta)) {
+            if (empty($contexto['forma_venta_id']) || ! in_array((int) $contexto['forma_venta_id'], array_map('intval', $formasVenta), true)) {
                 return false;
             }
         }
 
-        // Verificar canal de venta
-        if (! empty($promo['canal_venta_id'])) {
-            if (! empty($contexto['canal_venta_id'])) {
-                if ($promo['canal_venta_id'] != $contexto['canal_venta_id']) {
-                    return false;
-                }
-            } else {
+        // Canal de venta (RF-T28, múltiples)
+        $canales = $promo['canales_venta_ids'] ?? (! empty($promo['canal_venta_id']) ? [$promo['canal_venta_id']] : []);
+        if (! empty($canales)) {
+            if (empty($contexto['canal_venta_id']) || ! in_array((int) $contexto['canal_venta_id'], array_map('intval', $canales), true)) {
                 return false;
             }
         }

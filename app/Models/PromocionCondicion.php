@@ -56,12 +56,19 @@ class PromocionCondicion extends Model
         'forma_venta_id',
         'canal_venta_id',
         'cantidad_minima',
+        'cantidad_maxima',
         'monto_minimo',
+        'monto_maximo',
     ];
 
     protected $casts = [
-        'cantidad_minima' => 'integer',
+        // decimal:3 (no integer): la columna es decimal(12,3) — permite
+        // cantidades fraccionadas (kg). RF-T29: los máximos son RANGO en la
+        // misma fila que el mínimo; NULL = sin tope.
+        'cantidad_minima' => 'decimal:3',
+        'cantidad_maxima' => 'decimal:3',
         'monto_minimo' => 'decimal:2',
+        'monto_maximo' => 'decimal:2',
     ];
 
     // ==================== Relaciones ====================
@@ -202,12 +209,16 @@ class PromocionCondicion extends Model
                     && $contexto['canal_venta_id'] == $this->canal_venta_id;
 
             case 'por_cantidad':
+                // RANGO (RF-T29): mínimo y máximo viven en la MISMA fila.
+                // Máximo NULL = sin tope (retrocompat con filas existentes).
                 return isset($contexto['cantidad'])
-                    && $contexto['cantidad'] >= ($this->cantidad_minima ?? 0);
+                    && $contexto['cantidad'] >= ($this->cantidad_minima ?? 0)
+                    && ($this->cantidad_maxima === null || $contexto['cantidad'] <= (float) $this->cantidad_maxima);
 
             case 'por_total_compra':
                 return isset($contexto['total'])
-                    && $contexto['total'] >= ($this->monto_minimo ?? 0);
+                    && $contexto['total'] >= ($this->monto_minimo ?? 0)
+                    && ($this->monto_maximo === null || $contexto['total'] <= (float) $this->monto_maximo);
 
             default:
                 return false;
@@ -236,9 +247,27 @@ class PromocionCondicion extends Model
                 return 'Canal: '.($this->canalVenta->nombre ?? "ID {$this->canal_venta_id}");
 
             case 'por_cantidad':
-                return "Cantidad mínima: {$this->cantidad_minima}";
+                // Rango legible (RF-T29): min, max o ambos. Sin ceros de
+                // relleno del decimal(12,3): "2", no "2.000".
+                $min = $this->cantidad_minima !== null ? rtrim(rtrim(number_format((float) $this->cantidad_minima, 3, '.', ''), '0'), '.') : null;
+                $max = $this->cantidad_maxima !== null ? rtrim(rtrim(number_format((float) $this->cantidad_maxima, 3, '.', ''), '0'), '.') : null;
+                if ($min !== null && $max !== null) {
+                    return "Cantidad: entre {$min} y {$max}";
+                }
+                if ($max !== null) {
+                    return "Cantidad máxima: {$max}";
+                }
+
+                return "Cantidad mínima: {$min}";
 
             case 'por_total_compra':
+                if ($this->monto_minimo !== null && $this->monto_maximo !== null) {
+                    return 'Total: entre $'.number_format($this->monto_minimo, 2).' y $'.number_format($this->monto_maximo, 2);
+                }
+                if ($this->monto_maximo !== null) {
+                    return 'Total máximo: $'.number_format($this->monto_maximo, 2);
+                }
+
                 return 'Total mínimo: $'.number_format($this->monto_minimo, 2);
 
             default:
