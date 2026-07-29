@@ -158,12 +158,15 @@ class ApiV1DeliveryTest extends TestCase
         $articuloSinPromo = collect($respuesta->json('data.articulos'))->firstWhere('id', $sinPromo->id);
         $this->assertNull($articuloSinPromo['precio_lista']);
 
-        // Genéricas: por monto + combo especial; nunca la directa, la de cupón
-        // ni la de otro día.
-        $nombres = collect($respuesta->json('data.promociones_genericas'))->pluck('nombre');
+        // Genéricas: por monto + combo especial + la directa por artículo
+        // (2026-07-29: se muestra en la historia de promos con su alcance
+        // como condición legible); nunca la de cupón ni la de otro día.
+        $promos = collect($respuesta->json('data.promociones_genericas'));
+        $nombres = $promos->pluck('nombre');
         $this->assertTrue($nombres->contains('Descuento por compra grande'));
         $this->assertTrue($nombres->contains('Combo Familiar'));
-        $this->assertFalse($nombres->contains('Directa 10%'));
+        $this->assertTrue($nombres->contains('Directa 10%'));
+        $this->assertContains('Artículo: '.$conPromo->nombre, $promos->firstWhere('nombre', 'Directa 10%')['condiciones']);
         $this->assertFalse($nombres->contains('Secreta con cupon'));
         $this->assertFalse($nombres->contains('Solo otro dia'));
     }
@@ -192,12 +195,13 @@ class ApiV1DeliveryTest extends TestCase
             'prioridad' => 1, 'activo' => true, 'usos_actuales' => 0,
         ]);
 
-        // NxM 3x2.
+        // NxM 3x2 sobre un artículo puntual: el alcance sale como condición.
+        $articuloNxm = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
         \App\Models\PromocionEspecial::create([
             'sucursal_id' => $this->sucursalId, 'nombre' => 'Tres por Dos',
             'tipo' => \App\Models\PromocionEspecial::TIPO_NXM,
             'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
-            'nxm_lleva' => 3, 'nxm_paga' => 2,
+            'nxm_lleva' => 3, 'nxm_paga' => 2, 'nxm_articulo_id' => $articuloNxm->id,
             'prioridad' => 3, 'activo' => true, 'usos_actuales' => 0,
         ]);
 
@@ -215,6 +219,8 @@ class ApiV1DeliveryTest extends TestCase
         $tresPorDos = $promos->firstWhere('nombre', 'Tres por Dos');
         $this->assertNull($tresPorDos['precio_fijo']);
         $this->assertContains('Llevás 3, pagás 2', $tresPorDos['condiciones']);
+        // Alcance del NxM (2026-07-29): a qué artículo(s) aplica.
+        $this->assertContains('Aplica a: '.$articuloNxm->nombre, $tresPorDos['condiciones']);
     }
 
     public function test_catalogo_expone_galeria_y_badges_rf_t14(): void
