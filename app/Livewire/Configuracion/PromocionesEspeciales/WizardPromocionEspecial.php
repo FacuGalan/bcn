@@ -124,9 +124,10 @@ class WizardPromocionEspecial extends Component
 
     public $horaHasta = null;
 
-    public $formaVentaId = null;
+    // RF-T28: FV y canal MÚLTIPLES (patrón formasPagoIds); vacío = todas/os.
+    public array $formasVentaIds = [];
 
-    public $canalVentaId = null;
+    public array $canalesVentaIds = [];
 
     public array $formasPagoIds = [];
 
@@ -345,9 +346,10 @@ class WizardPromocionEspecial extends Component
         $this->diasSemana = $promo->dias_semana ?? [];
         $this->horaDesde = $promo->hora_desde;
         $this->horaHasta = $promo->hora_hasta;
-        $this->formaVentaId = $promo->forma_venta_id;
-        $this->canalVentaId = $promo->canal_venta_id;
-        $this->formasPagoIds = array_map('intval', $promo->formas_pago_ids ?? ($promo->forma_pago_id ? [$promo->forma_pago_id] : []));
+        // RF-T28: plural con fallback singular (helpers del modelo).
+        $this->formasVentaIds = $promo->formasVentaIds();
+        $this->canalesVentaIds = $promo->canalesVentaIds();
+        $this->formasPagoIds = $promo->formasPagoIds();
         $this->usosMaximos = $promo->usos_maximos;
     }
 
@@ -1281,8 +1283,13 @@ class WizardPromocionEspecial extends Component
                 'dias_semana' => ! empty($this->diasSemana) ? $this->diasSemana : null,
                 'hora_desde' => $this->horaDesde,
                 'hora_hasta' => $this->horaHasta,
-                'forma_venta_id' => $this->formaVentaId,
-                'canal_venta_id' => $this->canalVentaId,
+                // RF-T28: doble escritura plural+singular (singular = 1er
+                // elemento, para consumidores legados). ¡null, no []!: un []
+                // guardado rompe el fallback `??` al singular.
+                'forma_venta_id' => ! empty($this->formasVentaIds) ? $this->formasVentaIds[0] : null,
+                'formas_venta_ids' => ! empty($this->formasVentaIds) ? $this->formasVentaIds : null,
+                'canal_venta_id' => ! empty($this->canalesVentaIds) ? $this->canalesVentaIds[0] : null,
+                'canales_venta_ids' => ! empty($this->canalesVentaIds) ? $this->canalesVentaIds : null,
                 'forma_pago_id' => ! empty($this->formasPagoIds) ? $this->formasPagoIds[0] : null,
                 'formas_pago_ids' => ! empty($this->formasPagoIds) ? $this->formasPagoIds : null,
                 'usos_maximos' => $this->usosMaximos,
@@ -1323,8 +1330,11 @@ class WizardPromocionEspecial extends Component
             'dias_semana' => ! empty($this->diasSemana) ? $this->diasSemana : null,
             'hora_desde' => $this->horaDesde,
             'hora_hasta' => $this->horaHasta,
-            'forma_venta_id' => $this->formaVentaId,
-            'canal_venta_id' => $this->canalVentaId,
+            // RF-T28: doble escritura plural+singular (ver crear).
+            'forma_venta_id' => ! empty($this->formasVentaIds) ? $this->formasVentaIds[0] : null,
+            'formas_venta_ids' => ! empty($this->formasVentaIds) ? $this->formasVentaIds : null,
+            'canal_venta_id' => ! empty($this->canalesVentaIds) ? $this->canalesVentaIds[0] : null,
+            'canales_venta_ids' => ! empty($this->canalesVentaIds) ? $this->canalesVentaIds : null,
             'forma_pago_id' => ! empty($this->formasPagoIds) ? $this->formasPagoIds[0] : null,
             'formas_pago_ids' => ! empty($this->formasPagoIds) ? $this->formasPagoIds : null,
             'usos_maximos' => $this->usosMaximos,
@@ -2110,10 +2120,10 @@ class WizardPromocionEspecial extends Component
                     'precio' => $a->precio_base,
                 ])->toArray(),
             ])->toArray(),
-            // Condiciones
-            'forma_venta_id' => $promo->forma_venta_id,
-            'canal_venta_id' => $promo->canal_venta_id,
-            'formas_pago_ids' => $promo->formas_pago_ids ?? ($promo->forma_pago_id ? [$promo->forma_pago_id] : []),
+            // Condiciones (RF-T28: plurales con fallback via helpers)
+            'formas_venta_ids' => $promo->formasVentaIds(),
+            'canales_venta_ids' => $promo->canalesVentaIds(),
+            'formas_pago_ids' => $promo->formasPagoIds(),
             'nxm_articulos_ids' => $promo->nxm_articulos_ids ?? ($promo->nxm_articulo_id ? [$promo->nxm_articulo_id] : []),
             'nxm_categorias_ids' => $promo->nxm_categorias_ids ?? ($promo->nxm_categoria_id ? [$promo->nxm_categoria_id] : []),
             'vigencia_desde' => $promo->vigencia_desde,
@@ -2186,9 +2196,9 @@ class WizardPromocionEspecial extends Component
             'precio_tipo' => $this->precioTipo,
             'precio_valor' => $this->precioValor,
             'grupos' => $gruposArray,
-            // Condiciones
-            'forma_venta_id' => $this->formaVentaId,
-            'canal_venta_id' => $this->canalVentaId,
+            // Condiciones (RF-T28: múltiples)
+            'formas_venta_ids' => $this->formasVentaIds,
+            'canales_venta_ids' => $this->canalesVentaIds,
             'formas_pago_ids' => $this->formasPagoIds,
             'vigencia_desde' => $this->vigenciaDesde,
             'vigencia_hasta' => $this->vigenciaHasta,
@@ -2203,13 +2213,17 @@ class WizardPromocionEspecial extends Component
      */
     protected function promocionCumpleCondiciones(array $promo, array $contexto): bool
     {
-        // Verificar forma de venta
-        if ($promo['forma_venta_id'] && $contexto['forma_venta_id'] && $promo['forma_venta_id'] != $contexto['forma_venta_id']) {
+        // Forma de venta (RF-T28, múltiples; fallback singular legado)
+        $formasVenta = $promo['formas_venta_ids'] ?? (! empty($promo['forma_venta_id']) ? [$promo['forma_venta_id']] : []);
+        if (! empty($formasVenta) && ! empty($contexto['forma_venta_id'])
+            && ! in_array((int) $contexto['forma_venta_id'], array_map('intval', $formasVenta), true)) {
             return false;
         }
 
-        // Verificar canal de venta
-        if ($promo['canal_venta_id'] && $contexto['canal_venta_id'] && $promo['canal_venta_id'] != $contexto['canal_venta_id']) {
+        // Canal de venta (RF-T28, múltiples)
+        $canales = $promo['canales_venta_ids'] ?? (! empty($promo['canal_venta_id']) ? [$promo['canal_venta_id']] : []);
+        if (! empty($canales) && ! empty($contexto['canal_venta_id'])
+            && ! in_array((int) $contexto['canal_venta_id'], array_map('intval', $canales), true)) {
             return false;
         }
 

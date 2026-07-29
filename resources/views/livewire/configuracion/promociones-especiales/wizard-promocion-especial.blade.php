@@ -886,25 +886,42 @@
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            {{-- RF-T28: FV y canal MÚLTIPLES (mismo patrón que formas de pago) --}}
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Forma de venta') }}</label>
-                                <select wire:model="formaVentaId"
-                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                    <option value="">{{ __('Todas') }}</option>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                    {{ __('Formas de venta') }}
+                                    @if(count($formasVentaIds) > 0)
+                                        <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">{{ count($formasVentaIds) }}</span>
+                                    @else
+                                        <span class="text-xs text-gray-400 dark:text-gray-500 font-normal">({{ __('todas') }})</span>
+                                    @endif
+                                </label>
+                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg max-h-32 overflow-y-auto bg-white dark:bg-gray-800">
                                     @foreach($formasVenta as $fv)
-                                        <option value="{{ $fv->id }}">{{ $fv->nombre }}</option>
+                                        <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                            <input type="checkbox" wire:model.live="formasVentaIds" value="{{ $fv->id }}" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600">
+                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ $fv->nombre }}</span>
+                                        </label>
                                     @endforeach
-                                </select>
+                                </div>
                             </div>
                             <div>
-                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">{{ __('Canal de venta') }}</label>
-                                <select wire:model="canalVentaId"
-                                        class="w-full rounded-lg border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white shadow-sm text-sm focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
-                                    <option value="">{{ __('Todos') }}</option>
+                                <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
+                                    {{ __('Canales de venta') }}
+                                    @if(count($canalesVentaIds) > 0)
+                                        <span class="ml-1 px-1.5 py-0.5 bg-bcn-primary/10 text-bcn-primary text-xs rounded-full">{{ count($canalesVentaIds) }}</span>
+                                    @else
+                                        <span class="text-xs text-gray-400 dark:text-gray-500 font-normal">({{ __('todos') }})</span>
+                                    @endif
+                                </label>
+                                <div class="border border-gray-300 dark:border-gray-600 rounded-lg max-h-32 overflow-y-auto bg-white dark:bg-gray-800">
                                     @foreach($canalesVenta as $cv)
-                                        <option value="{{ $cv->id }}">{{ $cv->nombre }}</option>
+                                        <label class="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                                            <input type="checkbox" wire:model.live="canalesVentaIds" value="{{ $cv->id }}" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary dark:bg-gray-600">
+                                            <span class="text-sm text-gray-700 dark:text-gray-300">{{ $cv->nombre }}</span>
+                                        </label>
                                     @endforeach
-                                </select>
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">

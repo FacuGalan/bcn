@@ -611,8 +611,11 @@ class SimuladorVenta extends Component
             $condicionCantidadMinima = $condiciones->firstWhere('tipo_condicion', 'por_cantidad');
             $formasPagoIds = $condiciones->where('tipo_condicion', 'por_forma_pago')
                 ->pluck('forma_pago_id')->filter()->values()->toArray();
-            $condicionFormaVenta = $condiciones->firstWhere('tipo_condicion', 'por_forma_venta');
-            $condicionCanalVenta = $condiciones->firstWhere('tipo_condicion', 'por_canal');
+            // RF-T28: FV y canal múltiples (N filas → pluck, como FP).
+            $formasVentaIds = $condiciones->where('tipo_condicion', 'por_forma_venta')
+                ->pluck('forma_venta_id')->filter()->values()->toArray();
+            $canalesVentaIds = $condiciones->where('tipo_condicion', 'por_canal')
+                ->pluck('canal_venta_id')->filter()->values()->toArray();
 
             $todasPromociones[] = [
                 'id' => $promo->id,
@@ -626,10 +629,12 @@ class SimuladorVenta extends Component
                 'articulos_ids' => $articulosIds,
                 'categorias_ids' => $categoriasIds,
                 'monto_minimo' => $condicionMontoMinimo?->monto_minimo,
+                'monto_maximo' => $condicionMontoMinimo?->monto_maximo,
                 'cantidad_minima' => $condicionCantidadMinima?->cantidad_minima,
+                'cantidad_maxima' => $condicionCantidadMinima?->cantidad_maxima,
                 'formas_pago_ids' => $formasPagoIds,
-                'forma_venta_id' => $condicionFormaVenta?->forma_venta_id,
-                'canal_venta_id' => $condicionCanalVenta?->canal_venta_id,
+                'formas_venta_ids' => $formasVentaIds,
+                'canales_venta_ids' => $canalesVentaIds,
             ];
         }
 
@@ -647,10 +652,15 @@ class SimuladorVenta extends Component
                 'articulos_ids' => $this->promocionPreview['articulos_ids'] ?? [],
                 'categorias_ids' => $this->promocionPreview['categorias_ids'] ?? [],
                 'monto_minimo' => $this->promocionPreview['monto_minimo'] ?? null,
+                'monto_maximo' => $this->promocionPreview['monto_maximo'] ?? null,
                 'cantidad_minima' => $this->promocionPreview['cantidad_minima'] ?? null,
+                'cantidad_maxima' => $this->promocionPreview['cantidad_maxima'] ?? null,
                 'formas_pago_ids' => $this->promocionPreview['formas_pago_ids'] ?? [],
-                'forma_venta_id' => $this->promocionPreview['forma_venta_id'] ?? null,
-                'canal_venta_id' => $this->promocionPreview['canal_venta_id'] ?? null,
+                // RF-T28: plural con fallback al singular del preview legado.
+                'formas_venta_ids' => $this->promocionPreview['formas_venta_ids']
+                    ?? (! empty($this->promocionPreview['forma_venta_id']) ? [$this->promocionPreview['forma_venta_id']] : []),
+                'canales_venta_ids' => $this->promocionPreview['canales_venta_ids']
+                    ?? (! empty($this->promocionPreview['canal_venta_id']) ? [$this->promocionPreview['canal_venta_id']] : []),
             ];
         }
 
@@ -752,8 +762,22 @@ class SimuladorVenta extends Component
             }
         }
 
+        // Monto máximo (RF-T29): NULL = sin tope.
+        if (($promo['monto_maximo'] ?? null) !== null) {
+            if ($contextoVenta['subtotal'] > (float) $promo['monto_maximo']) {
+                return false;
+            }
+        }
+
         if (! empty($promo['cantidad_minima'])) {
             if ($contextoVenta['cantidad_total'] < (float) $promo['cantidad_minima']) {
+                return false;
+            }
+        }
+
+        // Cantidad máxima (RF-T29)
+        if (($promo['cantidad_maxima'] ?? null) !== null) {
+            if ($contextoVenta['cantidad_total'] > (float) $promo['cantidad_maxima']) {
                 return false;
             }
         }
@@ -768,22 +792,18 @@ class SimuladorVenta extends Component
             }
         }
 
-        if (! empty($promo['forma_venta_id'])) {
-            if (! empty($contextoVenta['forma_venta_id'])) {
-                if ($promo['forma_venta_id'] != $contextoVenta['forma_venta_id']) {
-                    return false;
-                }
-            } else {
+        // Forma de venta (RF-T28, múltiples; fallback singular legado)
+        $formasVenta = $promo['formas_venta_ids'] ?? (! empty($promo['forma_venta_id']) ? [$promo['forma_venta_id']] : []);
+        if (! empty($formasVenta)) {
+            if (empty($contextoVenta['forma_venta_id']) || ! in_array((int) $contextoVenta['forma_venta_id'], array_map('intval', $formasVenta), true)) {
                 return false;
             }
         }
 
-        if (! empty($promo['canal_venta_id'])) {
-            if (! empty($contextoVenta['canal_venta_id'])) {
-                if ($promo['canal_venta_id'] != $contextoVenta['canal_venta_id']) {
-                    return false;
-                }
-            } else {
+        // Canal de venta (RF-T28, múltiples)
+        $canales = $promo['canales_venta_ids'] ?? (! empty($promo['canal_venta_id']) ? [$promo['canal_venta_id']] : []);
+        if (! empty($canales)) {
+            if (empty($contextoVenta['canal_venta_id']) || ! in_array((int) $contextoVenta['canal_venta_id'], array_map('intval', $canales), true)) {
                 return false;
             }
         }
@@ -976,20 +996,24 @@ class SimuladorVenta extends Component
             }
         }
 
-        if (! empty($promo['forma_venta_id'])) {
+        // Forma de venta (RF-T28, múltiples; fallback singular legado)
+        $formasVenta = $promo['formas_venta_ids'] ?? (! empty($promo['forma_venta_id']) ? [$promo['forma_venta_id']] : []);
+        if (! empty($formasVenta)) {
             if (empty($contextoVenta['forma_venta_id'])) {
                 return __('Requiere forma de venta específica');
             }
-            if ($promo['forma_venta_id'] != $contextoVenta['forma_venta_id']) {
+            if (! in_array((int) $contextoVenta['forma_venta_id'], array_map('intval', $formasVenta), true)) {
                 return __('No aplica a esta forma de venta');
             }
         }
 
-        if (! empty($promo['canal_venta_id'])) {
+        // Canal de venta (RF-T28, múltiples)
+        $canales = $promo['canales_venta_ids'] ?? (! empty($promo['canal_venta_id']) ? [$promo['canal_venta_id']] : []);
+        if (! empty($canales)) {
             if (empty($contextoVenta['canal_venta_id'])) {
                 return __('Requiere canal de venta específico');
             }
-            if ($promo['canal_venta_id'] != $contextoVenta['canal_venta_id']) {
+            if (! in_array((int) $contextoVenta['canal_venta_id'], array_map('intval', $canales), true)) {
                 return __('No aplica a este canal de venta');
             }
         }
@@ -1003,6 +1027,11 @@ class SimuladorVenta extends Component
             }
         }
 
+        // Monto máximo (RF-T29)
+        if (($promo['monto_maximo'] ?? null) !== null && $contextoVenta['subtotal'] > (float) $promo['monto_maximo']) {
+            return __('Monto máximo superado (tope $:tope)', ['tope' => number_format((float) $promo['monto_maximo'], 0, ',', '.')]);
+        }
+
         if (! empty($promo['cantidad_minima'])) {
             $cantidadMinima = (float) $promo['cantidad_minima'];
             if ($contextoVenta['cantidad_total'] < $cantidadMinima) {
@@ -1010,6 +1039,11 @@ class SimuladorVenta extends Component
 
                 return __('Cantidad mínima no alcanzada (faltan :faltante unidades)', ['faltante' => $faltante]);
             }
+        }
+
+        // Cantidad máxima (RF-T29)
+        if (($promo['cantidad_maxima'] ?? null) !== null && $contextoVenta['cantidad_total'] > (float) $promo['cantidad_maxima']) {
+            return __('Cantidad máxima superada (tope :tope unidades)', ['tope' => (float) $promo['cantidad_maxima']]);
         }
 
         $aplicaAlguno = false;

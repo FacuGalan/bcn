@@ -601,7 +601,12 @@ class PrecioService
     }
 
     /**
-     * Valida que se cumplan todas las condiciones de una promoción
+     * Valida las condiciones de una promoción: OR DENTRO de cada tipo, AND
+     * ENTRE tipos (RF-T28). Las restricciones múltiples (varias formas de
+     * pago / de venta / canales) se guardan como N filas del MISMO
+     * tipo_condicion: alcanza con que UNA se cumpla. El AND plano anterior
+     * exigía cumplirlas todas ⇒ una promo con 2+ FP jamás aplicaba por esta
+     * vía (bug que afectaba al catálogo de la tienda y pantalla pública).
      */
     private function validarCondicionesPromocion(Promocion $promocion, array $contexto): bool
     {
@@ -609,8 +614,8 @@ class PrecioService
             return true;
         }
 
-        foreach ($promocion->condiciones as $condicion) {
-            if (! $condicion->seCumple($contexto)) {
+        foreach ($promocion->condiciones->groupBy('tipo_condicion') as $grupo) {
+            if (! $grupo->contains(fn ($condicion) => $condicion->seCumple($contexto))) {
                 return false;
             }
         }

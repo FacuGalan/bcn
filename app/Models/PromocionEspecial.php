@@ -65,7 +65,9 @@ class PromocionEspecial extends Model
         'hora_desde',
         'hora_hasta',
         'forma_venta_id',
+        'formas_venta_ids',
         'canal_venta_id',
+        'canales_venta_ids',
         'forma_pago_id',
         'formas_pago_ids',
         'nxm_articulos_ids',
@@ -77,6 +79,8 @@ class PromocionEspecial extends Model
     protected $casts = [
         'activo' => 'boolean',
         'usa_escalas' => 'boolean',
+        'formas_venta_ids' => 'array',
+        'canales_venta_ids' => 'array',
         'formas_pago_ids' => 'array',
         'nxm_articulos_ids' => 'array',
         'nxm_categorias_ids' => 'array',
@@ -290,25 +294,53 @@ class PromocionEspecial extends Model
         return $this->usos_actuales < $this->usos_maximos;
     }
 
+    // ==================== Restricciones plurales (RF-T28) ====================
+    // Patrón canónico plural/singular del repo (igual que formas_pago_ids):
+    // el plural manda; sin plural, el singular legado como lista de uno;
+    // lista vacía = sin restricción ("todas"/"todos").
+
+    /** @return list<int> */
+    public function formasVentaIds(): array
+    {
+        return array_map('intval', $this->formas_venta_ids ?? ($this->forma_venta_id ? [$this->forma_venta_id] : []));
+    }
+
+    /** @return list<int> */
+    public function canalesVentaIds(): array
+    {
+        return array_map('intval', $this->canales_venta_ids ?? ($this->canal_venta_id ? [$this->canal_venta_id] : []));
+    }
+
+    /** @return list<int> */
+    public function formasPagoIds(): array
+    {
+        return array_map('intval', $this->formas_pago_ids ?? ($this->forma_pago_id ? [$this->forma_pago_id] : []));
+    }
+
     /**
-     * Verifica si cumple las condiciones de venta
+     * Verifica si cumple las condiciones de venta.
+     * FV/canal: el valor del contexto (uno solo) debe estar en la lista
+     * permitida (OR dentro del tipo) — RF-T28.
      */
     public function cumpleCondiciones(array $contexto): bool
     {
-        if ($this->forma_venta_id) {
-            if (empty($contexto['forma_venta_id']) || $contexto['forma_venta_id'] != $this->forma_venta_id) {
+        $formasVenta = $this->formasVentaIds();
+        if ($formasVenta !== []) {
+            if (empty($contexto['forma_venta_id']) || ! in_array((int) $contexto['forma_venta_id'], $formasVenta, true)) {
                 return false;
             }
         }
 
-        if ($this->canal_venta_id) {
-            if (empty($contexto['canal_venta_id']) || $contexto['canal_venta_id'] != $this->canal_venta_id) {
+        $canales = $this->canalesVentaIds();
+        if ($canales !== []) {
+            if (empty($contexto['canal_venta_id']) || ! in_array((int) $contexto['canal_venta_id'], $canales, true)) {
                 return false;
             }
         }
 
-        if ($this->forma_pago_id) {
-            if (empty($contexto['forma_pago_id']) || $contexto['forma_pago_id'] != $this->forma_pago_id) {
+        $formasPago = $this->formasPagoIds();
+        if ($formasPago !== []) {
+            if (empty($contexto['forma_pago_id']) || ! in_array((int) $contexto['forma_pago_id'], $formasPago, true)) {
                 return false;
             }
         }
