@@ -32,6 +32,7 @@ class ConfigController extends Controller
                 'costo_envio_base' => (float) $config['costo_envio_base'],
                 'costo_por_km_extra' => (float) $config['costo_por_km_extra'],
                 'km_incluidos_en_base' => (float) $config['km_incluidos_en_base'],
+                'delivery_habilitado' => (bool) ($config['delivery_habilitado'] ?? true),
                 'takeaway_habilitado' => (bool) $config['takeaway_habilitado'],
                 'exigir_repartidor' => (bool) $config['exigir_repartidor'],
                 'aceptacion_pedidos_externos' => $config['aceptacion_pedidos_externos'],

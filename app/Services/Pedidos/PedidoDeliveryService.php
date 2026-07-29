@@ -2807,14 +2807,17 @@ class PedidoDeliveryService
     protected function validarTipoContraSucursal(Sucursal $sucursal, string $tipo): void
     {
         if (! $sucursal->usa_delivery) {
-            throw new Exception('La sucursal no tiene habilitados los pedidos delivery/take-away');
+            throw new Exception('La sucursal no tiene habilitado el módulo de pedidos');
         }
 
-        if ($tipo === PedidoDelivery::TIPO_TAKE_AWAY) {
-            $config = $this->envioService->configDelivery($sucursal);
-            if (! $config['takeaway_habilitado']) {
-                throw new Exception('La sucursal no acepta pedidos take-away');
-            }
+        $config = $this->envioService->configDelivery($sucursal);
+
+        if ($tipo === PedidoDelivery::TIPO_DELIVERY && ! ($config['delivery_habilitado'] ?? true)) {
+            throw new Exception('La sucursal no acepta pedidos delivery');
+        }
+
+        if ($tipo === PedidoDelivery::TIPO_TAKE_AWAY && ! $config['takeaway_habilitado']) {
+            throw new Exception('La sucursal no acepta pedidos take-away');
         }
     }
 

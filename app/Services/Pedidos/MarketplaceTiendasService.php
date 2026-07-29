@@ -81,6 +81,9 @@ class MarketplaceTiendasService
                 'latitud' => $snapshot['latitud'],
                 'longitud' => $snapshot['longitud'],
                 'abierta_ahora' => $this->envioService->estaAbiertoSegunConfig($snapshot['config_calendario']),
+                // `?? true`: snapshots cacheados antes del deploy de RF-T30
+                // no traen la key (TTL ~5 min).
+                'delivery_habilitado' => (bool) ($snapshot['delivery_habilitado'] ?? true),
                 'takeaway_habilitado' => $snapshot['takeaway_habilitado'],
                 'alcance' => $card['alcance'],
                 'distancia_km' => $card['distancia_km'],
@@ -138,6 +141,7 @@ class MarketplaceTiendasService
                         'longitud' => $sucursal->longitud !== null ? (float) $sucursal->longitud : null,
                         'georreferenciada' => (bool) ($config['georreferenciar_pedidos'] ?? false),
                         'radio_entrega_km' => $config['radio_entrega_km'] ?? null,
+                        'delivery_habilitado' => (bool) ($config['delivery_habilitado'] ?? true),
                         'takeaway_habilitado' => (bool) ($config['takeaway_habilitado'] ?? true),
                         'config_calendario' => [
                             'dias_laborales' => $config['dias_laborales'] ?? null,

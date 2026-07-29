@@ -46,6 +46,7 @@ class TiendaController extends Controller
                 'latitud' => $sucursal->latitud !== null ? (float) $sucursal->latitud : null,
                 'longitud' => $sucursal->longitud !== null ? (float) $sucursal->longitud : null,
                 'abierta_ahora' => $envioService->estaAbierto($sucursal),
+                'delivery_habilitado' => (bool) ($config['delivery_habilitado'] ?? true),
                 'takeaway_habilitado' => (bool) ($config['takeaway_habilitado'] ?? true),
                 'georreferenciada' => (bool) ($config['georreferenciar_pedidos'] ?? false),
                 'radio_entrega_km' => $config['radio_entrega_km'],

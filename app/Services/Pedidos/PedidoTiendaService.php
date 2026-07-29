@@ -60,6 +60,10 @@ class PedidoTiendaService
             throw new Exception(__('La tienda está cerrada en este momento'));
         }
 
+        if ($tipo === PedidoDelivery::TIPO_DELIVERY && ! ($config['delivery_habilitado'] ?? true)) {
+            throw new Exception(__('El delivery está deshabilitado en esta sucursal'));
+        }
+
         if ($tipo === PedidoDelivery::TIPO_TAKE_AWAY && ! ($config['takeaway_habilitado'] ?? true)) {
             throw new Exception(__('El take-away está deshabilitado en esta sucursal'));
         }

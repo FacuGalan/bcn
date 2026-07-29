@@ -69,6 +69,9 @@ class ApiV1MarketplaceTest extends TestCase
         $this->assertNull($card['distancia_km']);
         $this->assertArrayHasKey('abierta_ahora', $card);
         $this->assertArrayHasKey('logo_url', $card);
+        // RF-T30: modalidades en la card (default true).
+        $this->assertTrue((bool) $card['delivery_habilitado']);
+        $this->assertTrue((bool) $card['takeaway_habilitado']);
     }
 
     public function test_logo_de_tienda_prima_sobre_pantalla_cliente(): void
