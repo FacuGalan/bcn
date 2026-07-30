@@ -791,7 +791,10 @@ class NuevoPedidoDelivery extends Component
             return;
         }
 
-        if ($value === PedidoDelivery::TIPO_DELIVERY && ! $this->deliveryHabilitado) {
+        // Solo flipear si hay a dónde ir: con ambas modalidades apagadas se
+        // deja el tipo como está (el service bloquea el alta) — flipear a
+        // una modalidad también apagada dejaba el selector sin botones.
+        if ($value === PedidoDelivery::TIPO_DELIVERY && ! $this->deliveryHabilitado && $this->takeawayHabilitado) {
             $this->tipo = PedidoDelivery::TIPO_TAKE_AWAY;
             $this->dispatch('toast-error', message: __('El delivery está deshabilitado en esta sucursal'));
 

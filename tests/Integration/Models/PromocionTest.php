@@ -290,6 +290,32 @@ class PromocionTest extends TestCase
         $this->assertFalse($validar->invoke($servicio, $promo, ['forma_pago_id' => $fp1->id, 'cantidad' => 1]));
     }
 
+    public function test_validar_condiciones_alcance_articulo_o_categoria_es_un_solo_grupo(): void
+    {
+        // Alcance mixto: artículo X + categoría Y (el wizard permite marcar
+        // ambos a la vez). Debe evaluarse como UN solo grupo OR — igual que
+        // WithCalculoVenta::promocionAplicaAItem — no como dos grupos en AND
+        // (que hacían que el catálogo de la tienda mostrara un precio
+        // distinto del que cobraba el carrito).
+        $articulo = $this->crearArticuloConStock($this->sucursalId);
+        $categoria = \App\Models\Categoria::create(['nombre' => 'Alcance OR '.uniqid(), 'activo' => true]);
+
+        $promo = $this->crearPromocion();
+        $promo->condiciones()->create(['tipo_condicion' => 'por_articulo', 'articulo_id' => $articulo->id]);
+        $promo->condiciones()->create(['tipo_condicion' => 'por_categoria', 'categoria_id' => $categoria->id]);
+        $promo->load('condiciones');
+
+        $validar = new \ReflectionMethod(\App\Services\PrecioService::class, 'validarCondicionesPromocion');
+        $servicio = app(\App\Services\PrecioService::class);
+
+        // El artículo del alcance, aunque NO pertenezca a la categoría ⇒ aplica.
+        $this->assertTrue($validar->invoke($servicio, $promo, ['articulo_id' => $articulo->id, 'categoria_id' => 999999]));
+        // Otro artículo de la categoría del alcance ⇒ aplica.
+        $this->assertTrue($validar->invoke($servicio, $promo, ['articulo_id' => 999999, 'categoria_id' => $categoria->id]));
+        // Fuera de ambos ⇒ no aplica.
+        $this->assertFalse($validar->invoke($servicio, $promo, ['articulo_id' => 999999, 'categoria_id' => 999999]));
+    }
+
     // ==================== RF-T28: especiales plurales ====================
 
     public function test_promocion_especial_evalua_formas_venta_plurales_con_fallback(): void

@@ -1,6 +1,11 @@
 # Tienda — Ronda Crossmap 2 (RF-T28..T36) - Especificación
 
-## Estado: APROBADO — Fases 1 (PR #183), 2 (PR #184) y 3 COMPLETAS — Fase 4 (tienda) PENDIENTE
+## Estado: IMPLEMENTADO — Fases 1-4 MERGEADAS (core #183/#184/#185, tienda #49) — Fase 5: verificado 2026-07-29, DEPLOY PENDIENTE
+
+> Verificación /sdd-verify 2026-07-29: suites completas core (1438 passed) y
+> tienda (193 passed) en verde sobre master; CI verde en los 4 PRs; matriz de
+> cumplimiento en el resumen de sesión. Ítems solo-visuales (fluidez del
+> plegado, radios full, animación del carrito) validados en vivo por Facu.
 
 > Escrita 2026-07-29 sobre 4 informes de exploración (promos core, panel tienda,
 > tienda pública, usa_delivery). APROBADA por Facu 2026-07-29: las 4 decisiones
@@ -361,13 +366,13 @@ La tienda (bcn-tienda) usa claves en español directo (sin archivos).
 3. Texto libre: labels + 5000 + rows.
 4. Badges categorías: migración 3 + saneador + UI grilla + API. Contrato .md.
 
-### Fase 4: Tienda — Consumo (RF-T31..T33, T35, T36 lado tienda + RF-T37) [PENDIENTE]
+### Fase 4: Tienda — Consumo (RF-T31..T33, T35, T36 lado tienda + RF-T37) [COMPLETO]
 1. Catálogo: títulos llamativos + wire:key + plegables + badges de categoría.
 2. Destacados: título + adorno. Radios clampeados. Texto en Información del
    comercio. Selector servicio con `delivery_habilitado`.
 3. Fix animación carrito. Contract tests/fixtures actualizados.
 
-### Fase 5: Verificación (/sdd-verify) + docs (@docs-sync) + deploy [PENDIENTE]
+### Fase 5: Verificación (/sdd-verify) + docs (@docs-sync) + deploy [VERIFICACIÓN OK — DEPLOY PENDIENTE]
 
 ---
 
@@ -388,3 +393,18 @@ La tienda (bcn-tienda) usa claves en español directo (sin archivos).
 - 2026-07-29: Historias pasan a persistencia INMEDIATA (rompe "se aplica al
   guardar" de la sección apariencia, pero eliminar/mover ya eran inmediatos y
   es el pedido explícito de Facu).
+- 2026-07-29 (revisión adversarial post-merge): fixes aplicados en PRs de
+  revisión (alcance artículo∪categoría como un solo OR en PrecioService,
+  simulador con máximos vaciados, guard de updatedTipo con ambas modalidades
+  apagadas, min≤max en wizard, restablecerTema conserva el título, hint de
+  "ninguna modalidad", simetría del tipo en el carrito de la tienda + guards
+  en setTipo/Checkout, clip del acordeón sin recortar el glow). DEUDA MENOR
+  anotada (no bloqueante): el simulador de especiales aprueba con contexto
+  vacío (los evaluadores reales rechazan); la invalidación del caché del
+  marketplace solo corre al publicar (cambios por tilde esperan el TTL ~5
+  min); `PedidoDeliveryService::actualizarPedido` no revalida modalidad si un
+  caller futuro cambia el tipo; un batch de historias con un archivo inválido
+  descarta también los válidos (patrón heredado de la galería RF-T14);
+  el auto-encendido escribe `usa_delivery` bajo `func.tienda.config`
+  (intencional: la tienda lo necesita); `TEMA_DEFAULT_CONTRATO` de bcn-tienda
+  es espejo PARCIAL del tema (solo los tokens que emiten CSS).
