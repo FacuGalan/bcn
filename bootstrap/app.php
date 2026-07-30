@@ -64,6 +64,9 @@ return Application::configure(basePath: dirname(__DIR__))
             [$status, $code] = match (true) {
                 $e instanceof \Illuminate\Validation\ValidationException => [422, 'validacion'],
                 $e instanceof \Illuminate\Auth\AuthenticationException => [401, 'no_autenticado'],
+                // RF-T40: cuenta sin verificar fuera de gracia — la tienda la
+                // distingue de sin_permiso para ofrecer reenviar/invitado.
+                $e instanceof \App\Exceptions\VerificacionRequeridaException => [403, 'verificacion_requerida'],
                 // AuthorizationException lanzada en middleware llega acá ya
                 // convertida en AccessDeniedHttpException: mismo código.
                 $e instanceof \Illuminate\Auth\Access\AuthorizationException,

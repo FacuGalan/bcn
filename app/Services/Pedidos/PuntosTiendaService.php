@@ -67,6 +67,42 @@ class PuntosTiendaService
     }
 
     /**
+     * RF-T47: valor de canje vigente si el programa está activo en la
+     * sucursal (null = la tienda no publica canje de artículos). El costo
+     * por artículo se deriva del precio del día con la regla del POS:
+     * ceil(precio / valor_punto_canje).
+     */
+    public function valorPuntoCanjeActivo(Sucursal $sucursal): ?float
+    {
+        if (! $this->puntos->isProgramaActivo((int) $sucursal->id)) {
+            return null;
+        }
+
+        $valor = (float) ($this->puntos->getConfiguracion()?->valor_punto_canje ?? 0);
+
+        return $valor > 0 ? $valor : null;
+    }
+
+    /**
+     * RF-T47: info con el saldo NETEADO de los puntos ya comprometidos en
+     * artículos canjeados — así el canje-pago (RF-T9) nunca promete puntos
+     * que los artículos ya usan.
+     */
+    public function infoNeta(array $info, int $puntosComprometidos): array
+    {
+        if ($puntosComprometidos <= 0 || ! ($info['activo'] ?? false)) {
+            return $info;
+        }
+
+        $info['saldo'] = max(0, (int) $info['saldo'] - $puntosComprometidos);
+        $info['saldo_en_pesos'] = round($info['saldo'] * (float) $info['valor_punto_canje'], 2);
+        $info['puede_canjear'] = (float) $info['valor_punto_canje'] > 0
+            && $info['saldo'] >= (int) $info['minimo_canje'];
+
+        return $info;
+    }
+
+    /**
      * Canje MÁXIMO aplicable sobre un total (RF-T9): [puntos usados, monto].
      * `null` si no corresponde canjear. Fórmula del panel:
      * puntos = ceil(monto / valor_punto_canje).

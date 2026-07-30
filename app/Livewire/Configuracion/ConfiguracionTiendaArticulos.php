@@ -86,6 +86,34 @@ class ConfiguracionTiendaArticulos extends Component
         $this->catalogoCambiado();
     }
 
+    // ==================== CANJE POR PUNTOS (RF-T47) ====================
+
+    /**
+     * Toggle "canjeable por puntos en la tienda" (pivot articulos_sucursales
+     * de ESTA sucursal). El costo en puntos no se configura acá: se deriva
+     * del precio del día (regla del POS, ceil(precio/valor_punto_canje)).
+     */
+    public function toggleCanjeTienda(int $articuloId): void
+    {
+        if (! $this->autorizado()) {
+            return;
+        }
+
+        $articulo = $this->articuloVisible($articuloId);
+        if (! $articulo) {
+            return;
+        }
+
+        $sucursalId = (int) $this->sucursalActual();
+        $pivot = $articulo->sucursales()->where('sucursales.id', $sucursalId)->first()?->pivot;
+
+        $articulo->sucursales()->updateExistingPivot($sucursalId, [
+            'canje_tienda' => ! (bool) ($pivot?->canje_tienda),
+        ]);
+
+        $this->catalogoCambiado();
+    }
+
     // ==================== EDITOR (GALERÍA + BADGES) ====================
 
     public function abrirEditor(int $articuloId): void
@@ -624,6 +652,8 @@ class ConfiguracionTiendaArticulos extends Component
     {
         $articulos = $this->queryVisibles()
             ->with('imagenesTienda')
+            // RF-T47: pivot de ESTA sucursal para pintar el toggle de canje.
+            ->with(['sucursales' => fn ($q) => $q->where('sucursales.id', (int) $this->sucursalActual())])
             ->orderBy('orden')
             ->orderBy('nombre')
             ->get();

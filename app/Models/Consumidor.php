@@ -20,6 +20,14 @@ class Consumidor extends Authenticatable
 {
     use HasApiTokens;
 
+    /**
+     * RF-T40: días de gracia para verificar el email. Vencidos, la cuenta
+     * queda RESTRINGIDA (no puede crear pedidos logueada) hasta verificar.
+     * No hay estado persistido: se computa de created_at + email_verified_at,
+     * así verificar des-restringe al instante.
+     */
+    public const DIAS_GRACIA_VERIFICACION = 7;
+
     protected $connection = 'config';
 
     protected $table = 'consumidores';
@@ -59,5 +67,21 @@ class Consumidor extends Authenticatable
         $mapping = $this->comercios()->where('comercio_id', $comercioId)->first();
 
         return $mapping?->cliente_id;
+    }
+
+    /** RF-T40: fecha límite para verificar el email (null si ya verificó). */
+    public function verificacionVenceEl(): ?\Illuminate\Support\Carbon
+    {
+        if ($this->email_verified_at !== null) {
+            return null;
+        }
+
+        return $this->created_at->copy()->addDays(self::DIAS_GRACIA_VERIFICACION);
+    }
+
+    /** RF-T40: venció la gracia sin verificar ⇒ pedidos logueados bloqueados. */
+    public function verificacionVencida(): bool
+    {
+        return $this->verificacionVenceEl()?->isPast() ?? false;
     }
 }

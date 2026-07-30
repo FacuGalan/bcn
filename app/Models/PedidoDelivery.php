@@ -295,6 +295,16 @@ class PedidoDelivery extends Model
         return $this->belongsTo(Cliente::class, 'cliente_id');
     }
 
+    /**
+     * Cuenta BCN detrás del pedido de tienda (RF-T43). El Consumidor vive en
+     * la BD config (cross-connection: el related define su conexión); null en
+     * pedidos de invitado o de otros orígenes.
+     */
+    public function consumidor(): BelongsTo
+    {
+        return $this->belongsTo(Consumidor::class, 'consumidor_id');
+    }
+
     public function caja(): BelongsTo
     {
         return $this->belongsTo(Caja::class, 'caja_id');

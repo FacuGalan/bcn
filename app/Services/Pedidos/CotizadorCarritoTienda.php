@@ -40,8 +40,11 @@ use Exception;
  * fuente única compartida con los componentes). `total_a_pagar` = total_final
  * + ajuste FP. Cuotas quedan fuera (pago contra entrega, sin financiación).
  *
- * Puntos: NO participan de la cotización pública v1 (requieren cliente
- * materializado y sesión de consumidor — proyecto tienda).
+ * Puntos: el canje como PAGO (RF-T9) se resuelve FUERA de este cotizador
+ * (controller/alta). El canje de ARTÍCULOS (RF-T47) sí entra acá: items con
+ * `canjear_con_puntos` se marcan pagado_con_puntos y el motor los resta del
+ * total (articulos_canjeados_monto) — el saldo lo valida el caller con
+ * puntosUsadosEnArticulos().
  */
 class CotizadorCarritoTienda
 {
@@ -474,6 +477,27 @@ class CotizadorCarritoTienda
         return $this->items;
     }
 
+    /**
+     * RF-T47: puntos comprometidos por los renglones canjeados de la última
+     * cotización (regla del POS: ceil(precio_unitario / valor_punto) por
+     * unidad). 0 sin canjes o sin valor de canje.
+     */
+    public function puntosUsadosEnArticulos(float $valorPunto): int
+    {
+        if ($valorPunto <= 0) {
+            return 0;
+        }
+
+        $total = 0;
+        foreach ($this->items as $item) {
+            if ($item['pagado_con_puntos'] ?? false) {
+                $total += (int) ceil((float) ($item['precio'] ?? 0) / $valorPunto) * (int) ($item['cantidad'] ?? 1);
+            }
+        }
+
+        return $total;
+    }
+
     // ==================== INTERNOS ====================
 
     protected function resolverFormaVentaId(string $tipo): ?int
@@ -522,6 +546,21 @@ class CotizadorCarritoTienda
         $cantidad = (float) ($input['cantidad'] ?? 1);
         if ($cantidad <= 0) {
             throw new Exception("Cantidad inválida para '{$articulo->nombre}'");
+        }
+
+        // RF-T47: renglón canjeado por puntos. Solo artículos con el toggle
+        // canje_tienda de ESTA sucursal; cantidad 1 y sin opcionales PAGOS
+        // (el costo en puntos se deriva del precio pelado — regla del POS;
+        // un opcional pago inflaría el canje). El saldo se valida después de
+        // cotizar (caller), con el valor de canje vigente.
+        $canjeado = ! empty($input['canjear_con_puntos']);
+        if ($canjeado) {
+            if (! ($pivot->canje_tienda ?? false)) {
+                throw new Exception("'{$articulo->nombre}' no se puede canjear por puntos en esta tienda");
+            }
+            if ($cantidad != 1) {
+                throw new Exception("El canje por puntos de '{$articulo->nombre}' es de a una unidad");
+            }
         }
 
         // Agotado (RF-17): visible pero NO pedible por la API.
@@ -598,6 +637,10 @@ class CotizadorCarritoTienda
             $opcionales = array_values($grupos);
         }
 
+        if ($canjeado && $precioOpcionales > 0) {
+            throw new Exception("El canje por puntos de '{$articulo->nombre}' no admite opcionales con precio");
+        }
+
         return [
             'articulo_id' => $articulo->id,
             'nombre' => $articulo->nombre,
@@ -622,7 +665,10 @@ class CotizadorCarritoTienda
             'opcionales' => $opcionales,
             'precio_opcionales' => round($precioOpcionales, 2),
             'puntos_canje' => $articulo->puntos_canje,
-            'pagado_con_puntos' => false,
+            // RF-T47: el motor compartido (WithCalculoVenta) resta estos
+            // renglones del total como articulos_canjeados_monto — mismo
+            // camino del POS/panel.
+            'pagado_con_puntos' => $canjeado,
         ];
     }
 

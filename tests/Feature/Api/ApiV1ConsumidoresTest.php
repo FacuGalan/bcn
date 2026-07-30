@@ -375,4 +375,150 @@ class ApiV1ConsumidoresTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.0.estado', PedidoDelivery::ESTADO_ENTREGADO);
     }
+
+    // ==================== RF-T39: EDITAR PERFIL ====================
+
+    public function test_actualizar_perfil_edita_datos_pero_no_email(): void
+    {
+        $consumidor = $this->crearConsumidor();
+        $emailOriginal = $consumidor->email;
+
+        $this->withHeaders($this->bearer($consumidor))
+            ->patchJson('/api/v1/consumidores/me', [
+                'nombre' => 'Nombre Nuevo',
+                'telefono' => '1199998888',
+                'fecha_nacimiento' => '1990-05-15',
+                'email' => 'hackeado@test.com', // se IGNORA: no es fillable del PATCH
+            ])->assertOk()
+            ->assertJsonPath('data.nombre', 'Nombre Nuevo')
+            ->assertJsonPath('data.telefono', '1199998888')
+            ->assertJsonPath('data.fecha_nacimiento', '1990-05-15')
+            ->assertJsonPath('data.email', $emailOriginal);
+
+        $this->assertSame($emailOriginal, $consumidor->fresh()->email);
+    }
+
+    public function test_actualizar_perfil_valida_cumpleanios_futuro(): void
+    {
+        $consumidor = $this->crearConsumidor();
+
+        $this->withHeaders($this->bearer($consumidor))
+            ->patchJson('/api/v1/consumidores/me', [
+                'fecha_nacimiento' => now()->addYear()->format('Y-m-d'),
+            ])->assertStatus(422);
+    }
+
+    // ==================== RF-T40: PLAZO DE VERIFICACIÓN ====================
+
+    public function test_verificacion_vence_el_viaja_en_el_perfil_y_se_apaga_al_verificar(): void
+    {
+        $consumidor = $this->crearConsumidor();
+
+        $vence = $this->withHeaders($this->bearer($consumidor))
+            ->getJson('/api/v1/consumidores/me')
+            ->assertOk()
+            ->json('data.verificacion_vence_el');
+
+        $this->assertNotNull($vence);
+        $this->assertEqualsWithDelta(
+            now()->addDays(Consumidor::DIAS_GRACIA_VERIFICACION)->timestamp,
+            \Illuminate\Support\Carbon::parse($vence)->timestamp,
+            60,
+        );
+
+        // Verificado ⇒ se apaga. A nivel modelo: el guard de Sanctum cachea
+        // el usuario resuelto entre requests del MISMO test (un segundo /me
+        // vería el modelo en memoria, sin el email_verified_at nuevo).
+        $consumidor->forceFill(['email_verified_at' => now()])->save();
+        $this->assertNull($consumidor->fresh()->verificacionVenceEl());
+        $this->assertFalse($consumidor->fresh()->verificacionVencida());
+    }
+
+    // ==================== RF-T41: FAVORITOS ====================
+
+    public function test_favoritos_marcar_listar_y_desmarcar_idempotente(): void
+    {
+        $consumidor = $this->crearConsumidor();
+
+        // Marcar dos veces no duplica (PUT idempotente).
+        $this->withHeaders($this->bearer($consumidor))
+            ->putJson('/api/v1/consumidores/favoritos/tienda-test')
+            ->assertOk()->assertJsonPath('data.favorito', true);
+        $this->withHeaders($this->bearer($consumidor))
+            ->putJson('/api/v1/consumidores/favoritos/tienda-test')
+            ->assertOk();
+        $this->assertSame(1, \App\Models\ConsumidorFavorito::where('consumidor_id', $consumidor->id)->count());
+
+        $lista = $this->withHeaders($this->bearer($consumidor))
+            ->getJson('/api/v1/consumidores/favoritos')
+            ->assertOk();
+        $this->assertCount(1, $lista->json('data'));
+        $this->assertSame('tienda-test', $lista->json('data.0.slug'));
+
+        // Desmarcar (y desmarcar de nuevo: idempotente, sin error).
+        $this->withHeaders($this->bearer($consumidor))
+            ->deleteJson('/api/v1/consumidores/favoritos/tienda-test')
+            ->assertOk()->assertJsonPath('data.favorito', false);
+        $this->withHeaders($this->bearer($consumidor))
+            ->deleteJson('/api/v1/consumidores/favoritos/tienda-test')
+            ->assertOk();
+        $this->assertSame(0, \App\Models\ConsumidorFavorito::where('consumidor_id', $consumidor->id)->count());
+
+        $this->withHeaders($this->bearer($consumidor))
+            ->putJson('/api/v1/consumidores/favoritos/no-existe')
+            ->assertStatus(404);
+    }
+
+    // ==================== RF-T42: PUNTOS CROSS-COMERCIO ====================
+
+    public function test_puntos_cross_comercio_sin_mappings_o_sin_programa_es_vacio(): void
+    {
+        // Sin mapping: [].
+        $consumidor = $this->crearConsumidor();
+        $this->withHeaders($this->bearer($consumidor))
+            ->getJson('/api/v1/consumidores/puntos')
+            ->assertOk()->assertJsonCount(0, 'data');
+
+        // Con mapping pero SIN programa de puntos: tampoco viaja (una tienda
+        // sin programa no es "0 puntos", es nada).
+        $cliente = \App\Models\Cliente::create(['nombre' => 'Cliente Puntos CC', 'activo' => true]);
+        ConsumidorComercio::create([
+            'consumidor_id' => $consumidor->id,
+            'comercio_id' => $this->comercio->id,
+            'cliente_id' => $cliente->id,
+        ]);
+        $this->withHeaders($this->bearer($consumidor))
+            ->getJson('/api/v1/consumidores/puntos')
+            ->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    // ==================== RF-T43: TRAZABILIDAD INVERSA ====================
+
+    public function test_consumidor_de_cliente_resuelve_en_ambos_sentidos(): void
+    {
+        $consumidor = $this->crearConsumidor();
+        $cliente = \App\Models\Cliente::create(['nombre' => 'Cliente Trazable', 'activo' => true]);
+        $local = \App\Models\Cliente::create(['nombre' => 'Cliente Local', 'activo' => true]);
+        // config_test persiste entre corridas: mappings viejos de otros runs
+        // pueden apuntar a los cliente_id RECICLADOS del tenant de test.
+        ConsumidorComercio::where('comercio_id', $this->comercio->id)
+            ->whereIn('cliente_id', [$cliente->id, $local->id])
+            ->delete();
+        ConsumidorComercio::create([
+            'consumidor_id' => $consumidor->id,
+            'comercio_id' => $this->comercio->id,
+            'cliente_id' => $cliente->id,
+        ]);
+
+        // Ida (consumidor → cliente del comercio).
+        $this->assertSame($cliente->id, $consumidor->clienteIdEn($this->comercio->id));
+
+        // Vuelta (cliente tenant → cuenta BCN).
+        $resuelto = ConsumidorComercio::consumidorDeCliente($this->comercio->id, $cliente->id);
+        $this->assertNotNull($resuelto);
+        $this->assertSame($consumidor->id, $resuelto->id);
+
+        // Cliente sin cuenta: null (cliente local de mostrador).
+        $this->assertNull(ConsumidorComercio::consumidorDeCliente($this->comercio->id, $local->id));
+    }
 }
