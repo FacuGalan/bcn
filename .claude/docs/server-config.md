@@ -63,7 +63,20 @@ flujo de Producción más abajo). **Nunca `php artisan optimize`** (incluye `con
 
 ## Servidor de Producción
 
-### PHP-FPM (`/etc/php/*/fpm/pool.d/www.conf`)
+> **⚠️ Realidad verificada 2026-07-30 (informe de deploy en el server)**: el
+> SAPI web del server oficial es **mod_php 8.3** (Apache carga `php_module`,
+> `proxy_fcgi` está deshabilitado y ningún vhost referencia FPM), y
+> `opcache.validate_timestamps` está en su **default (1)** — los deploys toman
+> efecto porque OPcache revalida por mtime; el reload correcto del SAPI es
+> `sudo systemctl reload apache2`. Las secciones de FPM/OPcache de abajo son
+> la **config OBJETIVO si algún día se migra a FPM** (deseable para aislar
+> pools core/tienda — ver playbook de la tienda), NO el estado actual.
+> **NUNCA aplicar `validate_timestamps=0` mientras el SAPI sea mod_php sin
+> cambiar a la vez el paso de reload de los deploy.sh**: quedaría OPcache
+> congelado y un reload apuntando a un servicio que no atiende tráfico —
+> los deploys dejarían de tomar cambios en silencio.
+
+### PHP-FPM (config objetivo — hoy NO activo: el SAPI real es mod_php 8.3)
 
 Usar `pm = static` para eliminar cold starts completamente. Calcular `max_children` según RAM disponible (~50MB por worker):
 
@@ -87,27 +100,32 @@ pm.max_requests = 500
 
 ### OPcache (`php.ini`)
 
+**Estado real del server (2026-07-30): default — `validate_timestamps=1`.**
+La config de abajo (con `validate_timestamps=0`) es el objetivo PARA CUANDO el
+SAPI sea FPM; aplicarla hoy rompería los deploys (ver el aviso de arriba).
+
 ```ini
 opcache.enable=1
 opcache.memory_consumption=256
 opcache.max_accelerated_files=20000
 opcache.revalidate_freq=60
-opcache.validate_timestamps=0
+opcache.validate_timestamps=0    ; ⚠️ SOLO junto con la migración a FPM
 opcache.interned_strings_buffer=16
 opcache.save_comments=1
 ```
 
-**CRÍTICO:** Con `validate_timestamps=0`, OPcache **nunca** relee los `.php` cambiados
-hasta un reload de FPM. Por eso, después de CADA deploy (obligatorio, no opcional):
+**CRÍTICO (solo aplica con `validate_timestamps=0`):** OPcache **nunca** relee
+los `.php` cambiados hasta un reload del SAPI. En ese escenario, después de
+CADA deploy (obligatorio, no opcional):
 
 ```bash
-sudo systemctl reload php*-fpm
+sudo systemctl reload php*-fpm   # (escenario FPM futuro; hoy: reload apache2)
 ```
 
 Si lo omitís, el código nuevo está en disco pero OPcache sigue ejecutando el bytecode
 viejo → un fix de performance (p.ej. `VoltServiceProvider`) "deployado" pero sin efecto.
-Es la causa #1 de "deployé y sigue igual de lento". **No usar `php artisan optimize`**
-(incluye `config:cache`); warmear sólo `view`/`route`/`event` (ver flujo de deploy abajo).
+**No usar `php artisan optimize`** (incluye `config:cache`); warmear sólo
+`view`/`route`/`event` (ver flujo de deploy abajo).
 
 ### `.env` (valores específicos de producción)
 
@@ -140,8 +158,8 @@ php artisan migrate --force          # migraciones tenant (iteran todos los come
 npm ci && npm run build              # public/build está gitignored → se compila acá
 php artisan deploy:warm              # caches SEGURAS en un comando: view+route+event+icons (NO config:cache)
                                      # icons:cache es CRÍTICO: sin él blade-icons escanea ~1200 SVGs/request (~600ms)
-sudo systemctl reload php*-fpm       # OBLIGATORIO en prod (validate_timestamps=0):
-                                     # sin esto OPcache sigue corriendo el código viejo
+sudo systemctl reload apache2        # SAPI real: mod_php 8.3 (validate_timestamps=1
+                                     # ⇒ el reload es cinturón de seguridad, no bloqueante)
 ```
 
 **Importante:**
@@ -150,8 +168,9 @@ sudo systemctl reload php*-fpm       # OBLIGATORIO en prod (validate_timestamps=
   Por eso `migrate`, `build` y el warm de caches **NO están automatizados** — corrélos a mano.
 - **NO usar `php artisan optimize`** (incluye `config:cache`). Warmear solo las tres
   caches seguras: `view`, `route`, `event`.
-- El reload de FPM es manual (requiere sudo) y en prod es **obligatorio**
-  (`validate_timestamps=0`): es lo que hace que el código nuevo realmente se ejecute.
+- El reload del SAPI es manual (requiere sudo). Con la config REAL del server
+  (mod_php + `validate_timestamps=1`) es cinturón de seguridad; pasaría a ser
+  **obligatorio** solo si se migra a FPM con `validate_timestamps=0`.
 
 > **Gotchas de deploy** (Volt mount lento, PWA sirviendo vistas viejas, cómo
 > diagnosticar lentitud): ver `.claude/docs/deploy-playbook.md`.

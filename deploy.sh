@@ -13,6 +13,13 @@ set -euo pipefail
 main() {
     cd "$(dirname "$0")"
 
+    # Backup rotativo del .env ANTES de tocar nada (informe deploy 2026-07-30:
+    # el backup era manual y quien corría ./deploy.sh directo no generaba
+    # ninguno). Se conservan los últimos 5; .env.backup-* está gitignored.
+    echo "==> [0/6] backup de .env (rotativo, últimos 5)"
+    cp .env ".env.backup-$(date +%Y%m%d-%H%M%S)"
+    ls -1t .env.backup-* 2>/dev/null | tail -n +6 | xargs -r rm --
+
     echo "==> [1/6] git pull (el hook post-merge corre optimize:clear)"
     git pull origin master
 
@@ -21,8 +28,14 @@ main() {
     # un paquete nuevo está referenciado en config/ (caso Sanctum, #161) el
     # install aborta con "Class not found". Se instala sin scripts y después
     # se corre a mano lo que esos scripts hacían, ya con el vendor completo.
+    #
+    # DEPLOY_KEEP_DEV=1 conserva las dev-deps (phpunit/pint): este server es
+    # dev + prod y el --no-dev pelado las borraba en cada deploy, dejando la
+    # máquina sin la verificación post-implementación que exige CLAUDE.md.
     echo "==> [2/6] composer install (--no-scripts) + package:discover"
-    COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --no-scripts
+    local no_dev="--no-dev"
+    [ "${DEPLOY_KEEP_DEV:-0}" = "1" ] && no_dev=""
+    COMPOSER_ALLOW_SUPERUSER=1 composer install $no_dev --optimize-autoloader --no-scripts
     rm -f bootstrap/cache/packages.php bootstrap/cache/services.php
     COMPOSER_ALLOW_SUPERUSER=1 php artisan package:discover --ansi
 
@@ -38,13 +51,27 @@ main() {
     php artisan cache:clear
 
     echo "==> [4/6] build del front (public/build está gitignored; cambia el hash del SW)"
-    npm ci && npm run build
+    # npm ci solo si el lockfile cambió desde el último install (npm guarda su
+    # copia en node_modules/.package-lock.json) — un ci incondicional borra y
+    # reinstala TODO node_modules en cada deploy sin necesidad.
+    if ! cmp -s package-lock.json node_modules/.package-lock.json; then
+        npm ci
+    fi
+    npm run build
 
     echo "==> [5/6] warm de caches SEGURAS (view+route+event+icons — NUNCA config:cache)"
     php artisan deploy:warm
 
-    echo "==> [6/6] reload FPM (obligatorio: opcache.validate_timestamps=0)"
-    sudo systemctl reload php*-fpm
+    # SAPI real del server (verificado 2026-07-30): mod_php 8.3 bajo Apache —
+    # NO hay FPM atendiendo tráfico, y opcache.validate_timestamps está en su
+    # default (1), así que OPcache revalida por mtime y el reload es cinturón
+    # de seguridad. Si algún día se migra a FPM (con validate_timestamps=0),
+    # el branch de abajo lo agarra y ahí SÍ es el paso que hace el deploy.
+    echo "==> [6/6] reload del SAPI web"
+    if systemctl list-units --type=service --state=active --no-legend 'php*-fpm.service' 2>/dev/null | grep -q fpm; then
+        sudo systemctl reload 'php*-fpm'
+    fi
+    sudo systemctl reload apache2
 
     echo ""
     echo "Deploy OK. Verificación sugerida (playbook):"
