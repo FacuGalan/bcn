@@ -202,6 +202,25 @@ pero muertas (404).
   esperar doble rAF y recién ahí animar (o CSS animation). Si en validación en
   vivo sigue sin ser fluida ⇒ REVERTIR la animación de entrada (aparición
   simple, como antes de tienda#48).
+- RESUELTO 2026-07-30: la animación se quitó (aparición simple) — seguía
+  compitiendo con el morph de Livewire y se veía cortada.
+
+### RF-T38: Título de destacados en píldora + color del adorno configurable
+- El adorno `glow` del TÍTULO del banner deja de ser text-shadow estático:
+  el título va ENCERRADO en una píldora (badge), con la letra en tamaño
+  normal y tinta del tema; las letras NO animan — el efecto sutil lo hace el
+  BORDE de la píldora latiendo en el color de destacado (opacidad del borde
+  + glow suave, ciclo 2.4s). Con `prefers-reduced-motion` el borde queda
+  fijo. (Iteraciones 2026-07-30: se descartó latido de letras y también la
+  letra agrandada/coloreada — validado: píldora con letra normal.)
+- Clave nueva `tema.destacados.color` (string hex, default `''` = primario
+  del tema). Aplica al glow de la TARJETA GRANDE y al latido del título del
+  banner, vía var CSS `--tienda-destacado` (default en app.css:
+  `var(--tienda-primario)`).
+- Panel: checkbox "Color propio del destacado" + picker en "Presentación del
+  catálogo" (solo tiene efecto con adorno glow/ambos); apagado persiste `''`.
+- Contrato: aditivo, documentado en api-v1-delivery.md (2026-07-30). Tienda:
+  hex inválido/`''` ⇒ sin var (cae al primario). Espejo en preview.js.
 
 ---
 

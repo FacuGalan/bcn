@@ -66,6 +66,7 @@ class Tienda extends Model
             'modo' => 'banner',       // banner|tarjeta_grande|ninguno
             'adorno' => 'ninguno',    // glow|badge|ambos|ninguno (tarjeta: en la card; banner: en el título, RF-T35)
             'titulo' => '',           // RF-T35: título de la sección ('' = "Destacados")
+            'color' => '',            // RF-T38: color del adorno glow/latido ('' = primario del tema)
         ],
         'promos' => [
             'mostrar_home' => false,  // aviso "Promociones de hoy" en la home

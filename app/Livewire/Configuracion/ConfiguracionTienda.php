@@ -89,6 +89,15 @@ class ConfiguracionTienda extends Component
     /** RF-T35: título de la sección de destacados ('' = "Destacados"). */
     public string $destacadosTitulo = '';
 
+    /**
+     * RF-T38: color del adorno de destacados (glow de la tarjeta grande /
+     * latido del título del banner). El checkbox "color propio" es el que
+     * decide: apagado se persiste '' (la tienda usa el primario del tema).
+     */
+    public bool $destacadosColorPropio = false;
+
+    public string $destacadosColor = '';
+
     public bool $promosMostrarHome = false;
 
     // ==================== LOGO Y PORTADA (RF-T11) ====================
@@ -236,6 +245,10 @@ class ConfiguracionTienda extends Component
             ? $tema['destacados']['adorno']
             : Tienda::TEMA_DEFAULTS['destacados']['adorno'];
         $this->destacadosTitulo = (string) ($tema['destacados']['titulo'] ?? '');
+        // RF-T38: solo un hex válido cuenta como color propio.
+        $color = (string) ($tema['destacados']['color'] ?? '');
+        $this->destacadosColorPropio = (bool) preg_match('/^#[0-9a-f]{6}$/i', $color);
+        $this->destacadosColor = $this->destacadosColorPropio ? strtolower($color) : '';
         $this->promosMostrarHome = (bool) ($tema['promos']['mostrar_home'] ?? false);
     }
 
@@ -371,6 +384,10 @@ class ConfiguracionTienda extends Component
             'destacadosModo' => 'required|in:'.implode(',', Tienda::MODOS_DESTACADOS),
             'destacadosAdorno' => 'required|in:'.implode(',', Tienda::ADORNOS_DESTACADOS),
             'destacadosTitulo' => 'nullable|string|max:40',
+            'destacadosColorPropio' => 'boolean',
+            'destacadosColor' => $this->destacadosColorPropio
+                ? ['required', 'regex:/^#[0-9a-f]{6}$/i']
+                : 'nullable',
             'promosMostrarHome' => 'boolean',
         ], [
             'slug.required' => __('Ingresá la dirección (slug) de la tienda'),
@@ -576,6 +593,14 @@ class ConfiguracionTienda extends Component
         }
     }
 
+    /** RF-T38: al activar el color propio, arranca desde el primario. */
+    public function updatedDestacadosColorPropio($activo): void
+    {
+        if ($activo && $this->destacadosColor === '') {
+            $this->destacadosColor = strtolower($this->colorPrimario);
+        }
+    }
+
     public function restablecerTema(): void
     {
         // Restablece la ESTÉTICA; slogan/descripción/redes y el título de
@@ -626,6 +651,8 @@ class ConfiguracionTienda extends Component
                 'modo' => $this->destacadosModo,
                 'adorno' => $this->destacadosAdorno,
                 'titulo' => trim($this->destacadosTitulo),
+                // RF-T38: '' = la tienda usa el primario del tema.
+                'color' => $this->destacadosColorPropio ? strtolower($this->destacadosColor) : '',
             ],
             'promos' => ['mostrar_home' => $this->promosMostrarHome],
         ];
