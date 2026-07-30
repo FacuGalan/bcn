@@ -110,15 +110,21 @@ class CatalogoTiendaService
             ->whereIn('articulo_id', $articulos->pluck('id'))
             ->pluck('cantidad', 'articulo_id');
 
-        // modo_stock del pivot por artículo.
+        // modo_stock + canje_tienda (RF-T47) del pivot por artículo.
         $pivots = \Illuminate\Support\Facades\DB::connection('pymes_tenant')
             ->table('articulos_sucursales')
             ->where('sucursal_id', $sucursal->id)
             ->whereIn('articulo_id', $articulos->pluck('id'))
-            ->pluck('modo_stock', 'articulo_id');
+            ->get(['articulo_id', 'modo_stock', 'canje_tienda'])
+            ->keyBy('articulo_id');
 
-        $itemsCatalogo = $articulos->map(function (Articulo $articulo) use ($sucursal, $contexto, $stocks, $pivots) {
-            $controlaStock = ($pivots[$articulo->id] ?? 'ninguno') !== 'ninguno';
+        // RF-T47: con programa de puntos activo, el costo de canje se deriva
+        // del precio del día (regla del POS). Null ⇒ ningún artículo publica
+        // canje aunque tenga el toggle prendido.
+        $valorPuntoCanje = app(PuntosTiendaService::class)->valorPuntoCanjeActivo($sucursal);
+
+        $itemsCatalogo = $articulos->map(function (Articulo $articulo) use ($sucursal, $contexto, $stocks, $pivots, $valorPuntoCanje) {
+            $controlaStock = ($pivots[$articulo->id]->modo_stock ?? 'ninguno') !== 'ninguno';
             $agotado = $controlaStock
                 && ! $articulo->permite_venta_sin_stock
                 && (float) ($stocks[$articulo->id] ?? 0) <= 0;
@@ -134,7 +140,7 @@ class CatalogoTiendaService
                 $precioInfo = ['precio_final' => (float) $articulo->precio_base, 'promociones_aplicadas' => []];
             }
 
-            return [
+            $item = [
                 'id' => (int) $articulo->id,
                 'nombre' => $articulo->nombre,
                 // RF-T14: descripción ESPECÍFICA de tienda si el comercio la
@@ -195,6 +201,18 @@ class CatalogoTiendaService
                     ->filter(fn ($g) => $g['opciones'] !== [])
                     ->values()->all(),
             ];
+
+            // RF-T47 (aditivo): canjeable por puntos — la clave solo viaja si
+            // el toggle está prendido, el programa activo, hay precio y no
+            // está agotado. Costo = ceil(precio / valor_punto_canje).
+            if ($valorPuntoCanje !== null
+                && (bool) ($pivots[$articulo->id]->canje_tienda ?? false)
+                && ! $agotado
+                && $item['precio'] > 0) {
+                $item['puntos_canje'] = (int) ceil($item['precio'] / $valorPuntoCanje);
+            }
+
+            return $item;
         })->values()->all();
 
         $categorias = Categoria::where('activo', true)

@@ -140,6 +140,15 @@
                                     @endif
                                 </div>
 
+                                {{-- Canjeable por puntos en la tienda (RF-T47, guardado inmediato).
+                                     El costo en puntos lo deriva la API del precio del día. --}}
+                                @php($canjeTienda = (bool) ($articulo->sucursales->first()?->pivot?->canje_tienda))
+                                <button type="button" wire:click="toggleCanjeTienda({{ $articulo->id }})" @disabled(! $puedeConfigurar)
+                                    class="shrink-0 p-1 rounded transition-colors {{ $canjeTienda ? 'text-violet-500 hover:text-violet-600' : 'text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500' }}"
+                                    title="{{ $canjeTienda ? __('Quitar canje por puntos en la tienda') : __('Permitir canje por puntos en la tienda') }}">
+                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25c.41 0 .786.224.982.585l2.534 4.67 5.223.96a1.125 1.125 0 0 1 .607 1.868l-3.65 3.87.685 5.264a1.125 1.125 0 0 1-1.591 1.16L12 18.4l-4.79 2.227a1.125 1.125 0 0 1-1.59-1.16l.684-5.265-3.65-3.869a1.125 1.125 0 0 1 .607-1.868l5.223-.96 2.534-4.67c.196-.36.573-.585.982-.585Z" clip-rule="evenodd" opacity=".35"/><path d="M12 7.5a.75.75 0 0 1 .75.75v3h3a.75.75 0 0 1 0 1.5h-3v3a.75.75 0 0 1-1.5 0v-3h-3a.75.75 0 0 1 0-1.5h3v-3A.75.75 0 0 1 12 7.5Z"/></svg>
+                                </button>
+
                                 {{-- Destacado (guardado inmediato) --}}
                                 <button type="button" wire:click="toggleDestacado({{ $articulo->id }})" @disabled(! $puedeConfigurar)
                                     class="shrink-0 p-1 rounded transition-colors {{ $articulo->destacado ? 'text-amber-500 hover:text-amber-600' : 'text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500' }}"

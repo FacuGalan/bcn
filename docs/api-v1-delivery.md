@@ -270,6 +270,16 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   la descripción operativa del artículo, como siempre (misma clave, sin
   cambio de shape).
 
+**Canje de artículos por puntos** (aditivo 2026-07-30, RF-T47): cada
+artículo puede sumar `puntos_canje` (int): el costo en puntos de canjearlo
+HOY — solo viaja si el comercio lo habilitó para la tienda (toggle por
+sucursal en el panel), el programa de puntos está activo y el artículo tiene
+precio y no está agotado. AUSENTE ⇒ no canjeable (la tienda no muestra
+nada). El costo deriva del precio del día (`ceil(precio /
+valor_punto_canje)`, misma regla del POS) — con Bearer, del precio DE ESE
+cliente. El canje efectivo viaja en cotización/alta con
+`items[].canjear_con_puntos` (ver esas secciones).
+
 **Badges por categoría** (aditivo 2026-07-29, RF-T36): cada elemento de
 `categorias[]` suma `badges: [{ "tipo", "texto" }]` con el MISMO catálogo,
 tope y semántica que los badges de artículo (RF-T14, arriba) — incluida la
@@ -392,6 +402,18 @@ activo (canjee o no) la respuesta suma el bloque `puntos` y el
 monto pagado sin puntos × multiplicador de la FP ÷ monto_por_punto, con el
 redondeo de la config; sin envío). El crédito verdadero lo hace la conversión
 a venta.
+
+**Canje de artículos por puntos** *(aditivo 2026-07-30, RF-T47, requiere
+Bearer con cliente)*: `items[].canjear_con_puntos` (bool) marca ese renglón
+como CANJEADO — se resta entero del `total_final` (viaja el agregado
+`articulos_canjeados_monto` con el equivalente en pesos) y compromete
+`ceil(precio / valor_punto_canje)` puntos por unidad. Reglas: solo artículos
+con `puntos_canje` en el catálogo, cantidad 1 por renglón, sin opcionales
+con precio, incompatible con 2 FP. El bloque `puntos` suma
+`usados_en_articulos` (int) y el canje-pago (`usar_puntos`) se calcula sobre
+el saldo NETO de esos puntos. Errores: `422 canje_no_disponible` (sin
+Bearer/cliente/programa) y `422 puntos_insuficientes` (saldo corto) — la UI
+no debería llegar a ninguno.
 
 **Multi-pago** *(aditivo 2026-07-21, RF-T18)*: `pagos` (opcional, hasta **2**
 FP) reemplaza a `forma_pago_id` (si viajan ambos, gana `pagos`). Cada ítem
@@ -522,6 +544,18 @@ Reglas:
   RESTO. El descuento de saldo real (MovimientoPunto) ocurre al convertir a
   venta — si el saldo se gastó en el medio, esa parte del canje falla en la
   conversión y lo resuelve el comercio (ventana asumida).
+- `items[].canjear_con_puntos` *(aditivo 2026-07-30, RF-T47)*: mismas reglas
+  que en `carrito/cotizar` (Bearer con cliente + programa, artículo
+  canjeable, cantidad 1, sin opcionales pagos, sin 2 FP). El saldo se valida
+  FRESCO contra artículos + canje-pago juntos; el renglón queda
+  `pagado_con_puntos` y el ledger real (MovimientoPunto canje-artículo) lo
+  crea la conversión a venta. El pedido persiste
+  `puntos_canjeados_articulos` y `articulos_canjeados_monto` (visibles en el
+  panel como en un pedido cargado a mano).
+- **RF-T40** *(aditivo 2026-07-30)*: Bearer de consumidor con la gracia de
+  verificación VENCIDA (`verificacion_vence_el` pasado) → `403
+  verificacion_requerida` con mensaje accionable. Sin Bearer (invitado) no
+  aplica. La tienda debería interceptar ANTES con su propio CTA.
 - Consumidor logueado (Bearer del guard consumidores): el pedido guarda su
   identidad; el alta de cliente en el comercio depende de la política del
   comercio. El `carrito/cotizar` con ese mismo Bearer cotiza con su cliente
@@ -572,12 +606,15 @@ Sirve para mostrar qué se pidió en el seguimiento y para que la tienda arme
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
 entre en preparación). Después, solo el comercio.
 
-## Endpoints de consumidores (RF-T1..T3, cuenta global de la tienda)
+## Endpoints de consumidores (RF-T1..T3 + RF-T39..T42, cuenta global de la tienda)
 
 Base `/v1/consumidores`. Sin tenant (la cuenta es cross-comercio). Decisión
 RF-T1: **se puede pedir sin verificar el email**; la verificación desbloquea
-el historial. Throttle agresivo por endpoint (registro 5/min, login 10/min,
-emails 3/min).
+el historial. **RF-T40 (2026-07-30)**: a los **7 días** de creada sin
+verificar, la cuenta queda RESTRINGIDA — el alta de pedido LOGUEADO responde
+`403 verificacion_requerida` (comprar como invitado sigue abierto; verificar
+des-restringe al instante). Throttle agresivo por endpoint (registro 5/min,
+login 10/min, emails 3/min).
 
 ### Auth
 
@@ -587,7 +624,14 @@ emails 3/min).
   Credenciales malas → `422 validacion`.
 - `POST /logout` *(Bearer)* — revoca el token actual.
 - `GET /me` *(Bearer)* — perfil: `{id, nombre, email, telefono,
-  email_verificado}`.
+  fecha_nacimiento, email_verificado, verificacion_vence_el}`.
+  `verificacion_vence_el` (aditivo RF-T40): ISO-8601 con la fecha límite de
+  la gracia de verificación, `null` si ya verificó — la tienda muestra la
+  cuenta regresiva sin calcular nada.
+- `PATCH /me` *(Bearer, aditivo 2026-07-30, RF-T39)* — edita el perfil:
+  `{nombre?, telefono?, fecha_nacimiento?}` → perfil actualizado (mismo
+  shape del GET). El EMAIL no se cambia por acá (es la sal del token de
+  verificación); el password va por recuperar/restablecer.
 - `POST /verificar` — `{token}` (del link del email, la tienda lo reenvía
   desde su página `/verificar`) → marca verificado (idempotente). Token
   inválido/vencido → `422 operacion_invalida`.
@@ -598,6 +642,22 @@ emails 3/min).
   todos los tokens** (la tienda debe re-loguear).
 
 Un Bearer de INTEGRACIÓN (comercio) sobre estos endpoints → `403 sin_permiso`.
+
+### `GET /v1/consumidores/favoritos` + `PUT|DELETE /v1/consumidores/favoritos/{slug}` *(Bearer, aditivo 2026-07-30, RF-T41)*
+
+Tiendas favoritas del consumidor. `GET` → `{data: [{slug, nombre, comercio,
+logo_url, localidad, habilitada, abierta_ahora}]}` (más reciente primero;
+una tienda deshabilitada viaja con `habilitada: false`, la UI decide). `PUT`
+marca y `DELETE` desmarca — ambos IDEMPOTENTES → `{data: {ok, favorito}}`.
+Slug inexistente → `404 no_encontrado`.
+
+### `GET /v1/consumidores/puntos` *(Bearer, aditivo 2026-07-30, RF-T42)*
+
+Saldos de puntos CROSS-comercio para "mis puntos" de la cuenta: `{data:
+[{tienda: {slug, nombre, habilitada}, saldo, saldo_en_pesos}]}`. Solo
+comercios donde el consumidor ya tiene cliente mapeado Y el programa está
+activo (sin programa no es "0 puntos": no viaja). Tenant caído se saltea.
+Throttle 20/min.
 
 ### `GET|POST|PATCH|DELETE /v1/consumidores/direcciones[/{id}]` *(Bearer)*
 

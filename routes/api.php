@@ -85,6 +85,8 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         Route::middleware(['auth:sanctum', 'api.consumidor', 'throttle:60,1,c-auth'])->group(function () {
             Route::post('/logout', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'logout'])->name('logout');
             Route::get('/me', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'me'])->name('me');
+            // RF-T39: edición de perfil (email y password NO van por acá).
+            Route::patch('/me', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'actualizarPerfil'])->name('me.update');
             Route::post('/reenviar-verificacion', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'reenviarVerificacion'])
                 ->middleware('throttle:3,1,c-reenviar')->name('reenviar-verificacion');
 
@@ -95,6 +97,15 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
 
             Route::get('/pedidos', [\App\Http\Controllers\Api\V1\Consumidores\PedidosController::class, 'index'])
                 ->middleware('throttle:30,1')->name('pedidos.index');
+
+            // RF-T41: favoritos de comercios (por slug de tienda).
+            Route::get('/favoritos', [\App\Http\Controllers\Api\V1\Consumidores\FavoritosController::class, 'index'])->name('favoritos.index');
+            Route::put('/favoritos/{slug}', [\App\Http\Controllers\Api\V1\Consumidores\FavoritosController::class, 'store'])->name('favoritos.store');
+            Route::delete('/favoritos/{slug}', [\App\Http\Controllers\Api\V1\Consumidores\FavoritosController::class, 'destroy'])->name('favoritos.destroy');
+
+            // RF-T42: saldos de puntos cross-comercio (para /mi-cuenta).
+            Route::get('/puntos', [\App\Http\Controllers\Api\V1\Consumidores\PuntosController::class, 'index'])
+                ->middleware('throttle:20,1,c-puntos')->name('puntos.index');
         });
     });
 

@@ -57,6 +57,9 @@ class CotizacionController extends Controller
             'items' => 'required|array|min:1|max:100',
             'items.*.articulo_id' => 'required|integer',
             'items.*.cantidad' => 'required|numeric|min:0.001',
+            // RF-T47: renglón canjeado por puntos (requiere Bearer con
+            // cliente y saldo; el cotizador valida canjeabilidad).
+            'items.*.canjear_con_puntos' => 'nullable|boolean',
             'items.*.opcionales' => 'nullable|array',
             'items.*.opcionales.*.opcional_id' => 'required|integer',
             'items.*.opcionales.*.cantidad' => 'nullable|numeric|min:0.001',
@@ -122,9 +125,11 @@ class CotizacionController extends Controller
         // puntos en v1.
         $pagosInput = isset($datos['pagos']) ? array_values($datos['pagos']) : null;
         $formaPagoId = isset($datos['forma_pago_id']) ? (int) $datos['forma_pago_id'] : null;
+        // RF-T47: ¿algún renglón viene canjeado por puntos?
+        $hayCanjeArticulos = collect($datos['items'])->contains(fn ($i) => ! empty($i['canjear_con_puntos']));
         $formasPago = $formaPagoId;
         if ($pagosInput) {
-            if (! empty($datos['usar_puntos'])) {
+            if (! empty($datos['usar_puntos']) || $hayCanjeArticulos) {
                 abort(response()->json(['error' => [
                     'code' => 'pagos_invalidos',
                     'message' => __('El canje de puntos no se puede combinar con dos formas de pago'),
@@ -178,17 +183,49 @@ class CotizacionController extends Controller
         // — no toca precios ni total_final; resta del total_a_pagar. El
         // bloque viaja siempre que el programa esté activo para el cliente
         // (con `a_ganar`, aunque no canjee).
+        // RF-T47: los renglones canjeados YA vienen restados del total por el
+        // motor (articulos_canjeados_monto); acá se valida el saldo y el
+        // canje-pago se calcula sobre el saldo NETO de esos puntos.
         $puntos = null;
+        $usadosEnArticulos = 0;
         if ($clienteId && ! $pagosInput) {
             $puntosTienda = app(\App\Services\Pedidos\PuntosTiendaService::class);
             $info = $puntosTienda->info($sucursal, $clienteId);
+
+            if ($hayCanjeArticulos) {
+                if (! $info['activo']) {
+                    abort(response()->json(['error' => [
+                        'code' => 'canje_no_disponible',
+                        'message' => __('El canje por puntos no está disponible para tu cuenta en esta tienda'),
+                        'details' => null,
+                    ]], 422));
+                }
+                $usadosEnArticulos = $cotizador->puntosUsadosEnArticulos((float) $info['valor_punto_canje']);
+                if ($usadosEnArticulos > (int) $info['saldo']) {
+                    abort(response()->json(['error' => [
+                        'code' => 'puntos_insuficientes',
+                        'message' => __('No te alcanzan los puntos para ese canje'),
+                        'details' => null,
+                    ]], 422));
+                }
+                $info = $puntosTienda->infoNeta($info, $usadosEnArticulos);
+            }
+
             if ($info['activo']) {
                 $canje = ! empty($datos['usar_puntos'])
                     ? $puntosTienda->calcularCanjeMaximo($info, $totalAPagar)
                     : null;
                 $puntos = $puntosTienda->bloqueContrato($info, $canje, $sucursal, $formaPagoId, $totalAPagar);
+                $puntos['usados_en_articulos'] = $usadosEnArticulos;
                 $totalAPagar = round($totalAPagar - $puntos['monto'], 2);
             }
+        } elseif ($hayCanjeArticulos) {
+            // Canje sin Bearer con cliente: la UI no debería llegar acá.
+            abort(response()->json(['error' => [
+                'code' => 'canje_no_disponible',
+                'message' => __('Iniciá sesión para canjear artículos por puntos'),
+                'details' => null,
+            ]], 422));
         }
 
         return response()->json([
@@ -197,6 +234,9 @@ class CotizacionController extends Controller
                 'subtotal' => (float) ($resultado['subtotal'] ?? 0),
                 'iva' => (float) ($resultado['iva_total'] ?? 0),
                 'descuento' => (float) ($resultado['descuento_total'] ?? 0),
+                // RF-T47 (aditivo): equivalente en pesos de los renglones
+                // canjeados por puntos (ya restado de total_final por el motor).
+                'articulos_canjeados_monto' => (float) ($resultado['articulos_canjeados_monto'] ?? 0),
                 'total_final' => (float) ($resultado['total_final'] ?? 0),
                 'promociones_aplicadas' => $resultado['promociones_comunes_aplicadas'] ?? [],
                 'promociones_especiales_aplicadas' => $resultado['promociones_especiales_aplicadas'] ?? [],

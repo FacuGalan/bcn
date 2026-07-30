@@ -35,4 +35,16 @@ class ConsumidorComercio extends Model
     {
         return $this->belongsTo(Comercio::class, 'comercio_id');
     }
+
+    /**
+     * Trazabilidad INVERSA (RF-T43): la cuenta BCN detrás de un cliente
+     * tenant. Null si el cliente no vino de la tienda online (índice
+     * idx_cc_comercio_cliente respalda la consulta).
+     */
+    public static function consumidorDeCliente(int $comercioId, int $clienteId): ?Consumidor
+    {
+        return static::where('comercio_id', $comercioId)
+            ->where('cliente_id', $clienteId)
+            ->first()?->consumidor;
+    }
 }

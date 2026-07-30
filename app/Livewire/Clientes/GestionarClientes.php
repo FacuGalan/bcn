@@ -53,6 +53,9 @@ class GestionarClientes extends Component
 
     public ?int $clienteId = null;
 
+    /** RF-T43: email de la cuenta BCN vinculada (null = cliente local). */
+    public ?string $cuenta_bcn_email = null;
+
     // Modal de confirmación de eliminación
     public bool $showDeleteModal = false;
 
@@ -427,6 +430,13 @@ class GestionarClientes extends Component
         $this->puntos_acumulados_total = $cliente->puntos_acumulados_cache ?? 0;
         $this->puntos_canjeados_total = $cliente->puntos_canjeados_cache ?? 0;
         $this->cargarDatosPuntosCliente($cliente->id);
+
+        // RF-T43: cuenta BCN (consumidor de la tienda online) detrás del
+        // cliente, si vino de ahí — trazabilidad inversa para unificar datos.
+        $comercioId = (int) (app(\App\Services\TenantService::class)->getComercio()?->id ?? 0);
+        $this->cuenta_bcn_email = $comercioId
+            ? \App\Models\ConsumidorComercio::consumidorDeCliente($comercioId, $cliente->id)?->email
+            : null;
 
         $this->editMode = true;
         $this->showModal = true;
@@ -1314,6 +1324,7 @@ class GestionarClientes extends Component
     protected function resetForm(): void
     {
         $this->clienteId = null;
+        $this->cuenta_bcn_email = null;
         $this->nombre = '';
         $this->razon_social = '';
         $this->cuit = '';

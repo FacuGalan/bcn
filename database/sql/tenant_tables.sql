@@ -188,6 +188,7 @@ CREATE TABLE `{{PREFIX}}articulos_sucursales` (
   `modo_stock` enum('ninguno','unitario','receta') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'ninguno' COMMENT 'Modo de control de stock: ninguno, unitario (descuenta articulo), receta (descuenta ingredientes)',
   `vendible` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si aparece en pantalla de ventas',
   `visible_tienda` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Visible en la tienda online de esta sucursal (RF-17). Independiente de vendible (POS interno)',
+  `canje_tienda` tinyint(1) NOT NULL DEFAULT 0 COMMENT 'RF-T47: canjeable por puntos en la tienda online',
   `precio_base` decimal(12,2) DEFAULT NULL,
   `puntos_canje` int unsigned DEFAULT NULL COMMENT 'Override de puntos_canje por sucursal',
   `created_at` timestamp NULL DEFAULT NULL,

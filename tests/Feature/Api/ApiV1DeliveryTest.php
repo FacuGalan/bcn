@@ -2570,4 +2570,156 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertSame(0, (int) $pedido->puntos_usados);
         $this->assertSame(0, $pedido->pagos()->where('es_pago_puntos', true)->count());
     }
+
+    // ==================== CANJE DE ARTÍCULOS (RF-T47, ronda cuenta consumidor) ====================
+
+    /** Marca el artículo como canjeable en la tienda de esta sucursal. */
+    protected function habilitarCanjeTienda(\App\Models\Articulo $articulo): void
+    {
+        $articulo->sucursales()->updateExistingPivot($this->sucursalId, ['canje_tienda' => true]);
+    }
+
+    public function test_catalogo_publica_puntos_canje_solo_con_toggle_y_programa(): void
+    {
+        $this->activarProgramaPuntos();
+        $canjeable = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $comun = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $this->habilitarCanjeTienda($canjeable);
+
+        $articulos = collect($this->getJson('/api/v1/tiendas/tienda-test/catalogo')
+            ->assertOk()->json('data.articulos'))->keyBy('id');
+
+        // $1000 / $50 el punto = 20 puntos.
+        $this->assertSame(20, $articulos[$canjeable->id]['puntos_canje'] ?? null);
+        $this->assertArrayNotHasKey('puntos_canje', $articulos[$comun->id], 'Sin toggle no viaja la clave');
+    }
+
+    public function test_catalogo_sin_programa_activo_no_publica_canje(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $this->habilitarCanjeTienda($articulo);
+
+        $articulos = collect($this->getJson('/api/v1/tiendas/tienda-test/catalogo')
+            ->assertOk()->json('data.articulos'))->keyBy('id');
+
+        $this->assertArrayNotHasKey('puntos_canje', $articulos[$articulo->id]);
+    }
+
+    public function test_cotizar_con_canje_de_articulo_resta_el_renglon_y_compromete_puntos(): void
+    {
+        $this->activarProgramaPuntos();
+        $canjeado = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000 = 20 pts
+        $normal = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $this->habilitarCanjeTienda($canjeado);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 25);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [
+                    ['articulo_id' => $canjeado->id, 'cantidad' => 1, 'canjear_con_puntos' => true],
+                    ['articulo_id' => $normal->id, 'cantidad' => 1],
+                ],
+            ])->assertOk();
+
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.articulos_canjeados_monto'), 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.total_final'), 0.01, 'El renglón canjeado no se paga');
+        $this->assertSame(20, $respuesta->json('data.puntos.usados_en_articulos'));
+        // Saldo NETO para el canje-pago: 25 − 20 = 5 puntos ($250).
+        $this->assertSame(5, $respuesta->json('data.puntos.saldo'));
+    }
+
+    public function test_cotizar_canje_con_saldo_corto_da_puntos_insuficientes(): void
+    {
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // 20 pts
+        $this->habilitarCanjeTienda($articulo);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 5);
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1, 'canjear_con_puntos' => true]],
+            ])->assertStatus(422)
+            ->assertJsonPath('error.code', 'puntos_insuficientes');
+    }
+
+    public function test_cotizar_canje_de_articulo_no_habilitado_da_422(): void
+    {
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // SIN toggle
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100);
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1, 'canjear_con_puntos' => true]],
+            ])->assertStatus(422);
+    }
+
+    public function test_cotizar_canje_sin_bearer_da_canje_no_disponible(): void
+    {
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $this->habilitarCanjeTienda($articulo);
+
+        $this->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+            'tipo' => 'delivery',
+            'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1, 'canjear_con_puntos' => true]],
+        ])->assertStatus(422)
+            ->assertJsonPath('error.code', 'canje_no_disponible');
+    }
+
+    public function test_pedido_con_canje_de_articulo_persiste_renglon_y_cabecera(): void
+    {
+        $this->activarProgramaPuntos();
+        $canjeado = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000 = 20 pts
+        $normal = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $this->habilitarCanjeTienda($canjeado);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 25);
+
+        $payload = $this->payloadPedido($normal->id);
+        $payload['items'][] = ['articulo_id' => $canjeado->id, 'cantidad' => 1, 'canjear_con_puntos' => true];
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertSame(20, (int) $pedido->puntos_canjeados_articulos);
+        $this->assertSame(20, (int) $pedido->puntos_usados);
+        $this->assertEqualsWithDelta(1000.0, (float) $pedido->articulos_canjeados_monto, 0.01);
+
+        $detalle = $pedido->detalles()->where('articulo_id', $canjeado->id)->first();
+        $this->assertTrue((bool) $detalle->pagado_con_puntos);
+        $this->assertSame(20, (int) $detalle->puntos_usados, 'La conversión exige puntos_usados en el detalle');
+
+        // El ledger NO se toca en el alta (lo hace la conversión a venta).
+        $this->assertSame(25, \App\Models\MovimientoPunto::calcularSaldo($pedido->cliente_id));
+    }
+
+    // ==================== VERIFICACIÓN VENCIDA (RF-T40) ====================
+
+    public function test_pedido_de_consumidor_con_verificacion_vencida_da_403(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $consumidor = \App\Models\Consumidor::create([
+            'nombre' => 'Vencido',
+            'email' => 'vencido-'.uniqid().'@test.com',
+            'password' => bcrypt('secret123'),
+        ]);
+        $consumidor->forceFill(['created_at' => now()->subDays(\App\Models\Consumidor::DIAS_GRACIA_VERIFICACION + 1)])->save();
+        $token = $consumidor->createToken('tienda')->plainTextToken;
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))
+            ->assertStatus(403)
+            ->assertJsonPath('error.code', 'verificacion_requerida');
+
+        // Verificar des-restringe al instante (a nivel modelo: el guard de
+        // Sanctum cachea el usuario resuelto entre requests del mismo test,
+        // un segundo POST vería el modelo viejo en memoria).
+        $consumidor->forceFill(['email_verified_at' => now()])->save();
+        $this->assertFalse($consumidor->fresh()->verificacionVencida());
+    }
 }

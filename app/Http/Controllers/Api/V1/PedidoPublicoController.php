@@ -32,11 +32,23 @@ class PedidoPublicoController extends Controller
         $consumidor = $request->user('sanctum');
         $consumidor = $consumidor instanceof Consumidor ? $consumidor : null;
 
+        // RF-T40: fuera de la gracia de verificación no se pide LOGUEADO
+        // (la tienda intercepta antes con su propio CTA; esto es el candado
+        // real). Comprar como invitado sigue abierto: sin Bearer no pasa acá.
+        if ($consumidor?->verificacionVencida()) {
+            throw new \App\Exceptions\VerificacionRequeridaException(
+                __('Verificá tu email para seguir pidiendo con tu cuenta (o comprá como invitado)')
+            );
+        }
+
         $datos = $request->validate([
             'tipo' => 'required|in:delivery,take_away',
             'items' => 'required|array|min:1|max:100',
             'items.*.articulo_id' => 'required|integer',
             'items.*.cantidad' => 'required|numeric|min:0.001',
+            // RF-T47: renglón canjeado por puntos (requiere consumidor con
+            // cliente y saldo; el service valida y persiste el canje).
+            'items.*.canjear_con_puntos' => 'nullable|boolean',
             // Aclaración del cliente por ítem (aditivo 2026-07-22): "sin pepino".
             'items.*.observaciones' => 'nullable|string|max:255',
             'items.*.opcionales' => 'nullable|array',

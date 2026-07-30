@@ -97,6 +97,40 @@ class MarketplaceTiendasService
     }
 
     /**
+     * Cards básicas de una lista puntual de tiendas (RF-T41: favoritos del
+     * consumidor). Mismo snapshot cacheado del marketplace, SIN evaluación
+     * de ubicación. A diferencia de listar(): incluye tiendas deshabilitadas
+     * (la lista es del consumidor; la tienda pinta el estado) y una tienda
+     * con snapshot inválido degrada a card mínima en vez de desaparecer.
+     *
+     * @param  iterable<Tienda>  $tiendas
+     * @return array<int, array<string, mixed>>
+     */
+    public function cardsBasicas(iterable $tiendas): array
+    {
+        $cards = [];
+
+        foreach ($tiendas as $tienda) {
+            $snapshot = $tienda->habilitada ? $this->snapshotTienda($tienda) : ['valida' => false];
+            $valida = (bool) ($snapshot['valida'] ?? false);
+
+            $cards[] = [
+                'slug' => $tienda->slug,
+                'nombre' => $valida ? $snapshot['nombre'] : ($tienda->comercio?->nombre ?? $tienda->slug),
+                'comercio' => $tienda->comercio?->nombre,
+                'logo_url' => $valida ? $snapshot['logo_url'] : ($tienda->logoUrl() ? url($tienda->logoUrl()) : null),
+                'localidad' => $valida ? $snapshot['localidad'] : null,
+                'habilitada' => (bool) $tienda->habilitada && $valida,
+                'abierta_ahora' => $valida
+                    ? $this->envioService->estaAbiertoSegunConfig($snapshot['config_calendario'])
+                    : false,
+            ];
+        }
+
+        return $cards;
+    }
+
+    /**
      * Catálogo global de rubros activos (para el filtro del marketplace).
      */
     public function rubros(): array

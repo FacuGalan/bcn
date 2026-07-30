@@ -96,6 +96,26 @@ class AuthController extends Controller
     }
 
     /**
+     * PATCH /v1/consumidores/me — edita el perfil (RF-T39). El EMAIL no se
+     * cambia por acá: es la sal del token de verificación (cambiarlo
+     * invalidaría los links en vuelo) — flujo propio post-v1. El password
+     * se cambia por recuperar/restablecer.
+     */
+    public function actualizarPerfil(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'nombre' => 'sometimes|required|string|min:2|max:150',
+            'telefono' => 'sometimes|nullable|string|max:30',
+            'fecha_nacimiento' => 'sometimes|nullable|date|before:today',
+        ]);
+
+        $consumidor = $request->user();
+        $consumidor->fill($datos)->save();
+
+        return response()->json(['data' => $this->perfil($consumidor)]);
+    }
+
+    /**
      * POST /v1/consumidores/verificar — {token} del email → marca el email
      * como verificado (idempotente). Público: el link del email aterriza en
      * la tienda, que reenvía el token acá sin necesidad de sesión.
@@ -198,6 +218,9 @@ class AuthController extends Controller
             // RF-T19: pre-llena el cumpleaños en el checkout de cualquier tienda.
             'fecha_nacimiento' => $consumidor->fecha_nacimiento?->format('Y-m-d'),
             'email_verificado' => $consumidor->email_verified_at !== null,
+            // RF-T40: fecha límite para verificar (null si ya verificó). La
+            // tienda muestra la cuenta regresiva sin calcular nada.
+            'verificacion_vence_el' => $consumidor->verificacionVenceEl()?->toIso8601String(),
         ];
     }
 
