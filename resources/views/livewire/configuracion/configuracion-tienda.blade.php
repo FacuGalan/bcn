@@ -329,6 +329,27 @@
                             <option value="ambos">{{ __('Brillo + badge') }}</option>
                         </select>
                         <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('En tarjeta grande decora la card; en banner, el título de la sección.') }}</p>
+
+                        {{-- RF-T38: color del adorno (glow de la card / latido del título).
+                             Solo tiene efecto con adorno glow o ambos. --}}
+                        @php($adornoConGlow = in_array($destacadosAdorno, ['glow', 'ambos'], true))
+                        <label class="mt-2 flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300">
+                            <input type="checkbox" wire:model.live="destacadosColorPropio"
+                                @disabled(! $puedeConfigurar || $destacadosModo === 'ninguno' || ! $adornoConGlow)
+                                class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary shadow-sm focus:ring focus:ring-bcn-primary focus:ring-opacity-50 disabled:opacity-50">
+                            {{ __('Color propio del destacado (si no, usa el primario)') }}
+                        </label>
+                        @if ($destacadosColorPropio)
+                            <div class="mt-1.5 flex items-center gap-1.5">
+                                <input id="ct-destacadosColor" type="color" wire:model.live="destacadosColor"
+                                    @disabled(! $puedeConfigurar || $destacadosModo === 'ninguno' || ! $adornoConGlow)
+                                    class="h-8 w-9 p-0.5 rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 cursor-pointer" />
+                                <input type="text" wire:model.live="destacadosColor"
+                                    @disabled(! $puedeConfigurar || $destacadosModo === 'ninguno' || ! $adornoConGlow)
+                                    class="w-full min-w-0 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                            </div>
+                            @error('destacadosColor') <p class="mt-1 text-xs text-red-600 dark:text-red-400">{{ __('Color inválido (formato #rrggbb)') }}</p> @enderror
+                        @endif
                     </div>
                     <div>
                         <label for="ct-destacados-titulo" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Título de la sección de destacados') }}</label>

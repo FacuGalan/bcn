@@ -142,7 +142,8 @@ para esa sucursal (filtro server-side; el shape de cada ítem no cambia).
     "destacados": {
       "modo": "banner",                      // banner|tarjeta_grande|ninguno
       "adorno": "ninguno",                   // glow|badge|ambos|ninguno. RF-T35 (2026-07-29): en tarjeta_grande decora la card (como siempre); en banner decora el TÍTULO del carrusel (los artículos del banner no llevan adorno)
-      "titulo": ""                           // (aditivo 2026-07-29, RF-T35) título de la sección ('' ⇒ "Destacados")
+      "titulo": "",                          // (aditivo 2026-07-29, RF-T35) título de la sección ('' ⇒ "Destacados")
+      "color": ""                            // (aditivo 2026-07-30, RF-T38) color hex del adorno glow (glow de la tarjeta grande / latido del título del banner). ''/ausente/inválido ⇒ la tienda usa el color primario del tema
     },
     "promos": { "mostrar_home": false }      // true ⇒ agregar las promociones vigentes como PRIMER slide de las historias (RF-T24, 2026-07-28; antes pintaba el pill "Promociones de hoy" en la home, que se eliminó). También activa el anillo del logo aunque no haya fotos.
   },

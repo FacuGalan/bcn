@@ -46,7 +46,10 @@ document.addEventListener('alpine:init', () => {
                 // al guardar, no viajan por acá). RF-T25: overlay eliminado
                 // (portada siempre cruda) y logoRadio nuevo.
                 'portadaPosicion', 'logoRadio', 'slogan', 'descripcion',
-                'redFacebook', 'redInstagram'];
+                'redFacebook', 'redInstagram',
+                // RF-T38: color del adorno de destacados (var CSS en vivo;
+                // modo/adorno/título siguen siendo server-rendered).
+                'destacadosColorPropio', 'destacadosColor'];
             props.forEach((prop) => {
                 this[prop] = this.$wire.get(prop);
                 this.$wire.$watch(prop, (valor) => {
@@ -155,6 +158,8 @@ document.addEventListener('alpine:init', () => {
                     logo: { radio: this.logoRadio },
                     textos: { slogan: this.slogan, descripcion: this.descripcion },
                     redes: { facebook: this.redFacebook, instagram: this.redInstagram },
+                    // RF-T38: '' = la tienda cae al primario del tema.
+                    destacados: { color: this.destacadosColorPropio ? this.destacadosColor : '' },
                 },
                 logoUrl: this.logoUrl,
                 portadaUrl: this.portadaUrl,

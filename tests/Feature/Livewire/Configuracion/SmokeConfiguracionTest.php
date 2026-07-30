@@ -840,6 +840,8 @@ class SmokeConfiguracionTest extends TestCase
             ->set('destacadosModo', 'tarjeta_grande')
             ->set('destacadosAdorno', 'ambos')
             ->set('destacadosTitulo', 'Los hits de la casa')
+            ->set('destacadosColorPropio', true)
+            ->set('destacadosColor', '#00FF88')
             ->set('promosMostrarHome', true)
             ->call('guardarTienda')
             ->assertHasNoErrors();
@@ -866,6 +868,7 @@ class SmokeConfiguracionTest extends TestCase
         $this->assertSame('tarjeta_grande', $tienda->tema['destacados']['modo']);
         $this->assertSame('ambos', $tienda->tema['destacados']['adorno']);
         $this->assertSame('Los hits de la casa', $tienda->tema['destacados']['titulo'], 'RF-T35');
+        $this->assertSame('#00ff88', $tienda->tema['destacados']['color'], 'RF-T38: color propio normalizado a minúsculas');
         $this->assertTrue($tienda->tema['promos']['mostrar_home']);
 
         \App\Models\Tienda::where('comercio_id', $this->comercio->id)->delete();
