@@ -118,11 +118,11 @@ abstract class TestCase extends BaseTestCase
             );
 
             // Centinela adicional: último cambio estructural en CONFIG
-            // (consumidor_favoritos, RF-T41 ronda cuenta consumidor). Si
+            // (consumidores.google_id, RF-T49 Sign in with Google). Si
             // falta, hay migraciones pendientes.
             $existsTiendas = DB::connection('config')->select(
-                'SELECT COUNT(*) as cnt FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?',
-                ['config_test', 'consumidor_favoritos']
+                'SELECT COUNT(*) as cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+                ['config_test', 'consumidores', 'google_id']
             );
 
             if (($exists[0]->cnt ?? 0) > 0 && ($existsTiendas[0]->cnt ?? 0) > 0) {

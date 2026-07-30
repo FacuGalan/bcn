@@ -48,4 +48,16 @@ return [
         'map_id' => env('GOOGLE_MAPS_MAP_ID', 'DEMO_MAP_ID'),
     ],
 
+    /*
+     * Sign in with Google (RF-T49, tienda online). OAuth Client ID de tipo
+     * Web en Google Cloud Console, con orígenes autorizados de la TIENDA
+     * (tienda.bcnsoft.com.ar + http://localhost:8001). El MISMO client ID va
+     * en el .env de la tienda (renderiza el botón) y acá (verifica el aud
+     * del ID token). Sin esta env el endpoint responde 503 y la tienda no
+     * muestra el botón.
+     */
+    'google' => [
+        'client_id' => env('GOOGLE_CLIENT_ID'),
+    ],
+
 ];

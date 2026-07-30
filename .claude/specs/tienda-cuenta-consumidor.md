@@ -123,6 +123,38 @@
   `usar_puntos` (canje-pago) — el saldo se valida contra la SUMA; sigue
   incompatible con 2 FP (limitación RF-T9 existente).
 
+### RF-T49: Sign in with Google (core)
+- **Decisión (2026-07-30, aprobada por Facu)**: login/registro con Google
+  para bajar la fricción del alta. La tienda obtiene el **ID token** de
+  Google Identity Services (GIS) en el navegador y el CORE lo verifica y
+  resuelve la cuenta (la tienda nunca decide identidad).
+- `POST /v1/consumidores/auth/google` (público, throttle): body
+  `{credential}` (el JWT de GIS). El core verifica firma contra las JWKS de
+  Google (cacheadas), `iss` (`accounts.google.com` con o sin https), `aud`
+  (= `GOOGLE_CLIENT_ID` de config/services) y expiración. Inválido → 422.
+- Resolución de cuenta (en orden):
+  1. `google_id` ya existe → login.
+  2. email ya existe → **linkea** (setea `google_id`); si Google es
+     autoritativo y no estaba verificada → `email_verified_at = now()`
+     (el login con Google prueba la posesión de la casilla).
+  3. no existe → crea consumidor con `nombre` (claim `name`, fallback parte
+     local del email), `email`, `google_id`, `password = null`.
+- **Verificación**: Google es AUTORITATIVO si el email termina en
+  `@gmail.com`, o si `email_verified=true` y viene `hd` (Workspace). En ese
+  caso la cuenta nace/queda VERIFICADA (sin mail de verificación ni plazo
+  RF-T40). Caso raro no autoritativo → flujo de verificación normal.
+- Migración config `consumidores`: `google_id` varchar nullable UNIQUE +
+  `password` NULLABLE (cuentas Google no tienen). Login con password de una
+  cuenta sin password → mismo error genérico (no revela el método).
+- Respuesta: shape de login (`{token, consumidor}`) + `creado` (bool).
+- Dependencia nueva: `firebase/php-jwt` (verificación local del JWT, sin el
+  SDK gigante de Google). Service `GoogleIdTokenService` mockeable en tests.
+- Config: `GOOGLE_CLIENT_ID` en `.env` de core Y tienda (mismo client). Alta
+  en Google Cloud Console con orígenes `tienda.bcnsoft.com.ar` +
+  `http://localhost:8001` (la hace Facu; el código cae con gracia si falta
+  la env: 503 `google_no_configurado`).
+- Contrato: documentar en `api-v1-delivery.md`.
+
 ## RFs de TIENDA
 
 ### RF-T44: Estética de auth con marca bcnsoft
@@ -177,12 +209,35 @@
 - Todo número sale de la cotización del core (regla de oro: la tienda no
   calcula nada).
 
+### RF-T50: Botón Google + escape del webview (tienda)
+- **Botón "Continuar con Google"** en login y registro (antes del form de
+  email): botón oficial de GIS; el credential se POSTea al backend de la
+  tienda, que llama a `POST /v1/consumidores/auth/google` del core y guarda
+  el Bearer en sesión como siempre. `creado=true` → bienvenida.
+- **Webview embebido (IG/FB)**: Google bloquea OAuth ahí
+  (`disallowed_useragent`, política de Google desde 2023, sin workaround).
+  Detección de webview: la existente de la ronda mobile. Comportamiento:
+  - **Android**: el botón dispara un escape a Chrome vía `intent://` con
+    URL de continuidad (abajo). Un toque y sigue en Chrome.
+  - **iOS**: intento de escape best-effort; si no se puede, guía de un paso
+    "⋯ → Abrir en el navegador" + botón copiar link.
+  - El registro por email sigue SIEMPRE disponible como alternativa.
+- **Token de continuidad de carrito**: el escape abre un navegador con
+  cookies nuevas (sesión virgen → carrito vacío). La URL de escape lleva un
+  token firmado de corta duración (~15 min, cache de la tienda) que al
+  aterrizar re-hidrata el carrito y vuelve a la pantalla donde estaba. Sin
+  token válido → home de la tienda normal (degradación silenciosa).
+- GIS requiere origen en la allowlist del client: prod
+  `tienda.bcnsoft.com.ar`, dev `http://localhost:8001`.
+
 ---
 
 ## Orden de implementación
 
 1. **Core** (PR bcn): RF-T39 → T43 + RF-T47 + contrato (`api-v1-delivery.md`)
    + tests (`ApiV1ConsumidoresTest`, `ApiV1DeliveryTest` + nuevos).
-2. **Tienda** (PR bcn-tienda): RF-T44 → T46 + RF-T48 + fixtures/contract
-   tests actualizados.
-3. Deploy: core primero, tienda después (como siempre).
+   — **HECHO** (PR #189, 2026-07-30).
+2. **Core** (PR bcn): RF-T49 (Sign in with Google) + contrato.
+3. **Tienda** (PR bcn-tienda): RF-T44 → T46 + RF-T48 + RF-T50 +
+   fixtures/contract tests actualizados.
+4. Deploy: core primero, tienda después (como siempre).

@@ -7,6 +7,7 @@ use App\Mail\Consumidores\RecuperarPasswordConsumidor;
 use App\Mail\Consumidores\VerificarEmailConsumidor;
 use App\Models\Consumidor;
 use App\Services\Consumidores\ConsumidorTokenService;
+use App\Services\Consumidores\GoogleIdTokenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -24,7 +25,10 @@ use Illuminate\Validation\ValidationException;
  */
 class AuthController extends Controller
 {
-    public function __construct(protected ConsumidorTokenService $tokens) {}
+    public function __construct(
+        protected ConsumidorTokenService $tokens,
+        protected GoogleIdTokenService $google,
+    ) {}
 
     /**
      * POST /v1/consumidores/registro — crea la cuenta, manda el email de
@@ -63,7 +67,9 @@ class AuthController extends Controller
 
         $consumidor = Consumidor::where('email', $datos['email'])->first();
 
-        if (! $consumidor || ! Hash::check($datos['password'], $consumidor->getAuthPassword())) {
+        // Cuentas creadas via Google (RF-T49) no tienen password: mismo
+        // error genérico (no revelar el método de acceso de una cuenta).
+        if (! $consumidor || ! $consumidor->getAuthPassword() || ! Hash::check($datos['password'], $consumidor->getAuthPassword())) {
             throw ValidationException::withMessages([
                 'email' => __('Email o password incorrectos'),
             ]);
@@ -75,6 +81,80 @@ class AuthController extends Controller
                 'consumidor' => $this->perfil($consumidor),
             ],
         ]);
+    }
+
+    /**
+     * POST /v1/consumidores/auth/google — Sign in with Google (RF-T49).
+     *
+     * Recibe el credential de Google Identity Services (la tienda lo obtiene
+     * en el navegador), lo verifica server-side y resuelve la cuenta:
+     * google_id existente → login; email existente → linkea; si no, crea la
+     * cuenta SIN password. Si Google es autoritativo sobre el email (Gmail o
+     * Workspace verificado), la cuenta queda VERIFICADA sin mail ni plazo
+     * (RF-T40); el caso raro no autoritativo sigue el flujo normal.
+     */
+    public function google(Request $request): JsonResponse
+    {
+        $datos = $request->validate(['credential' => 'required|string|max:4096']);
+
+        if (! $this->google->configurado()) {
+            return response()->json([
+                'message' => __('El acceso con Google no está disponible'),
+                'codigo' => 'google_no_configurado',
+            ], 503);
+        }
+
+        $claims = $this->google->verificar($datos['credential']);
+
+        if ($claims === null) {
+            throw ValidationException::withMessages([
+                'credential' => __('No pudimos validar tu cuenta de Google. Probá de nuevo.'),
+            ]);
+        }
+
+        $consumidor = Consumidor::where('google_id', $claims['sub'])->first();
+        $creado = false;
+
+        if (! $consumidor) {
+            $consumidor = Consumidor::where('email', $claims['email'])->first();
+
+            if ($consumidor) {
+                // Cuenta previa con ese email (password o Google viejo sin
+                // linkear): se linkea de una — el ID token prueba que es SU
+                // cuenta de Google con ese email.
+                $consumidor->forceFill(['google_id' => $claims['sub']])->save();
+
+                Log::info('Consumidor linkeó su cuenta de Google', ['consumidor_id' => $consumidor->id]);
+            } else {
+                $consumidor = new Consumidor([
+                    'nombre' => $this->nombreDesdeClaims($claims),
+                    'email' => $claims['email'],
+                ]);
+                $consumidor->google_id = $claims['sub'];
+                $consumidor->save();
+                $creado = true;
+
+                Log::info('Consumidor creado via Google', ['consumidor_id' => $consumidor->id]);
+            }
+        }
+
+        if (! $consumidor->email_verified_at && $this->google->esAutoritativo($claims)) {
+            $consumidor->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        // Caso raro: cuenta nueva con email del que Google NO es autoritativo
+        // → verificación por email como cualquier registro.
+        if ($creado && ! $consumidor->email_verified_at) {
+            $this->enviarVerificacion($consumidor);
+        }
+
+        return response()->json([
+            'data' => [
+                'token' => $consumidor->createToken('tienda')->plainTextToken,
+                'consumidor' => $this->perfil($consumidor),
+                'creado' => $creado,
+            ],
+        ], $creado ? 201 : 200);
     }
 
     /**
@@ -222,6 +302,22 @@ class AuthController extends Controller
             // tienda muestra la cuenta regresiva sin calcular nada.
             'verificacion_vence_el' => $consumidor->verificacionVenceEl()?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Nombre para la cuenta nueva desde los claims de Google: claim `name`,
+     * con fallback a la parte local del email (respetando los límites del
+     * registro: 2-150).
+     */
+    protected function nombreDesdeClaims(array $claims): string
+    {
+        $nombre = trim((string) ($claims['name'] ?? ''));
+
+        if (mb_strlen($nombre) < 2) {
+            $nombre = ucfirst(str($claims['email'])->before('@')->toString());
+        }
+
+        return mb_substr($nombre, 0, 150);
     }
 
     /**
