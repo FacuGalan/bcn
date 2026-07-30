@@ -1038,10 +1038,14 @@ class WizardPromocion extends Component
             'escalas' => $this->escalas,
             'articulos_ids' => $this->alcanceArticulos === 'seleccion' ? $this->articulosIds : [],
             'categorias_ids' => $this->alcanceArticulos === 'seleccion' ? $this->categoriasIds : [],
-            'monto_minimo' => $this->montoMinimo,
-            'monto_maximo' => $this->montoMaximo,
-            'cantidad_minima' => $this->cantidadMinima,
-            'cantidad_maxima' => $this->cantidadMaxima,
+            // Un input numérico vaciado queda '' en el prop Livewire: crudo,
+            // los checks `!== null` del simulador lo tomaban como tope 0
+            // ("Monto máximo superado" para todo). Normalizar como persiste
+            // guardarCondiciones (vacío ⇒ sin condición).
+            'monto_minimo' => $this->montoMinimo !== '' && $this->montoMinimo !== null ? (float) $this->montoMinimo : null,
+            'monto_maximo' => $this->montoMaximo !== '' && $this->montoMaximo !== null ? (float) $this->montoMaximo : null,
+            'cantidad_minima' => $this->cantidadMinima !== '' && $this->cantidadMinima !== null ? (float) $this->cantidadMinima : null,
+            'cantidad_maxima' => $this->cantidadMaxima !== '' && $this->cantidadMaxima !== null ? (float) $this->cantidadMaxima : null,
             'formas_pago_ids' => $this->formasPagoIds,
             'formas_venta_ids' => $this->formasVentaIds,
             'canales_venta_ids' => $this->canalesVentaIds,
@@ -1816,6 +1820,39 @@ class WizardPromocion extends Component
                     return false;
                 }
                 break;
+
+            case 4:
+                if (! $this->rangosCondicionesValidos()) {
+                    return false;
+                }
+                break;
+        }
+
+        return true;
+    }
+
+    /**
+     * RF-T29: un mínimo mayor que su máximo arma una condición imposible de
+     * cumplir — la promo se guardaría pero jamás aplicaría, sin aviso.
+     */
+    private function rangosCondicionesValidos(): bool
+    {
+        $numerico = fn ($v) => $v !== null && $v !== '' ? (float) $v : null;
+
+        $montoMin = $numerico($this->montoMinimo);
+        $montoMax = $numerico($this->montoMaximo);
+        if ($montoMin !== null && $montoMax !== null && $montoMin > $montoMax) {
+            $this->js("window.notify('".__('El monto mínimo no puede superar al monto máximo')."', 'error')");
+
+            return false;
+        }
+
+        $cantMin = $numerico($this->cantidadMinima);
+        $cantMax = $numerico($this->cantidadMaxima);
+        if ($cantMin !== null && $cantMax !== null && $cantMin > $cantMax) {
+            $this->js("window.notify('".__('La cantidad mínima no puede superar a la cantidad máxima')."', 'error')");
+
+            return false;
         }
 
         return true;
@@ -1823,6 +1860,12 @@ class WizardPromocion extends Component
 
     public function guardar()
     {
+        // Guardar es alcanzable desde el paso 5: revalidar los rangos acá
+        // (no solo al avanzar del paso 4).
+        if (! $this->rangosCondicionesValidos()) {
+            return;
+        }
+
         // Si no es combinable, fijar prioridad en 1 automáticamente
         if (! $this->combinable) {
             $this->prioridad = 1;

@@ -49,6 +49,9 @@
                         <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Permite pedidos "para llevar" (retiro en el local).') }}</span>
                     </span>
                 </label>
+                @if($usaDelivery && ! $deliveryHabilitado && ! $takeawayHabilitado)
+                    <p class="sm:col-span-2 text-xs font-medium text-red-600 dark:text-red-400">{{ __('Sin ninguna modalidad habilitada no se pueden tomar pedidos: habilitá delivery y/o take-away.') }}</p>
+                @endif
                 <label class="flex items-start gap-2 cursor-pointer">
                     <input type="checkbox" wire:model.live="exigirRepartidor" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-sm text-gray-700 dark:text-gray-300">

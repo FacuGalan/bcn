@@ -578,11 +578,13 @@ class ConfiguracionTienda extends Component
 
     public function restablecerTema(): void
     {
-        // Restablece la ESTÉTICA; slogan/descripción/redes son contenido
-        // del comercio y sobreviven al reset.
+        // Restablece la ESTÉTICA; slogan/descripción/redes y el título de
+        // destacados (RF-T35) son contenido del comercio y sobreviven al
+        // reset (el adorno/modo sí se resetean: son estética).
         $contenido = [
             'textos' => ['slogan' => $this->slogan, 'descripcion' => $this->descripcion],
             'redes' => ['facebook' => $this->redFacebook, 'instagram' => $this->redInstagram],
+            'destacados' => ['titulo' => $this->destacadosTitulo],
         ];
         $this->aplicarTema(array_replace_recursive(Tienda::TEMA_DEFAULTS, $contenido));
     }

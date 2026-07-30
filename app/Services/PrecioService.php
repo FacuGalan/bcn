@@ -607,6 +607,13 @@ class PrecioService
      * tipo_condicion: alcanza con que UNA se cumpla. El AND plano anterior
      * exigía cumplirlas todas ⇒ una promo con 2+ FP jamás aplicaba por esta
      * vía (bug que afectaba al catálogo de la tienda y pantalla pública).
+     *
+     * `por_articulo` y `por_categoria` son el MISMO grupo (el ALCANCE): el
+     * wizard permite marcar artículos Y categorías a la vez y el resto de
+     * los evaluadores (WithCalculoVenta::promocionAplicaAItem, whereHas de
+     * los simuladores) los une en un solo OR — separados en AND, una promo
+     * "artículo X + categoría Y" mostraba en el catálogo un precio distinto
+     * del que cobraba el carrito.
      */
     private function validarCondicionesPromocion(Promocion $promocion, array $contexto): bool
     {
@@ -614,7 +621,11 @@ class PrecioService
             return true;
         }
 
-        foreach ($promocion->condiciones->groupBy('tipo_condicion') as $grupo) {
+        $grupos = $promocion->condiciones->groupBy(fn ($condicion) => in_array($condicion->tipo_condicion, ['por_articulo', 'por_categoria'], true)
+            ? 'alcance'
+            : $condicion->tipo_condicion);
+
+        foreach ($grupos as $grupo) {
             if (! $grupo->contains(fn ($condicion) => $condicion->seCumple($contexto))) {
                 return false;
             }
