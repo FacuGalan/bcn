@@ -1,5 +1,74 @@
 # Changelog
 
+## [0.1.8](https://github.com/FacuGalan/bcn/compare/v0.1.7...v0.1.8) (2026-07-17)
+
+
+### Funcionalidades
+
+* **api:** items en el seguimiento publico para re-pedir (RF-T3) ([#164](https://github.com/FacuGalan/bcn/issues/164)) ([2bee939](https://github.com/FacuGalan/bcn/commit/2bee939b18c9deedc263e07c791f294c224fb72b))
+* **compras:** coeficiente de computabilidad de percepciones sufridas (D25) ([#155](https://github.com/FacuGalan/bcn/issues/155)) ([c1f0fe1](https://github.com/FacuGalan/bcn/commit/c1f0fe1941dd7807a6e38be1af41259df1c0597a))
+* **compras:** factura de servicio (D23) + percepciones habituales por proveedor (D24) ([#154](https://github.com/FacuGalan/bcn/issues/154)) ([9311a62](https://github.com/FacuGalan/bcn/commit/9311a62bb13542cf5dfdd5fc329e64c17362810c))
+* **compras:** módulo Compras → Costos → Precios completo (spec D1-D22, RF-01..22) ([#153](https://github.com/FacuGalan/bcn/issues/153)) ([5f78db2](https://github.com/FacuGalan/bcn/commit/5f78db2117243624d692f51bcdc1432eecdae722))
+* **conciliacion:** conciliación de CuentaEmpresa contra el proveedor de pago (Paso 3) ([#132](https://github.com/FacuGalan/bcn/issues/132)) ([3ef2888](https://github.com/FacuGalan/bcn/commit/3ef2888963dbc7665079f7b94c1d9085dd2a1bbf))
+* **domicilio:** picker de Google Maps + uploader de logo modernizado ([#140](https://github.com/FacuGalan/bcn/issues/140)) ([5a37ea7](https://github.com/FacuGalan/bcn/commit/5a37ea7aba6924664b690a6e668343198d312d4a))
+* **fiscal:** alta manual de movimientos fiscales (RF-08) ([#137](https://github.com/FacuGalan/bcn/issues/137)) ([09826b0](https://github.com/FacuGalan/bcn/commit/09826b008e1f38bb3c1f4df78e973a0e801a479a))
+* **fiscal:** comando arca:tipos-tributos para definir codigo_arca (Fase 5b) ([#135](https://github.com/FacuGalan/bcn/issues/135)) ([8b369bb](https://github.com/FacuGalan/bcn/commit/8b369bbcd70515e3f9bd0b206077a08946b7b730))
+* **fiscal:** importador de padrón ARBA/AGIP — percepción IIBB por padrón (Fase 10b) ([#139](https://github.com/FacuGalan/bcn/issues/139)) ([59145b6](https://github.com/FacuGalan/bcn/commit/59145b67bdf1a47417220129ad26cb50428e236d))
+* **fiscal:** percepciones aplicadas en ventas (Fase 5b) ([#136](https://github.com/FacuGalan/bcn/issues/136)) ([387f4ec](https://github.com/FacuGalan/bcn/commit/387f4ecb050b6231d23d4119ea1cecbfea66167f))
+* **fiscal:** perfil fiscal del cliente — percepción IIBB por sujeto (Fase 10a) + fix AFIP 10051 ([#138](https://github.com/FacuGalan/bcn/issues/138)) ([5b59121](https://github.com/FacuGalan/bcn/commit/5b591216e2b3c739bceecadf708f1e24767086bc))
+* **fiscal:** revisión Fable del sistema impositivo — 2 fixes + 4 profundizaciones ([#151](https://github.com/FacuGalan/bcn/issues/151)) ([e3b1416](https://github.com/FacuGalan/bcn/commit/e3b14160e93400ee9455dc8c3ee8d6ec027d23b1))
+* **fiscal:** sistema impositivo — motor fiscal (Fases 1-9) ([#133](https://github.com/FacuGalan/bcn/issues/133)) ([8f00537](https://github.com/FacuGalan/bcn/commit/8f00537853b9c2cce357a733bc0b2f95625521ae))
+* hardening del circuito de precios e impuestos (IVA final único + fixes de auditoría + masivo a costos) ([#156](https://github.com/FacuGalan/bcn/issues/156)) ([85f51d0](https://github.com/FacuGalan/bcn/commit/85f51d06e8ad53e1411734b6feb100b38ea3aac4))
+* **integraciones-pago:** ayuda contextual para configurar el webhook de MP ([#130](https://github.com/FacuGalan/bcn/issues/130)) ([b594a6a](https://github.com/FacuGalan/bcn/commit/b594a6a23399e28c51fed244ddf06faa9aa0edec))
+* **integraciones-pago:** modo Point (posnet físico Mercado Pago) ([#128](https://github.com/FacuGalan/bcn/issues/128)) ([9ac0b7e](https://github.com/FacuGalan/bcn/commit/9ac0b7ea0e33a42d40b69df0c3e21a37f9d2ca4d))
+* **integraciones-pago:** picker de Google Maps para la dirección de la sucursal ([#141](https://github.com/FacuGalan/bcn/issues/141)) ([3ec95fb](https://github.com/FacuGalan/bcn/commit/3ec95fbde6dca1daec53c151065629d62d67d1d3))
+* **integraciones-pago:** QR de monto libre (qr_libre) ([#129](https://github.com/FacuGalan/bcn/issues/129)) ([a13e191](https://github.com/FacuGalan/bcn/commit/a13e191df671c5ed1a2c7def3a5b75b2824ae585))
+* **integraciones-pago:** vínculo CuentaEmpresa ↔ integraciones de pago (Paso 2) ([#131](https://github.com/FacuGalan/bcn/issues/131)) ([dcdcab4](https://github.com/FacuGalan/bcn/commit/dcdcab4a731034833b04521032f9b06653b7982e))
+* **pantalla-cliente:** botón instalar en perfil + cartel de instalación ([#127](https://github.com/FacuGalan/bcn/issues/127)) ([0a0ddd3](https://github.com/FacuGalan/bcn/commit/0a0ddd3c0bfcb6f22508b3bdddaf95850e517230))
+* **pantalla-cliente:** personalización por sucursal de la 2da pantalla ([#123](https://github.com/FacuGalan/bcn/issues/123)) ([ba179a8](https://github.com/FacuGalan/bcn/commit/ba179a80d0022a3d91ec476d480b8e8217f907bb))
+* **pantallas-clase-b:** cartel de desactivado + español por defecto ([#149](https://github.com/FacuGalan/bcn/issues/149)) ([4c5acf4](https://github.com/FacuGalan/bcn/commit/4c5acf4b4ed8591ea0f2d9915d4b7fc17b64edc5))
+* **pantallas-clase-b:** iconos de marca, footer más alto y consultor con fullscreen + sonido ([#144](https://github.com/FacuGalan/bcn/issues/144)) ([db88820](https://github.com/FacuGalan/bcn/commit/db88820b14cd9876737be6dce389506a1976290b))
+* **pantallas-clase-b:** Multi-PWA Clase B — llamador de pedidos, consultor de precios y numeración de turno ([#143](https://github.com/FacuGalan/bcn/issues/143)) ([f6327d8](https://github.com/FacuGalan/bcn/commit/f6327d833660010f68a06de9fe231cf44312ee98))
+* **pedidos-mostrador:** filtros visibles, orden por columna, cliente opcional y atajos ([#150](https://github.com/FacuGalan/bcn/issues/150)) ([3252920](https://github.com/FacuGalan/bcn/commit/3252920688ec2de967d2ff2fa5eb26bcd7247138))
+* **pedidos:** módulo Pedidos Delivery/Take-Away completo + API REST v1 para tienda online ([#152](https://github.com/FacuGalan/bcn/issues/152)) ([bb6bf63](https://github.com/FacuGalan/bcn/commit/bb6bf63e1ef7e054ff8671b392b6aa8350e7b362))
+* **tienda:** Fase 0 del spec tienda-online — API de consumidores + marketplace + hardening (RF-T1..T5) ([#161](https://github.com/FacuGalan/bcn/issues/161)) ([9812416](https://github.com/FacuGalan/bcn/commit/981241609fcb606d025340a5b2b984a3b6e35cb3))
+* **tienda:** forma de pago en el precio de la cotización/alta + fix cupón API (E13) ([#158](https://github.com/FacuGalan/bcn/issues/158)) ([a1d37a0](https://github.com/FacuGalan/bcn/commit/a1d37a0e4a51171b54cbf6ed135d7bdee5ee9865))
+* **ventas:** reporte de cortesías + fix cero negativo en checksum Livewire ([#142](https://github.com/FacuGalan/bcn/issues/142)) ([62060e2](https://github.com/FacuGalan/bcn/commit/62060e292c83ced0a30ef68e6865c1fb14d1c7c5))
+
+
+### Correcciones
+
+* **deploy:** hook de composer usa optimize:clear (no config:cache) ([#146](https://github.com/FacuGalan/bcn/issues/146)) ([d950ed6](https://github.com/FacuGalan/bcn/commit/d950ed6bdadfdeeed746c0e9cf09fc3d7eba16b7))
+* **fiscal:** hardening fiscal saliente/ventas — tanda 2 (RF-V1..V8) ([#157](https://github.com/FacuGalan/bcn/issues/157)) ([faed1f2](https://github.com/FacuGalan/bcn/commit/faed1f25b94ebab5e409a92c3fcca56cefee5eac))
+* **fiscal:** rechazar certificado/clave de CUIT vacíos al subir ([#134](https://github.com/FacuGalan/bcn/issues/134)) ([075b76c](https://github.com/FacuGalan/bcn/commit/075b76c11e30c5308c858fe404b1e7bf1fdffbea))
+* **pedidos-mostrador:** vista en blanco — mover x-data al root del componente ([#148](https://github.com/FacuGalan/bcn/issues/148)) ([6070091](https://github.com/FacuGalan/bcn/commit/60700915fa3f0d82d0d2900ea4f8ed1f1986f738))
+* **tests:** smoke de configuración tab CUITs roto por dato residual compartido ([#159](https://github.com/FacuGalan/bcn/issues/159)) ([03158d1](https://github.com/FacuGalan/bcn/commit/03158d1ad410acedf4c0acdbee3f404984a710e3))
+* **tienda:** catálogo 500 por relación rota + paridad de opcionales en cotizador ([#163](https://github.com/FacuGalan/bcn/issues/163)) ([c0779ec](https://github.com/FacuGalan/bcn/commit/c0779ec4e59e81f4615f57930918219e755327b4))
+* **tienda:** imagen_url absoluta en el catalogo (cross-origin) ([#165](https://github.com/FacuGalan/bcn/issues/165)) ([33b5665](https://github.com/FacuGalan/bcn/commit/33b56655d8bd801c6747dfd7f551909f38ac1bce))
+
+
+### Rendimiento
+
+* **deploy:** comando deploy:warm con icons:cache — fix lentitud sistémica (~600ms/request) ([#147](https://github.com/FacuGalan/bcn/issues/147)) ([ed898b3](https://github.com/FacuGalan/bcn/commit/ed898b33052ff6545ea4c7ef2b57010b0fd089d9))
+* **volt+pwa:** montar solo views/volt y versionar el service worker por build ([#145](https://github.com/FacuGalan/bcn/issues/145)) ([76acc57](https://github.com/FacuGalan/bcn/commit/76acc576be81af06c4e7e5627f5c0d4a42d97613))
+
+
+### Refactoring
+
+* **pantalla-cliente:** limpieza post-repaso del botón conectar ([#126](https://github.com/FacuGalan/bcn/issues/126)) ([37dcdee](https://github.com/FacuGalan/bcn/commit/37dcdee4edef885a3f9e1459b66e7af14d37e074))
+* **pwa:** scope /app para app principal + multi-PWA pantalla cliente ([#125](https://github.com/FacuGalan/bcn/issues/125)) ([3e9192f](https://github.com/FacuGalan/bcn/commit/3e9192f90075f63383710d8da7ff1ce25782a841))
+
+
+### Documentación
+
+* **spec:** decision de deploy de la tienda en subdominio propio ([#166](https://github.com/FacuGalan/bcn/issues/166)) ([271263b](https://github.com/FacuGalan/bcn/commit/271263b2228ae910d4ab1ef46626524c79f72371))
+* **spec:** tienda online — proyecto aparte + Fase 0 del core ([#160](https://github.com/FacuGalan/bcn/issues/160)) ([bdd84ee](https://github.com/FacuGalan/bcn/commit/bdd84ee9e425050b1604efa4eac7baf667c658cc))
+
+
+### Mantenimiento
+
+* **deploy:** deploy.sh robusto + Gotchas 4 y 5 del playbook (incidentes del deploy [#161](https://github.com/FacuGalan/bcn/issues/161)) ([#162](https://github.com/FacuGalan/bcn/issues/162)) ([a63a068](https://github.com/FacuGalan/bcn/commit/a63a068cd50a0b4fb591039d1283bdb073211b07))
+
 ## [0.1.7](https://github.com/FacuGalan/bcn/compare/v0.1.6...v0.1.7) (2026-06-02)
 
 
