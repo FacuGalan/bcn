@@ -40,22 +40,24 @@ npm ci && npm run build
 #    view + route + event + icons (imposible olvidarse icons:cache → ver Gotcha 3).
 php artisan deploy:warm
 
-# 4) Recargar FPM. En PRODUCCIÓN es OBLIGATORIO y NO opcional:
-#    el server tiene opcache.validate_timestamps=0, así que OPcache NO relee
-#    los .php cambiados hasta este reload. Sin esto, un fix de CÓDIGO (p.ej. el
-#    VoltServiceProvider) deployás pero NO surte efecto: OPcache sigue corriendo
-#    la versión vieja compilada. → "deployé y sigue igual de lento" = falta este paso.
-sudo systemctl reload php*-fpm
+# 4) Recargar el SAPI web. Realidad del server (verificada 2026-07-30, informe
+#    de deploy): el SAPI es mod_php 8.3 bajo Apache (php_module cargado,
+#    proxy_fcgi deshabilitado, ningún vhost usa FPM) y validate_timestamps
+#    está en su DEFAULT (1) → OPcache revalida por mtime y el deploy toma
+#    efecto solo; este reload es cinturón de seguridad (y limpia estado).
+sudo systemctl reload apache2
 ```
 
 > ### ⚠️ Si deployaste un fix de performance y "no mejoró nada"
-> Casi siempre es el **paso 4 omitido**. Con `validate_timestamps=0` (producción),
-> OPcache cachea el bytecode compilado y lo sirve hasta que reciba un `reload`/`restart`
-> de FPM. Mientras tanto el código nuevo está en disco pero **no se ejecuta**.
-> Verificá que el reload corrió: `sudo systemctl status php*-fpm` (uptime reciente) o
-> `php -r 'print_r(opcache_get_status()["opcache_statistics"]["start_time"]);'` desde el
-> SAPI web (no CLI). Esto explica el viejo "lo arregló el optimize": el lever real no era
-> `config:cache` (mide ~8 ms), era que el ciclo de deploy refrescaba los workers de FPM.
+> Con la config REAL del server (mod_php + `validate_timestamps=1`) OPcache
+> revalida por mtime: el código nuevo se ejecuta solo, y este síntoma NO es
+> OPcache — buscá por el lado de caches de Laravel (paso 3) o del SW/cliente.
+> El síntoma "deployé y sigue igual" vuelve a ser OPcache SOLO si algún día se
+> setea `validate_timestamps=0` (requiere migrar a FPM y reloadear ESE
+> servicio tras cada deploy). Verificación del estado real desde el SAPI web
+> (no CLI): `php -r 'print_r(opcache_get_status()["opcache_statistics"]["start_time"]);'`.
+> Historia: el viejo "lo arregló el optimize" nunca fue `config:cache` (mide
+> ~8 ms), era que el ciclo de deploy refrescaba los workers.
 
 ### Sobre `php artisan optimize` / `config:cache`
 
@@ -74,12 +76,21 @@ sudo systemctl reload php*-fpm
   deploy: `php artisan config:clear` debería ser no-op; si `bootstrap/cache/config.php`
   existe, algo volvió a cachear config.
 
-### Detalle del servicio FPM (server oficial)
+### Detalle del SAPI web (server oficial)
 
-El SAPI web corre **`php8.2-fpm`** aunque el **CLI es PHP 8.3**. El `reload php*-fpm`
-del flujo igual lo agarra (wildcard), pero si reloadeás el servicio explícito es
-`sudo systemctl reload php8.2-fpm`. No confundir la versión del CLI (`php -v`) con la
-que sirve las requests.
+**Corrección 2026-07-30** (informe de deploy; ya se había detectado el 20/07
+pero no había llegado al repo): el SAPI web es **mod_php 8.3** — Apache carga
+`php_module`, `proxy_fcgi` NI SIQUIERA está habilitado y ningún vhost
+referencia FPM. La versión vieja de este doc afirmaba `php8.2-fpm`: el
+`reload php*-fpm` recargaba un servicio que no atiende tráfico web, y el
+deploy "andaba" porque `validate_timestamps` está en su default (1) y OPcache
+revalida por mtime. Verificación rápida del SAPI real:
+
+```bash
+apachectl -M | grep -i php          # php_module ⇒ mod_php
+ls /etc/apache2/mods-enabled | grep -i 'php\|fcgi'
+php -i > /dev/null; curl -s https://bcn.bcnsoft.com.ar/ -o /dev/null  # el SAPI web se ve en phpinfo, no en CLI
+```
 
 ---
 
@@ -190,7 +201,7 @@ ambos (NO era la base). Aislado limpiando solo el manifest de icons.
 
 ```bash
 php artisan icons:cache
-sudo systemctl reload php*-fpm   # para que OPcache tome el cambio (validate_timestamps=0)
+sudo systemctl reload apache2    # SAPI real: mod_php (validate_timestamps=1 ⇒ el reload es cinturón)
 ```
 
 **Importante:** `optimize:clear` (hook post-merge) NO borra el manifest de icons, pero
