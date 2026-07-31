@@ -333,23 +333,23 @@ Ninguna.
 3. Contrato `docs/api-v1-delivery.md` + tests feature completos.
 4. PR core (Fases 1+2 juntas) → CI → merge.
 
-### Fase 3 (TIENDA): RF-T52 + RF-T53 — perfil persistente y modal armando [PENDIENTE]
+### Fase 3 (TIENDA): RF-T52 + RF-T53 — perfil persistente y modal armando [COMPLETO — falta validación en vivo]
 1. Partial `boton-perfil.blade.php` (inicial/acento vs icono) + integrarlo
    en buscador (sin `x-show="! compacto"`) y header-pagina.
 2. Banner sin total + modal "Armando…" con animación CSS/SVG.
 3. Smoke/feature tests + verificación desktop y móvil en vivo.
 
-### Fase 4 (TIENDA): RF-T55 — puntos en carrito/checkout [PENDIENTE]
+### Fase 4 (TIENDA): RF-T55 — puntos en carrito/checkout [COMPLETO — falta validación en vivo]
 1. Mover bloque de puntos a "Tus datos"; quitar `a_ganar` del carrito.
 2. Estrellita por ítem (visibilidad por catálogo + cotización; canje/deshacer).
 3. Contract tests con fixtures de cotización con canje.
 
-### Fase 5 (TIENDA): RF-T51 — restyling Mi Cuenta [PENDIENTE]
+### Fase 5 (TIENDA): RF-T51 — restyling Mi Cuenta [COMPLETO — falta validación en vivo]
 1. Reorganización visual de cuenta.blade.php (+ Cuenta.php si hay tabs).
 2. Card de puntos cross-comercio con peso visual.
 3. Smoke tests verdes; validación en vivo de Facu.
 
-### Fase 6 (TIENDA): RF-T57 — puntos retroactivos [PENDIENTE]
+### Fase 6 (TIENDA): RF-T57 — puntos retroactivos [COMPLETO — falta validación en vivo]
 1. `CoreApi::vincularPedido()` + fixture.
 2. Banner en seguimiento + propagación `volver` + vinculación en mount.
 3. Feature tests (banner, vinculación post-registro, idempotencia, logueado
