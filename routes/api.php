@@ -62,6 +62,10 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('/pedidos/{token}', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'show'])->name('tienda.pedidos.seguimiento');
             Route::post('/pedidos/{token}/cancelar', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'cancelar'])
                 ->middleware('throttle:10,1')->name('tienda.pedidos.cancelar');
+            // RF-T56: vinculación retroactiva del pedido invitado a la
+            // cuenta (Bearer consumidor + posesión del token = credencial).
+            Route::post('/pedidos/{token}/vincular', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'vincular'])
+                ->middleware(['auth:sanctum', 'api.consumidor', 'throttle:10,1'])->name('tienda.pedidos.vincular');
         });
 
     // ── Consumidores (cuenta GLOBAL de la tienda online, RF-T1..T3) ──

@@ -2672,9 +2672,12 @@ class PedidoDeliveryService
     /**
      * Acredita los puntos GANADOS al cliente (D19: la conversión de mostrador
      * nunca los acreditaba — solo el Livewire de venta directa). Post-commit,
-     * best-effort: un fallo acá no revierte la conversión.
+     * best-effort: un fallo acá no revierte la conversión. Pública desde
+     * RF-T56: la vinculación retroactiva la reusa para acreditar el pedido
+     * de invitado ya convertido. OJO: no es idempotente — el caller debe
+     * chequear `venta.puntos_ganados == 0` antes de llamar.
      */
-    protected function acreditarPuntosGanados(PedidoDelivery $pedido, Venta $venta): void
+    public function acreditarPuntosGanados(PedidoDelivery $pedido, Venta $venta): void
     {
         if (! $pedido->cliente_id) {
             return;

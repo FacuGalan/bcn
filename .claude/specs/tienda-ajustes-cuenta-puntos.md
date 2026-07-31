@@ -327,7 +327,7 @@ Ninguna.
 4. `PedidoTiendaService`: `puntos_usados` del detalle = puntos_canje.
 5. Tests: unit cotizador + feature API (catálogo, cotización, alta, conversión con ledger).
 
-### Fase 2 (CORE): RF-T56 — vinculación retroactiva [PENDIENTE]
+### Fase 2 (CORE): RF-T56 — vinculación retroactiva [COMPLETO]
 1. Service de vinculación (reusa `resolverClienteId()`), transacción tenant.
 2. Ruta + controller + `puntos.a_ganar` en el payload de seguimiento.
 3. Contrato `docs/api-v1-delivery.md` + tests feature completos.

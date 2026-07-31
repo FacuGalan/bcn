@@ -2801,6 +2801,215 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertNotNull($venta->id);
     }
 
+    // ==================== VINCULACIÓN RETROACTIVA (RF-T56, ronda ajustes) ====================
+
+    /** Consumidor SIN mapping a cliente (invitado que recién se registra). */
+    protected function consumidorSinCliente(): array
+    {
+        $consumidor = \App\Models\Consumidor::create([
+            'nombre' => 'Recién Registrado',
+            'email' => 'nuevo-'.uniqid().'@test.com',
+            'password' => bcrypt('secret123'),
+        ]);
+
+        return [$consumidor, $consumidor->createToken('tienda')->plainTextToken];
+    }
+
+    /** Pedido de INVITADO por la API pública; devuelve [pedido, token seguimiento]. */
+    protected function pedidoInvitado(?int $articuloId = null): array
+    {
+        $articuloId ??= $this->crearArticuloConStock($this->sucursalId, cantidad: 10)->id;
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articuloId))
+            ->assertCreated();
+
+        return [
+            PedidoDelivery::find($respuesta->json('data.id')),
+            $respuesta->json('data.token_seguimiento'),
+        ];
+    }
+
+    public function test_seguimiento_expone_puntos_a_ganar_para_invitado(): void
+    {
+        $this->activarProgramaPuntos();
+        [, $token] = $this->pedidoInvitado(); // $1000 / $100 por punto = 10
+
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.puntos.activo', true)
+            ->assertJsonPath('data.puntos.a_ganar', 10)
+            ->assertJsonPath('data.puntos.vinculado', false);
+    }
+
+    public function test_seguimiento_sin_programa_no_expone_puntos(): void
+    {
+        [, $token] = $this->pedidoInvitado();
+
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.puntos', null);
+    }
+
+    public function test_vincular_pedido_invitado_setea_consumidor_y_crea_cliente_d11(): void
+    {
+        $this->comercio->update(['tienda_alta_cliente_automatica' => true]);
+        [$consumidor, $bearer] = $this->consumidorSinCliente();
+        [$pedido, $token] = $this->pedidoInvitado();
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearer])
+            ->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")
+            ->assertOk()
+            ->assertJsonPath('data.vinculado', true)
+            ->assertJsonPath('data.puntos_acreditados', 0); // sin venta aún
+
+        $pedido->refresh();
+        $this->assertSame($consumidor->id, (int) $pedido->consumidor_id);
+        $this->assertNotNull($pedido->cliente_id, 'D11 ON: la vinculación materializa el cliente');
+        $this->assertSame(
+            (int) $pedido->cliente_id,
+            (int) \App\Models\ConsumidorComercio::where('consumidor_id', $consumidor->id)
+                ->where('comercio_id', $this->comercio->id)->value('cliente_id'),
+        );
+
+        // El seguimiento ahora lo reporta vinculado.
+        $this->activarProgramaPuntos();
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertJsonPath('data.puntos.vinculado', true);
+    }
+
+    public function test_vincular_con_d11_off_guarda_consumidor_sin_cliente(): void
+    {
+        $this->comercio->update(['tienda_alta_cliente_automatica' => false]);
+        [$consumidor, $bearer] = $this->consumidorSinCliente();
+        [$pedido, $token] = $this->pedidoInvitado();
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearer])
+            ->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")
+            ->assertOk()
+            ->assertJsonPath('data.vinculado', true);
+
+        $pedido->refresh();
+        $this->assertSame($consumidor->id, (int) $pedido->consumidor_id, 'Rastreable aunque no haya cliente');
+        $this->assertNull($pedido->cliente_id);
+    }
+
+    public function test_vincular_es_idempotente_y_no_pisa_otra_cuenta(): void
+    {
+        $this->comercio->update(['tienda_alta_cliente_automatica' => true]);
+        [$consumidorA, $bearerA] = $this->consumidorSinCliente();
+        [, $bearerB] = $this->consumidorSinCliente();
+        [$pedido, $token] = $this->pedidoInvitado();
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearerA])
+            ->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")
+            ->assertOk()->assertJsonPath('data.vinculado', true);
+
+        // Repetir con la misma cuenta: no-op tranquilo.
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearerA])
+            ->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")
+            ->assertOk()
+            ->assertJsonPath('data.vinculado', true)
+            ->assertJsonPath('data.puntos_acreditados', 0);
+
+        // Otra cuenta con el mismo token: NO roba el pedido. (forgetGuards:
+        // el guard sanctum cachea al consumidor A entre requests del test.)
+        $this->app['auth']->forgetGuards();
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearerB])
+            ->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")
+            ->assertOk()->assertJsonPath('data.vinculado', false);
+
+        $this->assertSame($consumidorA->id, (int) $pedido->fresh()->consumidor_id);
+    }
+
+    public function test_vincular_sin_bearer_da_401_y_token_malo_404(): void
+    {
+        [, $token] = $this->pedidoInvitado();
+        $this->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")->assertStatus(401);
+
+        [, $bearer] = $this->consumidorSinCliente();
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearer])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos/01INEXISTENTE0000000000000/vincular')
+            ->assertStatus(404);
+    }
+
+    public function test_vincular_pedido_convertido_acredita_los_puntos_ganados(): void
+    {
+        $this->activarProgramaPuntos();
+        $this->comercio->update(['tienda_alta_cliente_automatica' => true]);
+        $cajaId = $this->crearCajaAbierta($this->sucursalId)->id;
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode(['aceptacion_pedidos_externos' => 'automatica']),
+        ]);
+        [$consumidor, $bearer] = $this->consumidorSinCliente();
+        [$pedido, $token] = $this->pedidoInvitado(); // $1000 → 10 pts
+
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $this->formaPagoEfectivoEnSucursal()->id,
+            'monto_base' => (float) $pedido->total_final,
+            'monto_final' => (float) $pedido->total_final,
+            'planificado' => true,
+        ]);
+        $this->actingAs(\App\Models\User::factory()->create(['is_system_admin' => true]));
+        $venta = $this->service->convertirEnVenta($pedido->fresh(), cajaId: $cajaId);
+        $this->assertNull($venta->cliente_id, 'Invitado: la venta nace sin cliente');
+        $this->assertSame(0, (int) $venta->puntos_ganados);
+
+        // Resetear guards: actingAs dejó al User en el guard web y Sanctum lo
+        // preferiría sobre el Bearer del consumidor.
+        auth()->guard('web')->logout();
+        $this->app['auth']->forgetGuards();
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearer])
+            ->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")
+            ->assertOk()
+            ->assertJsonPath('data.vinculado', true)
+            ->assertJsonPath('data.puntos_acreditados', 10);
+
+        $pedido->refresh();
+        $venta->refresh();
+        $this->assertSame((int) $pedido->cliente_id, (int) $venta->cliente_id, 'La venta también se adopta');
+        $this->assertSame(10, (int) $venta->puntos_ganados);
+        $this->assertSame(10, \App\Models\MovimientoPunto::calcularSaldo($pedido->cliente_id));
+
+        // Idempotencia dura: repetir no re-acredita.
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearer])
+            ->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")
+            ->assertOk()->assertJsonPath('data.puntos_acreditados', 0);
+        $this->assertSame(10, \App\Models\MovimientoPunto::calcularSaldo($pedido->cliente_id));
+    }
+
+    public function test_vincular_antes_de_convertir_acredita_en_la_conversion(): void
+    {
+        $this->activarProgramaPuntos();
+        $this->comercio->update(['tienda_alta_cliente_automatica' => true]);
+        $cajaId = $this->crearCajaAbierta($this->sucursalId)->id;
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode(['aceptacion_pedidos_externos' => 'automatica']),
+        ]);
+        [, $bearer] = $this->consumidorSinCliente();
+        [$pedido, $token] = $this->pedidoInvitado();
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$bearer])
+            ->postJson("/api/v1/tiendas/tienda-test/pedidos/{$token}/vincular")
+            ->assertOk()
+            ->assertJsonPath('data.puntos_acreditados', 0); // aún sin venta
+
+        $pedido->refresh();
+        $this->assertNotNull($pedido->cliente_id);
+        $this->assertSame(0, \App\Models\MovimientoPunto::calcularSaldo($pedido->cliente_id));
+
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $this->formaPagoEfectivoEnSucursal()->id,
+            'monto_base' => (float) $pedido->total_final,
+            'monto_final' => (float) $pedido->total_final,
+            'planificado' => true,
+        ]);
+        $this->actingAs(\App\Models\User::factory()->create(['is_system_admin' => true]));
+        $this->service->convertirEnVenta($pedido->fresh(), cajaId: $cajaId);
+
+        // La conversión normal encuentra el cliente y acredita sola.
+        $this->assertSame(10, \App\Models\MovimientoPunto::calcularSaldo($pedido->cliente_id));
+    }
+
     // ==================== VERIFICACIÓN VENCIDA (RF-T40) ====================
 
     public function test_pedido_de_consumidor_con_verificacion_vencida_da_403(): void

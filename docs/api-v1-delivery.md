@@ -606,9 +606,46 @@ Sirve para mostrar qué se pidió en el seguimiento y para que la tienda arme
 "re-pedir": rearma el carrito con `articulo_id`/`opcional_id`/`cantidad` y
 **re-cotiza** (precios de hoy, nunca históricos).
 
+**Bloque `puntos`** *(aditivo 2026-07-31, RF-T56)*: si el programa de puntos
+del comercio está activo, el pedido no está cancelado y hay algo que ganar,
+la respuesta suma:
+
+```json
+"puntos": { "activo": true, "a_ganar": 10, "vinculado": false }
+```
+
+`a_ganar` usa la fórmula real de acumulación (multiplicador de la FP
+declarada incluido) sobre lo que se paga sin puntos; `vinculado` dice si el
+pedido ya tiene una cuenta de consumidor atada. Con esto la tienda arma el
+CTA de invitados: "este pedido hubiese sumado N puntos — registrate y los
+sumás". `null` o clave ausente ⇒ no mostrar nada.
+
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
 entre en preparación). Después, solo el comercio.
+
+### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/vincular`
+*(aditivo 2026-07-31, RF-T56 — requiere Bearer de consumidor)*
+
+Vinculación retroactiva de un pedido hecho como INVITADO a la cuenta del
+consumidor logueado. La posesión del token de seguimiento es la credencial
+sobre el pedido (misma regla que el seguimiento y la cancelación).
+
+- Pedido sin cuenta → setea `consumidor_id`, resuelve/crea el cliente del
+  comercio (política D11 `tienda_alta_cliente_automatica`; con OFF el pedido
+  queda rastreable por `consumidor_id` sin cliente) y, si el pedido YA se
+  convirtió a venta, adopta la venta y **acredita los puntos ganados** con
+  la fórmula real. Si aún no se convirtió, no acredita nada: la conversión
+  normal lo hará al encontrar el cliente.
+- **Idempotente**: pedido ya vinculado a ESTA cuenta → `200` no-op con
+  `puntos_acreditados: 0`. Vinculado a OTRA cuenta → `200` con
+  `vinculado: false` (no se pisa).
+- Respuesta: `{data: {vinculado: bool, puntos_acreditados: int}}`.
+- Errores: `401` sin Bearer; `404` token inexistente o de otra tienda.
+- Flujo tienda: el seguimiento muestra el CTA con `puntos.a_ganar` (GET de
+  arriba); tras registro/login la tienda llama a este endpoint y comunica
+  el resultado ("sumaste N puntos" / "se acreditan al completarse el
+  pedido").
 
 ## Endpoints de consumidores (RF-T1..T3 + RF-T39..T42 + RF-T49, cuenta global de la tienda)
 
