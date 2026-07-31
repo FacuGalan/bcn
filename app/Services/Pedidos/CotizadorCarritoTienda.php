@@ -478,20 +478,16 @@ class CotizadorCarritoTienda
     }
 
     /**
-     * RF-T47: puntos comprometidos por los renglones canjeados de la última
-     * cotización (regla del POS: ceil(precio_unitario / valor_punto) por
-     * unidad). 0 sin canjes o sin valor de canje.
+     * RF-T54: puntos comprometidos por los renglones canjeados de la última
+     * cotización — costo configurado del artículo (articulos.puntos_canje,
+     * paridad POS) por unidad. 0 sin canjes.
      */
-    public function puntosUsadosEnArticulos(float $valorPunto): int
+    public function puntosUsadosEnArticulos(): int
     {
-        if ($valorPunto <= 0) {
-            return 0;
-        }
-
         $total = 0;
         foreach ($this->items as $item) {
             if ($item['pagado_con_puntos'] ?? false) {
-                $total += (int) ceil((float) ($item['precio'] ?? 0) / $valorPunto) * (int) ($item['cantidad'] ?? 1);
+                $total += (int) ($item['puntos_canje'] ?? 0) * (int) ($item['cantidad'] ?? 1);
             }
         }
 
@@ -548,14 +544,14 @@ class CotizadorCarritoTienda
             throw new Exception("Cantidad inválida para '{$articulo->nombre}'");
         }
 
-        // RF-T47: renglón canjeado por puntos. Solo artículos con el toggle
-        // canje_tienda de ESTA sucursal; cantidad 1 y sin opcionales PAGOS
-        // (el costo en puntos se deriva del precio pelado — regla del POS;
-        // un opcional pago inflaría el canje). El saldo se valida después de
-        // cotizar (caller), con el valor de canje vigente.
+        // RF-T54: renglón canjeado por puntos. Solo artículos con el toggle
+        // canje_tienda de ESTA sucursal Y costo configurado en
+        // articulos.puntos_canje (paridad POS); cantidad 1 y sin opcionales
+        // PAGOS (el canje cubre el artículo pelado; un opcional pago quedaría
+        // regalado). El saldo se valida después de cotizar (caller).
         $canjeado = ! empty($input['canjear_con_puntos']);
         if ($canjeado) {
-            if (! ($pivot->canje_tienda ?? false)) {
+            if (! ($pivot->canje_tienda ?? false) || (int) $articulo->puntos_canje <= 0) {
                 throw new Exception("'{$articulo->nombre}' no se puede canjear por puntos en esta tienda");
             }
             if ($cantidad != 1) {

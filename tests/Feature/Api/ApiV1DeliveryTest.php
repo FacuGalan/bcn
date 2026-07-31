@@ -2571,11 +2571,16 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertSame(0, $pedido->pagos()->where('es_pago_puntos', true)->count());
     }
 
-    // ==================== CANJE DE ARTÍCULOS (RF-T47, ronda cuenta consumidor) ====================
+    // ==================== CANJE DE ARTÍCULOS (RF-T47/RF-T54, rondas cuenta consumidor y ajustes) ====================
 
-    /** Marca el artículo como canjeable en la tienda de esta sucursal. */
-    protected function habilitarCanjeTienda(\App\Models\Articulo $articulo): void
+    /**
+     * Marca el artículo como canjeable en la tienda de esta sucursal. RF-T54:
+     * el costo es el CONFIGURADO del artículo (articulos.puntos_canje,
+     * paridad POS), no el derivado del precio.
+     */
+    protected function habilitarCanjeTienda(\App\Models\Articulo $articulo, int $puntos = 20): void
     {
+        $articulo->update(['puntos_canje' => $puntos]);
         $articulo->sucursales()->updateExistingPivot($this->sucursalId, ['canje_tienda' => true]);
     }
 
@@ -2603,6 +2608,33 @@ class ApiV1DeliveryTest extends TestCase
             ->assertOk()->json('data.articulos'))->keyBy('id');
 
         $this->assertArrayNotHasKey('puntos_canje', $articulos[$articulo->id]);
+    }
+
+    public function test_catalogo_no_publica_canje_sin_puntos_configurados(): void
+    {
+        // RF-T54: toggle prendido pero sin articulos.puntos_canje (dato viejo
+        // de la regla anterior) → autosaneado, la clave no viaja.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $articulo->sucursales()->updateExistingPivot($this->sucursalId, ['canje_tienda' => true]);
+
+        $articulos = collect($this->getJson('/api/v1/tiendas/tienda-test/catalogo')
+            ->assertOk()->json('data.articulos'))->keyBy('id');
+
+        $this->assertArrayNotHasKey('puntos_canje', $articulos[$articulo->id]);
+    }
+
+    public function test_catalogo_publica_el_costo_configurado_no_el_derivado(): void
+    {
+        // RF-T54: $1000 / $50 el punto daría 20 derivado; el configurado (7) manda.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $this->habilitarCanjeTienda($articulo, puntos: 7);
+
+        $articulos = collect($this->getJson('/api/v1/tiendas/tienda-test/catalogo')
+            ->assertOk()->json('data.articulos'))->keyBy('id');
+
+        $this->assertSame(7, $articulos[$articulo->id]['puntos_canje'] ?? null);
     }
 
     public function test_cotizar_con_canje_de_articulo_resta_el_renglon_y_compromete_puntos(): void
@@ -2657,6 +2689,22 @@ class ApiV1DeliveryTest extends TestCase
             ])->assertStatus(422);
     }
 
+    public function test_cotizar_canje_con_toggle_pero_sin_puntos_configurados_da_422(): void
+    {
+        // RF-T54: defensa en profundidad — aunque el toggle haya quedado
+        // prendido (dato viejo), sin puntos_canje el canje se rechaza.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $articulo->sucursales()->updateExistingPivot($this->sucursalId, ['canje_tienda' => true]);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100);
+
+        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1, 'canjear_con_puntos' => true]],
+            ])->assertStatus(422);
+    }
+
     public function test_cotizar_canje_sin_bearer_da_canje_no_disponible(): void
     {
         $this->activarProgramaPuntos();
@@ -2696,6 +2744,61 @@ class ApiV1DeliveryTest extends TestCase
 
         // El ledger NO se toca en el alta (lo hace la conversión a venta).
         $this->assertSame(25, \App\Models\MovimientoPunto::calcularSaldo($pedido->cliente_id));
+    }
+
+    public function test_conversion_de_canje_descuenta_el_ledger_con_el_costo_configurado(): void
+    {
+        // RF-T54 end-to-end: alta por API con canje (costo configurado 7,
+        // distinto del derivado 20) → conversión a venta → MovimientoPunto
+        // por 7 y saldo 10 − 7 = 3.
+        $this->activarProgramaPuntos();
+        $cajaId = $this->crearCajaAbierta($this->sucursalId)->id;
+        // Aceptación automática: el pedido entra CONFIRMADO (convertible).
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode(['aceptacion_pedidos_externos' => 'automatica']),
+        ]);
+        $canjeado = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $normal = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $this->habilitarCanjeTienda($canjeado, puntos: 7);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 10);
+
+        $payload = $this->payloadPedido($normal->id);
+        $payload['items'][] = ['articulo_id' => $canjeado->id, 'cantidad' => 1, 'canjear_con_puntos' => true];
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertSame(7, (int) $pedido->puntos_canjeados_articulos);
+        $this->assertSame(7, (int) $pedido->detalles()->where('articulo_id', $canjeado->id)->value('puntos_usados'));
+
+        // Cubrir el total (el renglón canjeado ya está restado) con un pago
+        // planificado — la conversión lo materializa contra la caja.
+        $this->service->agregarPago($pedido, [
+            'forma_pago_id' => $this->formaPagoEfectivoEnSucursal()->id,
+            'monto_base' => (float) $pedido->total_final,
+            'monto_final' => (float) $pedido->total_final,
+            'planificado' => true,
+        ]);
+
+        // La conversión corre en contexto de panel (usuario del comercio).
+        $this->actingAs(\App\Models\User::factory()->create(['is_system_admin' => true]));
+        $venta = $this->service->convertirEnVenta($pedido->fresh(), cajaId: $cajaId);
+
+        $movimiento = \App\Models\MovimientoPunto::where('cliente_id', $pedido->cliente_id)
+            ->where('puntos', '<', 0)
+            ->first();
+        $this->assertNotNull($movimiento, 'La conversión crea el MovimientoPunto del canje');
+        $this->assertSame(-7, (int) $movimiento->puntos, 'El canje descuenta el costo CONFIGURADO, no el derivado (20)');
+
+        // La conversión también acredita lo ganado: $1000 pagados / $100 = +10.
+        // Saldo final: 10 inicial − 7 canje + 10 ganados = 13.
+        $ganado = \App\Models\MovimientoPunto::where('cliente_id', $pedido->cliente_id)
+            ->where('puntos', '>', 0)->where('puntos', 10)->orderByDesc('id')->first();
+        $this->assertNotNull($ganado, 'La conversión acredita los puntos ganados por la venta');
+        $this->assertSame(13, \App\Models\MovimientoPunto::calcularSaldo($pedido->cliente_id));
+        $this->assertNotNull($venta->id);
     }
 
     // ==================== VERIFICACIÓN VENCIDA (RF-T40) ====================

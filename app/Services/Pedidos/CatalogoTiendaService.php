@@ -202,14 +202,16 @@ class CatalogoTiendaService
                     ->values()->all(),
             ];
 
-            // RF-T47 (aditivo): canjeable por puntos — la clave solo viaja si
-            // el toggle está prendido, el programa activo, hay precio y no
-            // está agotado. Costo = ceil(precio / valor_punto_canje).
+            // RF-T54 (aditivo): canjeable por puntos — la clave solo viaja si
+            // el toggle está prendido, el programa activo, el artículo tiene
+            // costo configurado (articulos.puntos_canje, paridad POS), hay
+            // precio y no está agotado.
             if ($valorPuntoCanje !== null
                 && (bool) ($pivots[$articulo->id]->canje_tienda ?? false)
+                && (int) $articulo->puntos_canje > 0
                 && ! $agotado
                 && $item['precio'] > 0) {
-                $item['puntos_canje'] = (int) ceil($item['precio'] / $valorPuntoCanje);
+                $item['puntos_canje'] = (int) $articulo->puntos_canje;
             }
 
             return $item;
