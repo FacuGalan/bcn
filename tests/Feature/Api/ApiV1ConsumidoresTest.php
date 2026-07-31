@@ -9,6 +9,7 @@ use App\Models\ConsumidorComercio;
 use App\Models\PedidoDelivery;
 use App\Models\Tienda;
 use App\Services\Consumidores\ConsumidorTokenService;
+use App\Services\Consumidores\GoogleIdTokenService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -171,6 +172,129 @@ class ApiV1ConsumidoresTest extends TestCase
         $this->app['auth']->forgetGuards();
 
         $this->withHeaders($headers)->getJson('/api/v1/consumidores/me')->assertStatus(401);
+    }
+
+    // ==================== RF-T49: SIGN IN WITH GOOGLE ====================
+
+    /**
+     * Mockea el verificador de Google (la firma real se prueba contra las
+     * JWKS vivas, imposible en tests): claims a devolver o null (inválido).
+     */
+    protected function mockGoogle(?array $claims, bool $autoritativo = true, bool $configurado = true): void
+    {
+        $this->mock(GoogleIdTokenService::class, function ($mock) use ($claims, $autoritativo, $configurado) {
+            $mock->shouldReceive('configurado')->andReturn($configurado);
+            $mock->shouldReceive('verificar')->andReturn($claims);
+            $mock->shouldReceive('esAutoritativo')->andReturn($autoritativo);
+        });
+    }
+
+    public function test_google_crea_cuenta_nueva_verificada_sin_mail(): void
+    {
+        $email = 'google-'.uniqid().'@gmail.com';
+        $this->mockGoogle(['sub' => 'g-'.uniqid(), 'email' => $email, 'name' => 'Cuenta Google']);
+
+        $respuesta = $this->postJson('/api/v1/consumidores/auth/google', ['credential' => 'jwt-mock'])
+            ->assertCreated()
+            ->assertJsonPath('data.creado', true)
+            ->assertJsonPath('data.consumidor.email', $email)
+            ->assertJsonPath('data.consumidor.email_verificado', true)
+            ->assertJsonPath('data.consumidor.verificacion_vence_el', null);
+
+        $consumidor = Consumidor::where('email', $email)->first();
+        $this->assertNotNull($consumidor);
+        $this->consumidores[] = $consumidor;
+
+        // Sin password (cuenta 100% Google) y sin mail de verificación.
+        $this->assertNull($consumidor->getAuthPassword());
+        $this->assertNotNull($consumidor->google_id);
+        Mail::assertNotSent(VerificarEmailConsumidor::class);
+
+        // El Bearer emitido sirve ya.
+        $this->withHeaders(['Authorization' => 'Bearer '.$respuesta->json('data.token')])
+            ->getJson('/api/v1/consumidores/me')
+            ->assertOk()->assertJsonPath('data.email', $email);
+    }
+
+    public function test_google_loguea_cuenta_ya_linkeada_por_google_id(): void
+    {
+        $consumidor = $this->crearConsumidor();
+        $consumidor->forceFill(['google_id' => 'g-existente-'.uniqid()])->save();
+
+        $this->mockGoogle(['sub' => $consumidor->google_id, 'email' => $consumidor->email]);
+
+        $this->postJson('/api/v1/consumidores/auth/google', ['credential' => 'jwt-mock'])
+            ->assertOk()
+            ->assertJsonPath('data.creado', false)
+            ->assertJsonPath('data.consumidor.id', $consumidor->id);
+    }
+
+    public function test_google_linkea_cuenta_existente_por_email_y_la_verifica(): void
+    {
+        // Cuenta previa con password, sin verificar: entrar con Google la
+        // linkea y la deja verificada (Google autoritativo prueba posesión).
+        $consumidor = $this->crearConsumidor();
+        $this->assertNull($consumidor->email_verified_at);
+
+        $this->mockGoogle(['sub' => 'g-linkeo-'.uniqid(), 'email' => $consumidor->email]);
+
+        $this->postJson('/api/v1/consumidores/auth/google', ['credential' => 'jwt-mock'])
+            ->assertOk()
+            ->assertJsonPath('data.creado', false)
+            ->assertJsonPath('data.consumidor.email_verificado', true);
+
+        $fresco = $consumidor->fresh();
+        $this->assertNotNull($fresco->google_id);
+        $this->assertNotNull($fresco->email_verified_at);
+        // El password original sigue: puede entrar por cualquiera de las dos vías.
+        $this->assertNotNull($fresco->getAuthPassword());
+    }
+
+    public function test_google_no_autoritativo_crea_sin_verificar_y_manda_mail(): void
+    {
+        $email = 'no-autoritativo-'.uniqid().'@empresa.com';
+        $this->mockGoogle(['sub' => 'g-'.uniqid(), 'email' => $email, 'name' => 'Sin Hd'], autoritativo: false);
+
+        $this->postJson('/api/v1/consumidores/auth/google', ['credential' => 'jwt-mock'])
+            ->assertCreated()
+            ->assertJsonPath('data.consumidor.email_verificado', false);
+
+        $consumidor = Consumidor::where('email', $email)->first();
+        $this->consumidores[] = $consumidor;
+
+        $this->assertNotNull($consumidor->verificacionVenceEl());
+        Mail::assertSent(VerificarEmailConsumidor::class, fn ($mail) => $mail->hasTo($email));
+    }
+
+    public function test_google_credential_invalido_da_422(): void
+    {
+        $this->mockGoogle(null);
+
+        $this->postJson('/api/v1/consumidores/auth/google', ['credential' => 'jwt-roto'])
+            ->assertStatus(422)->assertJsonPath('error.code', 'validacion');
+    }
+
+    public function test_google_sin_configurar_da_503(): void
+    {
+        $this->mockGoogle(null, configurado: false);
+
+        $this->postJson('/api/v1/consumidores/auth/google', ['credential' => 'jwt-mock'])
+            ->assertStatus(503);
+    }
+
+    public function test_login_con_password_de_cuenta_solo_google_falla_generico(): void
+    {
+        $email = 'solo-google-'.uniqid().'@gmail.com';
+        $this->mockGoogle(['sub' => 'g-'.uniqid(), 'email' => $email, 'name' => 'Solo Google']);
+        $this->postJson('/api/v1/consumidores/auth/google', ['credential' => 'jwt-mock'])->assertCreated();
+        $this->consumidores[] = Consumidor::where('email', $email)->first();
+
+        // Login clásico contra una cuenta sin password: mismo 422 genérico
+        // (no revela que la cuenta existe ni su método de acceso).
+        $this->postJson('/api/v1/consumidores/login', [
+            'email' => $email,
+            'password' => 'loquesea123',
+        ])->assertStatus(422)->assertJsonPath('error.code', 'validacion');
     }
 
     // ==================== RF-T1: VERIFICACIÓN DE EMAIL ====================

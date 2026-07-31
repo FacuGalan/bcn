@@ -40,7 +40,9 @@ class Consumidor extends Authenticatable
         'fecha_nacimiento',
     ];
 
-    protected $hidden = ['password', 'remember_token'];
+    // google_id (RF-T49) queda FUERA de fillable a propósito: es identidad,
+    // solo lo setea el flujo Sign in with Google (forceFill/asignación).
+    protected $hidden = ['password', 'remember_token', 'google_id'];
 
     protected $casts = [
         'email_verified_at' => 'datetime',

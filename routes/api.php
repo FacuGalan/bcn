@@ -75,6 +75,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             ->middleware('throttle:5,1,c-registro')->name('registro');
         Route::post('/login', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'login'])
             ->middleware('throttle:10,1,c-login')->name('login');
+        // RF-T49: Sign in with Google (credential de GIS verificado en el core).
+        Route::post('/auth/google', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'google'])
+            ->middleware('throttle:10,1,c-google')->name('auth.google');
         Route::post('/verificar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'verificar'])
             ->middleware('throttle:10,1,c-verificar')->name('verificar');
         Route::post('/recuperar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'recuperar'])

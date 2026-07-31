@@ -606,7 +606,7 @@ Sirve para mostrar qué se pidió en el seguimiento y para que la tienda arme
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
 entre en preparación). Después, solo el comercio.
 
-## Endpoints de consumidores (RF-T1..T3 + RF-T39..T42, cuenta global de la tienda)
+## Endpoints de consumidores (RF-T1..T3 + RF-T39..T42 + RF-T49, cuenta global de la tienda)
 
 Base `/v1/consumidores`. Sin tenant (la cuenta es cross-comercio). Decisión
 RF-T1: **se puede pedir sin verificar el email**; la verificación desbloquea
@@ -621,7 +621,20 @@ login 10/min, emails 3/min).
 - `POST /registro` — `{nombre, email, password (min 8), telefono?}` → `201`
   `{data: {token, consumidor}}` + email de verificación. El token sirve YA.
 - `POST /login` — `{email, password}` → `{data: {token, consumidor}}`.
-  Credenciales malas → `422 validacion`.
+  Credenciales malas → `422 validacion` (mismo error genérico si la cuenta
+  es solo-Google y no tiene password).
+- `POST /auth/google` *(aditivo 2026-07-30, RF-T49)* — `{credential}` (el
+  ID token de Google Identity Services que la tienda obtiene en el
+  navegador). El core verifica firma/emisor/audiencia contra el
+  `GOOGLE_CLIENT_ID` compartido y resuelve la cuenta: ya linkeada → login;
+  email existente → linkea; si no → la CREA sin password. Respuesta
+  `{data: {token, consumidor, creado}}` (`201` si creó, `200` si no). Si
+  Google es autoritativo sobre el email (Gmail, o Workspace con
+  `email_verified`), la cuenta queda **verificada** (sin mail de
+  verificación ni plazo RF-T40); si no, flujo de verificación normal.
+  Credential inválido → `422 validacion`; feature sin configurar → `503`
+  `google_no_configurado` (la tienda no debería mostrar el botón sin el
+  client ID). Throttle 10/min.
 - `POST /logout` *(Bearer)* — revoca el token actual.
 - `GET /me` *(Bearer)* — perfil: `{id, nombre, email, telefono,
   fecha_nacimiento, email_verificado, verificacion_vence_el}`.
