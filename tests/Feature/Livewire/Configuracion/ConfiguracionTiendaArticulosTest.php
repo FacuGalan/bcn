@@ -57,11 +57,12 @@ class ConfiguracionTiendaArticulosTest extends TestCase
         $this->assertTrue((bool) $articulo->fresh()->destacado);
     }
 
-    public function test_toggle_canje_exige_puntos_de_canje_configurados(): void
+    public function test_toggle_canje_no_exige_puntos_configurados(): void
     {
-        // RF-T54: el costo del canje es articulos.puntos_canje (paridad POS)
-        // — sin puntos cargados el toggle no se puede prender.
+        // RF-T54 ajustado: el toggle prende sin puntos_canje cargados — sin
+        // configurar, el costo se deriva del precio del día (regla del POS).
         $articulo = $this->crearArticuloConStock($this->sucursalId);
+        $this->assertNull($articulo->puntos_canje);
 
         $canjeTienda = fn () => (bool) DB::connection('pymes_tenant')
             ->table('articulos_sucursales')
@@ -71,21 +72,30 @@ class ConfiguracionTiendaArticulosTest extends TestCase
 
         Livewire::test(ConfiguracionTiendaArticulos::class)
             ->call('toggleCanjeTienda', $articulo->id)
-            ->assertDispatched('toast-error');
-        $this->assertFalse($canjeTienda(), 'Sin puntos_canje no se prende');
-
-        $articulo->update(['puntos_canje' => 5]);
-        Livewire::test(ConfiguracionTiendaArticulos::class)
-            ->call('toggleCanjeTienda', $articulo->id)
             ->assertDispatched('tienda-catalogo-cambiado');
-        $this->assertTrue($canjeTienda());
+        $this->assertTrue($canjeTienda(), 'Sin puntos_canje también se prende');
 
-        // Apagar se permite siempre, aunque los puntos se hayan quitado después.
-        $articulo->update(['puntos_canje' => null]);
         Livewire::test(ConfiguracionTiendaArticulos::class)
             ->call('toggleCanjeTienda', $articulo->id)
             ->assertDispatched('tienda-catalogo-cambiado');
         $this->assertFalse($canjeTienda());
+    }
+
+    public function test_guardar_puntos_canje_persiste_y_vacio_limpia(): void
+    {
+        // Input provisorio del panel: setea articulos.puntos_canje (campo
+        // global, compartido con el POS); vacío/0 vuelve a null (= derivado).
+        $articulo = $this->crearArticuloConStock($this->sucursalId);
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('guardarPuntosCanje', $articulo->id, '7')
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertSame(7, $articulo->fresh()->puntos_canje);
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('guardarPuntosCanje', $articulo->id, '')
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertNull($articulo->fresh()->puntos_canje);
     }
 
     public function test_no_toca_articulos_fuera_de_la_tienda(): void

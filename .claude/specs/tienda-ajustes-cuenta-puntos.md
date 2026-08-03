@@ -64,34 +64,31 @@ consumidor" ya mergeada: lo funcional está bien, pero:
 
 ### RF de CORE
 
-#### RF-T54: El canje por puntos lo manda `articulos.puntos_canje` (fix RF-T47)
-- **Toggle** (`ConfiguracionTiendaArticulos::toggleCanjeTienda()`):
-  - Guard servidor: no permite prender `canje_tienda` si el artículo tiene
-    `puntos_canje` null o <= 0 (apagar siempre se permite).
-  - Blade (`configuracion-tienda-articulos.blade.php` ~143-150): toggle
-    `@disabled` cuando `puntos_canje <= 0` + tooltip "Cargale puntos de
-    canje en el artículo" (traducido es/en/pt), como pedía RF-T47.
-- **Catálogo** (`CatalogoTiendaService` ~205-213): `articulos[].puntos_canje`
-  publica el valor CONFIGURADO `$articulo->puntos_canje` (int) en vez del
-  derivado `ceil(precio/valor_punto)`. Condición de publicación: toggle
-  prendido Y `puntos_canje > 0` Y no agotado Y precio > 0. Shape del
-  contrato no cambia (sigue siendo int aditivo).
-- **Cotización** (`CotizadorCarritoTienda::construirItem()` ~551-564):
-  guard adicional — canje rechazado si `articulo->puntos_canje <= 0`
-  (defensa en profundidad aunque el toggle ya no debería permitirlo).
-  `puntosUsadosEnArticulos()` (~485) suma `articulo->puntos_canje` por
-  renglón canjeado en vez del derivado del precio.
-- **Alta de pedido** (`PedidoTiendaService`): `pedido_delivery_detalles.
-  puntos_usados` del renglón canjeado = `articulos.puntos_canje` (es lo que
-  después consume `procesarCanjesPuntos()` → `canjearArticuloConPuntos()` →
-  `MovimientoPunto`). Verificar con test end-to-end que el circuito
-  completo persiste: `pagado_con_puntos`, `puntos_usados`,
-  `puntos_canjeados_articulos` en cabecera y el movimiento en el ledger al
-  convertir a venta.
-- Los artículos con toggle prendido pero `puntos_canje <= 0` que hayan
-  quedado de la versión anterior dejan de publicarse como canjeables
-  (autosaneado por la condición del catálogo; no hace falta migración de
-  datos).
+#### RF-T54: Costo del canje = `puntos_canje` configurado o derivado del precio
+> AJUSTADO 2026-08-03: la versión original exigía `puntos_canje > 0` para
+> habilitar el canje ("paridad POS"). Premisa equivocada: el POS deriva el
+> costo SIEMPRE del precio (`WithPuntos::calcularPuntosCanjePorPrecio`,
+> `ceil(precio/valor_punto)`) y `articulos.puntos_canje` no tiene UI de
+> mantenimiento (estructura a futuro). Regla vigente: el CONFIGURADO manda
+> si está cargado; sin cargar, se deriva del precio del día.
+- **Toggle** (`ConfiguracionTiendaArticulos::toggleCanjeTienda()`): prende
+  y apaga libremente, sin exigir `puntos_canje`.
+- **Input provisorio** (`guardarPuntosCanje()` + blade): con el canje
+  prendido aparece un input numérico junto a la estrella que setea
+  `articulos.puntos_canje` (campo GLOBAL del artículo, compartido con el
+  POS). Vacío/0 = null = costo derivado (placeholder "Auto"). Provisorio
+  hasta que exista una pantalla propia de mantenimiento de puntos.
+- **Catálogo** (`CatalogoTiendaService`): `articulos[].puntos_canje` = el
+  configurado si > 0, si no `ceil(precio/valor_punto)`. Condición de
+  publicación: toggle prendido Y programa activo Y no agotado Y precio > 0.
+  Shape del contrato no cambia (int aditivo).
+- **Cotización** (`CotizadorCarritoTienda::construirItem()`): el canje solo
+  exige el toggle; el costo EFECTIVO (configurado o derivado) queda en
+  `item['puntos_canje']` y de ahí lo suman `puntosUsadosEnArticulos()` y el
+  `puntos_usados` del detalle (`PedidoTiendaService::construirDetalles`).
+- **Alta de pedido**: sin cambios de circuito — `pagado_con_puntos`,
+  `puntos_usados`, `puntos_canjeados_articulos` en cabecera y el
+  movimiento en el ledger al convertir a venta (test end-to-end vigente).
 
 #### RF-T56: Vinculación retroactiva de pedido invitado a consumidor
 - `POST /v1/tiendas/{slug}/pedidos/{token}/vincular` (Bearer consumidor
@@ -226,8 +223,9 @@ consumidor" ya mergeada: lo funcional está bien, pero:
 ## Pantallas UI
 
 ### Core
-- `ConfiguracionTiendaArticulos` (existente): toggle ⭐ deshabilitado +
-  tooltip cuando `puntos_canje <= 0`.
+- `ConfiguracionTiendaArticulos` (existente): toggle ⭐ libre + input
+  numérico provisorio de `puntos_canje` visible con el canje prendido
+  (vacío = "Auto", costo derivado del precio).
 
 ### Tienda
 - `Consumidor\Cuenta` (existente): restyling completo (RF-T51).
@@ -251,8 +249,9 @@ consumidor" ya mergeada: lo funcional está bien, pero:
   método `vincular(PedidoDelivery $pedido, Consumidor $consumidor): array`
   — extrae/reusa `resolverClienteId()`; transacción
   `DB::connection('pymes_tenant')->transaction()`.
-- `CotizadorCarritoTienda`: guard + costo desde `puntos_canje` (RF-T54).
-- `CatalogoTiendaService`: publica `puntos_canje` configurado (RF-T54).
+- `CotizadorCarritoTienda`: costo efectivo = `puntos_canje` configurado o
+  derivado del precio (RF-T54 ajustado).
+- `CatalogoTiendaService`: publica ese mismo costo efectivo (RF-T54).
 - Controller: `PedidoPublicoController` (o el que hoy sirve seguimiento) +
   ruta `POST /v1/tiendas/{slug}/pedidos/{token}/vincular` con
   `auth:sanctum` de consumidor.
@@ -275,7 +274,7 @@ Ninguna.
 ### Core (lang/{es,en,pt}.json)
 | Clave (es) | Contexto |
 |------------|----------|
-| "Cargale puntos de canje en el artículo" | tooltip toggle RF-T54 |
+| "Puntos para canjear este artículo (vacío = se calcula del precio)" | tooltip input RF-T54 |
 
 ### Tienda (repo bcn-tienda, sus lang/)
 | Clave (es) | Contexto |
@@ -292,11 +291,12 @@ Ninguna.
 
 ## Criterios de Aceptación
 
-- [ ] RF-T54: toggle no se puede prender sin `puntos_canje > 0` (UI
-      deshabilitada + guard servidor); catálogo publica el `puntos_canje`
-      configurado; cotización rechaza canje de artículo sin puntos_canje;
-      un canje end-to-end persiste `puntos_usados` = puntos_canje del
-      artículo y genera el `MovimientoPunto` correcto al convertir.
+- [ ] RF-T54 (ajustado 2026-08-03): el toggle prende sin exigir puntos;
+      el input provisorio persiste `articulos.puntos_canje` (vacío = null);
+      catálogo y cotización usan el configurado si > 0, si no el derivado
+      del precio (`ceil(precio/valor_punto)`); un canje end-to-end persiste
+      `puntos_usados` = costo efectivo y genera el `MovimientoPunto`
+      correcto al convertir.
 - [ ] RF-T56: vincular setea consumidor_id + cliente (según D11), acredita
       solo si hay venta, es idempotente, exige Bearer, 404 con token malo;
       seguimiento expone `puntos.a_ganar`; contrato actualizado.
@@ -320,12 +320,12 @@ Ninguna.
 
 ## Plan de Implementación
 
-### Fase 1 (CORE): RF-T54 — canje mandado por puntos_canje [COMPLETO]
-1. Guard en `toggleCanjeTienda()` + `@disabled`/tooltip en blade + traducciones.
-2. `CatalogoTiendaService`: publicar `puntos_canje` configurado.
-3. `CotizadorCarritoTienda`: guard + `puntosUsadosEnArticulos()` con costo configurado.
-4. `PedidoTiendaService`: `puntos_usados` del detalle = puntos_canje.
-5. Tests: unit cotizador + feature API (catálogo, cotización, alta, conversión con ledger).
+### Fase 1 (CORE): RF-T54 — costo configurado o derivado [COMPLETO, ajustado 2026-08-03]
+1. Toggle libre + input provisorio `guardarPuntosCanje()` en blade + traducciones.
+2. `CatalogoTiendaService`: publicar el costo efectivo (configurado o derivado).
+3. `CotizadorCarritoTienda`: costo efectivo en el item; `puntosUsadosEnArticulos()` lo suma.
+4. `PedidoTiendaService`: `puntos_usados` del detalle = costo efectivo del item.
+5. Tests: feature API (catálogo derivado y configurado, cotización, alta, conversión con ledger) + panel.
 
 ### Fase 2 (CORE): RF-T56 — vinculación retroactiva [COMPLETO]
 1. Service de vinculación (reusa `resolverClienteId()`), transacción tenant.

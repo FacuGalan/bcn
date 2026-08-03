@@ -2574,9 +2574,9 @@ class ApiV1DeliveryTest extends TestCase
     // ==================== CANJE DE ARTÍCULOS (RF-T47/RF-T54, rondas cuenta consumidor y ajustes) ====================
 
     /**
-     * Marca el artículo como canjeable en la tienda de esta sucursal. RF-T54:
-     * el costo es el CONFIGURADO del artículo (articulos.puntos_canje,
-     * paridad POS), no el derivado del precio.
+     * Marca el artículo como canjeable en la tienda de esta sucursal con
+     * costo CONFIGURADO (articulos.puntos_canje). RF-T54 ajustado: sin
+     * configurar, el costo se deriva del precio del día (regla del POS).
      */
     protected function habilitarCanjeTienda(\App\Models\Articulo $articulo, int $puntos = 20): void
     {
@@ -2610,10 +2610,10 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertArrayNotHasKey('puntos_canje', $articulos[$articulo->id]);
     }
 
-    public function test_catalogo_no_publica_canje_sin_puntos_configurados(): void
+    public function test_catalogo_sin_puntos_configurados_publica_el_costo_derivado(): void
     {
-        // RF-T54: toggle prendido pero sin articulos.puntos_canje (dato viejo
-        // de la regla anterior) → autosaneado, la clave no viaja.
+        // RF-T54 ajustado: toggle prendido sin articulos.puntos_canje → el
+        // costo se deriva del precio del día: ceil($1000 / $50) = 20.
         $this->activarProgramaPuntos();
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
         $articulo->sucursales()->updateExistingPivot($this->sucursalId, ['canje_tienda' => true]);
@@ -2621,7 +2621,7 @@ class ApiV1DeliveryTest extends TestCase
         $articulos = collect($this->getJson('/api/v1/tiendas/tienda-test/catalogo')
             ->assertOk()->json('data.articulos'))->keyBy('id');
 
-        $this->assertArrayNotHasKey('puntos_canje', $articulos[$articulo->id]);
+        $this->assertSame(20, $articulos[$articulo->id]['puntos_canje'] ?? null);
     }
 
     public function test_catalogo_publica_el_costo_configurado_no_el_derivado(): void
@@ -2689,20 +2689,24 @@ class ApiV1DeliveryTest extends TestCase
             ])->assertStatus(422);
     }
 
-    public function test_cotizar_canje_con_toggle_pero_sin_puntos_configurados_da_422(): void
+    public function test_cotizar_canje_sin_puntos_configurados_compromete_el_costo_derivado(): void
     {
-        // RF-T54: defensa en profundidad — aunque el toggle haya quedado
-        // prendido (dato viejo), sin puntos_canje el canje se rechaza.
+        // RF-T54 ajustado: toggle prendido sin puntos_canje configurados →
+        // el canje vale y compromete ceil($1000 / $50) = 20 puntos.
         $this->activarProgramaPuntos();
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
         $articulo->sucursales()->updateExistingPivot($this->sucursalId, ['canje_tienda' => true]);
         [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100);
 
-        $this->withHeaders(['Authorization' => 'Bearer '.$token])
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
             ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
                 'tipo' => 'delivery',
                 'items' => [['articulo_id' => $articulo->id, 'cantidad' => 1, 'canjear_con_puntos' => true]],
-            ])->assertStatus(422);
+            ])->assertOk();
+
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.articulos_canjeados_monto'), 0.01);
+        $this->assertSame(20, $respuesta->json('data.puntos.usados_en_articulos'));
+        $this->assertSame(80, $respuesta->json('data.puntos.saldo'), 'Saldo neto: 100 − 20 derivados');
     }
 
     public function test_cotizar_canje_sin_bearer_da_canje_no_disponible(): void

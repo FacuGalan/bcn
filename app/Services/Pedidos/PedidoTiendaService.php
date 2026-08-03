@@ -684,8 +684,8 @@ class PedidoTiendaService
                 // RF-T54: renglón canjeado por puntos — la conversión a venta
                 // exige pagado_con_puntos + puntos_usados > 0 en el DETALLE
                 // (procesarCanjesPuntos) para crear el MovimientoPunto. El
-                // costo es el configurado del artículo (paridad POS), que el
-                // cotizador arrastra en el item.
+                // costo efectivo (configurado o derivado del precio) lo
+                // resolvió el cotizador y lo arrastra en el item.
                 'pagado_con_puntos' => (bool) ($item['pagado_con_puntos'] ?? false),
                 'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
                     ? (int) ($item['puntos_canje'] ?? 0) * (int) $cantidad
