@@ -106,17 +106,24 @@
 
 ### RF de TIENDA (bcn-tienda)
 
-#### RF-T61: UX de canje en la tienda — todo en el carrito
+#### RF-T61: UX de canje en la tienda — todo en el carrito (ajustado 2026-08-03 2ª vuelta)
 - **Modal/detalle del artículo**: NO menciona puntos (se quita el chip
   "Canjealo por N puntos" de `detalle-articulo.blade.php`).
-- **Carrito**:
-  - Ítems canjeables muestran un indicador **"pts."** con el costo ("Se
-    canjea por N pts"). Click = activa el canje de ESE ítem (reemplaza la
-    estrellita actual); click de nuevo lo deshace.
-  - Con canjes activos, abajo se muestran los **disponibles acumulados** y
-    los **restantes** tras descontar los canjeados.
-  - El check "pagar todo con puntos" (`usar_puntos`) se reemplaza por un
-    **botón "Usar todos"** que se prende y apaga (mismo payload al core).
+- **Indicador = ESTRELLA** (Facu 2026-08-03: "queda mejor" que el chip
+  pts.): card del catálogo "⭐ N puntos", botón por ítem = estrella con el
+  costo del renglón al lado (el de `items[].puntos_canje` de la
+  cotización, con opcionales según la matriz), renglón canjeado = estrella
+  llena que deshace + badge "⭐ Canje por N puntos".
+- **Botón "Usar todos"** (reemplaza el check `usar_puntos`): prenderlo
+  canjea UNA unidad de CADA renglón canjeable (como tocar cada estrella,
+  con sus opcionales — la matriz decide; ej. en_plata deja el opcional
+  cobrándose) mientras el saldo alcance, y prende además el canje-pago
+  para que el resto del saldo descuente lo demás. Apagarlo deshace TODO.
+  `CarritoService::canjearTodo()/desCanjearTodo()` en UNA re-cotización;
+  estado del botón = `carrito['usar_puntos']`.
+- **Resumen estético** en "Tus datos": "⭐ Tenés N puntos" + mini-card con
+  "En artículos canjeados −N", "Como pago del resto −N (−$M)" y "Te
+  quedan N puntos".
 - El costo por renglón CON opcionales lo devuelve la cotización (la tienda
   nunca calcula): consumir el campo nuevo del contrato.
 
