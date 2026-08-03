@@ -293,6 +293,20 @@ tope y semántica que los badges de artículo (RF-T14, arriba) — incluida la
 tolerancia a tipos desconocidos. La tienda los muestra como chips junto al
 título del grupo en el catálogo. `[]` ⇒ sin badges.
 
+**Banner por categoría** (aditivo 2026-08-03, RF-T62): el `imagen_url` de
+`categorias[]` (que ya existía en el contrato, siempre absoluto, `null` sin
+imagen) pasa a tener semántica definida: es el BANNER decorativo del
+encabezado del grupo en el catálogo — la tienda lo renderiza como fondo de
+la barra de la categoría (franja panorámica con `object-cover`, scrim
+oscuro y el nombre encima; sin imagen, el encabezado queda como siempre).
+Se administra desde el panel de configuración de tienda (subida por
+categoría con re-encode WebP) o desde Artículos → Categorías. Cada elemento
+de `categorias[]` suma además `imagen_focal: { "x": number, "y": number }`
+(porcentajes 0–100, default `{50, 50}`): el punto focal elegido en el panel
+para `object-position` — la foto original casi nunca tiene la proporción de
+la franja y el focal decide qué parte se ve. La clave viaja SIEMPRE (con o
+sin imagen); la tienda debe tolerar su ausencia (core viejo ⇒ centro).
+
 **Encargos — pedidos para día futuro** (aditivo 2026-07-20, RF-T16):
 
 - `GET /tiendas/{slug}` suma `encargos: { activo, anticipacion_horas,

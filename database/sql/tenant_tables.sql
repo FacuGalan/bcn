@@ -283,6 +283,8 @@ CREATE TABLE `{{PREFIX}}categorias` (
   `color` varchar(7) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Color en hex para UI (#FF5733)',
   `icono` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Nombre del icono (ej: heroicon-o-tag)',
   `imagen_path` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Imagen para el catalogo de la tienda (RF-17)',
+  `imagen_focal_x` decimal(5,2) NOT NULL DEFAULT '50.00' COMMENT 'Punto focal X (%) del banner para object-position en render con object-cover (RF-T62)',
+  `imagen_focal_y` decimal(5,2) NOT NULL DEFAULT '50.00' COMMENT 'Punto focal Y (%) del banner para object-position en render con object-cover (RF-T62)',
   `badges_tienda` json DEFAULT NULL COMMENT 'Badges de la tienda (RF-T36): tipos predefinidos + custom',
   `orden` int NOT NULL DEFAULT '0' COMMENT 'Orden de presentacion en catalogo tienda (RF-17)',
   `activo` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Si está activa',

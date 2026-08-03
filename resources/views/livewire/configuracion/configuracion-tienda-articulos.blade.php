@@ -71,8 +71,86 @@
                             title="{{ __('Badges de la categoría') }}">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6z"/></svg>
                         </button>
+                        {{-- Banner de la categoría (RF-T62): abre el editor con vista previa + focal --}}
+                        <button type="button" wire:click="toggleEditorBannerCategoria({{ $grupo['id'] }})"
+                            class="shrink-0 p-1 rounded transition-colors {{ ($categoriaBanner === $grupo['id'] || $grupo['banner_url']) ? 'text-bcn-primary' : 'text-gray-400 dark:text-gray-500 hover:text-bcn-primary' }}"
+                            title="{{ __('Banner de la categoría') }}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25z"/></svg>
+                        </button>
                     @endif
                 </div>
+
+                {{-- Editor de banner de la categoría (RF-T62, guardado inmediato) --}}
+                @if($categoriaBanner === $grupo['id'] && $grupo['id'] !== 0)
+                    <div class="px-2 py-2 bg-white dark:bg-gray-800/60 border-t border-gray-100 dark:border-gray-700/60 space-y-1.5">
+                        <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+                            {{ __('Banner de la categoría') }}
+                            <span class="font-normal text-gray-500 dark:text-gray-400">— {{ __('la tienda lo muestra como fondo decorativo del título del grupo') }}</span>
+                        </p>
+
+                        @if($grupo['banner_url'])
+                            {{-- Vista previa en la proporción del banner + selector de focal:
+                                 click marca qué parte de la foto se ve (la foto casi nunca
+                                 tiene la proporción de la franja). x-data literal estático
+                                 (gotcha morph); los valores iniciales viajan por dataset. --}}
+                            <div class="relative group w-full"
+                                data-fx="{{ $grupo['banner_focal_x'] }}" data-fy="{{ $grupo['banner_focal_y'] }}"
+                                x-data="{
+                                    fx: 50, fy: 50,
+                                    init() {
+                                        this.fx = Number(this.$el.dataset.fx) || 50;
+                                        this.fy = Number(this.$el.dataset.fy) || 50;
+                                    },
+                                    pick(e) {
+                                        const rect = this.$refs.img.getBoundingClientRect();
+                                        this.fx = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+                                        this.fy = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+                                        this.$wire.guardarFocalBanner(Number(this.$el.dataset.catId), this.fx, this.fy);
+                                    }
+                                }"
+                                data-cat-id="{{ $grupo['id'] }}">
+                                <div class="relative h-14 w-full overflow-hidden rounded-md border-2 border-gray-200 dark:border-gray-700 hover:border-bcn-primary transition-colors">
+                                    <img x-ref="img" src="{{ $grupo['banner_url'] }}" alt="{{ __('Banner de :nombre', ['nombre' => $grupo['nombre']]) }}"
+                                        :style="`object-position: ${fx}% ${fy}%;`"
+                                        class="h-full w-full object-cover cursor-crosshair select-none"
+                                        draggable="false"
+                                        @click.prevent="pick($event)" />
+
+                                    {{-- Pin visual del focal point --}}
+                                    <div class="absolute pointer-events-none" :style="`left: ${fx}%; top: ${fy}%; transform: translate(-50%, -50%);`">
+                                        <div class="w-5 h-5 rounded-full bg-bcn-primary/30 ring-2 ring-white shadow-md flex items-center justify-center">
+                                            <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                        <p class="text-white text-[10px] font-medium text-center leading-tight">{{ __('Click para elegir qué parte de la foto se muestra') }}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
+                        <div class="flex items-center gap-2">
+                            <label class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-bcn-primary hover:text-bcn-primary transition-colors cursor-pointer">
+                                <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" wire:model="bannerUpload.{{ $grupo['id'] }}" />
+                                <svg wire:loading.remove wire:target="bannerUpload.{{ $grupo['id'] }}" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+                                <svg wire:loading wire:target="bannerUpload.{{ $grupo['id'] }}" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                                {{ $grupo['banner_url'] ? __('Cambiar banner de la categoría') : __('Subir banner de la categoría') }}
+                            </label>
+                            @if($grupo['banner_url'])
+                                <button type="button" wire:click="eliminarBannerCategoria({{ $grupo['id'] }})"
+                                    class="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:border-red-500 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0"/></svg>
+                                    {{ __('Quitar banner de la categoría') }}
+                                </button>
+                            @endif
+                        </div>
+                        <p class="text-[10px] text-gray-400 dark:text-gray-500">{{ __('Ideal 1600×600 px o más ancha; si la proporción no coincide, elegí con un click qué parte se ve.') }}</p>
+                        @error('bannerUpload.'.$grupo['id'])
+                            <p class="text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p>
+                        @enderror
+                    </div>
+                @endif
 
                 {{-- Editor de badges de la categoría (RF-T36, guardado inmediato) --}}
                 @if($categoriaBadges === $grupo['id'] && $grupo['id'] !== 0)

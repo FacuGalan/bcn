@@ -326,6 +326,55 @@ class ConfiguracionTiendaArticulosTest extends TestCase
         $this->assertFalse((bool) $articulo->fresh()->destacado);
     }
 
+    public function test_banner_de_categoria_sube_reemplaza_y_quita(): void
+    {
+        // RF-T62: banner decorativo del encabezado de categoría en la tienda.
+        $categoria = Categoria::create(['nombre' => 'Pizzas Banner Test', 'activo' => true]);
+        $this->crearArticuloConStock($this->sucursalId, overrides: ['categoria_id' => $categoria->id]);
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->set('bannerUpload', [$categoria->id => UploadedFile::fake()->image('banner.jpg', 1800, 900)])
+            ->assertDispatched('tienda-catalogo-cambiado');
+
+        $path = $categoria->fresh()->imagen_path;
+        $this->assertNotNull($path, 'El upload keyed por categoría persiste imagen_path');
+        $this->assertStringStartsWith("categorias/{$this->comercio->id}/", $path);
+        $this->assertStringEndsWith('.webp', $path, 'Re-encode a WebP, nunca el archivo crudo');
+        Storage::disk('public')->assertExists($path);
+
+        // Punto focal: default centro; el click del panel lo persiste clampeado.
+        $this->assertSame(50.0, (float) $categoria->fresh()->imagen_focal_x);
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('guardarFocalBanner', $categoria->id, 30.5, 130)
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertSame(30.5, (float) $categoria->fresh()->imagen_focal_x);
+        $this->assertSame(100.0, (float) $categoria->fresh()->imagen_focal_y, 'Fuera de rango se clampea a 0..100');
+
+        // Reemplazo: el archivo anterior se borra y el focal vuelve al centro
+        // (foto distinta no hereda el focal de la anterior).
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->set('bannerUpload', [$categoria->id => UploadedFile::fake()->image('nuevo.png', 800, 400)]);
+        $nuevo = $categoria->fresh()->imagen_path;
+        $this->assertNotSame($path, $nuevo);
+        Storage::disk('public')->assertMissing($path);
+        Storage::disk('public')->assertExists($nuevo);
+        $this->assertSame(50.0, (float) $categoria->fresh()->imagen_focal_x);
+
+        // Quitar limpia campo y archivo.
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('eliminarBannerCategoria', $categoria->id)
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertNull($categoria->fresh()->imagen_path);
+        Storage::disk('public')->assertMissing($nuevo);
+
+        // Una categoría sin artículos visibles en la tienda no es editable.
+        $ajena = Categoria::create(['nombre' => 'Sin artículos banner', 'activo' => true]);
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->set('bannerUpload', [$ajena->id => UploadedFile::fake()->image('x.jpg', 100, 100)])
+            ->assertNotDispatched('tienda-catalogo-cambiado');
+        $this->assertNull($ajena->fresh()->imagen_path);
+    }
+
     public function test_render_agrupa_por_categoria_en_orden_de_tienda(): void
     {
         $cat = Categoria::create(['nombre' => 'Con categoria RF14', 'activo' => true, 'orden' => 1]);

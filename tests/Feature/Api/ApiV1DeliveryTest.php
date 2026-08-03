@@ -284,6 +284,38 @@ class ApiV1DeliveryTest extends TestCase
         ], $catPayload['badges']);
     }
 
+    public function test_catalogo_expone_banner_de_categoria_rf_t62(): void
+    {
+        \Illuminate\Support\Facades\Cache::flush(); // catálogo cacheado 60s server-side
+
+        $conBanner = \App\Models\Categoria::create([
+            'nombre' => 'Con Banner',
+            'activo' => true,
+            'imagen_path' => 'categorias/9/banner-hamburguesas.webp',
+            'imagen_focal_x' => 40,
+            'imagen_focal_y' => 75.5,
+        ]);
+        $sinBanner = \App\Models\Categoria::create(['nombre' => 'Sin Banner', 'activo' => true]);
+
+        $this->crearArticuloConStock($this->sucursalId, cantidad: 10, overrides: ['categoria_id' => $conBanner->id]);
+        $this->crearArticuloConStock($this->sucursalId, cantidad: 10, overrides: ['categoria_id' => $sinBanner->id]);
+
+        $respuesta = $this->getJson('/api/v1/tiendas/tienda-test/catalogo')->assertOk();
+        $categorias = collect($respuesta->json('data.categorias'));
+
+        // Con banner: URL absoluta (la tienda corre en otro origen) + focal (%).
+        $payload = $categorias->firstWhere('id', $conBanner->id);
+        $this->assertStringStartsWith('http', $payload['imagen_url']);
+        $this->assertStringEndsWith('/storage/categorias/9/banner-hamburguesas.webp', $payload['imagen_url']);
+        // assertEquals: el JSON serializa 40.0 como int 40.
+        $this->assertEquals(['x' => 40, 'y' => 75.5], $payload['imagen_focal']);
+
+        // Sin banner: null + focal default (aditivo puro, la clave siempre está).
+        $vacio = $categorias->firstWhere('id', $sinBanner->id);
+        $this->assertNull($vacio['imagen_url']);
+        $this->assertEquals(['x' => 50, 'y' => 50], $vacio['imagen_focal']);
+    }
+
     public function test_invalidar_cache_del_catalogo_refresca_sin_esperar_ttl(): void
     {
         \Illuminate\Support\Facades\Cache::flush();
