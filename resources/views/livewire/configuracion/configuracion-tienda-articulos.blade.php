@@ -89,43 +89,32 @@
                         </p>
 
                         @if($grupo['banner_url'])
-                            {{-- Vista previa en la proporción del banner + selector de focal:
-                                 click marca qué parte de la foto se ve (la foto casi nunca
-                                 tiene la proporción de la franja). x-data literal estático
-                                 (gotcha morph); los valores iniciales viajan por dataset. --}}
-                            <div class="relative group w-full"
-                                data-fx="{{ $grupo['banner_focal_x'] }}" data-fy="{{ $grupo['banner_focal_y'] }}"
-                                x-data="{
-                                    fx: 50, fy: 50,
-                                    init() {
-                                        this.fx = Number(this.$el.dataset.fx) || 50;
-                                        this.fy = Number(this.$el.dataset.fy) || 50;
-                                    },
-                                    pick(e) {
-                                        const rect = this.$refs.img.getBoundingClientRect();
-                                        this.fx = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
-                                        this.fy = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
-                                        this.$wire.guardarFocalBanner(Number(this.$el.dataset.catId), this.fx, this.fy);
-                                    }
-                                }"
-                                data-cat-id="{{ $grupo['id'] }}">
-                                <div class="relative h-14 w-full overflow-hidden rounded-md border-2 border-gray-200 dark:border-gray-700 hover:border-bcn-primary transition-colors">
+                            {{-- Recortador drag & drop (RF-T62): la imagen COMPLETA
+                                 con la franja del banner arrastrable encima (lo de
+                                 afuera queda velado) + vista previa real abajo.
+                                 Alpine.data en tienda-articulos.js; valores iniciales
+                                 por dataset (x-data literal — gotcha morph). --}}
+                            <div class="w-full space-y-1.5" x-data="bannerFocal"
+                                data-cat-id="{{ $grupo['id'] }}" data-fx="{{ $grupo['banner_focal_x'] }}" data-fy="{{ $grupo['banner_focal_y'] }}"
+                                @pointermove.window="mover($event)" @pointerup.window="soltar()">
+                                <div class="relative mx-auto w-fit max-w-full touch-none overflow-hidden rounded-md border border-gray-200 dark:border-gray-700"
+                                    :class="arrastrando ? 'cursor-grabbing' : 'cursor-grab'"
+                                    @pointerdown.prevent="empezar($event)">
                                     <img x-ref="img" src="{{ $grupo['banner_url'] }}" alt="{{ __('Banner de :nombre', ['nombre' => $grupo['nombre']]) }}"
-                                        :style="`object-position: ${fx}% ${fy}%;`"
-                                        class="h-full w-full object-cover cursor-crosshair select-none"
-                                        draggable="false"
-                                        @click.prevent="pick($event)" />
+                                        class="block max-h-56 w-auto max-w-full select-none" draggable="false" @load="medir()" />
+                                    {{-- Franja de recorte: el velo exterior lo hace el box-shadow gigante --}}
+                                    <div x-show="aspecto > 0" x-cloak
+                                        class="pointer-events-none absolute rounded-sm border-2 border-white shadow-[0_0_0_9999px_rgb(0_0_0_/_0.55)]"
+                                        :style="bandaStyle()"></div>
+                                </div>
+                                <p class="text-center text-[10px] text-gray-400 dark:text-gray-500">{{ __('Arrastrá la franja para elegir qué parte de la foto se muestra') }}</p>
 
-                                    {{-- Pin visual del focal point --}}
-                                    <div class="absolute pointer-events-none" :style="`left: ${fx}%; top: ${fy}%; transform: translate(-50%, -50%);`">
-                                        <div class="w-5 h-5 rounded-full bg-bcn-primary/30 ring-2 ring-white shadow-md flex items-center justify-center">
-                                            <div class="w-1.5 h-1.5 rounded-full bg-white"></div>
-                                        </div>
-                                    </div>
-
-                                    <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                                        <p class="text-white text-[10px] font-medium text-center leading-tight">{{ __('Click para elegir qué parte de la foto se muestra') }}</p>
-                                    </div>
+                                {{-- Vista previa real: cómo queda la franja en la tienda --}}
+                                <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ __('Así se ve el banner') }}:</p>
+                                <div class="relative h-14 w-full overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
+                                    <img src="{{ $grupo['banner_url'] }}" alt="" aria-hidden="true"
+                                        class="h-full w-full object-cover" draggable="false"
+                                        :style="posicionPreview()" />
                                 </div>
                             </div>
                         @endif
@@ -145,7 +134,6 @@
                                 </button>
                             @endif
                         </div>
-                        <p class="text-[10px] text-gray-400 dark:text-gray-500">{{ __('Ideal 1600×600 px o más ancha; si la proporción no coincide, elegí con un click qué parte se ve.') }}</p>
                         @error('bannerUpload.'.$grupo['id'])
                             <p class="text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p>
                         @enderror
