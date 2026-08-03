@@ -8,7 +8,9 @@ use App\Models\ConsumidorComercio;
 use App\Models\PedidoDelivery;
 use App\Models\Sucursal;
 use App\Models\Tienda;
+use App\Models\Venta;
 use Exception;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -151,20 +153,18 @@ class PedidoTiendaService
             $ajusteFormaPago = round(array_sum(array_column($pagosDesglosados, 'monto_ajuste')), 2);
         }
 
-        // RF-T47: artículos canjeados — saldo FRESCO validado acá (los
+        // RF-T54: artículos canjeados — saldo FRESCO validado acá (los
         // renglones ya vienen restados del total por el motor); el ledger
         // real (MovimientoPunto canje-artículo) lo crea la conversión a
         // venta sobre los detalles pagado_con_puntos, como en el panel.
         $puntosArticulos = 0;
-        $valorPuntoArticulos = null;
         if ($hayCanjeArticulos) {
             $puntosTienda = app(PuntosTiendaService::class);
             $infoArticulos = $puntosTienda->info($sucursal, $clienteId);
             if (! $clienteId || ! ($infoArticulos['activo'] ?? false)) {
                 throw new Exception(__('El canje por puntos no está disponible para tu cuenta en esta tienda'));
             }
-            $valorPuntoArticulos = (float) $infoArticulos['valor_punto_canje'];
-            $puntosArticulos = $this->cotizador->puntosUsadosEnArticulos($valorPuntoArticulos);
+            $puntosArticulos = $this->cotizador->puntosUsadosEnArticulos();
             if ($puntosArticulos > (int) $infoArticulos['saldo']) {
                 throw new Exception(__('No te alcanzan los puntos para ese canje'));
             }
@@ -255,7 +255,7 @@ class PedidoTiendaService
             '_actualizar_direccion_cliente' => false, // el consumidor gestiona sus direcciones globales
         ];
 
-        $detalles = $this->construirDetalles($resultado, array_values($payload['items']), $valorPuntoArticulos);
+        $detalles = $this->construirDetalles($resultado, array_values($payload['items']));
 
         $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $aceptacionManual);
 
@@ -579,10 +579,68 @@ class PedidoTiendaService
     }
 
     /**
+     * RF-T56: vincula un pedido de INVITADO a la cuenta del consumidor. El
+     * token de seguimiento es la credencial (misma regla que seguimiento y
+     * cancelación); el controller ya lo validó. Idempotente: pedido ya
+     * vinculado → no-op (a esta cuenta → vinculado true; a otra → false).
+     *
+     * Si el pedido ya se convirtió a venta, adopta también la venta (le
+     * setea el cliente) y acredita los puntos ganados con la fórmula real
+     * (acreditarPuntosGanados). Si aún no se convirtió, no acredita nada:
+     * la conversión normal encontrará cliente_id y acreditará sola.
+     */
+    public function vincularConsumidor(PedidoDelivery $pedido, Sucursal $sucursal, Consumidor $consumidor): array
+    {
+        if ($pedido->consumidor_id) {
+            return [
+                'vinculado' => (int) $pedido->consumidor_id === (int) $consumidor->id,
+                'puntos_acreditados' => 0,
+            ];
+        }
+
+        $clienteId = null;
+        DB::connection('pymes_tenant')->transaction(function () use ($pedido, $sucursal, $consumidor, &$clienteId) {
+            $clienteId = $this->resolverClienteId($sucursal, $consumidor);
+
+            $pedido->update([
+                'consumidor_id' => $consumidor->id,
+                'cliente_id' => $pedido->cliente_id ?: $clienteId,
+            ]);
+
+            // Pedido ya convertido: la venta del invitado también se adopta
+            // (sin cliente no hay ledger de puntos posible).
+            if ($pedido->venta_id && $clienteId) {
+                Venta::where('id', $pedido->venta_id)
+                    ->whereNull('cliente_id')
+                    ->update(['cliente_id' => $clienteId]);
+            }
+        });
+
+        Log::info('Pedido de invitado vinculado a consumidor (RF-T56)', [
+            'pedido_id' => $pedido->id,
+            'consumidor_id' => $consumidor->id,
+            'cliente_id' => $clienteId,
+            'venta_id' => $pedido->venta_id,
+        ]);
+
+        // Acreditación post-commit, best-effort (espejo de la conversión).
+        $puntosAcreditados = 0;
+        if ($pedido->venta_id && $clienteId) {
+            $venta = Venta::find($pedido->venta_id);
+            if ($venta && (int) $venta->cliente_id === (int) $clienteId && ! (int) $venta->puntos_ganados) {
+                $this->pedidoService->acreditarPuntosGanados($pedido->fresh(), $venta);
+                $puntosAcreditados = (int) $venta->fresh()->puntos_ganados;
+            }
+        }
+
+        return ['vinculado' => true, 'puntos_acreditados' => $puntosAcreditados];
+    }
+
+    /**
      * Renglones para PedidoDeliveryService::crearPedido a partir del
      * resultado del cotizador (promos por línea atribuidas por el motor).
      */
-    protected function construirDetalles(array $resultado, array $itemsPayload = [], ?float $valorPuntoCanje = null): array
+    protected function construirDetalles(array $resultado, array $itemsPayload = []): array
     {
         $items = $this->cotizador->itemsCotizados();
         $detalles = [];
@@ -623,12 +681,14 @@ class PedidoTiendaService
                 'tiene_promocion' => ! empty($promocionesComunes) || ! empty($promocionesEspeciales),
                 'total' => $precioUnitario * $cantidad,
                 'opcionales' => $item['opcionales'] ?? [],
-                // RF-T47: renglón canjeado por puntos — la conversión a venta
+                // RF-T54: renglón canjeado por puntos — la conversión a venta
                 // exige pagado_con_puntos + puntos_usados > 0 en el DETALLE
-                // (procesarCanjesPuntos) para crear el MovimientoPunto.
+                // (procesarCanjesPuntos) para crear el MovimientoPunto. El
+                // costo efectivo (configurado o derivado del precio) lo
+                // resolvió el cotizador y lo arrastra en el item.
                 'pagado_con_puntos' => (bool) ($item['pagado_con_puntos'] ?? false),
-                'puntos_usados' => ($item['pagado_con_puntos'] ?? false) && $valorPuntoCanje > 0
-                    ? (int) ceil($precioUnitario / $valorPuntoCanje) * (int) $cantidad
+                'puntos_usados' => ($item['pagado_con_puntos'] ?? false)
+                    ? (int) ($item['puntos_canje'] ?? 0) * (int) $cantidad
                     : 0,
                 // Aclaración del cliente por ítem (mismo índice: el cotizador
                 // preserva el orden del payload).

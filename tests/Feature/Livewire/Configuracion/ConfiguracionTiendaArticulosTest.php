@@ -57,6 +57,47 @@ class ConfiguracionTiendaArticulosTest extends TestCase
         $this->assertTrue((bool) $articulo->fresh()->destacado);
     }
 
+    public function test_toggle_canje_no_exige_puntos_configurados(): void
+    {
+        // RF-T54 ajustado: el toggle prende sin puntos_canje cargados — sin
+        // configurar, el costo se deriva del precio del día (regla del POS).
+        $articulo = $this->crearArticuloConStock($this->sucursalId);
+        $this->assertNull($articulo->puntos_canje);
+
+        $canjeTienda = fn () => (bool) DB::connection('pymes_tenant')
+            ->table('articulos_sucursales')
+            ->where('articulo_id', $articulo->id)
+            ->where('sucursal_id', $this->sucursalId)
+            ->value('canje_tienda');
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('toggleCanjeTienda', $articulo->id)
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertTrue($canjeTienda(), 'Sin puntos_canje también se prende');
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('toggleCanjeTienda', $articulo->id)
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertFalse($canjeTienda());
+    }
+
+    public function test_guardar_puntos_canje_persiste_y_vacio_limpia(): void
+    {
+        // Input provisorio del panel: setea articulos.puntos_canje (campo
+        // global, compartido con el POS); vacío/0 vuelve a null (= derivado).
+        $articulo = $this->crearArticuloConStock($this->sucursalId);
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('guardarPuntosCanje', $articulo->id, '7')
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertSame(7, $articulo->fresh()->puntos_canje);
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('guardarPuntosCanje', $articulo->id, '')
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertNull($articulo->fresh()->puntos_canje);
+    }
+
     public function test_no_toca_articulos_fuera_de_la_tienda(): void
     {
         $oculto = $this->crearArticuloConStock($this->sucursalId);

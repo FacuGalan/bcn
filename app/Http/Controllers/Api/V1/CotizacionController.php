@@ -200,7 +200,7 @@ class CotizacionController extends Controller
                         'details' => null,
                     ]], 422));
                 }
-                $usadosEnArticulos = $cotizador->puntosUsadosEnArticulos((float) $info['valor_punto_canje']);
+                $usadosEnArticulos = $cotizador->puntosUsadosEnArticulos();
                 if ($usadosEnArticulos > (int) $info['saldo']) {
                     abort(response()->json(['error' => [
                         'code' => 'puntos_insuficientes',

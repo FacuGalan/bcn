@@ -131,6 +131,36 @@ class PedidoPublicoController extends Controller
         $porAceptar = $pedido->estado_pedido === PedidoDelivery::ESTADO_BORRADOR
             && $pedido->origen !== PedidoDelivery::ORIGEN_PANEL;
 
+        // RF-T56 (aditivo): puntos que este pedido suma (o hubiese sumado,
+        // si es de invitado) — la tienda arma el CTA "registrate y sumalos"
+        // con este número. Solo viaja con programa activo. `vinculado` le
+        // dice a la tienda si ya hay una cuenta atada al pedido.
+        $puntos = null;
+        $puntosTienda = app(\App\Services\Pedidos\PuntosTiendaService::class);
+        if ($pedido->estado_pedido !== PedidoDelivery::ESTADO_CANCELADO) {
+            $pagoReal = $pedido->pagos()
+                ->whereIn('estado', [
+                    \App\Models\PedidoDeliveryPago::ESTADO_ACTIVO,
+                    \App\Models\PedidoDeliveryPago::ESTADO_PLANIFICADO,
+                ])
+                ->where('es_pago_puntos', false)
+                ->get(['forma_pago_id', 'monto_final']);
+            // Sin FP declarada (pedido sin pagos) se estima sobre el total —
+            // mismo monto que terminará pagando contra entrega.
+            $aGanar = $puntosTienda->estimarAGanar(
+                $sucursal,
+                $pagoReal->first()?->forma_pago_id,
+                (float) ($pagoReal->sum('monto_final') ?: $pedido->total_final),
+            );
+            if ($aGanar > 0) {
+                $puntos = [
+                    'activo' => true,
+                    'a_ganar' => $aGanar,
+                    'vinculado' => (bool) $pedido->consumidor_id,
+                ];
+            }
+        }
+
         // D14: timeout de aceptación vencido ⇒ el consumidor lo ve demorado.
         $timeoutMin = (int) (app(\App\Services\Pedidos\DeliveryEnvioService::class)
             ->configDelivery($sucursal)['timeout_aceptacion_min'] ?? 0);
@@ -183,7 +213,34 @@ class PedidoPublicoController extends Controller
                     'entregado_at' => $pedido->entregado_at?->toIso8601String(),
                 ],
                 'canal_tiempo_real' => 'pedidos-delivery.seguimiento.'.$pedido->token_seguimiento,
+                // RF-T56 (aditivo): null si el programa no aplica o no hay
+                // nada que ganar — la tienda no muestra nada en ese caso.
+                'puntos' => $puntos,
             ],
+        ]);
+    }
+
+    /**
+     * POST /v1/tiendas/{slug}/pedidos/{token}/vincular — vinculación
+     * retroactiva del pedido de INVITADO a la cuenta del consumidor
+     * (RF-T56). Bearer de consumidor obligatorio; el token de seguimiento es
+     * la credencial sobre el pedido (misma regla que seguimiento y
+     * cancelación). Idempotente.
+     */
+    public function vincular(Request $request, string $slug, string $token, PedidoTiendaService $tiendaService): JsonResponse
+    {
+        $consumidor = $request->user('sanctum');
+        abort_unless($consumidor instanceof Consumidor, 401);
+
+        $sucursal = $request->attributes->get('api_sucursal');
+
+        $pedido = PedidoDelivery::where('token_seguimiento', $token)->first();
+        if (! $pedido || (int) $pedido->sucursal_id !== (int) $sucursal->id) {
+            abort(404);
+        }
+
+        return response()->json([
+            'data' => $tiendaService->vincularConsumidor($pedido, $sucursal, $consumidor),
         ]);
     }
 

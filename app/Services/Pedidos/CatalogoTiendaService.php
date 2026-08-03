@@ -118,9 +118,9 @@ class CatalogoTiendaService
             ->get(['articulo_id', 'modo_stock', 'canje_tienda'])
             ->keyBy('articulo_id');
 
-        // RF-T47: con programa de puntos activo, el costo de canje se deriva
-        // del precio del día (regla del POS). Null ⇒ ningún artículo publica
-        // canje aunque tenga el toggle prendido.
+        // RF-T47: valor de canje del programa activo — resuelve el costo
+        // derivado cuando el artículo no tiene puntos configurados. Null ⇒
+        // ningún artículo publica canje aunque tenga el toggle prendido.
         $valorPuntoCanje = app(PuntosTiendaService::class)->valorPuntoCanjeActivo($sucursal);
 
         $itemsCatalogo = $articulos->map(function (Articulo $articulo) use ($sucursal, $contexto, $stocks, $pivots, $valorPuntoCanje) {
@@ -202,14 +202,18 @@ class CatalogoTiendaService
                     ->values()->all(),
             ];
 
-            // RF-T47 (aditivo): canjeable por puntos — la clave solo viaja si
+            // RF-T54 (aditivo): canjeable por puntos — la clave solo viaja si
             // el toggle está prendido, el programa activo, hay precio y no
-            // está agotado. Costo = ceil(precio / valor_punto_canje).
+            // está agotado. Costo = puntos configurados del artículo
+            // (articulos.puntos_canje) o, sin configurar, derivado del precio
+            // del día (regla del POS: ceil(precio / valor_punto_canje)).
             if ($valorPuntoCanje !== null
                 && (bool) ($pivots[$articulo->id]->canje_tienda ?? false)
                 && ! $agotado
                 && $item['precio'] > 0) {
-                $item['puntos_canje'] = (int) ceil($item['precio'] / $valorPuntoCanje);
+                $item['puntos_canje'] = (int) $articulo->puntos_canje > 0
+                    ? (int) $articulo->puntos_canje
+                    : (int) ceil($item['precio'] / $valorPuntoCanje);
             }
 
             return $item;

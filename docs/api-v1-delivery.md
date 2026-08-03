@@ -270,15 +270,17 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   la descripción operativa del artículo, como siempre (misma clave, sin
   cambio de shape).
 
-**Canje de artículos por puntos** (aditivo 2026-07-30, RF-T47): cada
-artículo puede sumar `puntos_canje` (int): el costo en puntos de canjearlo
-HOY — solo viaja si el comercio lo habilitó para la tienda (toggle por
-sucursal en el panel), el programa de puntos está activo y el artículo tiene
-precio y no está agotado. AUSENTE ⇒ no canjeable (la tienda no muestra
-nada). El costo deriva del precio del día (`ceil(precio /
-valor_punto_canje)`, misma regla del POS) — con Bearer, del precio DE ESE
-cliente. El canje efectivo viaja en cotización/alta con
-`items[].canjear_con_puntos` (ver esas secciones).
+**Canje de artículos por puntos** (aditivo 2026-07-30, RF-T47; costo
+ajustado 2026-08-03, RF-T54): cada artículo puede sumar `puntos_canje`
+(int): el costo en puntos de canjearlo HOY — solo viaja si el comercio lo
+habilitó para la tienda (toggle por sucursal en el panel), el programa de
+puntos está activo y el artículo tiene precio y no está agotado. AUSENTE ⇒
+no canjeable (la tienda no muestra nada). El costo es el CONFIGURADO del
+artículo (`articulos.puntos_canje`, la misma fuente que usa el POS) si está
+cargado; sin configurar se deriva del precio del día (`ceil(precio /
+valor_punto_canje)`, la regla con la que el POS canjea artículos sin puntos
+propios) — con Bearer, del precio DE ESE cliente. El canje efectivo viaja
+en cotización/alta con `items[].canjear_con_puntos` (ver esas secciones).
 
 **Badges por categoría** (aditivo 2026-07-29, RF-T36): cada elemento de
 `categorias[]` suma `badges: [{ "tipo", "texto" }]` con el MISMO catálogo,
@@ -403,12 +405,15 @@ monto pagado sin puntos × multiplicador de la FP ÷ monto_por_punto, con el
 redondeo de la config; sin envío). El crédito verdadero lo hace la conversión
 a venta.
 
-**Canje de artículos por puntos** *(aditivo 2026-07-30, RF-T47, requiere
-Bearer con cliente)*: `items[].canjear_con_puntos` (bool) marca ese renglón
-como CANJEADO — se resta entero del `total_final` (viaja el agregado
-`articulos_canjeados_monto` con el equivalente en pesos) y compromete
-`ceil(precio / valor_punto_canje)` puntos por unidad. Reglas: solo artículos
-con `puntos_canje` en el catálogo, cantidad 1 por renglón, sin opcionales
+**Canje de artículos por puntos** *(aditivo 2026-07-30, RF-T47; costo
+ajustado 2026-08-03, RF-T54; requiere Bearer con cliente)*:
+`items[].canjear_con_puntos` (bool) marca ese renglón como CANJEADO — se
+resta entero del `total_final` (viaja el agregado `articulos_canjeados_monto`
+con el equivalente en pesos) y compromete por unidad el mismo costo que
+publica el catálogo: el `puntos_canje` CONFIGURADO del artículo o, sin
+configurar, el derivado del precio del día (`ceil(precio /
+valor_punto_canje)`). Reglas: solo artículos con `puntos_canje` en el
+catálogo (toggle prendido), cantidad 1 por renglón, sin opcionales
 con precio, incompatible con 2 FP. El bloque `puntos` suma
 `usados_en_articulos` (int) y el canje-pago (`usar_puntos`) se calcula sobre
 el saldo NETO de esos puntos. Errores: `422 canje_no_disponible` (sin
@@ -602,9 +607,46 @@ Sirve para mostrar qué se pidió en el seguimiento y para que la tienda arme
 "re-pedir": rearma el carrito con `articulo_id`/`opcional_id`/`cantidad` y
 **re-cotiza** (precios de hoy, nunca históricos).
 
+**Bloque `puntos`** *(aditivo 2026-07-31, RF-T56)*: si el programa de puntos
+del comercio está activo, el pedido no está cancelado y hay algo que ganar,
+la respuesta suma:
+
+```json
+"puntos": { "activo": true, "a_ganar": 10, "vinculado": false }
+```
+
+`a_ganar` usa la fórmula real de acumulación (multiplicador de la FP
+declarada incluido) sobre lo que se paga sin puntos; `vinculado` dice si el
+pedido ya tiene una cuenta de consumidor atada. Con esto la tienda arma el
+CTA de invitados: "este pedido hubiese sumado N puntos — registrate y los
+sumás". `null` o clave ausente ⇒ no mostrar nada.
+
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
 entre en preparación). Después, solo el comercio.
+
+### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/vincular`
+*(aditivo 2026-07-31, RF-T56 — requiere Bearer de consumidor)*
+
+Vinculación retroactiva de un pedido hecho como INVITADO a la cuenta del
+consumidor logueado. La posesión del token de seguimiento es la credencial
+sobre el pedido (misma regla que el seguimiento y la cancelación).
+
+- Pedido sin cuenta → setea `consumidor_id`, resuelve/crea el cliente del
+  comercio (política D11 `tienda_alta_cliente_automatica`; con OFF el pedido
+  queda rastreable por `consumidor_id` sin cliente) y, si el pedido YA se
+  convirtió a venta, adopta la venta y **acredita los puntos ganados** con
+  la fórmula real. Si aún no se convirtió, no acredita nada: la conversión
+  normal lo hará al encontrar el cliente.
+- **Idempotente**: pedido ya vinculado a ESTA cuenta → `200` no-op con
+  `puntos_acreditados: 0`. Vinculado a OTRA cuenta → `200` con
+  `vinculado: false` (no se pisa).
+- Respuesta: `{data: {vinculado: bool, puntos_acreditados: int}}`.
+- Errores: `401` sin Bearer; `404` token inexistente o de otra tienda.
+- Flujo tienda: el seguimiento muestra el CTA con `puntos.a_ganar` (GET de
+  arriba); tras registro/login la tienda llama a este endpoint y comunica
+  el resultado ("sumaste N puntos" / "se acreditan al completarse el
+  pedido").
 
 ## Endpoints de consumidores (RF-T1..T3 + RF-T39..T42 + RF-T49, cuenta global de la tienda)
 

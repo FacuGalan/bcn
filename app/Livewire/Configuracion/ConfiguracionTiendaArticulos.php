@@ -90,8 +90,9 @@ class ConfiguracionTiendaArticulos extends Component
 
     /**
      * Toggle "canjeable por puntos en la tienda" (pivot articulos_sucursales
-     * de ESTA sucursal). El costo en puntos no se configura acá: se deriva
-     * del precio del día (regla del POS, ceil(precio/valor_punto_canje)).
+     * de ESTA sucursal). El costo en puntos es `articulos.puntos_canje` si
+     * está cargado; sin cargar se deriva del precio del día (regla del POS:
+     * ceil(precio / valor_punto_canje)) — RF-T54 ajustado.
      */
     public function toggleCanjeTienda(int $articuloId): void
     {
@@ -110,6 +111,29 @@ class ConfiguracionTiendaArticulos extends Component
         $articulo->sucursales()->updateExistingPivot($sucursalId, [
             'canje_tienda' => ! (bool) ($pivot?->canje_tienda),
         ]);
+
+        $this->catalogoCambiado();
+    }
+
+    /**
+     * Puntos de canje ESPECÍFICOS del artículo (articulos.puntos_canje,
+     * campo global — lo comparte el POS). Input provisorio del panel de
+     * tienda mientras no exista una pantalla propia para mantenerlos:
+     * vacío/0 = sin configurar, el costo se deriva del precio del día.
+     */
+    public function guardarPuntosCanje(int $articuloId, $valor): void
+    {
+        if (! $this->autorizado()) {
+            return;
+        }
+
+        $articulo = $this->articuloVisible($articuloId);
+        if (! $articulo) {
+            return;
+        }
+
+        $puntos = max(0, (int) $valor);
+        $articulo->update(['puntos_canje' => $puntos > 0 ? $puntos : null]);
 
         $this->catalogoCambiado();
     }

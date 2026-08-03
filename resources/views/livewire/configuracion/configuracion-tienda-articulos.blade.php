@@ -140,9 +140,19 @@
                                     @endif
                                 </div>
 
-                                {{-- Canjeable por puntos en la tienda (RF-T47, guardado inmediato).
-                                     El costo en puntos lo deriva la API del precio del día. --}}
+                                {{-- Canjeable por puntos en la tienda (RF-T54 ajustado, guardado
+                                     inmediato). Costo: articulos.puntos_canje si está cargado
+                                     (input provisorio de abajo); vacío = se deriva del precio del
+                                     día (regla del POS). --}}
                                 @php($canjeTienda = (bool) ($articulo->sucursales->first()?->pivot?->canje_tienda))
+                                @if($canjeTienda)
+                                    <input type="number" min="0" step="1" inputmode="numeric"
+                                        value="{{ (int) $articulo->puntos_canje > 0 ? (int) $articulo->puntos_canje : '' }}"
+                                        placeholder="{{ __('Auto') }}" @disabled(! $puedeConfigurar)
+                                        wire:change="guardarPuntosCanje({{ $articulo->id }}, $event.target.value)"
+                                        title="{{ __('Puntos para canjear este artículo (vacío = se calcula del precio)') }}"
+                                        class="shrink-0 w-16 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-[11px] py-0.5 px-1.5 text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                                @endif
                                 <button type="button" wire:click="toggleCanjeTienda({{ $articulo->id }})" @disabled(! $puedeConfigurar)
                                     class="shrink-0 p-1 rounded transition-colors {{ $canjeTienda ? 'text-violet-500 hover:text-violet-600' : 'text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500' }}"
                                     title="{{ $canjeTienda ? __('Quitar canje por puntos en la tienda') : __('Permitir canje por puntos en la tienda') }}">
