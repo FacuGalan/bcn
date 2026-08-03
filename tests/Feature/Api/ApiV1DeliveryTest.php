@@ -2845,6 +2845,43 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.total_a_pagar'), 0.01, 'El resto se paga con plata');
     }
 
+    public function test_pedido_totalmente_cubierto_con_puntos_no_necesita_forma_pago(): void
+    {
+        // RF-T61: un artículo canjeado + el resto pagado con usar_puntos →
+        // total $0 SIN forma de pago declarada. El alta pasa y el canje-pago
+        // queda planificado bajo la FP interna CANJE_PUNTOS (paridad POS).
+        $this->activarProgramaPuntos();
+        $canjeado = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000 = 20 pts
+        $normal = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $this->habilitarCanjeTienda($canjeado);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100); // $5000
+
+        $payload = $this->payloadPedido($normal->id);
+        $payload['items'][] = ['articulo_id' => $canjeado->id, 'cantidad' => 1, 'canjear_con_puntos' => true];
+        $payload['usar_puntos'] = true; // SIN 'pago' ni 'pagos'
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        // total_final = el renglón normal (el canjeado ya viene restado); el
+        // canje-pago no lo baja: lo CUBRE como pago (misma semántica del POS).
+        $this->assertEqualsWithDelta(1000.0, (float) $pedido->total_final, 0.01);
+        $this->assertSame(20, (int) $pedido->puntos_canjeados_articulos);
+        $this->assertSame(20, (int) $pedido->puntos_canjeados_pago, '$1000 / $50 = 20 pts como pago');
+
+        $pagos = $pedido->pagos;
+        $this->assertCount(1, $pagos, 'Solo el pago-puntos, sin FP declarada');
+        $this->assertTrue((bool) $pagos->first()->es_pago_puntos);
+        $this->assertSame(
+            \App\Models\FormaPago::where('codigo', 'CANJE_PUNTOS')->value('id'),
+            (int) $pagos->first()->forma_pago_id,
+            'El canje se graba bajo la FP interna, como la venta del POS',
+        );
+        $this->assertEqualsWithDelta(1000.0, (float) $pagos->first()->monto_final, 0.01);
+    }
+
     public function test_pedido_con_canje_en_plata_persiste_puntos_y_cobra_opcionales(): void
     {
         // RF-T59 end-to-end en el alta: canje fijo 7 'en_plata' con opcional
