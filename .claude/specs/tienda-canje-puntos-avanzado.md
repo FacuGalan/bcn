@@ -164,22 +164,34 @@
 
 ## Plan de Implementación
 
-### Fase 0: cerrar la ronda anterior
-Validar en vivo RF-T51..T57 + ajuste RF-T54, PR del core, merge tienda #55.
+### Fase 0: cerrar la ronda anterior [PENDIENTE — merges bloqueados por permisos]
+Validar en vivo RF-T51..T57 + ajuste RF-T54; mergear bcn#191 (squash) y
+después tienda#55, EN ORDEN, borrando ramas.
 
-### Fase 1 (CORE): motor
-1. Migración tenant (2 columnas) + casts/fillable.
-2. Helper compartido de costo de canje (fijo/derivado + matriz de opcionales).
-3. `WithPuntos` (POS): restricción por switch en canje-pago y canje de
-   artículo; costo desde el helper.
-4. `CotizadorCarritoTienda`/`PedidoTiendaService`: matriz de opcionales,
-   renglón `en_plata`, tope del canje-pago restringido.
-5. Contrato + tests (matriz completa, switch on/off, conversión a venta).
+### Fase 1 (CORE): motor [COMPLETO 2026-08-03 — falta validación en vivo]
+Migración tenant + `PuntosService::costoCanjeArticulo()` (matriz) y
+`restringeCanjeArticulos()`; POS (`WithPuntos` + motor) y tienda
+(cotizador/alta) con matriz, `en_plata` y tope del canje-pago; catálogo +
+contrato; 9 unit + 6 feature nuevos, regresión POS (51) y API (28) verdes.
 
-### Fase 2 (CORE): paneles
-6. `ConfiguracionTiendaArticulos`: chip "pts.", inputs al desplegable.
-7. `ProgramaPuntos`: sección "Canje de artículos" completa.
+### Fase 2 (CORE): paneles [COMPLETO 2026-08-03]
+Chip "pts." + inputs al desplegable en ConfiguracionTiendaArticulos;
+sección "Canje de artículos" en ProgramaPuntos (switch, ejemplos vivos,
+tabla, masivos). Gotcha: ProgramaPuntos es #[Lazy] — en tests,
+withoutLazyLoading se agota tras el primer ciclo (una instancia por test).
 
-### Fase 3 (TIENDA): consumo
-8. Detalle sin puntos; carrito con "pts.", costo por ítem,
-   disponibles/restantes, botón "Usar todos"; fixtures/contract tests.
+### Fase 3 (TIENDA): consumo [COMPLETO 2026-08-03]
+Detalle sin puntos; carrito con chip "pts." + costo por renglón (de la
+cotización), "Te quedan", botón "Usar todos"; canje con opcionales;
+fixtures aditivos; suite completa 256 verdes. Gotcha: en
+carrito.blade.php `@php($expr)` compila como bloque crudo — usar
+`@php ... @endphp`.
+
+### Ramas (apiladas sobre la ronda anterior)
+- Core: `feat/canje-puntos-avanzado` (base `feat/tienda-ajustes-canje-puntos`).
+- Tienda: `feat/canje-avanzado-tienda` (base `feat/ajustes-cuenta-puntos-ui`).
+- Tras mergear las bases: rebase `--onto master` y actualizar los PRs.
+
+### Pendientes de la ronda
+- Manual de usuario + knowledge base (commit de docs al cierre).
+- Validación en vivo completa (matriz, restricción, paneles y carrito).
