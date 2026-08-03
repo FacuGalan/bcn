@@ -6,6 +6,7 @@ use App\Models\Articulo;
 use App\Models\ArticuloImagenTienda;
 use App\Models\Categoria;
 use App\Services\ImagenArticuloTiendaService;
+use App\Services\ImagenCategoriaTiendaService;
 use App\Services\Pedidos\CatalogoTiendaService;
 use App\Services\TenantService;
 use App\Traits\SucursalAware;
@@ -44,6 +45,12 @@ class ConfiguracionTiendaArticulos extends Component
     /** Texto del badge custom del artículo abierto ('' = sin custom). */
     public string $badgeCustom = '';
 
+    /** Upload de banner de categoría, keyed por categoria_id (RF-T62). */
+    public $bannerUpload = [];
+
+    /** Categoría con el editor de banner expandido (RF-T62, null = ninguna). */
+    public ?int $categoriaBanner = null;
+
     /** Categoría con el editor de badges expandido (RF-T36, null = ninguna). */
     public ?int $categoriaBadges = null;
 
@@ -66,6 +73,7 @@ class ConfiguracionTiendaArticulos extends Component
     {
         $this->cerrarEditor();
         $this->cerrarBadgesCategoria();
+        $this->cerrarBannerCategoria();
     }
 
     // ==================== DESTACADO ====================
@@ -338,6 +346,112 @@ class ConfiguracionTiendaArticulos extends Component
         }
 
         $articulo->update(['badges_tienda' => $badges !== [] ? $badges : null]);
+
+        $this->catalogoCambiado();
+    }
+
+    // ==================== BANNER DE CATEGORÍA (RF-T62) ====================
+
+    /** Abre/cierra el editor de banner de una categoría (espejo del de badges). */
+    public function toggleEditorBannerCategoria(int $categoriaId): void
+    {
+        if ($this->categoriaBanner === $categoriaId) {
+            $this->cerrarBannerCategoria();
+
+            return;
+        }
+
+        $categoria = $this->categoriaVisible($categoriaId);
+        if (! $categoria) {
+            return;
+        }
+
+        $this->categoriaBanner = $categoria->id;
+    }
+
+    public function cerrarBannerCategoria(): void
+    {
+        $this->categoriaBanner = null;
+    }
+
+    /**
+     * Click sobre la vista previa del banner: persiste el punto focal (%)
+     * que decide qué parte de la foto muestra la franja con object-cover
+     * (la foto original casi nunca tiene la proporción del banner).
+     */
+    public function guardarFocalBanner(int $categoriaId, $x, $y): void
+    {
+        if (! $this->autorizado()) {
+            return;
+        }
+
+        $categoria = $this->categoriaVisible($categoriaId);
+        if (! $categoria || ! $categoria->imagen_path) {
+            return;
+        }
+
+        $categoria->update([
+            'imagen_focal_x' => max(0, min(100, (float) $x)),
+            'imagen_focal_y' => max(0, min(100, (float) $y)),
+        ]);
+
+        $this->catalogoCambiado();
+    }
+
+    /**
+     * Livewire llama esto al terminar el upload del banner de una categoría:
+     * procesa AL INSTANTE (mismo patrón que la galería de artículos). El
+     * array viene keyed por categoria_id desde el wire:model del blade.
+     */
+    public function updatedBannerUpload(): void
+    {
+        if (! $this->autorizado()) {
+            $this->bannerUpload = [];
+
+            return;
+        }
+
+        $this->validate(
+            ['bannerUpload.*' => 'image|max:5120'],
+            ['bannerUpload.*.image' => __('Formato de imagen no permitido. Aceptados: JPG, PNG, WebP.')],
+        );
+
+        $service = app(ImagenCategoriaTiendaService::class);
+        $procesadas = 0;
+
+        foreach ((array) $this->bannerUpload as $categoriaId => $upload) {
+            $categoria = $upload ? $this->categoriaVisible((int) $categoriaId) : null;
+            if (! $categoria) {
+                continue;
+            }
+
+            try {
+                $service->actualizarBanner($categoria, $upload);
+                $procesadas++;
+            } catch (Exception $e) {
+                $this->dispatch('toast-error', message: $e->getMessage());
+            }
+        }
+
+        $this->bannerUpload = [];
+
+        if ($procesadas > 0) {
+            $this->catalogoCambiado();
+        }
+    }
+
+    public function eliminarBannerCategoria(int $categoriaId): void
+    {
+        if (! $this->autorizado()) {
+            return;
+        }
+
+        $categoria = $this->categoriaVisible($categoriaId);
+        if (! $categoria) {
+            return;
+        }
+
+        app(ImagenCategoriaTiendaService::class)->eliminarBanner($categoria);
 
         $this->catalogoCambiado();
     }
@@ -715,6 +829,9 @@ class ConfiguracionTiendaArticulos extends Component
                 'id' => (int) $cat->id,
                 'nombre' => $cat->nombre,
                 'badges' => $cat->badgesTienda(),
+                'banner_url' => $cat->imagenUrl(),
+                'banner_focal_x' => (float) ($cat->imagen_focal_x ?? 50),
+                'banner_focal_y' => (float) ($cat->imagen_focal_y ?? 50),
                 'articulos' => $porCategoria->get($cat->id, collect()),
             ])
             ->values();
@@ -725,6 +842,9 @@ class ConfiguracionTiendaArticulos extends Component
                 'id' => 0,
                 'nombre' => __('Sin categoría'),
                 'badges' => [],
+                'banner_url' => null,
+                'banner_focal_x' => 50.0,
+                'banner_focal_y' => 50.0,
                 'articulos' => $porCategoria->get(0),
             ]);
         }

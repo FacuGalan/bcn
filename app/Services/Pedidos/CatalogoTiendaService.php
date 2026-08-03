@@ -231,9 +231,14 @@ class CatalogoTiendaService
                 'id' => (int) $cat->id,
                 'nombre' => $cat->nombre,
                 'orden' => (int) $cat->orden,
-                'imagen_url' => $cat->imagen_path
-                    ? url('/storage/'.ltrim($cat->imagen_path, '/'))
-                    : null,
+                // RF-T62: banner decorativo del encabezado de categoría, con
+                // punto focal (%) para object-position (la foto original casi
+                // nunca tiene la proporción de la franja del banner).
+                'imagen_url' => $cat->imagen_path ? url($cat->imagenUrl()) : null,
+                'imagen_focal' => [
+                    'x' => (float) ($cat->imagen_focal_x ?? 50),
+                    'y' => (float) ($cat->imagen_focal_y ?? 50),
+                ],
                 // RF-T36 (aditivo): badges saneados de la categoría, mismo
                 // shape que los de artículo.
                 'badges' => $cat->badgesTienda(),

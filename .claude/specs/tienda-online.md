@@ -970,6 +970,34 @@ Spec dedicado: `.claude/specs/tienda-historias-y-fixes-circuito.md`.
 - **RF-T27**: Reverb `TIPO_POR_ACEPTAR` para borradores externos + banda
   por aceptar plegable con contador.
 
+### RF-T62: Banner de foto por categoría — IMPLEMENTADO (2026-08-03, cross-repo: core feat/rf-t62-banner-categorias + tienda feat/rf-t62-banner-categorias)
+
+Cada encabezado de categoría del catálogo puede ser una barra con FOTO de
+fondo (mockup `bcn-tienda/categorias_banners.jpeg`): franja panorámica con
+`object-cover`, scrim oscuro para legibilidad, nombre en blanco encima y el
+chevron del acordeón a la derecha. Sin foto, el encabezado queda como hoy.
+
+- **Campo**: REUTILIZA `categorias.imagen_path` (RF-17, dormido hasta ahora:
+  nadie lo mostraba) → `categorias[].imagen_url` de la API (ya estaba en el
+  contrato). Sin campo nuevo ni versionado; solo semántica documentada.
+- **Focal** (el pedido clave del usuario: la foto casi nunca tiene la
+  proporción de la franja): columnas nuevas `categorias.imagen_focal_x/y`
+  (%, default 50/50, espejo de las de artículos) → `imagen_focal {x, y}` en
+  la API (aditivo). En el panel se elige con el MISMO selector de click que
+  la imagen de artículo, sobre una vista previa en la proporción real del
+  banner; imagen nueva resetea el focal al centro.
+- **Panel** (`ConfiguracionTiendaArticulos`): botón de foto en el header de
+  cada grupo abre editor expandible (patrón badges RF-T36) con vista previa
+  + focal + subir/cambiar/quitar. Subida inmediata (patrón galería RF-T14),
+  pipeline canónico vía `ImagenCategoriaTiendaService` (finfo + re-encode
+  WebP 1600×600, path `categorias/{comercio_id}/{uuid}.webp`).
+- **Vía vieja unificada**: `GestionarCategorias` (Artículos → Categorías)
+  ahora pasa por el mismo service (antes guardaba el archivo crudo sin
+  validar MIME real) e invalida el cache del catálogo de tienda.
+- **Tienda**: el header plegable y el no plegable renderizan el banner
+  cuando `imagen_url` viene, con `object-position` del focal; scrim por
+  clase CSS propia (NO `data-tienda-portada-overlay`, test RF-T25).
+
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
 `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas

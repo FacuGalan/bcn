@@ -3,8 +3,12 @@
 namespace App\Livewire\Articulos;
 
 use App\Models\Categoria;
+use App\Models\Sucursal;
 use App\Services\CatalogoCache;
 use App\Services\CategoriaImportExportService;
+use App\Services\ImagenCategoriaTiendaService;
+use App\Services\Pedidos\CatalogoTiendaService;
+use App\Services\TenantService;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Lazy;
 use Livewire\Component;
@@ -222,20 +226,41 @@ class GestionarCategorias extends Component
     }
 
     /**
-     * Imagen de presentación en tienda (RF-17): subir nueva (reemplaza la
-     * anterior), quitar la actual, o no tocar. Disco público, carpeta propia.
+     * Imagen banner de tienda (RF-17 / RF-T62): subir nueva (reemplaza la
+     * anterior), quitar la actual, o no tocar. Desde RF-T62 pasa por
+     * ImagenCategoriaTiendaService (finfo + re-encode WebP, mismo pipeline
+     * que el resto de las imágenes de tienda) en lugar de guardar el archivo
+     * crudo, y se invalida el cache del catálogo público.
      */
     protected function procesarImagenCategoria(Categoria $categoria): void
     {
+        $service = app(ImagenCategoriaTiendaService::class);
+
         if ($this->imagenUpload) {
-            if ($categoria->imagen_path) {
-                \Illuminate\Support\Facades\Storage::disk('public')->delete($categoria->imagen_path);
+            try {
+                $service->actualizarBanner($categoria, $this->imagenUpload);
+            } catch (\Exception $e) {
+                $this->dispatch('notify', message: $e->getMessage(), type: 'error');
+
+                return;
             }
-            $path = $this->imagenUpload->store('categorias', 'public');
-            $categoria->update(['imagen_path' => $path]);
+            $this->invalidarCatalogoTienda();
         } elseif ($this->quitarImagen && $categoria->imagen_path) {
-            \Illuminate\Support\Facades\Storage::disk('public')->delete($categoria->imagen_path);
-            $categoria->update(['imagen_path' => null]);
+            $service->eliminarBanner($categoria);
+            $this->invalidarCatalogoTienda();
+        }
+    }
+
+    /**
+     * Las categorías son globales al comercio: invalida el catálogo público
+     * de TODAS las sucursales (sin esto la tienda sirve viejo hasta 60s).
+     */
+    protected function invalidarCatalogoTienda(): void
+    {
+        $comercioId = (int) (app(TenantService::class)->getComercio()?->id ?? 0);
+
+        foreach (Sucursal::pluck('id') as $sucursalId) {
+            CatalogoTiendaService::invalidarCache($comercioId, (int) $sucursalId);
         }
     }
 

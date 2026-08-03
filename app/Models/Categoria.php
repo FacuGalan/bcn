@@ -44,8 +44,10 @@ class Categoria extends Model
         'descripcion',
         'color',
         'icono',
-        // Presentación en tienda (RF-17 / RF-T36)
+        // Presentación en tienda (RF-17 / RF-T36 / RF-T62)
         'imagen_path',
+        'imagen_focal_x',
+        'imagen_focal_y',
         'badges_tienda',
         'orden',
         'activo',
@@ -57,6 +59,8 @@ class Categoria extends Model
     protected $casts = [
         'activo' => 'boolean',
         'orden' => 'integer',
+        'imagen_focal_x' => 'float',
+        'imagen_focal_y' => 'float',
         'utilidad_porcentaje' => 'decimal:2',
         'badges_tienda' => 'array',
     ];
@@ -95,6 +99,20 @@ class Categoria extends Model
         }
 
         return $badges;
+    }
+
+    /**
+     * URL pública root-relative del banner de tienda (RF-T62), espejo de
+     * Articulo::imagenUrl(): no Storage::url() porque arma con APP_URL y la
+     * capa API absolutiza con url() sobre el host real del request.
+     */
+    public function imagenUrl(): ?string
+    {
+        if (empty($this->imagen_path)) {
+            return null;
+        }
+
+        return '/storage/'.ltrim($this->imagen_path, '/');
     }
 
     // ==================== Relaciones ====================
