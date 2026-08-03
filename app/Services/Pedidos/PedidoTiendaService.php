@@ -179,10 +179,14 @@ class PedidoTiendaService
         if (! empty($payload['usar_puntos']) && $clienteId) {
             $puntosTienda = app(PuntosTiendaService::class);
             $infoPuntos = $puntosTienda->infoNeta($puntosTienda->info($sucursal, $clienteId), $puntosArticulos);
-            $canjePuntos = $puntosTienda->calcularCanjeMaximo(
-                $infoPuntos,
-                round((float) ($resultado['total_final'] ?? 0) + $ajusteFormaPago, 2),
-            );
+            // RF-T58: con la restricción del programa activa, el canje-pago
+            // solo cubre los renglones habilitados (mismo tope que cotizar).
+            $baseCanje = round((float) ($resultado['total_final'] ?? 0) + $ajusteFormaPago, 2);
+            $topeElegible = $this->cotizador->montoElegibleCanjePago();
+            if ($topeElegible !== null) {
+                $baseCanje = min($baseCanje, $topeElegible);
+            }
+            $canjePuntos = $puntosTienda->calcularCanjeMaximo($infoPuntos, $baseCanje);
         }
 
         $aceptacionManual = ($config['aceptacion_pedidos_externos'] ?? 'manual') !== 'automatica';

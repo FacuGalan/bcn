@@ -8,6 +8,7 @@ use App\Models\FormaPagoSucursal;
 use App\Models\VentaPago;
 use Exception;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Computed;
 
@@ -124,6 +125,13 @@ trait WithPuntos
         // Calcular máximo real (descontando artículos canjeados)
         $maximoCanjeable = $this->canjePuntosMaximoReal;
 
+        // RF-T58: con la restricción activa, el canje-pago solo cubre los
+        // renglones habilitados (lo no habilitado se paga con plata).
+        $topeElegible = $this->montoElegibleCanjePago();
+        if ($topeElegible !== null) {
+            $maximoCanjeable = min($maximoCanjeable, $topeElegible);
+        }
+
         if ($maximoCanjeable <= 0) {
             $this->dispatch('toast-error', message: __('Puntos insuficientes'));
 
@@ -200,19 +208,26 @@ trait WithPuntos
             return;
         }
 
-        $valorPunto = $this->valorPuntoCanje;
-        if ($valorPunto <= 0) {
+        $item = $this->items[$index];
+
+        // RF-T58: con la restricción del programa activa, solo los artículos
+        // habilitados (canje_tienda de esta sucursal) se canjean.
+        if (! $this->articuloCanjeableConPuntos($item)) {
+            $this->dispatch('toast-error', message: __('Este artículo no es canjeable con puntos'));
+
+            return;
+        }
+
+        // RF-T59: costo según la matriz (fijo/derivado × modo de opcionales).
+        $costo = $this->costoCanjeItem($item);
+        if ($costo === null) {
             $this->dispatch('toast-error', message: __('Configuración de puntos incompleta'));
 
             return;
         }
 
-        $item = $this->items[$index];
-        $precioUnitario = (float) ($item['precio'] ?? 0);
         $cantidad = (float) ($item['cantidad'] ?? 1);
-
-        // Calcular puntos desde el precio del artículo usando la configuración
-        $puntosTotal = $this->calcularPuntosCanjePorPrecio($precioUnitario) * $cantidad;
+        $puntosTotal = (int) ($costo['puntos'] * $cantidad);
 
         // Verificar saldo disponible (descontando artículos canjeados + canje como descuento)
         $puntosYaUsados = $this->calcularPuntosUsadosEnArticulos() + $this->canjePuntosUnidades;
@@ -294,19 +309,96 @@ trait WithPuntos
     }
 
     /**
-     * Calcula los puntos totales usados en artículos canjeados del carrito.
+     * Calcula los puntos totales usados en artículos canjeados del carrito
+     * (costo por la matriz RF-T59, ya no siempre derivado del precio).
      */
     protected function calcularPuntosUsadosEnArticulos(): int
     {
         $total = 0;
         foreach ($this->items as $item) {
             if ($item['pagado_con_puntos'] ?? false) {
-                $puntos = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0));
-                $total += $puntos * (float) ($item['cantidad'] ?? 1);
+                $costo = $this->costoCanjeItem($item);
+                $total += (int) ((($costo['puntos'] ?? 0)) * (float) ($item['cantidad'] ?? 1));
             }
         }
 
         return $total;
+    }
+
+    /**
+     * RF-T59: costo POR UNIDAD del canje de un item del carrito según la
+     * matriz costo (fijo/derivado) × modo de opcionales del artículo. El
+     * `precio` del item INCLUYE los opcionales — acá se desagrega.
+     *
+     * @return array{puntos: int, monto_canjeado: float}|null null = no resoluble (derivar sin valor de canje)
+     */
+    protected function costoCanjeItem(array $item): ?array
+    {
+        $precioOpcionales = (float) ($item['precio_opcionales'] ?? 0);
+
+        return $this->puntosService->costoCanjeArticulo(
+            (int) ($item['puntos_canje'] ?? 0) ?: null,
+            $item['canje_opcionales'] ?? null,
+            (float) ($item['precio'] ?? 0) - $precioOpcionales,
+            $precioOpcionales,
+            $this->valorPuntoCanje ?: null,
+        );
+    }
+
+    /**
+     * RF-T58: elegibilidad del item para canje. Sin la restricción del
+     * programa todo se canjea (comportamiento histórico); con ella, solo
+     * artículos con canje_tienda prendido en ESTA sucursal (conceptos nunca).
+     */
+    protected function articuloCanjeableConPuntos(array $item): bool
+    {
+        if (! $this->puntosService->restringeCanjeArticulos()) {
+            return true;
+        }
+
+        if (($item['es_concepto'] ?? false) || empty($item['articulo_id'])) {
+            return false;
+        }
+
+        return in_array((int) $item['articulo_id'], $this->idsArticulosCanjeables(), true);
+    }
+
+    /** @var list<int>|null Cache por request de los IDs canjeables de la sucursal (RF-T58). */
+    protected ?array $idsCanjeablesCache = null;
+
+    /** @return list<int> */
+    protected function idsArticulosCanjeables(): array
+    {
+        return $this->idsCanjeablesCache ??= DB::connection('pymes_tenant')
+            ->table('articulos_sucursales')
+            ->where('sucursal_id', (int) $this->sucursalId)
+            ->where('canje_tienda', true)
+            ->pluck('articulo_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    /**
+     * RF-T58: tope en $ del canje-pago cuando la restricción está activa —
+     * suma de los renglones ELEGIBLES no canjeados (los no habilitados y el
+     * envío se pagan con plata). Null = sin restricción (tope = el total,
+     * como siempre).
+     */
+    protected function montoElegibleCanjePago(): ?float
+    {
+        if (! $this->puntosService->restringeCanjeArticulos()) {
+            return null;
+        }
+
+        $total = 0.0;
+        foreach ($this->items as $item) {
+            if (($item['pagado_con_puntos'] ?? false) || ! $this->articuloCanjeableConPuntos($item)) {
+                continue;
+            }
+            $total += (float) ($item['precio'] ?? 0) * (float) ($item['cantidad'] ?? 1);
+        }
+
+        return round($total, 2);
     }
 
     // =========================================

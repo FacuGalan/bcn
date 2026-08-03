@@ -1422,6 +1422,7 @@ class NuevoPedidoDelivery extends Component
             'opcionales' => [],
             'precio_opcionales' => 0,
             'puntos_canje' => $articulo->puntos_canje,
+            'canje_opcionales' => $articulo->canje_opcionales,
             'pagado_con_puntos' => false,
         ];
 
@@ -1897,6 +1898,7 @@ class NuevoPedidoDelivery extends Component
             ])->toArray(),
             'precio_opcionales' => (float) $detalle->precio_opcionales,
             'puntos_canje' => $detalle->articulo?->puntos_canje,
+            'canje_opcionales' => $detalle->articulo?->canje_opcionales,
             'pagado_con_puntos' => (bool) $detalle->pagado_con_puntos,
             'es_concepto' => (bool) $detalle->es_concepto,
             'concepto_descripcion' => $detalle->concepto_descripcion,
