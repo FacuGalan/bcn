@@ -60,6 +60,13 @@
                     </span>
                 </label>
                 <label class="flex items-start gap-2 cursor-pointer">
+                    <input type="checkbox" wire:model.live="usarPalabraClave" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                        {{ __('Palabra clave de entrega') }}
+                        <span class="block text-xs text-gray-500 dark:text-gray-400">{{ __('Cada pedido delivery genera una palabra al confirmarse: el cliente la ve en el seguimiento y la dice al recibir. El repartidor la ve en el panel.') }}</span>
+                    </span>
+                </label>
+                <label class="flex items-start gap-2 cursor-pointer">
                     <input type="checkbox" wire:model.live="usaEstadoListo" class="mt-0.5 rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
                     <span class="text-sm text-gray-700 dark:text-gray-300">
                         {{ __('Usar estado "Listo"') }}

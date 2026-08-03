@@ -220,6 +220,11 @@ class PedidoDeliveryService
             }
 
             if (! $esBorrador) {
+                // RF-T64: los pedidos que nacen confirmados (panel, aceptación
+                // automática) generan su palabra clave acá; los borradores la
+                // generan al confirmarse (confirmarBorrador).
+                $this->asignarPalabraClaveEntrega($pedido, $sucursal);
+
                 $pedido->load('detalles');
                 $this->descontarStockPorPedido($pedido);
 
@@ -547,6 +552,10 @@ class PedidoDeliveryService
 
         $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_ESTADO_CAMBIADO);
 
+        // RF-T63: la asignación no cambia el estado pero el consumidor SÍ la
+        // ve (repartidor + palabra clave aparecen en el seguimiento).
+        $this->dispatchSeguimientoPublico($pedido->fresh(), $pedido->estado_pedido);
+
         return $pedido->fresh();
     }
 
@@ -767,6 +776,39 @@ class PedidoDeliveryService
     }
 
     /**
+     * Palabras candidatas para la clave de entrega (RF-T64): simples, sin
+     * acentos ni ambigüedad fonética, fáciles de decir en la puerta.
+     */
+    public const PALABRAS_CLAVE_ENTREGA = [
+        'Tigre', 'Luna', 'Sol', 'Rio', 'Nube', 'Fuego', 'Playa', 'Monte',
+        'Perla', 'Coral', 'Delfin', 'Aguila', 'Bosque', 'Cometa', 'Estrella',
+        'Faro', 'Globo', 'Isla', 'Jazmin', 'Laguna', 'Manzana', 'Naranja',
+        'Oliva', 'Piano', 'Queso', 'Rueda', 'Semilla', 'Tambor', 'Uva',
+        'Violeta', 'Zorro', 'Brujula', 'Castillo', 'Dragon', 'Espejo',
+        'Flauta', 'Guitarra', 'Helado', 'Iman', 'Jardin',
+    ];
+
+    /**
+     * Genera y persiste la palabra clave de entrega (RF-T64) si corresponde:
+     * pedido DELIVERY, sucursal con `usar_palabra_clave` activo y sin palabra
+     * previa (idempotente — reconfirmaciones no la rotan).
+     */
+    protected function asignarPalabraClaveEntrega(PedidoDelivery $pedido, Sucursal $sucursal): void
+    {
+        if ($pedido->tipo !== PedidoDelivery::TIPO_DELIVERY || $pedido->palabra_clave_entrega) {
+            return;
+        }
+
+        if (empty($this->envioService->configDelivery($sucursal)['usar_palabra_clave'])) {
+            return;
+        }
+
+        $pedido->update([
+            'palabra_clave_entrega' => self::PALABRAS_CLAVE_ENTREGA[array_rand(self::PALABRAS_CLAVE_ENTREGA)],
+        ]);
+    }
+
+    /**
      * Transiciona un BORRADOR a CONFIRMADO (número + display + stock).
      * Idempotente. Un pago real sobre borrador lo confirma automáticamente
      * (paridad mostrador). Valida dirección si es delivery.
@@ -789,6 +831,8 @@ class PedidoDeliveryService
             'numero_display' => $numeroDisplay,
             'confirmado_at' => now(),
         ]);
+
+        $this->asignarPalabraClaveEntrega($pedido, Sucursal::findOrFail((int) $pedido->sucursal_id));
 
         $pedido->load('detalles');
         $this->descontarStockPorPedido($pedido);
@@ -2879,6 +2923,16 @@ class PedidoDeliveryService
                     : null,
                 horaPactada: $pedido->hora_pactada_at?->toIso8601String(),
                 loAntesPosible: (bool) $pedido->lo_antes_posible,
+                // RF-T63/T64 (aditivos, misma regla que el GET): repartidor
+                // con teléfono desde la asignación + palabra clave.
+                repartidorAsignado: $pedido->tipo === PedidoDelivery::TIPO_DELIVERY && $pedido->repartidor_id
+                    ? $pedido->repartidor()->first(['nombre', 'telefono'])?->only(['nombre', 'telefono'])
+                    : null,
+                palabraClave: $pedido->tipo === PedidoDelivery::TIPO_DELIVERY
+                    && $pedido->repartidor_id
+                    && $estadoNuevo !== PedidoDelivery::ESTADO_CANCELADO
+                    ? $pedido->palabra_clave_entrega
+                    : null,
             ));
         } catch (\Throwable $e) {
             Log::warning('No se pudo broadcastear seguimiento público', [

@@ -46,7 +46,7 @@ class ConfiguracionDelivery extends Component
      * (staging del repeater) y tiendaPublicada (la persiste el toggle).
      */
     protected const PROPS_AUTOGUARDADO = [
-        'usaDelivery', 'deliveryHabilitado', 'takeawayHabilitado', 'exigirRepartidor', 'usaEstadoListo',
+        'usaDelivery', 'deliveryHabilitado', 'takeawayHabilitado', 'exigirRepartidor', 'usarPalabraClave', 'usaEstadoListo',
         'convertirVentaAlEntregar', 'conceptoCategoriaEnvioId',
         'usaNumeracionDisplay', 'numeracionDisplayModo', 'numeracionDisplayHoras',
         'alertaAmarillaMin', 'alertaRojaMin',
@@ -75,6 +75,9 @@ class ConfiguracionDelivery extends Component
     public string $conceptoCategoriaEnvioId = '';
 
     public bool $exigirRepartidor = true;
+
+    /** RF-T64: palabra clave de entrega en pedidos delivery. */
+    public bool $usarPalabraClave = false;
 
     /**
      * OFF: la columna "Listo" se oculta del kanban y de preparación se pasa
@@ -341,6 +344,7 @@ class ConfiguracionDelivery extends Component
         $this->alertaRojaMin = (string) ($sucursal->pedido_alerta_roja_min ?? 30);
         $this->conceptoCategoriaEnvioId = $config['concepto_categoria_envio_id'] !== null ? (string) $config['concepto_categoria_envio_id'] : '';
         $this->exigirRepartidor = (bool) $config['exigir_repartidor'];
+        $this->usarPalabraClave = (bool) ($config['usar_palabra_clave'] ?? false);
         $this->usaEstadoListo = (bool) ($config['usa_estado_listo'] ?? true);
         $this->deliveryHabilitado = (bool) ($config['delivery_habilitado'] ?? true);
         $this->takeawayHabilitado = (bool) $config['takeaway_habilitado'];
@@ -443,6 +447,7 @@ class ConfiguracionDelivery extends Component
         $config = array_merge($guardada, [
             'concepto_categoria_envio_id' => $this->conceptoCategoriaEnvioId !== '' ? (int) $this->conceptoCategoriaEnvioId : null,
             'exigir_repartidor' => $this->exigirRepartidor,
+            'usar_palabra_clave' => $this->usarPalabraClave,
             'usa_estado_listo' => $this->usaEstadoListo,
             'conversion_automatica_al_entregar' => $this->convertirVentaAlEntregar,
             'usa_numeracion_display' => $this->usaNumeracionDisplay,

@@ -1404,6 +1404,12 @@
                                     @if($pedidoDetalle->repartidor?->telefono)
                                         <p class="text-xs text-gray-500 dark:text-gray-400">{{ $pedidoDetalle->repartidor->telefono }}</p>
                                     @endif
+                                    {{-- RF-T64: palabra que el cliente dice al recibir el pedido --}}
+                                    @if($pedidoDetalle->palabra_clave_entrega)
+                                        <p class="mt-1 inline-flex items-center gap-1 rounded-full bg-indigo-100 dark:bg-indigo-900/40 px-2 py-0.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                            🔑 {{ __('Palabra clave') }}: {{ $pedidoDetalle->palabra_clave_entrega }}
+                                        </p>
+                                    @endif
                                 </div>
                                 <div>
                                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Costo de envío') }}</label>
