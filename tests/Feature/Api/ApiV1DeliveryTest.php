@@ -2845,6 +2845,51 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.total_a_pagar'), 0.01, 'El resto se paga con plata');
     }
 
+    public function test_el_renglon_canjeado_queda_fuera_de_las_promociones(): void
+    {
+        // Bug 2026-08-03: el renglón CANJEADO entraba al motor de promos
+        // (contaba para el threshold del 2x1 y podía llevarse descuento
+        // encima del regalo). Ahora queda EXCLUIDO: la promo solo mira las
+        // unidades que se pagan, y el resumen no le atribuye promos.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $this->habilitarCanjeTienda($articulo, puntos: 200);
+        \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Dos por Uno',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_NXM,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'nxm_lleva' => 2, 'nxm_paga' => 1, 'nxm_articulo_id' => $articulo->id,
+            'prioridad' => 1, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 330);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'usar_puntos' => true,
+                'items' => [
+                    ['articulo_id' => $articulo->id, 'cantidad' => 1],
+                    ['articulo_id' => $articulo->id, 'cantidad' => 1, 'canjear_con_puntos' => true],
+                ],
+            ])->assertOk();
+
+        // El canjeado: sin promos, alineado por índice y marcado.
+        $this->assertTrue((bool) $respuesta->json('data.items.1.pagado_con_puntos'));
+        $this->assertSame([], $respuesta->json('data.items.1.promociones_especiales'));
+        $this->assertSame(200, $respuesta->json('data.items.1.puntos_canje'));
+        // Sin la unidad canjeada, el 2x1 no llega al threshold: el renglón
+        // que se PAGA va a precio lleno, sin promo fantasma.
+        $this->assertSame([], $respuesta->json('data.items.0.promociones_especiales'));
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.descuento'), 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.articulos_canjeados_monto'), 0.01);
+        // Puntos: 200 en el artículo; el pago usa el NETO (330−200=130 pts):
+        // el renglón normal ($1000) se cubre con ceil(1000/50) = 20 pts.
+        $this->assertSame(200, $respuesta->json('data.puntos.usados_en_articulos'));
+        $this->assertSame(20, $respuesta->json('data.puntos.usados'));
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+        $this->assertSame(110, $respuesta->json('data.puntos.saldo_restante'), '330 − 200 − 20');
+    }
+
     public function test_pedido_totalmente_cubierto_con_puntos_no_necesita_forma_pago(): void
     {
         // RF-T61: un artículo canjeado + el resto pagado con usar_puntos →

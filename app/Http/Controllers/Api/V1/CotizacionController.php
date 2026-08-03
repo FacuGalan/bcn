@@ -235,11 +235,24 @@ class CotizacionController extends Controller
 
         // RF-T59 (aditivo): costo de canje POR RENGLÓN — con los opcionales
         // seleccionados según la matriz del artículo — para renglones
-        // habilitados con costo resoluble; mismo orden que el payload.
-        $itemsCrudos = $cotizador->itemsCotizados();
+        // habilitados con costo resoluble; MISMO orden e índice que el
+        // payload. Ojo: el motor EXCLUYE de resultado['items'] los renglones
+        // canjeados (no reciben promos) — acá se re-arma su línea neutra
+        // para no desalinear el mapeo por índice de la tienda.
+        $itemsCrudos = array_values($cotizador->itemsCotizados());
         $itemsRespuesta = [];
-        foreach (array_values($resultado['items'] ?? []) as $i => $itemR) {
-            $crudo = $itemsCrudos[$i] ?? [];
+        foreach ($itemsCrudos as $i => $crudo) {
+            $itemR = $resultado['items'][$i] ?? [
+                'articulo_id' => $crudo['articulo_id'] ?? null,
+                'nombre' => $crudo['nombre'] ?? '',
+                'precio_base' => (float) ($crudo['precio_base'] ?? $crudo['precio'] ?? 0),
+                'precio_lista' => (float) ($crudo['precio'] ?? 0),
+                'cantidad' => (float) ($crudo['cantidad'] ?? 1),
+                'subtotal' => (float) ($crudo['precio'] ?? 0) * (float) ($crudo['cantidad'] ?? 1),
+                'promociones_especiales' => [],
+                'promociones_comunes' => [],
+                'descuento_comun' => 0,
+            ];
             if (($costo = $crudo['canje_costo'] ?? null) !== null) {
                 $itemR['puntos_canje'] = (int) $costo['puntos'];
                 $itemR['canje_monto'] = (float) $costo['monto_canjeado'];

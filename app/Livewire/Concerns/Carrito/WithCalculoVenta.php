@@ -1831,7 +1831,11 @@ trait WithCalculoVenta
     {
         $resultado = [];
         foreach ($this->items as $index => $item) {
-            if (empty($item['es_invitacion'])) {
+            // Invitaciones (RF-11) y renglones CANJEADOS por puntos (RF-T59/
+            // RF-T61, 2026-08-03): un regalo no cuenta para thresholds NxM ni
+            // recibe promociones — el canje ya se lleva el renglón entero;
+            // sumarle una promo duplicaría el beneficio y ensucia el resumen.
+            if (empty($item['es_invitacion']) && empty($item['pagado_con_puntos'])) {
                 $resultado[$index] = $item;
             }
         }
