@@ -17,6 +17,7 @@ class ConfiguracionPuntos extends Model
         'valor_punto_canje',
         'minimo_canje',
         'redondeo',
+        'restringir_canje_articulos',
     ];
 
     protected $casts = [
@@ -24,6 +25,7 @@ class ConfiguracionPuntos extends Model
         'monto_por_punto' => 'decimal:2',
         'valor_punto_canje' => 'decimal:2',
         'minimo_canje' => 'integer',
+        'restringir_canje_articulos' => 'boolean',
     ];
 
     // --- Métodos ---
