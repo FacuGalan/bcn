@@ -271,16 +271,21 @@ relativa se rompería contra su propio host. `null` si no hay imagen.
   cambio de shape).
 
 **Canje de artículos por puntos** (aditivo 2026-07-30, RF-T47; costo
-ajustado 2026-08-03, RF-T54): cada artículo puede sumar `puntos_canje`
-(int): el costo en puntos de canjearlo HOY — solo viaja si el comercio lo
-habilitó para la tienda (toggle por sucursal en el panel), el programa de
-puntos está activo y el artículo tiene precio y no está agotado. AUSENTE ⇒
-no canjeable (la tienda no muestra nada). El costo es el CONFIGURADO del
-artículo (`articulos.puntos_canje`, la misma fuente que usa el POS) si está
-cargado; sin configurar se deriva del precio del día (`ceil(precio /
+ajustado 2026-08-03, RF-T54; modo de opcionales 2026-08-03, RF-T59): cada
+artículo puede sumar `puntos_canje` (int): el costo BASE en puntos de
+canjearlo HOY, sin opcionales — solo viaja si el comercio lo habilitó para
+la tienda (toggle por sucursal en el panel), el programa de puntos está
+activo y el artículo tiene precio y no está agotado. AUSENTE ⇒ no canjeable
+(la tienda no muestra nada). El costo es el CONFIGURADO del artículo
+(`articulos.puntos_canje`, la misma fuente que usa el POS) si está cargado;
+sin configurar se deriva del precio del día (`ceil(precio /
 valor_punto_canje)`, la regla con la que el POS canjea artículos sin puntos
-propios) — con Bearer, del precio DE ESE cliente. El canje efectivo viaja
-en cotización/alta con `items[].canjear_con_puntos` (ver esas secciones).
+propios) — con Bearer, del precio DE ESE cliente. Junto con `puntos_canje`
+viaja `canje_opcionales` (`incluidos|en_plata|en_puntos`, aditivo RF-T59):
+cómo juegan los opcionales con precio en el canje — el costo REAL del
+renglón con sus opcionales lo devuelve la cotización por ítem (ver esa
+sección). El canje efectivo viaja en cotización/alta con
+`items[].canjear_con_puntos`.
 
 **Badges por categoría** (aditivo 2026-07-29, RF-T36): cada elemento de
 `categorias[]` suma `badges: [{ "tipo", "texto" }]` con el MISMO catálogo,
@@ -406,19 +411,35 @@ redondeo de la config; sin envío). El crédito verdadero lo hace la conversión
 a venta.
 
 **Canje de artículos por puntos** *(aditivo 2026-07-30, RF-T47; costo
-ajustado 2026-08-03, RF-T54; requiere Bearer con cliente)*:
-`items[].canjear_con_puntos` (bool) marca ese renglón como CANJEADO — se
-resta entero del `total_final` (viaja el agregado `articulos_canjeados_monto`
-con el equivalente en pesos) y compromete por unidad el mismo costo que
-publica el catálogo: el `puntos_canje` CONFIGURADO del artículo o, sin
-configurar, el derivado del precio del día (`ceil(precio /
-valor_punto_canje)`). Reglas: solo artículos con `puntos_canje` en el
-catálogo (toggle prendido), cantidad 1 por renglón, sin opcionales
-con precio, incompatible con 2 FP. El bloque `puntos` suma
+ajustado 2026-08-03, RF-T54; opcionales y restricción 2026-08-03, RF-T58/
+RF-T59; requiere Bearer con cliente)*: `items[].canjear_con_puntos` (bool)
+marca ese renglón como CANJEADO. El costo por unidad sale de la MATRIZ del
+artículo — costo base (el `puntos_canje` CONFIGURADO o, sin configurar,
+derivado del precio del día `ceil(precio / valor_punto_canje)`) × modo
+`canje_opcionales`:
+
+- `incluidos` (default): el canje cubre artículo + opcionales; con costo
+  derivado, los opcionales SUMAN al cálculo; con costo fijo, van incluidos.
+- `en_plata`: el canje cubre solo el artículo pelado — los opcionales con
+  precio SE SIGUEN COBRANDO (el renglón no queda en $0).
+- `en_puntos`: los opcionales se convierten a puntos
+  (`ceil(precio_opcional / valor_punto)`) y se suman al costo del renglón.
+
+`articulos_canjeados_monto` agrega lo cubierto por canjes (en `en_plata`,
+solo la parte artículo). La respuesta suma POR RENGLÓN (aditivo, solo
+renglones habilitados con costo resoluble): `items[].puntos_canje` (costo
+con los opcionales elegidos), `items[].canje_monto` ($ que cubre el canje),
+`items[].canje_opcionales` (el modo) y `items[].pagado_con_puntos` (bool).
+Reglas: solo artículos con `puntos_canje` en el catálogo (toggle prendido),
+cantidad 1 por renglón, incompatible con 2 FP. El bloque `puntos` suma
 `usados_en_articulos` (int) y el canje-pago (`usar_puntos`) se calcula sobre
-el saldo NETO de esos puntos. Errores: `422 canje_no_disponible` (sin
-Bearer/cliente/programa) y `422 puntos_insuficientes` (saldo corto) — la UI
-no debería llegar a ninguno.
+el saldo NETO de esos puntos. **Restricción del programa (RF-T58)**: si el
+comercio la activó, el canje-pago solo cubre la suma de los renglones
+HABILITADOS no canjeados (los demás y el envío se pagan aparte) — sin
+cambio de shape, solo cambia el tope de `puntos.monto`. Errores:
+`422 canje_no_disponible` (sin Bearer/cliente/programa) y
+`422 puntos_insuficientes` (saldo corto) — la UI no debería llegar a
+ninguno.
 
 **Multi-pago** *(aditivo 2026-07-21, RF-T18)*: `pagos` (opcional, hasta **2**
 FP) reemplaza a `forma_pago_id` (si viajan ambos, gana `pagos`). Cada ítem

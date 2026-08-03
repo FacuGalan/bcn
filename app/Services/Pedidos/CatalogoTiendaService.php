@@ -204,9 +204,11 @@ class CatalogoTiendaService
 
             // RF-T54 (aditivo): canjeable por puntos — la clave solo viaja si
             // el toggle está prendido, el programa activo, hay precio y no
-            // está agotado. Costo = puntos configurados del artículo
-            // (articulos.puntos_canje) o, sin configurar, derivado del precio
-            // del día (regla del POS: ceil(precio / valor_punto_canje)).
+            // está agotado. Costo BASE (sin opcionales) = puntos configurados
+            // del artículo o, sin configurar, derivado del precio del día
+            // (regla del POS: ceil(precio / valor_punto_canje)). RF-T59:
+            // viaja también el modo de opcionales; el costo real con
+            // opcionales lo devuelve la cotización por renglón.
             if ($valorPuntoCanje !== null
                 && (bool) ($pivots[$articulo->id]->canje_tienda ?? false)
                 && ! $agotado
@@ -214,6 +216,7 @@ class CatalogoTiendaService
                 $item['puntos_canje'] = (int) $articulo->puntos_canje > 0
                     ? (int) $articulo->puntos_canje
                     : (int) ceil($item['precio'] / $valorPuntoCanje);
+                $item['canje_opcionales'] = $articulo->canje_opcionales ?? 'incluidos';
             }
 
             return $item;

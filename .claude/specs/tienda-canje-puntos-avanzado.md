@@ -106,17 +106,24 @@
 
 ### RF de TIENDA (bcn-tienda)
 
-#### RF-T61: UX de canje en la tienda — todo en el carrito
+#### RF-T61: UX de canje en la tienda — todo en el carrito (ajustado 2026-08-03 2ª vuelta)
 - **Modal/detalle del artículo**: NO menciona puntos (se quita el chip
   "Canjealo por N puntos" de `detalle-articulo.blade.php`).
-- **Carrito**:
-  - Ítems canjeables muestran un indicador **"pts."** con el costo ("Se
-    canjea por N pts"). Click = activa el canje de ESE ítem (reemplaza la
-    estrellita actual); click de nuevo lo deshace.
-  - Con canjes activos, abajo se muestran los **disponibles acumulados** y
-    los **restantes** tras descontar los canjeados.
-  - El check "pagar todo con puntos" (`usar_puntos`) se reemplaza por un
-    **botón "Usar todos"** que se prende y apaga (mismo payload al core).
+- **Indicador = ESTRELLA** (Facu 2026-08-03: "queda mejor" que el chip
+  pts.): card del catálogo "⭐ N puntos", botón por ítem = estrella con el
+  costo del renglón al lado (el de `items[].puntos_canje` de la
+  cotización, con opcionales según la matriz), renglón canjeado = estrella
+  llena que deshace + badge "⭐ Canje por N puntos".
+- **Botón "Usar todos"** (reemplaza el check `usar_puntos`): prenderlo
+  canjea UNA unidad de CADA renglón canjeable (como tocar cada estrella,
+  con sus opcionales — la matriz decide; ej. en_plata deja el opcional
+  cobrándose) mientras el saldo alcance, y prende además el canje-pago
+  para que el resto del saldo descuente lo demás. Apagarlo deshace TODO.
+  `CarritoService::canjearTodo()/desCanjearTodo()` en UNA re-cotización;
+  estado del botón = `carrito['usar_puntos']`.
+- **Resumen estético** en "Tus datos": "⭐ Tenés N puntos" + mini-card con
+  "En artículos canjeados −N", "Como pago del resto −N (−$M)" y "Te
+  quedan N puntos".
 - El costo por renglón CON opcionales lo devuelve la cotización (la tienda
   nunca calcula): consumir el campo nuevo del contrato.
 
@@ -164,22 +171,34 @@
 
 ## Plan de Implementación
 
-### Fase 0: cerrar la ronda anterior
-Validar en vivo RF-T51..T57 + ajuste RF-T54, PR del core, merge tienda #55.
+### Fase 0: cerrar la ronda anterior [PENDIENTE — merges bloqueados por permisos]
+Validar en vivo RF-T51..T57 + ajuste RF-T54; mergear bcn#191 (squash) y
+después tienda#55, EN ORDEN, borrando ramas.
 
-### Fase 1 (CORE): motor
-1. Migración tenant (2 columnas) + casts/fillable.
-2. Helper compartido de costo de canje (fijo/derivado + matriz de opcionales).
-3. `WithPuntos` (POS): restricción por switch en canje-pago y canje de
-   artículo; costo desde el helper.
-4. `CotizadorCarritoTienda`/`PedidoTiendaService`: matriz de opcionales,
-   renglón `en_plata`, tope del canje-pago restringido.
-5. Contrato + tests (matriz completa, switch on/off, conversión a venta).
+### Fase 1 (CORE): motor [COMPLETO 2026-08-03 — falta validación en vivo]
+Migración tenant + `PuntosService::costoCanjeArticulo()` (matriz) y
+`restringeCanjeArticulos()`; POS (`WithPuntos` + motor) y tienda
+(cotizador/alta) con matriz, `en_plata` y tope del canje-pago; catálogo +
+contrato; 9 unit + 6 feature nuevos, regresión POS (51) y API (28) verdes.
 
-### Fase 2 (CORE): paneles
-6. `ConfiguracionTiendaArticulos`: chip "pts.", inputs al desplegable.
-7. `ProgramaPuntos`: sección "Canje de artículos" completa.
+### Fase 2 (CORE): paneles [COMPLETO 2026-08-03]
+Chip "pts." + inputs al desplegable en ConfiguracionTiendaArticulos;
+sección "Canje de artículos" en ProgramaPuntos (switch, ejemplos vivos,
+tabla, masivos). Gotcha: ProgramaPuntos es #[Lazy] — en tests,
+withoutLazyLoading se agota tras el primer ciclo (una instancia por test).
 
-### Fase 3 (TIENDA): consumo
-8. Detalle sin puntos; carrito con "pts.", costo por ítem,
-   disponibles/restantes, botón "Usar todos"; fixtures/contract tests.
+### Fase 3 (TIENDA): consumo [COMPLETO 2026-08-03]
+Detalle sin puntos; carrito con chip "pts." + costo por renglón (de la
+cotización), "Te quedan", botón "Usar todos"; canje con opcionales;
+fixtures aditivos; suite completa 256 verdes. Gotcha: en
+carrito.blade.php `@php($expr)` compila como bloque crudo — usar
+`@php ... @endphp`.
+
+### Ramas (apiladas sobre la ronda anterior)
+- Core: `feat/canje-puntos-avanzado` (base `feat/tienda-ajustes-canje-puntos`).
+- Tienda: `feat/canje-avanzado-tienda` (base `feat/ajustes-cuenta-puntos-ui`).
+- Tras mergear las bases: rebase `--onto master` y actualizar los PRs.
+
+### Pendientes de la ronda
+- Manual de usuario + knowledge base (commit de docs al cierre).
+- Validación en vivo completa (matriz, restricción, paneles y carrito).

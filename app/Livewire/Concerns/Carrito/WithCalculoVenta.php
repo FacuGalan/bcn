@@ -463,7 +463,13 @@ trait WithCalculoVenta
         $resultado['articulos_canjeados_monto'] = 0;
         foreach ($this->items as $item) {
             if ($item['pagado_con_puntos'] ?? false) {
-                $resultado['articulos_canjeados_monto'] += (float) ($item['precio'] ?? 0) * (float) ($item['cantidad'] ?? 1);
+                // RF-T59: en modo 'en_plata' los opcionales con precio se
+                // siguen cobrando — el canje cubre solo el artículo pelado.
+                $precioCanjeado = (float) ($item['precio'] ?? 0);
+                if (($item['canje_opcionales'] ?? 'incluidos') === 'en_plata') {
+                    $precioCanjeado = max(0, $precioCanjeado - (float) ($item['precio_opcionales'] ?? 0));
+                }
+                $resultado['articulos_canjeados_monto'] += $precioCanjeado * (float) ($item['cantidad'] ?? 1);
             }
         }
         if ($resultado['articulos_canjeados_monto'] > 0) {
@@ -1825,7 +1831,11 @@ trait WithCalculoVenta
     {
         $resultado = [];
         foreach ($this->items as $index => $item) {
-            if (empty($item['es_invitacion'])) {
+            // Invitaciones (RF-11) y renglones CANJEADOS por puntos (RF-T59/
+            // RF-T61, 2026-08-03): un regalo no cuenta para thresholds NxM ni
+            // recibe promociones — el canje ya se lleva el renglón entero;
+            // sumarle una promo duplicaría el beneficio y ensucia el resumen.
+            if (empty($item['es_invitacion']) && empty($item['pagado_con_puntos'])) {
                 $resultado[$index] = $item;
             }
         }

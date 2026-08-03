@@ -45,6 +45,74 @@ class PuntosService
     }
 
     /**
+     * RF-T58: el canje (por artículo y como pago) está restringido a los
+     * artículos habilitados (`articulos_sucursales.canje_tienda`). Switch
+     * del programa, default apagado = comportamiento histórico (todo
+     * canjeable en el POS; el canje-pago sobre el total).
+     */
+    public function restringeCanjeArticulos(): bool
+    {
+        return (bool) $this->getConfiguracion()?->restringir_canje_articulos;
+    }
+
+    /**
+     * RF-T59: costo en puntos y monto cubierto de UN renglón canjeado,
+     * según la matriz costo (fijo/derivado) × modo de opcionales. Valores
+     * POR UNIDAD; el caller multiplica por cantidad.
+     *
+     * - `puntos`: lo que consume el canje (fijo del artículo o derivado
+     *   `ceil(precio / valor_punto)`, más los opcionales si el modo es
+     *   'en_puntos').
+     * - `monto_canjeado`: los $ que el renglón deja de pagar — el precio
+     *   completo, salvo 'en_plata' donde los opcionales se siguen cobrando.
+     *
+     * Null = el costo no se puede resolver (hace falta derivar y no hay
+     * valor de canje vigente) ⇒ el renglón no es canjeable.
+     *
+     * @return array{puntos: int, monto_canjeado: float}|null
+     */
+    public function costoCanjeArticulo(
+        ?int $puntosFijos,
+        ?string $modoOpcionales,
+        float $precioArticulo,
+        float $precioOpcionales,
+        ?float $valorPunto,
+    ): ?array {
+        $modo = in_array($modoOpcionales, \App\Models\Articulo::CANJE_OPCIONALES, true)
+            ? $modoOpcionales
+            : 'incluidos';
+
+        $derivar = function (float $monto) use ($valorPunto): ?int {
+            if ($monto <= 0) {
+                return 0;
+            }
+
+            return ($valorPunto ?? 0) > 0 ? (int) ceil($monto / $valorPunto) : null;
+        };
+
+        $base = ((int) $puntosFijos > 0)
+            ? (int) $puntosFijos
+            : $derivar($modo === 'incluidos' ? $precioArticulo + $precioOpcionales : $precioArticulo);
+
+        if ($base === null) {
+            return null;
+        }
+
+        if ($modo === 'en_puntos') {
+            $extra = $derivar($precioOpcionales);
+            if ($extra === null) {
+                return null;
+            }
+            $base += $extra;
+        }
+
+        return [
+            'puntos' => $base,
+            'monto_canjeado' => round($modo === 'en_plata' ? $precioArticulo : $precioArticulo + $precioOpcionales, 2),
+        ];
+    }
+
+    /**
      * Calcula cuántos puntos generaría una venta (preview, sin registrar).
      * Se calcula sobre cada VentaPago (excepto pagos con puntos y cupones).
      * Fórmula: SUM(monto_pago × multiplicador_forma_pago) / monto_por_punto

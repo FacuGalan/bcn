@@ -68,6 +68,7 @@ class Articulo extends Model
         'unidad_medida',
         'precio_base',
         'puntos_canje',
+        'canje_opcionales',
         'es_materia_prima',
         'pesable',
         'imagen_path',
@@ -111,6 +112,15 @@ class Articulo extends Model
         'alergenos_tienda' => 'array',
         'permite_venta_sin_stock' => 'boolean',
     ];
+
+    /**
+     * Modos de tratamiento de los opcionales con precio al canjear el
+     * artículo por puntos (RF-T59). 'incluidos': el canje los cubre (con
+     * costo derivado suman al cálculo; con costo fijo van incluidos);
+     * 'en_plata': se cobran en pesos aparte del canje; 'en_puntos': se
+     * convierten a puntos y se suman al costo del renglón.
+     */
+    public const CANJE_OPCIONALES = ['incluidos', 'en_plata', 'en_puntos'];
 
     /**
      * Tipos de badge de tienda predefinidos (RF-T14). El icono y color de

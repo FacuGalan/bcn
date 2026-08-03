@@ -140,23 +140,15 @@
                                     @endif
                                 </div>
 
-                                {{-- Canjeable por puntos en la tienda (RF-T54 ajustado, guardado
-                                     inmediato). Costo: articulos.puntos_canje si está cargado
-                                     (input provisorio de abajo); vacío = se deriva del precio del
-                                     día (regla del POS). --}}
+                                {{-- Canjeable por puntos en la tienda (RF-T60): chip "pts." en el
+                                     header (la estrella se confundía con la de destacado). Los
+                                     puntos fijos y el modo de opcionales se editan en el
+                                     desplegable del artículo. --}}
                                 @php($canjeTienda = (bool) ($articulo->sucursales->first()?->pivot?->canje_tienda))
-                                @if($canjeTienda)
-                                    <input type="number" min="0" step="1" inputmode="numeric"
-                                        value="{{ (int) $articulo->puntos_canje > 0 ? (int) $articulo->puntos_canje : '' }}"
-                                        placeholder="{{ __('Auto') }}" @disabled(! $puedeConfigurar)
-                                        wire:change="guardarPuntosCanje({{ $articulo->id }}, $event.target.value)"
-                                        title="{{ __('Puntos para canjear este artículo (vacío = se calcula del precio)') }}"
-                                        class="shrink-0 w-16 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-[11px] py-0.5 px-1.5 text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
-                                @endif
                                 <button type="button" wire:click="toggleCanjeTienda({{ $articulo->id }})" @disabled(! $puedeConfigurar)
-                                    class="shrink-0 p-1 rounded transition-colors {{ $canjeTienda ? 'text-violet-500 hover:text-violet-600' : 'text-gray-300 dark:text-gray-600 hover:text-gray-400 dark:hover:text-gray-500' }}"
+                                    class="shrink-0 px-1.5 py-0.5 rounded-md border text-[10px] font-bold transition-colors {{ $canjeTienda ? 'bg-violet-100 text-violet-700 border-violet-300 dark:bg-violet-900/40 dark:text-violet-300 dark:border-violet-700' : 'text-gray-400 dark:text-gray-500 border-gray-300 dark:border-gray-600 hover:text-gray-500 dark:hover:text-gray-400' }}"
                                     title="{{ $canjeTienda ? __('Quitar canje por puntos en la tienda') : __('Permitir canje por puntos en la tienda') }}">
-                                    <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path fill-rule="evenodd" d="M12 2.25c.41 0 .786.224.982.585l2.534 4.67 5.223.96a1.125 1.125 0 0 1 .607 1.868l-3.65 3.87.685 5.264a1.125 1.125 0 0 1-1.591 1.16L12 18.4l-4.79 2.227a1.125 1.125 0 0 1-1.59-1.16l.684-5.265-3.65-3.869a1.125 1.125 0 0 1 .607-1.868l5.223-.96 2.534-4.67c.196-.36.573-.585.982-.585Z" clip-rule="evenodd" opacity=".35"/><path d="M12 7.5a.75.75 0 0 1 .75.75v3h3a.75.75 0 0 1 0 1.5h-3v3a.75.75 0 0 1-1.5 0v-3h-3a.75.75 0 0 1 0-1.5h3v-3A.75.75 0 0 1 12 7.5Z"/></svg>
+                                    pts.
                                 </button>
 
                                 {{-- Destacado (guardado inmediato) --}}
@@ -275,6 +267,41 @@
                                             class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50"></textarea>
                                         @error('descripcionTienda') <p class="mt-1 text-[11px] text-red-600 dark:text-red-400">{{ $message }}</p> @enderror
                                     </div>
+
+                                    {{-- CANJE POR PUNTOS (RF-T59/T60): puntos fijos + modo de
+                                         opcionales, campos GLOBALES del artículo (compartidos con
+                                         el POS y las demás sucursales). Guardado inmediato. --}}
+                                    @if($canjeTienda)
+                                        <div>
+                                            <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300 mb-1">
+                                                {{ __('Canje por puntos') }}
+                                                <span class="font-normal text-gray-500 dark:text-gray-400">({{ __('el costo y el modo también rigen en el punto de venta') }})</span>
+                                            </p>
+                                            <div class="flex flex-wrap items-center gap-2">
+                                                <input type="number" min="0" step="1" inputmode="numeric"
+                                                    value="{{ (int) $articulo->puntos_canje > 0 ? (int) $articulo->puntos_canje : '' }}"
+                                                    placeholder="{{ __('Auto') }}" @disabled(! $puedeConfigurar)
+                                                    wire:change="guardarPuntosCanje({{ $articulo->id }}, $event.target.value)"
+                                                    title="{{ __('Puntos para canjear este artículo (vacío = se calcula del precio)') }}"
+                                                    class="w-20 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1 px-1.5 text-right focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50" />
+                                                <select wire:change="guardarCanjeOpcionales({{ $articulo->id }}, $event.target.value)" @disabled(! $puedeConfigurar)
+                                                    class="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-xs py-1 focus:border-bcn-primary focus:ring focus:ring-bcn-primary focus:ring-opacity-50">
+                                                    <option value="incluidos" @selected(($articulo->canje_opcionales ?? 'incluidos') === 'incluidos')>{{ __('Opcionales incluidos en el canje') }}</option>
+                                                    <option value="en_plata" @selected($articulo->canje_opcionales === 'en_plata')>{{ __('Opcionales se cobran en plata') }}</option>
+                                                    <option value="en_puntos" @selected($articulo->canje_opcionales === 'en_puntos')>{{ __('Opcionales se suman en puntos') }}</option>
+                                                </select>
+                                            </div>
+                                            <p class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                                                @if(($articulo->canje_opcionales ?? 'incluidos') === 'en_plata')
+                                                    {{ __('El canje cubre solo el artículo: los opcionales con precio se cobran aparte.') }}
+                                                @elseif($articulo->canje_opcionales === 'en_puntos')
+                                                    {{ __('Los opcionales con precio se convierten a puntos y se suman al costo del canje.') }}
+                                                @else
+                                                    {{ __('El canje cubre el artículo con sus opcionales. Con puntos "Auto", el costo se calcula del precio total.') }}
+                                                @endif
+                                            </p>
+                                        </div>
+                                    @endif
                                 </div>
                             @endif
                         </div>

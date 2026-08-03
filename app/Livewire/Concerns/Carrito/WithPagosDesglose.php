@@ -2523,11 +2523,13 @@ trait WithPagosDesglose
                             'promociones_comunes' => $promocionesComunes,
                             'promociones_especiales' => $promocionesEspeciales,
                         ],
-                        // Canje por puntos (RF-10) — conceptos no se pagan con puntos
+                        // Canje por puntos (RF-10) — conceptos no se pagan con
+                        // puntos. Costo por la matriz RF-T59 (fijo/derivado ×
+                        // modo de opcionales), no siempre derivado del precio.
                         'pagado_con_puntos' => $esConcepto ? false : ($item['pagado_con_puntos'] ?? false),
                         'puntos_usados' => $esConcepto || ! ($item['pagado_con_puntos'] ?? false)
                             ? 0
-                            : $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1),
+                            : (int) ((($this->costoCanjeItem($item)['puntos'] ?? 0)) * (float) ($item['cantidad'] ?? 1)),
                         // Concepto libre
                         'es_concepto' => $esConcepto,
                         'concepto_descripcion' => $esConcepto ? ($item['nombre'] ?? null) : null,
@@ -2825,7 +2827,11 @@ trait WithPagosDesglose
 
                     foreach ($this->items as $item) {
                         if ($item['pagado_con_puntos'] ?? false) {
-                            $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1);
+                            // RF-T59: puntos y monto por la matriz — en modo
+                            // 'en_plata' el monto canjeado NO incluye los
+                            // opcionales (se cobran con la FP normal).
+                            $costoItem = $this->costoCanjeItem($item);
+                            $puntosItem = (int) ((($costoItem['puntos'] ?? 0)) * (float) ($item['cantidad'] ?? 1));
                             $this->puntosService->canjearArticuloConPuntos(
                                 $this->clienteSeleccionado,
                                 $item['articulo_id'],
@@ -2834,7 +2840,7 @@ trait WithPagosDesglose
                                 $venta->id,
                                 Auth::id()
                             );
-                            $montoArticulosCanjeados += (float) ($item['precio'] ?? 0) * (float) ($item['cantidad'] ?? 1);
+                            $montoArticulosCanjeados += (float) ($costoItem['monto_canjeado'] ?? 0) * (float) ($item['cantidad'] ?? 1);
                         }
                     }
                     $this->puntosService->actualizarCacheCliente($this->clienteSeleccionado);

@@ -2709,6 +2709,249 @@ class ApiV1DeliveryTest extends TestCase
         $this->assertSame(80, $respuesta->json('data.puntos.saldo'), 'Saldo neto: 100 − 20 derivados');
     }
 
+    public function test_cotizar_canje_derivado_incluye_los_opcionales_en_el_costo(): void
+    {
+        // RF-T59 (default 'incluidos', costo derivado): el canje cubre
+        // artículo + opcional y deriva del precio completo:
+        // ceil(($1000 + $500) / $50) = 30 pts.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioOverride: 500);
+        $articulo->sucursales()->updateExistingPivot($this->sucursalId, ['canje_tienda' => true]);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [[
+                    'articulo_id' => $articulo->id,
+                    'cantidad' => 1,
+                    'canjear_con_puntos' => true,
+                    'opcionales' => [['opcional_id' => $opcional->id]],
+                ]],
+            ])->assertOk();
+
+        $this->assertSame(30, $respuesta->json('data.puntos.usados_en_articulos'));
+        $this->assertEqualsWithDelta(1500.0, (float) $respuesta->json('data.articulos_canjeados_monto'), 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.total_final'), 0.01);
+        // RF-T59 (aditivo): costo por renglón en la respuesta.
+        $this->assertSame(30, $respuesta->json('data.items.0.puntos_canje'));
+        $this->assertTrue((bool) $respuesta->json('data.items.0.pagado_con_puntos'));
+    }
+
+    public function test_cotizar_canje_fijo_incluidos_no_cambia_con_opcionales(): void
+    {
+        // RF-T59 (fijo 7 + 'incluidos'): 7 pts elija el opcional que elija.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioOverride: 500);
+        $this->habilitarCanjeTienda($articulo, puntos: 7);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [[
+                    'articulo_id' => $articulo->id,
+                    'cantidad' => 1,
+                    'canjear_con_puntos' => true,
+                    'opcionales' => [['opcional_id' => $opcional->id]],
+                ]],
+            ])->assertOk();
+
+        $this->assertSame(7, $respuesta->json('data.puntos.usados_en_articulos'));
+        $this->assertEqualsWithDelta(1500.0, (float) $respuesta->json('data.articulos_canjeados_monto'), 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.total_final'), 0.01);
+    }
+
+    public function test_cotizar_canje_en_plata_cobra_los_opcionales(): void
+    {
+        // RF-T59 (fijo 7 + 'en_plata'): 7 pts por el artículo y el opcional
+        // ($500) se paga con plata — el renglón NO queda en $0.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioOverride: 500);
+        $this->habilitarCanjeTienda($articulo, puntos: 7);
+        $articulo->update(['canje_opcionales' => 'en_plata']);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [[
+                    'articulo_id' => $articulo->id,
+                    'cantidad' => 1,
+                    'canjear_con_puntos' => true,
+                    'opcionales' => [['opcional_id' => $opcional->id]],
+                ]],
+            ])->assertOk();
+
+        $this->assertSame(7, $respuesta->json('data.puntos.usados_en_articulos'));
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.articulos_canjeados_monto'), 0.01, 'El canje cubre solo el artículo pelado');
+        $this->assertEqualsWithDelta(500.0, (float) $respuesta->json('data.total_final'), 0.01, 'El opcional se paga');
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.items.0.canje_monto'), 0.01);
+    }
+
+    public function test_cotizar_canje_en_puntos_convierte_los_opcionales(): void
+    {
+        // RF-T59 (fijo 7 + 'en_puntos'): 7 + ceil($500 / $50) = 17 pts y el
+        // renglón completo queda en $0.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioOverride: 500);
+        $this->habilitarCanjeTienda($articulo, puntos: 7);
+        $articulo->update(['canje_opcionales' => 'en_puntos']);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'items' => [[
+                    'articulo_id' => $articulo->id,
+                    'cantidad' => 1,
+                    'canjear_con_puntos' => true,
+                    'opcionales' => [['opcional_id' => $opcional->id]],
+                ]],
+            ])->assertOk();
+
+        $this->assertSame(17, $respuesta->json('data.puntos.usados_en_articulos'));
+        $this->assertEqualsWithDelta(1500.0, (float) $respuesta->json('data.articulos_canjeados_monto'), 0.01);
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.total_final'), 0.01);
+    }
+
+    public function test_canje_pago_restringido_topea_en_los_renglones_habilitados(): void
+    {
+        // RF-T58: con la restricción del programa prendida, usar_puntos solo
+        // cubre el renglón habilitado ($1000); el resto se paga con plata.
+        $this->activarProgramaPuntos();
+        \App\Models\ConfiguracionPuntos::first()->update(['restringir_canje_articulos' => true]);
+        $habilitado = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $normal = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000, SIN toggle
+        $habilitado->sucursales()->updateExistingPivot($this->sucursalId, ['canje_tienda' => true]);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100); // $5000 en puntos
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'usar_puntos' => true,
+                'items' => [
+                    ['articulo_id' => $habilitado->id, 'cantidad' => 1],
+                    ['articulo_id' => $normal->id, 'cantidad' => 1],
+                ],
+            ])->assertOk();
+
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.puntos.monto'), 0.01, 'Tope = renglón habilitado, no el total');
+        $this->assertSame(20, $respuesta->json('data.puntos.usados'));
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.total_a_pagar'), 0.01, 'El resto se paga con plata');
+    }
+
+    public function test_el_renglon_canjeado_queda_fuera_de_las_promociones(): void
+    {
+        // Bug 2026-08-03: el renglón CANJEADO entraba al motor de promos
+        // (contaba para el threshold del 2x1 y podía llevarse descuento
+        // encima del regalo). Ahora queda EXCLUIDO: la promo solo mira las
+        // unidades que se pagan, y el resumen no le atribuye promos.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $this->habilitarCanjeTienda($articulo, puntos: 200);
+        \App\Models\PromocionEspecial::create([
+            'sucursal_id' => $this->sucursalId, 'nombre' => 'Dos por Uno',
+            'tipo' => \App\Models\PromocionEspecial::TIPO_NXM,
+            'modo_aplicacion' => \App\Models\PromocionEspecial::MODO_AUTOMATICA,
+            'nxm_lleva' => 2, 'nxm_paga' => 1, 'nxm_articulo_id' => $articulo->id,
+            'prioridad' => 1, 'activo' => true, 'usos_actuales' => 0,
+        ]);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 330);
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/carrito/cotizar', [
+                'tipo' => 'delivery',
+                'usar_puntos' => true,
+                'items' => [
+                    ['articulo_id' => $articulo->id, 'cantidad' => 1],
+                    ['articulo_id' => $articulo->id, 'cantidad' => 1, 'canjear_con_puntos' => true],
+                ],
+            ])->assertOk();
+
+        // El canjeado: sin promos, alineado por índice y marcado.
+        $this->assertTrue((bool) $respuesta->json('data.items.1.pagado_con_puntos'));
+        $this->assertSame([], $respuesta->json('data.items.1.promociones_especiales'));
+        $this->assertSame(200, $respuesta->json('data.items.1.puntos_canje'));
+        // Sin la unidad canjeada, el 2x1 no llega al threshold: el renglón
+        // que se PAGA va a precio lleno, sin promo fantasma.
+        $this->assertSame([], $respuesta->json('data.items.0.promociones_especiales'));
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.descuento'), 0.01);
+        $this->assertEqualsWithDelta(1000.0, (float) $respuesta->json('data.articulos_canjeados_monto'), 0.01);
+        // Puntos: 200 en el artículo; el pago usa el NETO (330−200=130 pts):
+        // el renglón normal ($1000) se cubre con ceil(1000/50) = 20 pts.
+        $this->assertSame(200, $respuesta->json('data.puntos.usados_en_articulos'));
+        $this->assertSame(20, $respuesta->json('data.puntos.usados'));
+        $this->assertEqualsWithDelta(0.0, (float) $respuesta->json('data.total_a_pagar'), 0.01);
+        $this->assertSame(110, $respuesta->json('data.puntos.saldo_restante'), '330 − 200 − 20');
+    }
+
+    public function test_pedido_totalmente_cubierto_con_puntos_no_necesita_forma_pago(): void
+    {
+        // RF-T61: un artículo canjeado + el resto pagado con usar_puntos →
+        // total $0 SIN forma de pago declarada. El alta pasa y el canje-pago
+        // queda planificado bajo la FP interna CANJE_PUNTOS (paridad POS).
+        $this->activarProgramaPuntos();
+        $canjeado = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000 = 20 pts
+        $normal = $this->crearArticuloConStock($this->sucursalId, cantidad: 10); // $1000
+        $this->habilitarCanjeTienda($canjeado);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 100); // $5000
+
+        $payload = $this->payloadPedido($normal->id);
+        $payload['items'][] = ['articulo_id' => $canjeado->id, 'cantidad' => 1, 'canjear_con_puntos' => true];
+        $payload['usar_puntos'] = true; // SIN 'pago' ni 'pagos'
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        // total_final = el renglón normal (el canjeado ya viene restado); el
+        // canje-pago no lo baja: lo CUBRE como pago (misma semántica del POS).
+        $this->assertEqualsWithDelta(1000.0, (float) $pedido->total_final, 0.01);
+        $this->assertSame(20, (int) $pedido->puntos_canjeados_articulos);
+        $this->assertSame(20, (int) $pedido->puntos_canjeados_pago, '$1000 / $50 = 20 pts como pago');
+
+        $pagos = $pedido->pagos;
+        $this->assertCount(1, $pagos, 'Solo el pago-puntos, sin FP declarada');
+        $this->assertTrue((bool) $pagos->first()->es_pago_puntos);
+        $this->assertSame(
+            \App\Models\FormaPago::where('codigo', 'CANJE_PUNTOS')->value('id'),
+            (int) $pagos->first()->forma_pago_id,
+            'El canje se graba bajo la FP interna, como la venta del POS',
+        );
+        $this->assertEqualsWithDelta(1000.0, (float) $pagos->first()->monto_final, 0.01);
+    }
+
+    public function test_pedido_con_canje_en_plata_persiste_puntos_y_cobra_opcionales(): void
+    {
+        // RF-T59 end-to-end en el alta: canje fijo 7 'en_plata' con opcional
+        // de $500 → detalle con 7 pts y el pedido cobra el opcional.
+        $this->activarProgramaPuntos();
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $opcional = $this->asignarGrupoOpcional($articulo, $this->sucursalId, precioOverride: 500);
+        $this->habilitarCanjeTienda($articulo, puntos: 7);
+        $articulo->update(['canje_opcionales' => 'en_plata']);
+        [, , $token] = $this->consumidorConClienteYPuntos(saldo: 10);
+
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['items'][0]['canjear_con_puntos'] = true;
+        $payload['items'][0]['opcionales'] = [['opcional_id' => $opcional->id]];
+
+        $respuesta = $this->withHeaders(['Authorization' => 'Bearer '.$token])
+            ->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)
+            ->assertCreated();
+
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertSame(7, (int) $pedido->puntos_canjeados_articulos);
+        $this->assertSame(7, (int) $pedido->detalles()->where('articulo_id', $articulo->id)->value('puntos_usados'));
+        $this->assertEqualsWithDelta(500.0, (float) $pedido->total_final, 0.01, 'El opcional queda a pagar');
+    }
+
     public function test_cotizar_canje_sin_bearer_da_canje_no_disponible(): void
     {
         $this->activarProgramaPuntos();

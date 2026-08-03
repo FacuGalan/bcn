@@ -560,6 +560,7 @@ class NuevaVenta extends Component
             'opcionales' => [],
             'precio_opcionales' => 0,
             'puntos_canje' => $articulo->puntos_canje,
+            'canje_opcionales' => $articulo->canje_opcionales,
             'pagado_con_puntos' => false,
         ];
 
@@ -1178,11 +1179,12 @@ class NuevaVenta extends Component
                         'tipo_iva_id' => $this->resolverTipoIvaId($item),
                         'iva_porcentaje' => $item['iva_porcentaje'] ?? 21,
                         'precio_iva_incluido' => $item['precio_iva_incluido'] ?? true,
-                        // Canje por puntos (RF-10)
+                        // Canje por puntos (RF-10) — costo por la matriz RF-T59
+                        // (fijo/derivado × modo de opcionales).
                         'pagado_con_puntos' => $esConcepto ? false : ($item['pagado_con_puntos'] ?? false),
                         'puntos_usados' => $esConcepto || ! ($item['pagado_con_puntos'] ?? false)
                             ? 0
-                            : $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1),
+                            : (int) ((($this->costoCanjeItem($item)['puntos'] ?? 0)) * (float) ($item['cantidad'] ?? 1)),
                         // Concepto libre
                         'es_concepto' => $esConcepto,
                         'concepto_descripcion' => $esConcepto ? ($item['nombre'] ?? null) : null,
@@ -1334,7 +1336,9 @@ class NuevaVenta extends Component
                 if ($puntosArticulosCanjeados > 0 && $this->clienteSeleccionado) {
                     foreach ($this->items as $item) {
                         if ($item['pagado_con_puntos'] ?? false) {
-                            $puntosItem = $this->calcularPuntosCanjePorPrecio((float) ($item['precio'] ?? 0)) * (float) ($item['cantidad'] ?? 1);
+                            // RF-T59: costo por la matriz (fijo/derivado ×
+                            // modo de opcionales), igual que el desglose.
+                            $puntosItem = (int) ((($this->costoCanjeItem($item)['puntos'] ?? 0)) * (float) ($item['cantidad'] ?? 1));
                             $this->puntosService->canjearArticuloConPuntos(
                                 $this->clienteSeleccionado,
                                 $item['articulo_id'],

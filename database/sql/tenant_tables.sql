@@ -158,6 +158,7 @@ CREATE TABLE `{{PREFIX}}articulos` (
   `precio_administrado_por_utilidad` tinyint(1) NOT NULL DEFAULT '0',
   `precio_base` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT 'Precio base sin IVA',
   `puntos_canje` int unsigned DEFAULT NULL COMMENT 'Puntos necesarios para canjear (NULL = no canjeable)',
+  `canje_opcionales` enum('incluidos','en_plata','en_puntos') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'incluidos' COMMENT 'RF-T59: tratamiento de opcionales con precio al canjear por puntos',
   `disponible_delivery` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Disponible para pedidos delivery (RF-16)',
   `disponible_take_away` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Disponible para pedidos take-away (RF-16)',
   `permite_programado` tinyint(1) NOT NULL DEFAULT '1' COMMENT 'Puede incluirse en pedidos programados (RF-15/Fase 8)',
@@ -915,6 +916,7 @@ CREATE TABLE `{{PREFIX}}configuracion_puntos` (
   `valor_punto_canje` decimal(12,2) NOT NULL DEFAULT '50.00' COMMENT 'Cuánto vale 1 punto en $ al canjear',
   `minimo_canje` int unsigned NOT NULL DEFAULT '10' COMMENT 'Mínimo puntos para habilitar canje',
   `redondeo` enum('floor','round','ceil') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'floor' COMMENT 'Redondeo de puntos fraccionarios',
+  `restringir_canje_articulos` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'RF-T58: canje (articulo y pago) limitado a articulos habilitados',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`)

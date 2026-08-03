@@ -16,5 +16,10 @@
 
         {{-- Configuración --}}
         @include('livewire.puntos.partials.tab-configuracion')
+
+        {{-- Canje de artículos (RF-T58/T59/T60): solo con el programa activo --}}
+        @if($activo)
+            @include('livewire.puntos.partials.tab-canje-articulos')
+        @endif
     </div>
 </div>

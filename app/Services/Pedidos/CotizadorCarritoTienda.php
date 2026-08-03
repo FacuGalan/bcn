@@ -14,6 +14,7 @@ use App\Models\ListaPrecio;
 use App\Models\PedidoDelivery;
 use App\Models\Sucursal;
 use App\Services\CuponService;
+use App\Services\PuntosService;
 use Exception;
 
 /**
@@ -479,8 +480,8 @@ class CotizadorCarritoTienda
 
     /**
      * RF-T54: puntos comprometidos por los renglones canjeados de la última
-     * cotización — el costo efectivo (configurado o derivado del precio) que
-     * construirItem dejó en el item, por unidad. 0 sin canjes.
+     * cotización — el costo efectivo (matriz RF-T59) que construirItem dejó
+     * en el item, por unidad. 0 sin canjes.
      */
     public function puntosUsadosEnArticulos(): int
     {
@@ -492,6 +493,41 @@ class CotizadorCarritoTienda
         }
 
         return $total;
+    }
+
+    /**
+     * RF-T58: tope en $ del canje-pago cuando la restricción del programa
+     * está activa — suma de los renglones HABILITADOS no canjeados (los no
+     * habilitados y el envío se pagan con plata). Null = sin restricción
+     * (tope = el total, comportamiento histórico).
+     */
+    public function montoElegibleCanjePago(): ?float
+    {
+        if (! app(PuntosService::class)->restringeCanjeArticulos()) {
+            return null;
+        }
+
+        $total = 0.0;
+        foreach ($this->items as $item) {
+            if (($item['canje_habilitado'] ?? false) && ! ($item['pagado_con_puntos'] ?? false)) {
+                $total += (float) ($item['precio'] ?? 0) * (float) ($item['cantidad'] ?? 1);
+            }
+        }
+
+        return round($total, 2);
+    }
+
+    /** @var float|null|false Cache del valor de canje vigente (false = sin resolver). */
+    protected float|null|false $valorPuntoCanjeCache = false;
+
+    /** Valor de canje del programa activo, resuelto UNA vez por cotización. */
+    protected function valorPuntoCanjeVigente(Sucursal $sucursal): ?float
+    {
+        if ($this->valorPuntoCanjeCache === false) {
+            $this->valorPuntoCanjeCache = app(PuntosTiendaService::class)->valorPuntoCanjeActivo($sucursal);
+        }
+
+        return $this->valorPuntoCanjeCache;
     }
 
     // ==================== INTERNOS ====================
@@ -544,11 +580,11 @@ class CotizadorCarritoTienda
             throw new Exception("Cantidad inválida para '{$articulo->nombre}'");
         }
 
-        // RF-T54: renglón canjeado por puntos. Solo artículos con el toggle
-        // canje_tienda de ESTA sucursal; cantidad 1 y sin opcionales PAGOS
-        // (el canje cubre el artículo pelado; un opcional pago quedaría
-        // regalado). El costo se resuelve más abajo (necesita el precio del
-        // día); el saldo se valida después de cotizar (caller).
+        // RF-T54/RF-T59: renglón canjeado por puntos. Solo artículos con el
+        // toggle canje_tienda de ESTA sucursal y cantidad 1. Los opcionales
+        // con precio YA NO bloquean: el modo canje_opcionales del artículo
+        // decide (incluidos / en plata / en puntos). El costo se resuelve
+        // más abajo (necesita el precio); el saldo lo valida el caller.
         $canjeado = ! empty($input['canjear_con_puntos']);
         if ($canjeado) {
             if (! ($pivot->canje_tienda ?? false)) {
@@ -633,21 +669,25 @@ class CotizadorCarritoTienda
             $opcionales = array_values($grupos);
         }
 
-        if ($canjeado && $precioOpcionales > 0) {
-            throw new Exception("El canje por puntos de '{$articulo->nombre}' no admite opcionales con precio");
+        // RF-T59: costo del canje según la matriz (fijo/derivado × modo de
+        // opcionales) — mismo helper del POS. Se resuelve para TODO renglón
+        // habilitado (la respuesta lo publica aunque no se canjee, para que
+        // la tienda muestre "se canjea por N pts" en el carrito); null = no
+        // resoluble (habría que derivar sin programa activo) ⇒ no canjeable.
+        $canjeHabilitado = (bool) ($pivot->canje_tienda ?? false);
+        $costoCanje = null;
+        if ($canjeHabilitado) {
+            $costoCanje = app(PuntosService::class)->costoCanjeArticulo(
+                (int) $articulo->puntos_canje ?: null,
+                $articulo->canje_opcionales,
+                (float) $precioInfo['precio'],
+                round($precioOpcionales, 2),
+                $this->valorPuntoCanjeVigente($sucursal),
+            );
         }
 
-        // Costo del canje: puntos configurados del artículo o, sin
-        // configurar, derivado del precio del día (regla del POS:
-        // ceil(precio / valor_punto_canje)) — mismo valor que publica el
-        // catálogo. Sin programa activo no hay valor de canje ⇒ no se canjea.
-        $costoCanje = (int) $articulo->puntos_canje;
-        if ($canjeado && $costoCanje <= 0) {
-            $valorPunto = app(PuntosTiendaService::class)->valorPuntoCanjeActivo($sucursal);
-            if ($valorPunto === null) {
-                throw new Exception("'{$articulo->nombre}' no se puede canjear por puntos en esta tienda");
-            }
-            $costoCanje = (int) ceil((float) $precioInfo['precio'] / $valorPunto);
+        if ($canjeado && $costoCanje === null) {
+            throw new Exception("'{$articulo->nombre}' no se puede canjear por puntos en esta tienda");
         }
 
         return [
@@ -673,12 +713,17 @@ class CotizadorCarritoTienda
             'precio_sin_ajuste_manual' => null,
             'opcionales' => $opcionales,
             'precio_opcionales' => round($precioOpcionales, 2),
-            // Costo EFECTIVO del canje (configurado o derivado): lo consumen
+            // Costo EFECTIVO del canje por la matriz RF-T59: lo consumen
             // puntosUsadosEnArticulos y el puntos_usados del detalle.
-            'puntos_canje' => $canjeado ? $costoCanje : $articulo->puntos_canje,
+            'puntos_canje' => $canjeado ? $costoCanje['puntos'] : $articulo->puntos_canje,
+            // RF-T58/T59: elegibilidad + costo del renglón (aunque no se
+            // canjee) para el tope del canje-pago y la respuesta por ítem.
+            'canje_habilitado' => $canjeHabilitado,
+            'canje_opcionales' => $articulo->canje_opcionales,
+            'canje_costo' => $costoCanje,
             // RF-T47: el motor compartido (WithCalculoVenta) resta estos
             // renglones del total como articulos_canjeados_monto — mismo
-            // camino del POS/panel.
+            // camino del POS/panel (en 'en_plata' solo la parte artículo).
             'pagado_con_puntos' => $canjeado,
         ];
     }

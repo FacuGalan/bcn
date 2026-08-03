@@ -212,8 +212,13 @@ class CotizacionController extends Controller
             }
 
             if ($info['activo']) {
+                // RF-T58: con la restricción del programa activa, el
+                // canje-pago solo cubre los renglones habilitados (el resto
+                // y el envío se pagan con plata).
+                $topeElegible = $cotizador->montoElegibleCanjePago();
+                $baseCanje = $topeElegible === null ? $totalAPagar : min($totalAPagar, $topeElegible);
                 $canje = ! empty($datos['usar_puntos'])
-                    ? $puntosTienda->calcularCanjeMaximo($info, $totalAPagar)
+                    ? $puntosTienda->calcularCanjeMaximo($info, $baseCanje)
                     : null;
                 $puntos = $puntosTienda->bloqueContrato($info, $canje, $sucursal, $formaPagoId, $totalAPagar);
                 $puntos['usados_en_articulos'] = $usadosEnArticulos;
@@ -228,9 +233,38 @@ class CotizacionController extends Controller
             ]], 422));
         }
 
+        // RF-T59 (aditivo): costo de canje POR RENGLÓN — con los opcionales
+        // seleccionados según la matriz del artículo — para renglones
+        // habilitados con costo resoluble; MISMO orden e índice que el
+        // payload. Ojo: el motor EXCLUYE de resultado['items'] los renglones
+        // canjeados (no reciben promos) — acá se re-arma su línea neutra
+        // para no desalinear el mapeo por índice de la tienda.
+        $itemsCrudos = array_values($cotizador->itemsCotizados());
+        $itemsRespuesta = [];
+        foreach ($itemsCrudos as $i => $crudo) {
+            $itemR = $resultado['items'][$i] ?? [
+                'articulo_id' => $crudo['articulo_id'] ?? null,
+                'nombre' => $crudo['nombre'] ?? '',
+                'precio_base' => (float) ($crudo['precio_base'] ?? $crudo['precio'] ?? 0),
+                'precio_lista' => (float) ($crudo['precio'] ?? 0),
+                'cantidad' => (float) ($crudo['cantidad'] ?? 1),
+                'subtotal' => (float) ($crudo['precio'] ?? 0) * (float) ($crudo['cantidad'] ?? 1),
+                'promociones_especiales' => [],
+                'promociones_comunes' => [],
+                'descuento_comun' => 0,
+            ];
+            if (($costo = $crudo['canje_costo'] ?? null) !== null) {
+                $itemR['puntos_canje'] = (int) $costo['puntos'];
+                $itemR['canje_monto'] = (float) $costo['monto_canjeado'];
+                $itemR['canje_opcionales'] = $crudo['canje_opcionales'] ?? 'incluidos';
+            }
+            $itemR['pagado_con_puntos'] = (bool) ($crudo['pagado_con_puntos'] ?? false);
+            $itemsRespuesta[] = $itemR;
+        }
+
         return response()->json([
             'data' => [
-                'items' => $resultado['items'] ?? [],
+                'items' => $itemsRespuesta,
                 'subtotal' => (float) ($resultado['subtotal'] ?? 0),
                 'iva' => (float) ($resultado['iva_total'] ?? 0),
                 'descuento' => (float) ($resultado['descuento_total'] ?? 0),

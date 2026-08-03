@@ -221,6 +221,7 @@ trait WithCarritoItems
                 'iva_nombre' => $ivaInfo['nombre'],
                 'precio_iva_incluido' => $articulo->precio_iva_incluido ?? true,
                 'puntos_canje' => $articulo->puntos_canje,
+                'canje_opcionales' => $articulo->canje_opcionales,
             ];
             $this->wizardGrupos = $grupos;
             $this->wizardPasoActual = 0;
@@ -282,6 +283,7 @@ trait WithCarritoItems
                 'precio_opcionales' => 0,
                 // Canje por puntos (RF-25)
                 'puntos_canje' => $articulo->puntos_canje,
+                'canje_opcionales' => $articulo->canje_opcionales,
                 'pagado_con_puntos' => false,
             ];
 

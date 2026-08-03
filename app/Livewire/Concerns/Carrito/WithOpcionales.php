@@ -270,6 +270,7 @@ trait WithOpcionales
                 'precio_opcionales' => $precioOpcionalesTotal,
                 // Canje por puntos (RF-25)
                 'puntos_canje' => $data['puntos_canje'] ?? null,
+                'canje_opcionales' => $data['canje_opcionales'] ?? null,
                 'pagado_con_puntos' => false,
             ];
 
