@@ -108,14 +108,6 @@
                                         :style="bandaStyle()"></div>
                                 </div>
                                 <p class="text-center text-[10px] text-gray-400 dark:text-gray-500">{{ __('Arrastrá la franja para elegir qué parte de la foto se muestra') }}</p>
-
-                                {{-- Vista previa real: cómo queda la franja en la tienda --}}
-                                <p class="text-[11px] font-medium text-gray-700 dark:text-gray-300">{{ __('Así se ve el banner') }}:</p>
-                                <div class="relative h-14 w-full overflow-hidden rounded-md border border-gray-200 dark:border-gray-700">
-                                    <img src="{{ $grupo['banner_url'] }}" alt="" aria-hidden="true"
-                                        class="h-full w-full object-cover" draggable="false"
-                                        :style="posicionPreview()" />
-                                </div>
                             </div>
                         @endif
 

@@ -142,10 +142,6 @@ document.addEventListener('alpine:init', () => {
             return `top: ${top}%; left: ${left}%; width: ${this.bandaAnchoPct}%; height: ${this.bandaAltoPct}%;`;
         },
 
-        posicionPreview() {
-            return `object-position: ${this.fx}% ${this.fy}%;`;
-        },
-
         empezar(e) {
             if (!this.aspecto) return;
             this.arrastrando = true;
