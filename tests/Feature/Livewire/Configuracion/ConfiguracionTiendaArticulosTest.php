@@ -83,7 +83,7 @@ class ConfiguracionTiendaArticulosTest extends TestCase
 
     public function test_guardar_puntos_canje_persiste_y_vacio_limpia(): void
     {
-        // Input provisorio del panel: setea articulos.puntos_canje (campo
+        // Input del desplegable: setea articulos.puntos_canje (campo
         // global, compartido con el POS); vacío/0 vuelve a null (= derivado).
         $articulo = $this->crearArticuloConStock($this->sucursalId);
 
@@ -96,6 +96,23 @@ class ConfiguracionTiendaArticulosTest extends TestCase
             ->call('guardarPuntosCanje', $articulo->id, '')
             ->assertDispatched('tienda-catalogo-cambiado');
         $this->assertNull($articulo->fresh()->puntos_canje);
+    }
+
+    public function test_guardar_canje_opcionales_persiste_y_rechaza_invalidos(): void
+    {
+        // RF-T59: modo de opcionales del canje (campo global del artículo).
+        $articulo = $this->crearArticuloConStock($this->sucursalId);
+        $this->assertSame('incluidos', $articulo->fresh()->canje_opcionales, 'Default de la columna');
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('guardarCanjeOpcionales', $articulo->id, 'en_puntos')
+            ->assertDispatched('tienda-catalogo-cambiado');
+        $this->assertSame('en_puntos', $articulo->fresh()->canje_opcionales);
+
+        Livewire::test(ConfiguracionTiendaArticulos::class)
+            ->call('guardarCanjeOpcionales', $articulo->id, 'gratis')
+            ->assertNotDispatched('tienda-catalogo-cambiado');
+        $this->assertSame('en_puntos', $articulo->fresh()->canje_opcionales);
     }
 
     public function test_no_toca_articulos_fuera_de_la_tienda(): void

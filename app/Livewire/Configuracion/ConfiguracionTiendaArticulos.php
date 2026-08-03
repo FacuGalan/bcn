@@ -138,6 +138,26 @@ class ConfiguracionTiendaArticulos extends Component
         $this->catalogoCambiado();
     }
 
+    /**
+     * Modo de opcionales del canje (RF-T59, campo GLOBAL del artículo —
+     * compartido con el POS): incluidos | en_plata | en_puntos.
+     */
+    public function guardarCanjeOpcionales(int $articuloId, string $modo): void
+    {
+        if (! $this->autorizado() || ! in_array($modo, Articulo::CANJE_OPCIONALES, true)) {
+            return;
+        }
+
+        $articulo = $this->articuloVisible($articuloId);
+        if (! $articulo) {
+            return;
+        }
+
+        $articulo->update(['canje_opcionales' => $modo]);
+
+        $this->catalogoCambiado();
+    }
+
     // ==================== EDITOR (GALERÍA + BADGES) ====================
 
     public function abrirEditor(int $articuloId): void
