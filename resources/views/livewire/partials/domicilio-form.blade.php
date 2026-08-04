@@ -18,6 +18,12 @@
                                      usa la API apenas se abre el modal) (default false)
       - $provinciaRequerida (bool) : marca la provincia como obligatoria (default true)
       - $idPrefix (string)         : prefijo para los ids de los <label for> (default 'dom')
+      - $conGeolocalizacion (bool) : muestra "Usar mi ubicación actual" (default true).
+                                     Apagarlo donde el operador carga la dirección de OTRA
+                                     persona (pedidos delivery, clientes): su ubicación no aporta.
+      - $mapaContexto (?array)     : payload de DeliveryEnvioService::mapaPayload() — pin del
+                                     local + zonas + radio, dibujados como contexto (default null).
+                                     Solo para los flujos de delivery.
 --}}
 @php($conTipo = $conTipo ?? true)
 @php($conDireccion = $conDireccion ?? true)
@@ -30,6 +36,8 @@
 @php($provinciaRequerida = $provinciaRequerida ?? true)
 @php($idPrefix = $idPrefix ?? 'dom')
 @php($direccionLabel = $direccionLabel ?? __('Dirección'))
+@php($conGeolocalizacion = $conGeolocalizacion ?? true)
+@php($mapaContexto = $mapaContexto ?? null)
 
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
     @if($conTipo)
@@ -117,14 +125,20 @@
                     <p x-show="!tieneCentro" class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ $conUbicacion ? __('Elegí provincia y localidad para ubicar el domicilio') : __('Configurá la localidad de la sucursal para acotar el mapa y el buscador') }}</p>
 
                     <div wire:ignore class="mt-1 space-y-2">
+                        {{-- Contexto de reparto (pin del local + zonas): JSON aparte y no
+                             en el x-data — un payload dinámico interpolado en x-data hace
+                             que Alpine re-inicialice el componente en cada morph. --}}
+                        <script type="application/json" x-ref="mapaContexto">@json($mapaContexto)</script>
                         <div x-ref="autocompleteSlot"></div>
                         <div x-ref="mapa" class="w-full h-80 sm:h-96 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"></div>
                         <div class="flex flex-wrap items-center gap-2">
+                            @if($conGeolocalizacion)
                             <button type="button" @click="usarMiUbicacion()"
                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                                 {{ __('Usar mi ubicación actual') }}
                             </button>
+                            @endif
                             @if(! $mapaAutoAbrir)
                                 <button type="button" @click="cerrar()"
                                     class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">

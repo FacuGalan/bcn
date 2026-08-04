@@ -4,6 +4,7 @@ namespace App\Livewire\Pedidos;
 
 use App\Models\DeliveryZona;
 use App\Models\Sucursal;
+use App\Services\Pedidos\DeliveryEnvioService;
 use App\Traits\SucursalAware;
 use Exception;
 use Livewire\Component;
@@ -391,28 +392,22 @@ class ConfiguracionDeliveryEnvio extends Component
     }
 
     /**
+     * Delegado en DeliveryEnvioService::mapaPayload() (mismo payload que el
+     * picker de domicilio), con UNA salvedad: el radio mostrado sigue el
+     * valor del FORM, que puede diferir del guardado mientras se edita.
+     *
      * @return array{zonas: array, radioKm: float|null, centro: array{lat: float, lng: float}|null}
      */
     protected function zonasMapaPayload(): array
     {
         $sucursal = Sucursal::find($this->sucursalActual());
+        if (! $sucursal) {
+            return ['zonas' => [], 'radioKm' => null, 'centro' => null];
+        }
 
-        return [
-            'zonas' => DeliveryZona::porSucursal((int) $this->sucursalActual())
-                ->ordenadas()
-                ->get()
-                ->map(fn (DeliveryZona $z) => [
-                    'id' => $z->id,
-                    'nombre' => $z->nombre,
-                    'poligono' => is_array($z->poligono) ? $z->poligono : [],
-                    'activo' => (bool) $z->activo,
-                ])
-                ->all(),
+        return array_replace(app(DeliveryEnvioService::class)->mapaPayload($sucursal), [
             'radioKm' => $this->radioEntregaKm !== '' ? (float) $this->radioEntregaKm : null,
-            'centro' => $sucursal && $sucursal->latitud && $sucursal->longitud
-                ? ['lat' => (float) $sucursal->latitud, 'lng' => (float) $sucursal->longitud]
-                : null,
-        ];
+        ]);
     }
 
     // ==================== RENDER ====================

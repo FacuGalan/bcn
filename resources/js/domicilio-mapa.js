@@ -19,6 +19,58 @@
 // Centro por defecto: Argentina (cuando no hay localidad ni coords).
 const CENTRO_AR = { lat: -38.4161, lng: -63.6167 };
 
+// Paleta ciclada de zonas de reparto — compartida con zonas-mapa.js para que
+// una zona tenga el MISMO color en la config y en el picker de domicilio.
+export const COLORES_ZONAS = ['#0891b2', '#d97706', '#7c3aed', '#dc2626', '#059669', '#db2777', '#2563eb', '#65a30d'];
+
+/** Centroide simple (promedio de vértices) — para la etiqueta de la zona. */
+export function centroide(path) {
+    if (!path.length) {
+        return null;
+    }
+    const sum = path.reduce((a, p) => ({ lat: a.lat + Number(p.lat), lng: a.lng + Number(p.lng) }), { lat: 0, lng: 0 });
+
+    return { lat: sum.lat / path.length, lng: sum.lng / path.length };
+}
+
+/**
+ * Pin de marca del LOCAL: gota clásica naranja con el ícono BCN de la PWA
+ * sobre un disco blanco. Es el pin de "acá está la tienda" (config de zonas
+ * y contexto del picker); el domicilio del cliente usa el marcador rojo
+ * default de Maps. Estilos inline a propósito (ganan al preflight de
+ * Tailwind, que con `img { height:auto }` rompería el tamaño del ícono).
+ */
+export function crearPinLocal() {
+    const wrap = document.createElement('div');
+    wrap.style.cssText =
+        'position:relative;width:40px;height:51px;' +
+        'filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));';
+
+    // Cuerpo del pin: gota clásica, cabeza redonda (centro 20,17 r16) y punta en (20,50).
+    wrap.innerHTML =
+        '<svg width="40" height="51" viewBox="0 0 40 51" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M20 50 C14 38 4 27 4 17 A16 16 0 1 1 36 17 C36 27 26 38 20 50 Z" ' +
+        'fill="#FFAF22" stroke="#ffffff" stroke-width="2"/></svg>';
+
+    // Disco blanco para separar el ícono del cuerpo naranja.
+    const disco = document.createElement('div');
+    disco.style.cssText =
+        'position:absolute;top:4px;left:7px;width:26px;height:26px;' +
+        'border-radius:50%;background:#ffffff;box-sizing:border-box;';
+    wrap.appendChild(disco);
+
+    // Ícono BCN de la PWA, centrado dentro de la cabeza.
+    const icon = document.createElement('img');
+    icon.src = '/pwa-icons/icon-192x192.png';
+    icon.alt = '';
+    icon.style.cssText =
+        'position:absolute;top:5px;left:8px;width:24px;height:24px;' +
+        'border-radius:50%;object-fit:cover;display:block;';
+    wrap.appendChild(icon);
+
+    return wrap;
+}
+
 // Loader del bootstrap oficial de Google Maps — carga una sola vez por página.
 // Exportado: lo reutiliza zonas-mapa.js (mapa de zonas de entrega).
 let mapsPromise = null;
@@ -198,8 +250,9 @@ document.addEventListener('alpine:init', () => {
 
             const coord = this.coordActual();
             const centro = this.centroLocalidad();
-            const inicio = coord || centro || CENTRO_AR;
-            const zoom = coord ? 16 : centro ? 12 : 5;
+            const local = this.contexto()?.centro || null;
+            const inicio = coord || centro || local || CENTRO_AR;
+            const zoom = coord ? 16 : centro ? 12 : local ? 13 : 5;
 
             this.map = new Map(this.$refs.mapa, {
                 center: inicio,
@@ -270,6 +323,93 @@ document.addEventListener('alpine:init', () => {
 
             this.aplicarLocalidad(this.centroLocalidad());
             this.$wire.$watch('domLocalidadCentro', (c) => this.aplicarLocalidad(c));
+
+            this.dibujarContexto();
+        },
+
+        /**
+         * Contexto de reparto de la sucursal (opcional): lo provee el host en
+         * un <script type="application/json"> junto al mapa. Vive fuera del
+         * x-data a propósito: un payload dinámico interpolado en x-data haría
+         * que Alpine re-inicialice el componente en cada morph de Livewire.
+         */
+        contexto() {
+            try {
+                return JSON.parse(this.$refs.mapaContexto?.textContent || 'null');
+            } catch {
+                return null;
+            }
+        },
+
+        /**
+         * Dibuja el contexto (solo visual, una vez por construcción del mapa):
+         * pin del LOCAL, radio general de entrega y polígonos de las zonas
+         * activas con su nombre. El alcance real lo decide el backend
+         * (DeliveryEnvioService::cotizar) — esto solo le muestra al operador
+         * dónde cae el punto respecto del reparto.
+         */
+        dibujarContexto() {
+            const ctx = this.contexto();
+            if (!ctx) {
+                return;
+            }
+            const mapa = window.Alpine.raw(this.map);
+
+            if (ctx.centro) {
+                new this.AdvancedMarkerElement({
+                    map: mapa,
+                    position: ctx.centro,
+                    content: crearPinLocal(),
+                    title: 'Local',
+                    zIndex: 1000,
+                });
+
+                if (ctx.radioKm) {
+                    new google.maps.Circle({
+                        map: mapa,
+                        center: ctx.centro,
+                        radius: Number(ctx.radioKm) * 1000,
+                        strokeColor: '#6b7280',
+                        strokeOpacity: 0.7,
+                        strokeWeight: 1.5,
+                        fillColor: '#6b7280',
+                        fillOpacity: 0.05,
+                        clickable: false,
+                    });
+                }
+            }
+
+            // Índice sobre la lista COMPLETA (como el mapa de config): así una
+            // zona conserva su color aunque haya inactivas intercaladas.
+            (ctx.zonas || []).forEach((zona, i) => {
+                const poligono = Array.isArray(zona.poligono) ? zona.poligono : [];
+                if (poligono.length < 3 || !zona.activo) {
+                    return;
+                }
+
+                const color = COLORES_ZONAS[i % COLORES_ZONAS.length];
+                new google.maps.Polygon({
+                    map: mapa,
+                    paths: poligono.map((v) => ({ lat: Number(v.lat), lng: Number(v.lng) })),
+                    strokeColor: color,
+                    strokeOpacity: 0.9,
+                    strokeWeight: 2,
+                    fillColor: color,
+                    fillOpacity: 0.1,
+                    clickable: false,
+                });
+
+                const c = centroide(poligono);
+                if (c) {
+                    const div = document.createElement('div');
+                    div.textContent = zona.nombre;
+                    div.style.cssText =
+                        `color:${color};font-size:11px;font-weight:700;` +
+                        'background:rgba(255,255,255,.85);padding:1px 6px;border-radius:8px;' +
+                        `border:1px solid ${color};white-space:nowrap;`;
+                    new this.AdvancedMarkerElement({ map: mapa, position: c, content: div });
+                }
+            });
         },
 
         coordActual() {
@@ -317,45 +457,6 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        /**
-         * Pin de marca con forma clásica de marcador (globo + punta) en naranja, con
-         * el ícono BCN de la PWA chico adentro, sobre un disco blanco para que
-         * contraste. El cuerpo es un SVG (forma de gota precisa); la punta del SVG
-         * cae en el bottom-center del contenido, que es donde AdvancedMarkerElement
-         * ancla la posición geográfica. Estilos inline a propósito (ganan al preflight
-         * de Tailwind, que con `img { height:auto }` rompería el tamaño del ícono).
-         */
-        crearPin() {
-            const wrap = document.createElement('div');
-            wrap.style.cssText =
-                'position:relative;width:40px;height:51px;cursor:grab;' +
-                'filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));';
-
-            // Cuerpo del pin: gota clásica, cabeza redonda (centro 20,17 r16) y punta en (20,50).
-            wrap.innerHTML =
-                '<svg width="40" height="51" viewBox="0 0 40 51" xmlns="http://www.w3.org/2000/svg">' +
-                '<path d="M20 50 C14 38 4 27 4 17 A16 16 0 1 1 36 17 C36 27 26 38 20 50 Z" ' +
-                'fill="#FFAF22" stroke="#ffffff" stroke-width="2"/></svg>';
-
-            // Disco blanco para separar el ícono del cuerpo naranja.
-            const disco = document.createElement('div');
-            disco.style.cssText =
-                'position:absolute;top:4px;left:7px;width:26px;height:26px;' +
-                'border-radius:50%;background:#ffffff;box-sizing:border-box;';
-            wrap.appendChild(disco);
-
-            // Ícono BCN de la PWA, centrado dentro de la cabeza.
-            const icon = document.createElement('img');
-            icon.src = '/pwa-icons/icon-192x192.png';
-            icon.alt = '';
-            icon.style.cssText =
-                'position:absolute;top:5px;left:8px;width:24px;height:24px;' +
-                'border-radius:50%;object-fit:cover;display:block;';
-            wrap.appendChild(icon);
-
-            return wrap;
-        },
-
         /** Crea (o recrea) el marcador en una posición y lo muestra. */
         mostrarMarker(pos) {
             if (!pos || !this.map || !this.AdvancedMarkerElement) {
@@ -370,11 +471,12 @@ document.addEventListener('alpine:init', () => {
             // hace una comparación de identidad interna contra la instancia REAL del
             // mapa para adjuntarse a su overlay; con el Proxy nunca lo hace y el pin
             // no se renderiza (isConnected=false). Pasamos el mapa crudo con Alpine.raw.
+            // Sin `content`, Maps usa su marcador ROJO estándar: es el lenguaje
+            // universal de "este punto" y distingue el domicilio del pin del local.
             this.marker = new this.AdvancedMarkerElement({
                 map: window.Alpine.raw(this.map),
                 position: pos,
                 gmpDraggable: true,
-                content: this.crearPin(),
                 title: 'Domicilio',
             });
             this.marker.addListener('dragend', () => {
