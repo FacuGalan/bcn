@@ -299,41 +299,47 @@
             </div>
         </div>
 
-        {{-- DESKTOP: burbuja flotante arrastrable (RF-01/02/03). Cerrada, solo
-             la cantidad; click → panel de MEDIA pantalla desde el borde
-             anclado, superpuesto (el tablero de atrás no se mueve). --}}
+        {{-- DESKTOP: burbuja flotante arrastrable (RF-01/02/03). Cerrada es una
+             píldora compacta con el contador; al clickearla la MISMA burbuja se
+             expande en una tarjeta flotante anclada al mismo punto (crece desde
+             ahí, no es una ventana de borde a borde). El anclaje respeta la
+             franja del navbar, así nunca queda debajo del menú. --}}
         <div class="hidden sm:block"
             x-data="burbujaPorAceptar({ clave: 'bcn-burbuja-pa-{{ session('comercio_activo_id') }}-{{ $this->sucursalActual() }}' })"
             @pedido-por-aceptar.window="destello = true; setTimeout(() => destello = false, 4000)"
             @keydown.escape.window="abierto = false">
 
-            {{-- Backdrop: cerrar clickeando fuera --}}
-            <div x-show="abierto" x-cloak @click="abierto = false"
-                class="fixed inset-0 z-30 bg-black/20 dark:bg-black/40" aria-hidden="true"></div>
-
-            {{-- Burbuja cerrada: SOLO la cantidad. Arrastrable a cualquier borde. --}}
-            <button type="button" x-ref="burbuja" x-show="! abierto" data-burbuja-por-aceptar
-                @pointerdown="empezarDrag($event)" @click="clickBurbuja()"
+            {{-- Burbuja cerrada: contador + etiqueta. Arrastrable a cualquier borde. --}}
+            <button type="button" x-ref="burbuja" x-show="! abierto" x-cloak data-burbuja-por-aceptar
+                @pointerdown="empezarDrag($event)" @click.stop="clickBurbuja()"
                 :style="estiloBurbuja"
-                :class="destello ? 'animate-pulse' : ''"
+                :class="[destello ? 'animate-pulse' : '', vibrando ? 'bcn-vibra' : '']"
                 title="{{ __('Pedidos por aceptar') }} · {{ __('Arrastrá para mover') }}"
                 aria-label="{{ __('Pedidos por aceptar') }}"
-                class="fixed z-40 flex size-16 select-none touch-none flex-col items-center justify-center rounded-full text-white shadow-xl ring-2 cursor-grab active:cursor-grabbing transition-colors {{ $hayAceptacionDemorada ? 'bg-red-600 ring-red-300 dark:ring-red-800' : 'bg-orange-500 ring-orange-300 dark:ring-orange-800' }}">
-                <span class="text-xl font-bold leading-none">{{ $pedidosPorAceptar->count() }}</span>
-                <span class="mt-0.5 text-[9px] font-semibold uppercase leading-none tracking-tight">{{ __('por aceptar') }}</span>
+                class="fixed z-50 inline-flex select-none touch-none items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 text-white shadow-lg ring-1 ring-white/70 dark:ring-white/20 cursor-grab active:cursor-grabbing transition-colors hover:brightness-110 {{ $hayAceptacionDemorada ? 'bg-red-600' : 'bg-orange-500' }}">
+                <span class="bcn-late grid size-7 place-items-center rounded-full bg-white/25 text-sm font-bold leading-none">{{ $pedidosPorAceptar->count() }}</span>
+                <span class="text-[11px] font-semibold uppercase leading-none tracking-wide">{{ __('por aceptar') }}</span>
             </button>
 
-            {{-- Panel expandido: siempre en el DOM, fuera de pantalla cuando
-                 está cerrado (así el slide anima en los dos sentidos). --}}
-            <section data-panel-por-aceptar
-                :class="[clasesPanel, abierto ? '' : clasePanelOculto]"
-                :aria-hidden="(! abierto).toString()"
-                class="fixed z-40 flex flex-col bg-white dark:bg-gray-800 border-orange-300 dark:border-orange-700 shadow-2xl transition-transform duration-300">
-                <header class="flex items-center gap-2 border-b border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 px-4 py-3">
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-600 text-white text-xs font-bold rounded-full">
-                        {{ $pedidosPorAceptar->count() }} {{ __('por aceptar') }}
+            {{-- Tarjeta expandida: solo existe mientras está abierta (así al
+                 mover la burbuja de un borde a otro no cruza nada la pantalla)
+                 y crece desde el punto de anclaje. --}}
+            <section x-show="abierto" x-cloak data-panel-por-aceptar
+                @click.outside="abierto = false"
+                :style="estiloPanel"
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="opacity-0 scale-95"
+                x-transition:enter-end="opacity-100 scale-100"
+                x-transition:leave="transition ease-in duration-150"
+                x-transition:leave-start="opacity-100 scale-100"
+                x-transition:leave-end="opacity-0 scale-95"
+                class="fixed z-50 flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-gray-800 shadow-2xl ring-1 {{ $hayAceptacionDemorada ? 'ring-red-300 dark:ring-red-700' : 'ring-orange-300 dark:ring-orange-700' }}">
+                <header class="flex items-center gap-2 border-b border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 px-3 py-2"
+                    title="{{ __('Pedidos de la tienda/API esperando confirmación') }}">
+                    <span class="grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white {{ $hayAceptacionDemorada ? 'bg-red-600' : 'bg-orange-500' }}">
+                        {{ $pedidosPorAceptar->count() }}
                     </span>
-                    <span class="text-xs text-orange-700 dark:text-orange-300 flex-1 min-w-0 truncate">{{ __('Pedidos de la tienda/API esperando confirmación') }}</span>
+                    <span class="flex-1 min-w-0 truncate text-xs font-semibold text-orange-800 dark:text-orange-200">{{ __('Pedidos por aceptar') }}</span>
                     @if($hayAceptacionDemorada)
                         <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 animate-pulse">
                             {{ __('Demorado') }}
@@ -341,10 +347,10 @@
                     @endif
                     <button type="button" @click="abierto = false" aria-label="{{ __('Cerrar') }}"
                         class="shrink-0 rounded-md p-1 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </header>
-                <div class="flex-1 overflow-y-auto p-3 space-y-1.5">
+                <div class="flex-1 overflow-y-auto p-2 space-y-1.5">
                     @include('livewire.pedidos.partials.por-aceptar-lista')
                 </div>
             </section>

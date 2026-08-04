@@ -237,8 +237,8 @@ class SmokePedidosDeliveryTest extends TestCase
     public function test_por_aceptar_se_muestra_como_burbuja_flotante_y_bloque_movil(): void
     {
         // Spec delivery-burbuja-y-mapa RF-01/03/04: en desktop la banda fue
-        // reemplazada por la burbuja (solo cantidad) + panel de media pantalla;
-        // en móvil queda el bloque plegable en el flujo.
+        // reemplazada por la burbuja (píldora con la cantidad) que se expande
+        // en una tarjeta flotante; en móvil queda el bloque plegable en el flujo.
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
         $this->service->crearPedido(
             data: $this->datosBaseDelivery(total: 500, overrides: ['origen' => PedidoDelivery::ORIGEN_TIENDA]),
