@@ -180,6 +180,9 @@ document.addEventListener('alpine:init', () => {
         // Opt-in: abrir el mapa apenas se monta el componente (modal de entrega:
         // el operador abrió el modal PARA cargar la dirección, sin paso extra).
         autoAbrir: config.autoAbrir || false,
+        // Opt-in: buscador de Google visible fuera del mapa (flujos de delivery).
+        // Al elegir una dirección abre el mapa para confirmar dónde cayó el pin.
+        conBuscador: config.conBuscador || false,
 
         map: null,
         marker: null,
@@ -193,7 +196,19 @@ document.addEventListener('alpine:init', () => {
         tieneCentro: false,
         coords: null,
 
+        // Buscador de direcciones (Places) — vive fuera del mapa: se puede
+        // corregir la ubicación real sin abrir el mapa, y el SDK se carga
+        // recién cuando el operador toca el buscador.
+        buscadorListo: false,
+        cargandoBuscador: false,
+        errorBuscador: false,
+        _montaje: null,
+
         init() {
+            // La localidad acota tanto el mapa como el buscador, y el buscador
+            // puede montarse SIN mapa: el watch va acá, no en construir().
+            this.$wire.$watch('domLocalidadCentro', (c) => this.aplicarLocalidad(c));
+
             // Carga PEREZOSA por defecto: no cargamos el SDK ni construimos el
             // mapa al montar — recién al tocar "Abrir mapa" (abrir()). Así, si
             // el usuario solo edita otros datos, no hay llamada (ni costo) de
@@ -211,7 +226,7 @@ document.addEventListener('alpine:init', () => {
             // (estuvo display:none, conviene reencuadrar).
             if (this.map) {
                 await this.$nextTick();
-                const c = this.coordActual() || this.centroLocalidad();
+                const c = this.coordActual() || this.coords || this.centroLocalidad();
                 if (c) {
                     this.map.setCenter(c);
                 }
@@ -241,45 +256,47 @@ document.addEventListener('alpine:init', () => {
             this.abierto = false;
         },
 
-        async construir() {
-            const [{ Map }, { AdvancedMarkerElement }, { PlaceAutocompleteElement }] = await Promise.all([
-                google.maps.importLibrary('maps'),
-                google.maps.importLibrary('marker'),
-                google.maps.importLibrary('places'),
-            ]);
-
-            const coord = this.coordActual();
-            const centro = this.centroLocalidad();
-            const local = this.contexto()?.centro || null;
-            const inicio = coord || centro || local || CENTRO_AR;
-            const zoom = coord ? 16 : centro ? 12 : local ? 13 : 5;
-
-            this.map = new Map(this.$refs.mapa, {
-                center: inicio,
-                zoom,
-                mapId: this.mapId,
-                mapTypeControl: false,
-                streetViewControl: false,
-                fullscreenControl: false,
-                clickableIcons: false,
-            });
-
-            // Guardamos la clase para crear el marcador con map+position EN EL
-            // CONSTRUCTOR cada vez (camino canónico; togglear .map sobre un
-            // marcador pre-creado no lo renderiza de forma confiable).
-            this.AdvancedMarkerElement = AdvancedMarkerElement;
-            if (coord) {
-                this.mostrarMarker(coord);
+        /**
+         * Monta el buscador de Google (Places) en `autocompleteSlot`. Perezoso
+         * e idempotente: lo dispara el propio buscador al tocarlo o `construir()`
+         * al abrir el mapa, y las llamadas concurrentes comparten la promesa.
+         */
+        montarBuscador() {
+            if (this._montaje) {
+                return this._montaje;
+            }
+            if (this.autocomplete || !this.key || !this.$refs.autocompleteSlot) {
+                return Promise.resolve();
             }
 
-            // Click en el mapa = mover el pin (UX extra, sin costo).
-            this.map.addListener('click', (ev) => {
-                const p = aLatLng(ev.latLng);
-                if (p) {
-                    this.colocar(p.lat, p.lng);
+            this.cargandoBuscador = true;
+            this.errorBuscador = false;
+            this._montaje = (async () => {
+                try {
+                    await cargarGoogleMaps(this.key);
+                    const { PlaceAutocompleteElement } = await google.maps.importLibrary('places');
+                    this.crearAutocomplete(PlaceAutocompleteElement);
+                    this.buscadorListo = true;
+                    this.aplicarLocalidad(this.centroLocalidad());
+                } catch (e) {
+                    console.error('[domicilio-mapa] buscador', e);
+                    this.errorBuscador = true;
+                    this._montaje = null;
                 }
-            });
+                this.cargandoBuscador = false;
+            })();
 
+            return this._montaje;
+        },
+
+        /** Buscador listo y con el foco puesto (click en el campo señuelo). */
+        async enfocarBuscador() {
+            await this.montarBuscador();
+            setTimeout(() => this.autocomplete?.focus?.(), 50);
+        },
+
+        /** Crea el widget de autocomplete y engancha sus eventos. */
+        crearAutocomplete(PlaceAutocompleteElement) {
             this.autocomplete = new PlaceAutocompleteElement({ includedRegionCodes: ['ar'] });
             this.autocomplete.classList.add('w-full');
             this.$refs.autocompleteSlot.appendChild(this.autocomplete);
@@ -315,6 +332,48 @@ document.addEventListener('alpine:init', () => {
                 clearTimeout(this._enterPendiente);
                 this._enterPendiente = setTimeout(() => this.elegirPrimeraSugerencia(texto), 250);
             });
+        },
+
+        async construir() {
+            const [{ Map }, { AdvancedMarkerElement }] = await Promise.all([
+                google.maps.importLibrary('maps'),
+                google.maps.importLibrary('marker'),
+            ]);
+
+            const coord = this.coordActual() || this.coords;
+            const centro = this.centroLocalidad();
+            const local = this.contexto()?.centro || null;
+            const inicio = coord || centro || local || CENTRO_AR;
+            const zoom = coord ? 16 : centro ? 12 : local ? 13 : 5;
+
+            this.map = new Map(this.$refs.mapa, {
+                center: inicio,
+                zoom,
+                mapId: this.mapId,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false,
+                clickableIcons: false,
+            });
+
+            // Guardamos la clase para crear el marcador con map+position EN EL
+            // CONSTRUCTOR cada vez (camino canónico; togglear .map sobre un
+            // marcador pre-creado no lo renderiza de forma confiable).
+            this.AdvancedMarkerElement = AdvancedMarkerElement;
+            if (coord) {
+                this.mostrarMarker(coord);
+            }
+
+            // Click en el mapa = mover el pin (UX extra, sin costo).
+            this.map.addListener('click', (ev) => {
+                const p = aLatLng(ev.latLng);
+                if (p) {
+                    this.colocar(p.lat, p.lng);
+                }
+            });
+
+            // El buscador puede haberse montado antes (sin mapa): idempotente.
+            await this.montarBuscador();
 
             if (this.autoAbrir) {
                 // Buscador listo para escribir (el web component delega el foco).
@@ -322,7 +381,6 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.aplicarLocalidad(this.centroLocalidad());
-            this.$wire.$watch('domLocalidadCentro', (c) => this.aplicarLocalidad(c));
 
             this.dibujarContexto();
         },
@@ -430,22 +488,22 @@ document.addEventListener('alpine:init', () => {
             const centro = c && c.lat != null ? { lat: Number(c.lat), lng: Number(c.lng) } : null;
             this.tieneCentro = !!centro;
 
-            if (!centro || !this.map) {
-                if (this.autocomplete) {
-                    this.autocomplete.locationRestriction = null;
-                }
-
-                return;
+            // La restricción del buscador no depende del mapa: con el mapa
+            // cerrado el operador igual puede buscar la dirección correcta.
+            if (this.autocomplete) {
+                const d = 0.18; // ~20km alrededor del centro de la localidad
+                this.autocomplete.locationRestriction = centro
+                    ? {
+                          north: centro.lat + d,
+                          south: centro.lat - d,
+                          east: centro.lng + d,
+                          west: centro.lng - d,
+                      }
+                    : null;
             }
 
-            const d = 0.18; // ~20km alrededor del centro de la localidad
-            if (this.autocomplete) {
-                this.autocomplete.locationRestriction = {
-                    north: centro.lat + d,
-                    south: centro.lat - d,
-                    east: centro.lng + d,
-                    west: centro.lng - d,
-                };
+            if (!centro || !this.map) {
+                return;
             }
 
             if (!this.coordActual()) {
@@ -492,6 +550,10 @@ document.addEventListener('alpine:init', () => {
         },
 
         colocar(lat, lng, zoom, direccion = null) {
+            // Guardamos el punto antes de dibujar: con el mapa cerrado no hay
+            // marcador que crear, y este valor es el que usa construir() cuando
+            // el mapa se abre después (la prop Livewire puede no haber vuelto).
+            this.coords = { lat: Number(lat), lng: Number(lng) };
             this.mostrarMarker({ lat, lng });
             if (this.map) {
                 this.map.setCenter({ lat, lng });
@@ -528,6 +590,12 @@ document.addEventListener('alpine:init', () => {
                 // La predicción ya trae los componentes: evita el reverse
                 // geocoding que colocar() haría sin dirección explícita.
                 this.colocar(loc.lat, loc.lng, 17, direccionDesdeComponents(place.addressComponents));
+
+                // Buscó desde el campo, sin mapa: lo abrimos para que vea dónde
+                // quedó el punto (y pueda ajustarlo arrastrando el pin).
+                if (this.conBuscador && !this.abierto) {
+                    this.abrir();
+                }
             }
         },
 

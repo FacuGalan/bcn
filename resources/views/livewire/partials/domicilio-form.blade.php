@@ -24,6 +24,9 @@
       - $mapaContexto (?array)     : payload de DeliveryEnvioService::mapaPayload() — pin del
                                      local + zonas + radio, dibujados como contexto (default null).
                                      Solo para los flujos de delivery.
+      - $conBuscador (bool)        : muestra el buscador de Google FUERA del mapa, para corregir
+                                     la ubicación sin abrirlo (default: el valor de
+                                     $autocompletarDireccion). El SDK se carga al tocarlo.
 --}}
 @php($conTipo = $conTipo ?? true)
 @php($conDireccion = $conDireccion ?? true)
@@ -38,6 +41,7 @@
 @php($direccionLabel = $direccionLabel ?? __('Dirección'))
 @php($conGeolocalizacion = $conGeolocalizacion ?? true)
 @php($mapaContexto = $mapaContexto ?? null)
+@php($conBuscador = $conBuscador ?? (bool) $autocompletarDireccion)
 
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
     @if($conTipo)
@@ -100,8 +104,26 @@
                     'txtGeoError' => __('No pudimos obtener tu ubicación'),
                     'autocompletarDireccion' => (bool) $autocompletarDireccion,
                     'autoAbrir' => (bool) $mapaAutoAbrir,
+                    'conBuscador' => (bool) $conBuscador,
                 ]))">
                 <label class="block text-xs font-medium text-gray-700 dark:text-gray-300">{{ __('Ubicar en el mapa') }} <span class="text-gray-400">({{ __('opcional') }})</span></label>
+
+                {{-- Buscador de Google FUERA del mapa: permite corregir la
+                     ubicación real sin abrirlo (el mapa se abre solo al elegir
+                     una dirección, para confirmar el punto). El SDK se carga
+                     recién al tocar el campo: sin click no hay llamada a la API. --}}
+                @if($conBuscador)
+                    <div class="mt-1" wire:ignore>
+                        <div x-ref="autocompleteSlot" x-show="buscadorListo" x-cloak></div>
+                        <button type="button" x-show="! buscadorListo" @click="enfocarBuscador()"
+                            class="flex w-full items-center gap-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-left text-sm text-gray-500 dark:text-gray-400 shadow-sm hover:border-bcn-primary focus:border-bcn-primary focus:ring-1 focus:ring-bcn-primary">
+                            <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
+                            {{ __('Buscar dirección en Google') }}
+                        </button>
+                    </div>
+                    <p x-show="cargandoBuscador" x-cloak class="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{{ __('Cargando buscador…') }}</p>
+                    <p x-show="errorBuscador" x-cloak class="mt-1 text-[11px] text-red-600 dark:text-red-400">{{ __('No se pudo cargar el buscador') }}</p>
+                @endif
 
                 {{-- Estado cerrado: botón que dispara la carga on-demand.
                      Con mapaAutoAbrir no existe: el mapa arranca abierto. --}}
@@ -129,7 +151,9 @@
                              en el x-data — un payload dinámico interpolado en x-data hace
                              que Alpine re-inicialice el componente en cada morph. --}}
                         <script type="application/json" x-ref="mapaContexto">@json($mapaContexto)</script>
-                        <div x-ref="autocompleteSlot"></div>
+                        @unless($conBuscador)
+                            <div x-ref="autocompleteSlot"></div>
+                        @endunless
                         <div x-ref="mapa" class="w-full h-80 sm:h-96 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700"></div>
                         <div class="flex flex-wrap items-center gap-2">
                             @if($conGeolocalizacion)
