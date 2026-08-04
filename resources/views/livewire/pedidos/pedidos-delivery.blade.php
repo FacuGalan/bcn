@@ -1390,7 +1390,18 @@
                             @if($pedidoDetalle->tipo === 'delivery')
                                 <div class="col-span-2 sm:col-span-1">
                                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Dirección de entrega') }}</label>
-                                    <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $pedidoDetalle->direccion_entrega ?? '—' }}</p>
+                                    <div class="mt-1 flex items-start gap-1.5">
+                                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $pedidoDetalle->direccion_entrega ?? '—' }}</p>
+                                        {{-- Corregir dirección/ubicación (spec delivery-burbuja-y-mapa RF-05):
+                                             cierra este modal y abre el form de domicilio con el mapa. --}}
+                                        @if(! in_array($pedidoDetalle->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
+                                            <button type="button" wire:click="abrirEditarDireccion({{ $pedidoDetalle->id }})"
+                                                title="{{ __('Editar dirección de entrega') }}" aria-label="{{ __('Editar dirección de entrega') }}"
+                                                class="shrink-0 rounded-md p-1 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 transition">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                                            </button>
+                                        @endif
+                                    </div>
                                     @if($pedidoDetalle->direccion_referencia)
                                         <p class="text-xs text-gray-500 dark:text-gray-400">{{ $pedidoDetalle->direccion_referencia }}</p>
                                     @endif
@@ -2297,6 +2308,91 @@
                     class="px-4 py-2 bg-red-600 rounded-md text-sm font-semibold text-white hover:bg-red-700">
                     {{ __('Rechazar pedido') }}
                 </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- ==================== MODAL: EDITAR DIRECCIÓN (spec delivery-burbuja-y-mapa RF-05/06) ==================== --}}
+    {{-- Un modal a la vez: se abre desde el detalle (que se cierra) y al
+         guardar/cancelar el detalle se reabre solo. El mapa nace CERRADO. --}}
+    @if($showDireccionModal)
+        <x-bcn-modal :title="__('Editar dirección de entrega')" color="bg-cyan-600" maxWidth="2xl" onClose="cerrarEditarDireccion">
+            <x-slot:body>
+                <div class="space-y-3">
+                    @if($this->direccionGeorreferenciada)
+                        @include('livewire.partials.domicilio-form', [
+                            'conTipo' => false,
+                            'conReferencia' => true,
+                            'conGeo' => true,
+                            'conUbicacion' => false,
+                            'direccionAlFinal' => true,
+                            'autocompletarDireccion' => true,
+                            'conGeolocalizacion' => false,
+                            'mapaContexto' => $this->mapaContextoDireccion,
+                            'provinciaRequerida' => false,
+                            'idPrefix' => 'editdir',
+                            'direccionLabel' => __('Dirección de entrega'),
+                        ])
+                    @else
+                        {{-- Georreferenciado OFF: solo texto, se guarda sin recotizar --}}
+                        @include('livewire.partials.domicilio-form', [
+                            'conTipo' => false,
+                            'conReferencia' => true,
+                            'conGeo' => false,
+                            'conUbicacion' => false,
+                            'provinciaRequerida' => false,
+                            'idPrefix' => 'editdir',
+                            'direccionLabel' => __('Dirección de entrega'),
+                        ])
+                    @endif
+
+                    {{-- Delta de recotización pendiente de confirmar (RF-06):
+                         ningún cambio de plata en silencio. --}}
+                    @if($direccionPreview)
+                        @if($direccionPreview['alcance'] === 'fuera')
+                            <div data-preview-direccion class="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-300 space-y-1">
+                                <p class="font-semibold">⚠️ {{ __('La nueva ubicación queda fuera de la zona de reparto') }}</p>
+                                @if($direccionPreview['distancia_km'] !== null)
+                                    <p class="text-xs">{{ __('Distancia al local') }}: {{ number_format($direccionPreview['distancia_km'], 1, ',', '.') }} km</p>
+                                @endif
+                                <p class="text-xs">{{ __('Si guardás igual, el pedido queda sin zona y conserva el envío de :costo', ['costo' => '$'.number_format($direccionPreview['costo_antes'], 2, ',', '.')]) }}</p>
+                            </div>
+                        @else
+                            <div data-preview-direccion class="rounded-md border border-cyan-300 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-900/20 p-3 text-sm text-cyan-900 dark:text-cyan-200 space-y-1">
+                                <p class="font-semibold">{{ __('La nueva ubicación cambia el envío') }}</p>
+                                @if(($direccionPreview['zona_antes'] ?? null) !== ($direccionPreview['zona_despues'] ?? null))
+                                    <p class="text-xs">{{ __('Zona') }}: {{ $direccionPreview['zona_antes'] ?? '—' }} → <span class="font-semibold">{{ $direccionPreview['zona_despues'] ?? '—' }}</span></p>
+                                @endif
+                                @if(abs($direccionPreview['costo_despues'] - $direccionPreview['costo_antes']) >= 0.01)
+                                    <p class="text-xs">{{ __('Costo de envío') }}: ${{ number_format($direccionPreview['costo_antes'], 2, ',', '.') }} → <span class="font-semibold">${{ number_format($direccionPreview['costo_despues'], 2, ',', '.') }}</span></p>
+                                @endif
+                                @if($direccionPreview['distancia_km'] !== null)
+                                    <p class="text-xs">{{ __('Distancia') }}: {{ number_format($direccionPreview['distancia_km'], 1, ',', '.') }} km</p>
+                                @endif
+                                @if($direccionPreview['costo_manual'])
+                                    <p class="text-xs text-amber-700 dark:text-amber-400">{{ __('El costo fue fijado a mano: solo se actualizan zona y distancia') }}</p>
+                                @endif
+                            </div>
+                        @endif
+                    @endif
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" wire:click="cerrarEditarDireccion"
+                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    {{ __('Cancelar') }}
+                </button>
+                @if($direccionPreview)
+                    <button type="button" wire:click="confirmarGuardarDireccion"
+                        class="px-4 py-2 rounded-md text-sm font-semibold text-white {{ $direccionPreview['alcance'] === 'fuera' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-cyan-600 hover:bg-cyan-700' }}">
+                        {{ $direccionPreview['alcance'] === 'fuera' ? __('Guardar igual') : __('Confirmar cambio') }}
+                    </button>
+                @else
+                    <button type="button" wire:click="guardarDireccion"
+                        class="px-4 py-2 bg-cyan-600 rounded-md text-sm font-semibold text-white hover:bg-cyan-700">
+                        {{ __('Guardar') }}
+                    </button>
+                @endif
             </x-slot:footer>
         </x-bcn-modal>
     @endif
