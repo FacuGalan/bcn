@@ -1,10 +1,11 @@
 # Panel de Delivery: burbuja de pedidos por aceptar + mapa - Especificación
 
-## Estado: EN REVISIÓN
+## Estado: COMPLETO (pendiente validación en vivo del usuario)
 
-> Spec escrito el 2026-08-04 tras exploración del módulo. Las 4 decisiones
-> abiertas fueron resueltas por el usuario (ver Notas y Decisiones).
-> Esperando aprobación para pasar a implementación.
+> Implementado el 2026-08-04 en la rama feat/delivery-burbuja-y-mapa.
+> Fase 1: 78371fd · Fase 2: 2f33ff0 · Fase 3: 64754ac.
+> Tests: mapaPayload + modal alta (lazy/contexto), 12 de corrección de
+> dirección, burbuja/bloque móvil; suites Delivery en verde.
 
 ---
 
