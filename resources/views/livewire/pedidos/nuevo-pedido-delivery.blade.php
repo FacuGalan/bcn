@@ -941,9 +941,12 @@
             <x-slot:body>
                 <div class="space-y-3">
                     @if($georreferenciarPedidos)
-                        {{-- Georreferenciado ON: mapa primero; la dirección se autocompleta
-                             desde el punto elegido y queda editable al final. Provincia y
-                             localidad NO se muestran: las fija la sucursal (acotan el mapa). --}}
+                        {{-- Georreferenciado ON: la dirección se autocompleta desde el
+                             punto elegido y queda editable al final. Provincia y localidad
+                             NO se muestran: las fija la sucursal (acotan el mapa). El mapa
+                             arranca CERRADO (lazy): sin tocar "Abrir mapa" no hay ninguna
+                             llamada a la API de Google. Sin geolocalización: la dirección
+                             es del CLIENTE, no del operador. --}}
                         @include('livewire.partials.domicilio-form', [
                             'conTipo' => false,
                             'conReferencia' => true,
@@ -951,7 +954,8 @@
                             'conUbicacion' => false,
                             'direccionAlFinal' => true,
                             'autocompletarDireccion' => true,
-                            'mapaAutoAbrir' => true,
+                            'conGeolocalizacion' => false,
+                            'mapaContexto' => $this->mapaContextoEntrega,
                             'provinciaRequerida' => false,
                             'idPrefix' => 'entrega',
                             'direccionLabel' => __('Dirección de entrega'),

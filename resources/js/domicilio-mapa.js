@@ -19,6 +19,58 @@
 // Centro por defecto: Argentina (cuando no hay localidad ni coords).
 const CENTRO_AR = { lat: -38.4161, lng: -63.6167 };
 
+// Paleta ciclada de zonas de reparto — compartida con zonas-mapa.js para que
+// una zona tenga el MISMO color en la config y en el picker de domicilio.
+export const COLORES_ZONAS = ['#0891b2', '#d97706', '#7c3aed', '#dc2626', '#059669', '#db2777', '#2563eb', '#65a30d'];
+
+/** Centroide simple (promedio de vértices) — para la etiqueta de la zona. */
+export function centroide(path) {
+    if (!path.length) {
+        return null;
+    }
+    const sum = path.reduce((a, p) => ({ lat: a.lat + Number(p.lat), lng: a.lng + Number(p.lng) }), { lat: 0, lng: 0 });
+
+    return { lat: sum.lat / path.length, lng: sum.lng / path.length };
+}
+
+/**
+ * Pin de marca del LOCAL: gota clásica naranja con el ícono BCN de la PWA
+ * sobre un disco blanco. Es el pin de "acá está la tienda" (config de zonas
+ * y contexto del picker); el domicilio del cliente usa el marcador rojo
+ * default de Maps. Estilos inline a propósito (ganan al preflight de
+ * Tailwind, que con `img { height:auto }` rompería el tamaño del ícono).
+ */
+export function crearPinLocal() {
+    const wrap = document.createElement('div');
+    wrap.style.cssText =
+        'position:relative;width:40px;height:51px;' +
+        'filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));';
+
+    // Cuerpo del pin: gota clásica, cabeza redonda (centro 20,17 r16) y punta en (20,50).
+    wrap.innerHTML =
+        '<svg width="40" height="51" viewBox="0 0 40 51" xmlns="http://www.w3.org/2000/svg">' +
+        '<path d="M20 50 C14 38 4 27 4 17 A16 16 0 1 1 36 17 C36 27 26 38 20 50 Z" ' +
+        'fill="#FFAF22" stroke="#ffffff" stroke-width="2"/></svg>';
+
+    // Disco blanco para separar el ícono del cuerpo naranja.
+    const disco = document.createElement('div');
+    disco.style.cssText =
+        'position:absolute;top:4px;left:7px;width:26px;height:26px;' +
+        'border-radius:50%;background:#ffffff;box-sizing:border-box;';
+    wrap.appendChild(disco);
+
+    // Ícono BCN de la PWA, centrado dentro de la cabeza.
+    const icon = document.createElement('img');
+    icon.src = '/pwa-icons/icon-192x192.png';
+    icon.alt = '';
+    icon.style.cssText =
+        'position:absolute;top:5px;left:8px;width:24px;height:24px;' +
+        'border-radius:50%;object-fit:cover;display:block;';
+    wrap.appendChild(icon);
+
+    return wrap;
+}
+
 // Loader del bootstrap oficial de Google Maps — carga una sola vez por página.
 // Exportado: lo reutiliza zonas-mapa.js (mapa de zonas de entrega).
 let mapsPromise = null;
@@ -128,6 +180,9 @@ document.addEventListener('alpine:init', () => {
         // Opt-in: abrir el mapa apenas se monta el componente (modal de entrega:
         // el operador abrió el modal PARA cargar la dirección, sin paso extra).
         autoAbrir: config.autoAbrir || false,
+        // Opt-in: buscador de Google visible fuera del mapa (flujos de delivery).
+        // Al elegir una dirección abre el mapa para confirmar dónde cayó el pin.
+        conBuscador: config.conBuscador || false,
 
         map: null,
         marker: null,
@@ -141,7 +196,19 @@ document.addEventListener('alpine:init', () => {
         tieneCentro: false,
         coords: null,
 
+        // Buscador de direcciones (Places) — vive fuera del mapa: se puede
+        // corregir la ubicación real sin abrir el mapa, y el SDK se carga
+        // recién cuando el operador toca el buscador.
+        buscadorListo: false,
+        cargandoBuscador: false,
+        errorBuscador: false,
+        _montaje: null,
+
         init() {
+            // La localidad acota tanto el mapa como el buscador, y el buscador
+            // puede montarse SIN mapa: el watch va acá, no en construir().
+            this.$wire.$watch('domLocalidadCentro', (c) => this.aplicarLocalidad(c));
+
             // Carga PEREZOSA por defecto: no cargamos el SDK ni construimos el
             // mapa al montar — recién al tocar "Abrir mapa" (abrir()). Así, si
             // el usuario solo edita otros datos, no hay llamada (ni costo) de
@@ -159,7 +226,7 @@ document.addEventListener('alpine:init', () => {
             // (estuvo display:none, conviene reencuadrar).
             if (this.map) {
                 await this.$nextTick();
-                const c = this.coordActual() || this.centroLocalidad();
+                const c = this.coordActual() || this.coords || this.centroLocalidad();
                 if (c) {
                     this.map.setCenter(c);
                 }
@@ -189,44 +256,47 @@ document.addEventListener('alpine:init', () => {
             this.abierto = false;
         },
 
-        async construir() {
-            const [{ Map }, { AdvancedMarkerElement }, { PlaceAutocompleteElement }] = await Promise.all([
-                google.maps.importLibrary('maps'),
-                google.maps.importLibrary('marker'),
-                google.maps.importLibrary('places'),
-            ]);
-
-            const coord = this.coordActual();
-            const centro = this.centroLocalidad();
-            const inicio = coord || centro || CENTRO_AR;
-            const zoom = coord ? 16 : centro ? 12 : 5;
-
-            this.map = new Map(this.$refs.mapa, {
-                center: inicio,
-                zoom,
-                mapId: this.mapId,
-                mapTypeControl: false,
-                streetViewControl: false,
-                fullscreenControl: false,
-                clickableIcons: false,
-            });
-
-            // Guardamos la clase para crear el marcador con map+position EN EL
-            // CONSTRUCTOR cada vez (camino canónico; togglear .map sobre un
-            // marcador pre-creado no lo renderiza de forma confiable).
-            this.AdvancedMarkerElement = AdvancedMarkerElement;
-            if (coord) {
-                this.mostrarMarker(coord);
+        /**
+         * Monta el buscador de Google (Places) en `autocompleteSlot`. Perezoso
+         * e idempotente: lo dispara el propio buscador al tocarlo o `construir()`
+         * al abrir el mapa, y las llamadas concurrentes comparten la promesa.
+         */
+        montarBuscador() {
+            if (this._montaje) {
+                return this._montaje;
+            }
+            if (this.autocomplete || !this.key || !this.$refs.autocompleteSlot) {
+                return Promise.resolve();
             }
 
-            // Click en el mapa = mover el pin (UX extra, sin costo).
-            this.map.addListener('click', (ev) => {
-                const p = aLatLng(ev.latLng);
-                if (p) {
-                    this.colocar(p.lat, p.lng);
+            this.cargandoBuscador = true;
+            this.errorBuscador = false;
+            this._montaje = (async () => {
+                try {
+                    await cargarGoogleMaps(this.key);
+                    const { PlaceAutocompleteElement } = await google.maps.importLibrary('places');
+                    this.crearAutocomplete(PlaceAutocompleteElement);
+                    this.buscadorListo = true;
+                    this.aplicarLocalidad(this.centroLocalidad());
+                } catch (e) {
+                    console.error('[domicilio-mapa] buscador', e);
+                    this.errorBuscador = true;
+                    this._montaje = null;
                 }
-            });
+                this.cargandoBuscador = false;
+            })();
 
+            return this._montaje;
+        },
+
+        /** Buscador listo y con el foco puesto (click en el campo señuelo). */
+        async enfocarBuscador() {
+            await this.montarBuscador();
+            setTimeout(() => this.autocomplete?.focus?.(), 50);
+        },
+
+        /** Crea el widget de autocomplete y engancha sus eventos. */
+        crearAutocomplete(PlaceAutocompleteElement) {
             this.autocomplete = new PlaceAutocompleteElement({ includedRegionCodes: ['ar'] });
             this.autocomplete.classList.add('w-full');
             this.$refs.autocompleteSlot.appendChild(this.autocomplete);
@@ -262,6 +332,48 @@ document.addEventListener('alpine:init', () => {
                 clearTimeout(this._enterPendiente);
                 this._enterPendiente = setTimeout(() => this.elegirPrimeraSugerencia(texto), 250);
             });
+        },
+
+        async construir() {
+            const [{ Map }, { AdvancedMarkerElement }] = await Promise.all([
+                google.maps.importLibrary('maps'),
+                google.maps.importLibrary('marker'),
+            ]);
+
+            const coord = this.coordActual() || this.coords;
+            const centro = this.centroLocalidad();
+            const local = this.contexto()?.centro || null;
+            const inicio = coord || centro || local || CENTRO_AR;
+            const zoom = coord ? 16 : centro ? 12 : local ? 13 : 5;
+
+            this.map = new Map(this.$refs.mapa, {
+                center: inicio,
+                zoom,
+                mapId: this.mapId,
+                mapTypeControl: false,
+                streetViewControl: false,
+                fullscreenControl: false,
+                clickableIcons: false,
+            });
+
+            // Guardamos la clase para crear el marcador con map+position EN EL
+            // CONSTRUCTOR cada vez (camino canónico; togglear .map sobre un
+            // marcador pre-creado no lo renderiza de forma confiable).
+            this.AdvancedMarkerElement = AdvancedMarkerElement;
+            if (coord) {
+                this.mostrarMarker(coord);
+            }
+
+            // Click en el mapa = mover el pin (UX extra, sin costo).
+            this.map.addListener('click', (ev) => {
+                const p = aLatLng(ev.latLng);
+                if (p) {
+                    this.colocar(p.lat, p.lng);
+                }
+            });
+
+            // El buscador puede haberse montado antes (sin mapa): idempotente.
+            await this.montarBuscador();
 
             if (this.autoAbrir) {
                 // Buscador listo para escribir (el web component delega el foco).
@@ -269,7 +381,93 @@ document.addEventListener('alpine:init', () => {
             }
 
             this.aplicarLocalidad(this.centroLocalidad());
-            this.$wire.$watch('domLocalidadCentro', (c) => this.aplicarLocalidad(c));
+
+            this.dibujarContexto();
+        },
+
+        /**
+         * Contexto de reparto de la sucursal (opcional): lo provee el host en
+         * un <script type="application/json"> junto al mapa. Vive fuera del
+         * x-data a propósito: un payload dinámico interpolado en x-data haría
+         * que Alpine re-inicialice el componente en cada morph de Livewire.
+         */
+        contexto() {
+            try {
+                return JSON.parse(this.$refs.mapaContexto?.textContent || 'null');
+            } catch {
+                return null;
+            }
+        },
+
+        /**
+         * Dibuja el contexto (solo visual, una vez por construcción del mapa):
+         * pin del LOCAL, radio general de entrega y polígonos de las zonas
+         * activas con su nombre. El alcance real lo decide el backend
+         * (DeliveryEnvioService::cotizar) — esto solo le muestra al operador
+         * dónde cae el punto respecto del reparto.
+         */
+        dibujarContexto() {
+            const ctx = this.contexto();
+            if (!ctx) {
+                return;
+            }
+            const mapa = window.Alpine.raw(this.map);
+
+            if (ctx.centro) {
+                new this.AdvancedMarkerElement({
+                    map: mapa,
+                    position: ctx.centro,
+                    content: crearPinLocal(),
+                    title: 'Local',
+                    zIndex: 1000,
+                });
+
+                if (ctx.radioKm) {
+                    new google.maps.Circle({
+                        map: mapa,
+                        center: ctx.centro,
+                        radius: Number(ctx.radioKm) * 1000,
+                        strokeColor: '#6b7280',
+                        strokeOpacity: 0.7,
+                        strokeWeight: 1.5,
+                        fillColor: '#6b7280',
+                        fillOpacity: 0.05,
+                        clickable: false,
+                    });
+                }
+            }
+
+            // Índice sobre la lista COMPLETA (como el mapa de config): así una
+            // zona conserva su color aunque haya inactivas intercaladas.
+            (ctx.zonas || []).forEach((zona, i) => {
+                const poligono = Array.isArray(zona.poligono) ? zona.poligono : [];
+                if (poligono.length < 3 || !zona.activo) {
+                    return;
+                }
+
+                const color = COLORES_ZONAS[i % COLORES_ZONAS.length];
+                new google.maps.Polygon({
+                    map: mapa,
+                    paths: poligono.map((v) => ({ lat: Number(v.lat), lng: Number(v.lng) })),
+                    strokeColor: color,
+                    strokeOpacity: 0.9,
+                    strokeWeight: 2,
+                    fillColor: color,
+                    fillOpacity: 0.1,
+                    clickable: false,
+                });
+
+                const c = centroide(poligono);
+                if (c) {
+                    const div = document.createElement('div');
+                    div.textContent = zona.nombre;
+                    div.style.cssText =
+                        `color:${color};font-size:11px;font-weight:700;` +
+                        'background:rgba(255,255,255,.85);padding:1px 6px;border-radius:8px;' +
+                        `border:1px solid ${color};white-space:nowrap;`;
+                    new this.AdvancedMarkerElement({ map: mapa, position: c, content: div });
+                }
+            });
         },
 
         coordActual() {
@@ -290,22 +488,22 @@ document.addEventListener('alpine:init', () => {
             const centro = c && c.lat != null ? { lat: Number(c.lat), lng: Number(c.lng) } : null;
             this.tieneCentro = !!centro;
 
-            if (!centro || !this.map) {
-                if (this.autocomplete) {
-                    this.autocomplete.locationRestriction = null;
-                }
-
-                return;
+            // La restricción del buscador no depende del mapa: con el mapa
+            // cerrado el operador igual puede buscar la dirección correcta.
+            if (this.autocomplete) {
+                const d = 0.18; // ~20km alrededor del centro de la localidad
+                this.autocomplete.locationRestriction = centro
+                    ? {
+                          north: centro.lat + d,
+                          south: centro.lat - d,
+                          east: centro.lng + d,
+                          west: centro.lng - d,
+                      }
+                    : null;
             }
 
-            const d = 0.18; // ~20km alrededor del centro de la localidad
-            if (this.autocomplete) {
-                this.autocomplete.locationRestriction = {
-                    north: centro.lat + d,
-                    south: centro.lat - d,
-                    east: centro.lng + d,
-                    west: centro.lng - d,
-                };
+            if (!centro || !this.map) {
+                return;
             }
 
             if (!this.coordActual()) {
@@ -315,45 +513,6 @@ document.addEventListener('alpine:init', () => {
                 this.map.setCenter(centro);
                 this.map.setZoom(12);
             }
-        },
-
-        /**
-         * Pin de marca con forma clásica de marcador (globo + punta) en naranja, con
-         * el ícono BCN de la PWA chico adentro, sobre un disco blanco para que
-         * contraste. El cuerpo es un SVG (forma de gota precisa); la punta del SVG
-         * cae en el bottom-center del contenido, que es donde AdvancedMarkerElement
-         * ancla la posición geográfica. Estilos inline a propósito (ganan al preflight
-         * de Tailwind, que con `img { height:auto }` rompería el tamaño del ícono).
-         */
-        crearPin() {
-            const wrap = document.createElement('div');
-            wrap.style.cssText =
-                'position:relative;width:40px;height:51px;cursor:grab;' +
-                'filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));';
-
-            // Cuerpo del pin: gota clásica, cabeza redonda (centro 20,17 r16) y punta en (20,50).
-            wrap.innerHTML =
-                '<svg width="40" height="51" viewBox="0 0 40 51" xmlns="http://www.w3.org/2000/svg">' +
-                '<path d="M20 50 C14 38 4 27 4 17 A16 16 0 1 1 36 17 C36 27 26 38 20 50 Z" ' +
-                'fill="#FFAF22" stroke="#ffffff" stroke-width="2"/></svg>';
-
-            // Disco blanco para separar el ícono del cuerpo naranja.
-            const disco = document.createElement('div');
-            disco.style.cssText =
-                'position:absolute;top:4px;left:7px;width:26px;height:26px;' +
-                'border-radius:50%;background:#ffffff;box-sizing:border-box;';
-            wrap.appendChild(disco);
-
-            // Ícono BCN de la PWA, centrado dentro de la cabeza.
-            const icon = document.createElement('img');
-            icon.src = '/pwa-icons/icon-192x192.png';
-            icon.alt = '';
-            icon.style.cssText =
-                'position:absolute;top:5px;left:8px;width:24px;height:24px;' +
-                'border-radius:50%;object-fit:cover;display:block;';
-            wrap.appendChild(icon);
-
-            return wrap;
         },
 
         /** Crea (o recrea) el marcador en una posición y lo muestra. */
@@ -370,11 +529,12 @@ document.addEventListener('alpine:init', () => {
             // hace una comparación de identidad interna contra la instancia REAL del
             // mapa para adjuntarse a su overlay; con el Proxy nunca lo hace y el pin
             // no se renderiza (isConnected=false). Pasamos el mapa crudo con Alpine.raw.
+            // Sin `content`, Maps usa su marcador ROJO estándar: es el lenguaje
+            // universal de "este punto" y distingue el domicilio del pin del local.
             this.marker = new this.AdvancedMarkerElement({
                 map: window.Alpine.raw(this.map),
                 position: pos,
                 gmpDraggable: true,
-                content: this.crearPin(),
                 title: 'Domicilio',
             });
             this.marker.addListener('dragend', () => {
@@ -390,6 +550,10 @@ document.addEventListener('alpine:init', () => {
         },
 
         colocar(lat, lng, zoom, direccion = null) {
+            // Guardamos el punto antes de dibujar: con el mapa cerrado no hay
+            // marcador que crear, y este valor es el que usa construir() cuando
+            // el mapa se abre después (la prop Livewire puede no haber vuelto).
+            this.coords = { lat: Number(lat), lng: Number(lng) };
             this.mostrarMarker({ lat, lng });
             if (this.map) {
                 this.map.setCenter({ lat, lng });
@@ -426,6 +590,12 @@ document.addEventListener('alpine:init', () => {
                 // La predicción ya trae los componentes: evita el reverse
                 // geocoding que colocar() haría sin dirección explícita.
                 this.colocar(loc.lat, loc.lng, 17, direccionDesdeComponents(place.addressComponents));
+
+                // Buscó desde el campo, sin mapa: lo abrimos para que vea dónde
+                // quedó el punto (y pueda ajustarlo arrastrando el pin).
+                if (this.conBuscador && !this.abierto) {
+                    this.abrir();
+                }
             }
         },
 

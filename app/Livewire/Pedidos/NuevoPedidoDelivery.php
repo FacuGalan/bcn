@@ -897,6 +897,24 @@ class NuevoPedidoDelivery extends Component
     }
 
     /**
+     * Contexto visual del mapa del modal de dirección: pin del local, zonas
+     * de reparto con nombre y radio general (RF-10/RF-11 del spec
+     * delivery-burbuja-y-mapa). Solo se arma con el modal abierto y la
+     * georreferenciación activa — es una consulta por render y el payload
+     * únicamente lo consume ese mapa.
+     */
+    public function getMapaContextoEntregaProperty(): ?array
+    {
+        if (! $this->mostrarModalDireccion || ! $this->georreferenciarPedidos || ! $this->sucursalId) {
+            return null;
+        }
+
+        $sucursal = Sucursal::find($this->sucursalId);
+
+        return $sucursal ? $this->envioService->mapaPayload($sucursal) : null;
+    }
+
+    /**
      * Confirma la dirección del modal: snapshot al estado del pedido y
      * re-cotización del envío. Guardar sin coordenadas está permitido con
      * advertencia explícita (sin geo no hay cálculo automático, RF-04).

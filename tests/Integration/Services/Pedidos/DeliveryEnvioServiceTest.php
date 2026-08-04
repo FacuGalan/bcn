@@ -330,4 +330,39 @@ class DeliveryEnvioServiceTest extends TestCase
         $this->assertTrue($this->service->estaAbierto($sucursal, Carbon::parse('2026-07-02 01:30')));
         $this->assertFalse($this->service->estaAbierto($sucursal, Carbon::parse('2026-07-02 12:00')));
     }
+
+    // ==================== MAPA (contexto visual del picker) ====================
+
+    public function test_mapa_payload_arma_centro_radio_y_zonas_en_orden(): void
+    {
+        $sucursal = $this->sucursalConConfig(['radio_entrega_km' => 8]);
+
+        $this->zonaPoligono('Centro', $this->cuadrado(-34.6037, -58.3816), 800, ['orden' => 1]);
+        $this->zonaPoligono('Apagada', $this->cuadrado(-34.62, -58.40), 999, ['orden' => 0, 'activo' => false]);
+
+        $payload = $this->service->mapaPayload($sucursal);
+
+        $this->assertSame(['lat' => -34.6037, 'lng' => -58.3816], $payload['centro']);
+        $this->assertSame(8.0, $payload['radioKm']);
+        // TODAS las zonas, ordenadas por prioridad, con su flag activo: el
+        // front decide cómo pintar (y así los colores no bailan entre mapas).
+        $this->assertSame(['Apagada', 'Centro'], array_column($payload['zonas'], 'nombre'));
+        $this->assertSame([false, true], array_column($payload['zonas'], 'activo'));
+        $this->assertCount(4, $payload['zonas'][1]['poligono']);
+    }
+
+    public function test_mapa_payload_sin_coordenadas_de_sucursal_ni_radio(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'latitud' => null,
+            'longitud' => null,
+            'config_delivery' => json_encode(['georreferenciar_pedidos' => true]),
+        ]);
+
+        $payload = $this->service->mapaPayload(Sucursal::find($this->sucursalId));
+
+        $this->assertNull($payload['centro']);
+        $this->assertNull($payload['radioKm']);
+        $this->assertSame([], $payload['zonas']);
+    }
 }

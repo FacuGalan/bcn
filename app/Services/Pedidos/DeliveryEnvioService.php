@@ -114,6 +114,38 @@ class DeliveryEnvioService
     }
 
     /**
+     * Payload para dibujar el contexto de reparto de la sucursal en un mapa:
+     * pin del local (centro), polígonos de TODAS las zonas en orden de
+     * prioridad (el front decide cómo pintar las inactivas) y radio general.
+     * Lo consumen el mapa de configuración de zonas y el picker de domicilio
+     * de los flujos de delivery. Es SOLO visual: el alcance real lo decide
+     * cotizar() en el backend.
+     *
+     * @return array{zonas: list<array{id: int, nombre: string, poligono: array, activo: bool}>, radioKm: float|null, centro: array{lat: float, lng: float}|null}
+     */
+    public function mapaPayload(Sucursal $sucursal): array
+    {
+        $radio = $this->configDelivery($sucursal)['radio_entrega_km'] ?? null;
+
+        return [
+            'zonas' => DeliveryZona::porSucursal($sucursal->id)
+                ->ordenadas()
+                ->get()
+                ->map(fn (DeliveryZona $zona) => [
+                    'id' => $zona->id,
+                    'nombre' => $zona->nombre,
+                    'poligono' => is_array($zona->poligono) ? $zona->poligono : [],
+                    'activo' => (bool) $zona->activo,
+                ])
+                ->all(),
+            'radioKm' => $radio !== null && $radio !== '' ? (float) $radio : null,
+            'centro' => $sucursal->latitud && $sucursal->longitud
+                ? ['lat' => (float) $sucursal->latitud, 'lng' => (float) $sucursal->longitud]
+                : null,
+        ];
+    }
+
+    /**
      * Primera zona activa dibujada (por `orden`, luego id) cuyo polígono
      * contiene el punto.
      */

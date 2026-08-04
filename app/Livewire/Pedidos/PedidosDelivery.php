@@ -14,6 +14,7 @@ use App\Models\Sucursal;
 use App\Services\Pedidos\PedidoDeliveryService;
 use App\Services\Pedidos\RepartidorService;
 use App\Traits\CajaAware;
+use App\Traits\ManejaDomicilio;
 use App\Traits\SucursalAware;
 use Exception;
 use Illuminate\Support\Facades\DB;
@@ -50,10 +51,23 @@ class PedidosDelivery extends Component
         CajaAware::getListeners insteadof SucursalAware;
     }
 
+    // Editar dirección desde el modal Ver (spec delivery-burbuja-y-mapa
+    // RF-05/06): mismo form de domicilio que el alta. El delta de recotización
+    // mostrado deja de valer si el operador mueve el pin: lo limpiamos acá.
+    use ManejaDomicilio {
+        setCoordenadasDesdeMapa as protected setCoordenadasDesdeMapaBase;
+    }
+
     // Cobro por QR (mismo concern que usan NuevaVenta/NuevoPedidoDelivery):
     // materializa pagos planificados con forma de pago integrada solo cuando el
     // pago QR se confirma. Única fuente de verdad del cobro por integración.
     use WithCobroIntegracion;
+
+    public function setCoordenadasDesdeMapa($lat, $lng): void
+    {
+        $this->setCoordenadasDesdeMapaBase($lat, $lng);
+        $this->direccionPreview = null;
+    }
 
     // ==================== FILTROS ====================
 
@@ -89,6 +103,18 @@ class PedidosDelivery extends Component
     public bool $showDetalleModal = false;
 
     public ?int $pedidoDetalleId = null;
+
+    // ==================== EDITAR DIRECCIÓN ====================
+
+    public bool $showDireccionModal = false;
+
+    public ?int $pedidoDireccionId = null;
+
+    /**
+     * Delta de recotización pendiente de confirmar (RF-06): zona/costo
+     * antes→después o punto fuera de alcance. Null = sin nada que confirmar.
+     */
+    public ?array $direccionPreview = null;
 
     // ==================== MODAL: CAMBIAR ESTADO ====================
 
@@ -542,6 +568,9 @@ class PedidosDelivery extends Component
     protected function resetEstadoComponente(): void
     {
         $this->showDetalleModal = false;
+        $this->showDireccionModal = false;
+        $this->pedidoDireccionId = null;
+        $this->direccionPreview = null;
         $this->showCambiarEstadoModal = false;
         $this->showCancelarModal = false;
         $this->showCobrarModal = false;
@@ -1275,6 +1304,182 @@ class PedidosDelivery extends Component
     {
         $this->showDetalleModal = false;
         $this->pedidoDetalleId = null;
+    }
+
+    // ============ EDITAR DIRECCIÓN (spec delivery-burbuja-y-mapa) ============
+
+    /**
+     * Un modal a la vez (patrón del componente): abrir la edición de dirección
+     * CIERRA el detalle; al guardar o cancelar, el detalle se reabre solo.
+     */
+    public function abrirEditarDireccion(int $pedidoId): void
+    {
+        $pedido = PedidoDelivery::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        if ($pedido->tipo !== PedidoDelivery::TIPO_DELIVERY) {
+            return;
+        }
+
+        if (in_array($pedido->estado_pedido, [
+            PedidoDelivery::ESTADO_ENTREGADO,
+            PedidoDelivery::ESTADO_FACTURADO,
+            PedidoDelivery::ESTADO_CANCELADO,
+        ], true)) {
+            $this->dispatch('toast-error', message: __("El pedido en estado ':estado' ya no admite cambios de dirección", ['estado' => $pedido->estado_pedido]));
+
+            return;
+        }
+
+        $this->resetDomicilio();
+        $this->domTipo = 'otro';
+        $this->setDomicilioDesde([
+            'tipo' => 'otro',
+            'direccion' => (string) $pedido->direccion_entrega,
+            'referencia' => $pedido->direccion_referencia,
+            'localidad_id' => $pedido->localidad_entrega_id,
+            'latitud' => $pedido->latitud,
+            'longitud' => $pedido->longitud,
+        ]);
+        if ($sucursal = Sucursal::find($pedido->sucursal_id)) {
+            $this->domicilioDefaultDesdeSucursal($sucursal);
+        }
+
+        $this->pedidoDireccionId = $pedidoId;
+        $this->direccionPreview = null;
+        $this->showDireccionModal = true;
+        $this->showDetalleModal = false;
+    }
+
+    public function cerrarEditarDireccion(): void
+    {
+        $pedidoId = $this->pedidoDireccionId;
+        $this->showDireccionModal = false;
+        $this->pedidoDireccionId = null;
+        $this->direccionPreview = null;
+
+        if ($pedidoId) {
+            $this->verDetalle($pedidoId);
+        }
+    }
+
+    /**
+     * Guarda la corrección. Si la recotización cambia zona/costo (o el punto
+     * queda fuera de alcance), primero muestra el delta y espera la
+     * confirmación explícita (confirmarGuardarDireccion) — RF-06: ningún
+     * cambio de plata en silencio.
+     */
+    public function guardarDireccion(): void
+    {
+        $pedido = $this->pedidoDireccionEnEdicion();
+        if (! $pedido) {
+            return;
+        }
+
+        if (trim($this->domDireccion) === '') {
+            $this->dispatch('toast-error', message: __('Ingresá la dirección de entrega'));
+
+            return;
+        }
+
+        $datos = $this->datosDomicilio();
+        $preview = $this->service->previsualizarCorreccionDireccion(
+            $pedido,
+            $datos['latitud'] !== null ? (float) $datos['latitud'] : null,
+            $datos['longitud'] !== null ? (float) $datos['longitud'] : null,
+        );
+
+        if ($preview !== null) {
+            $this->direccionPreview = $preview;
+
+            return;
+        }
+
+        $this->persistirDireccion($pedido);
+    }
+
+    /** El operador vio el delta (o el fuera de alcance) y confirmó. */
+    public function confirmarGuardarDireccion(): void
+    {
+        if (! $this->direccionPreview) {
+            return;
+        }
+
+        if ($pedido = $this->pedidoDireccionEnEdicion()) {
+            $this->persistirDireccion($pedido);
+        }
+    }
+
+    protected function persistirDireccion(PedidoDelivery $pedido): void
+    {
+        try {
+            $this->service->corregirDireccion($pedido, $this->datosDomicilio());
+        } catch (Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+
+            return;
+        }
+
+        $mensaje = $pedido->estado_pago === PedidoDelivery::ESTADO_PAGO_PENDIENTE
+            ? __('Dirección actualizada')
+            : __('Dirección actualizada. El pedido ya tiene pagos: no se recalculó el envío');
+        $this->dispatch('toast-success', message: $mensaje);
+
+        $this->cerrarEditarDireccion();
+    }
+
+    /** Pedido en edición re-validado server-side (el estado pudo avanzar). */
+    protected function pedidoDireccionEnEdicion(): ?PedidoDelivery
+    {
+        $pedido = $this->pedidoDireccionId ? PedidoDelivery::find($this->pedidoDireccionId) : null;
+        if (! $pedido
+            || ! $this->tieneAccesoASucursal($pedido->sucursal_id)
+            || $pedido->tipo !== PedidoDelivery::TIPO_DELIVERY
+            || in_array($pedido->estado_pedido, [
+                PedidoDelivery::ESTADO_ENTREGADO,
+                PedidoDelivery::ESTADO_FACTURADO,
+                PedidoDelivery::ESTADO_CANCELADO,
+            ], true)) {
+            $this->dispatch('toast-error', message: __('El pedido ya no admite cambios de dirección'));
+            $this->showDireccionModal = false;
+            $this->pedidoDireccionId = null;
+            $this->direccionPreview = null;
+
+            return null;
+        }
+
+        return $pedido;
+    }
+
+    /**
+     * ¿El modal de dirección va con mapa? Sigue la config de la sucursal DEL
+     * PEDIDO (georreferenciar_pedidos), igual que el alta.
+     */
+    public function getDireccionGeorreferenciadaProperty(): bool
+    {
+        $pedido = $this->pedidoDireccionId ? PedidoDelivery::find($this->pedidoDireccionId) : null;
+        if (! $pedido || ! ($sucursal = Sucursal::find($pedido->sucursal_id))) {
+            return false;
+        }
+
+        return (bool) ($sucursal->getConfigDelivery()['georreferenciar_pedidos'] ?? false);
+    }
+
+    /** Contexto visual del mapa (pin del local + zonas), como en el alta. */
+    public function getMapaContextoDireccionProperty(): ?array
+    {
+        if (! $this->showDireccionModal || ! $this->pedidoDireccionId || ! $this->direccionGeorreferenciada) {
+            return null;
+        }
+
+        $pedido = PedidoDelivery::find($this->pedidoDireccionId);
+        $sucursal = $pedido ? Sucursal::find($pedido->sucursal_id) : null;
+
+        return $sucursal ? app(\App\Services\Pedidos\DeliveryEnvioService::class)->mapaPayload($sucursal) : null;
     }
 
     // ==================== CAMBIAR ESTADO ====================

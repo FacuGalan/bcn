@@ -265,20 +265,21 @@
         </div>
     </div>
 
-    {{-- ==================== POR ACEPTAR (D14/RF-12/RF-T27) ==================== --}}
+    {{-- ==================== POR ACEPTAR (D14/RF-12/RF-T27 → burbuja flotante, spec delivery-burbuja-y-mapa) ==================== --}}
     @if($pedidosPorAceptar->isNotEmpty())
         @php
             // RF-T27: timeout vencido en ALGÚN pedido ⇒ indicador rojo visible
-            // aun con la banda plegada.
+            // aun con la burbuja cerrada.
             $hayAceptacionDemorada = $timeoutAceptacionMin > 0 && $pedidosPorAceptar->contains(
                 fn ($p) => $p->created_at->diffInMinutes(now()) >= $timeoutAceptacionMin
             );
         @endphp
+
+        {{-- MÓVIL: bloque plegable en el flujo (la burbuja arrastrable es de desktop) --}}
         <div x-data="{ abierto: false, destello: false }"
             @pedido-por-aceptar.window="destello = true; setTimeout(() => destello = false, 4000)"
             :class="destello ? 'ring-2 ring-orange-400 dark:ring-orange-500' : ''"
-            class="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-md p-2.5 mb-2 flex-shrink-0 space-y-1.5 transition-shadow">
-            {{-- Cabecera compacta: plegada por defecto, click expande (RF-T27) --}}
+            class="sm:hidden bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-md p-2.5 mb-2 flex-shrink-0 space-y-1.5 transition-shadow">
             <button type="button" @click="abierto = !abierto" class="w-full flex items-center gap-2 text-left">
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-600 text-white text-xs font-bold rounded-full animate-pulse">
                     {{ $pedidosPorAceptar->count() }} {{ __('por aceptar') }}
@@ -294,58 +295,65 @@
                 </svg>
             </button>
             <div x-show="abierto" x-cloak class="space-y-1.5">
-            @foreach($pedidosPorAceptar as $pedidoPA)
-                @php
-                    // D14: timeout de aceptación vencido ⇒ resaltar (no se cancela solo).
-                    $aceptacionDemorada = $timeoutAceptacionMin > 0
-                        && $pedidoPA->created_at->diffInMinutes(now()) >= $timeoutAceptacionMin;
-                @endphp
-                <div class="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-gray-800 rounded-md px-3 py-2 border {{ $aceptacionDemorada ? 'border-red-400 dark:border-red-600 ring-1 ring-red-300 dark:ring-red-700' : 'border-orange-200 dark:border-orange-800' }}">
-                    <div class="flex-1 min-w-0">
-                        <span class="text-sm font-semibold text-gray-900 dark:text-white">
-                            {{ $pedidoPA->nombre_cliente_final ?? __('Sin cliente') }}
-                        </span>
-                        @if($aceptacionDemorada)
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 animate-pulse align-middle">
-                                {{ __('Demorado') }}
-                            </span>
-                        @endif
-                        <span class="text-xs text-gray-500 dark:text-gray-400">
-                            — {{ __(\App\Models\PedidoDelivery::TIPOS[$pedidoPA->tipo] ?? $pedidoPA->tipo) }}
-                            · {{ __(\App\Models\PedidoDelivery::ORIGENES[$pedidoPA->origen] ?? $pedidoPA->origen) }}
-                            · {{ $pedidoPA->created_at->diffForHumans(short: true) }}
-                        </span>
-                        {{-- RF-T26: promesa elegida por el cliente en la tienda --}}
-                        @if($promesaPA = $pedidoPA->promesaClienteInfo())
-                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold align-middle {{ $promesaPA['tipo'] === 'asap' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200' }}">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                {{ $promesaPA['label'] }}
-                            </span>
-                        @endif
-                        @if($pedidoPA->direccion_entrega)
-                            <span class="block text-xs text-gray-500 dark:text-gray-400 truncate">{{ $pedidoPA->direccion_entrega }}</span>
-                        @endif
-                    </div>
-                    <span class="text-sm font-bold text-bcn-primary whitespace-nowrap">${{ number_format($pedidoPA->total_final, 2, ',', '.') }}</span>
-                    <div class="flex gap-1.5">
-                        <button type="button" wire:click="verDetalle({{ $pedidoPA->id }})"
-                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            {{ __('Ver') }}
-                        </button>
-                        <button type="button" wire:click="abrirAceptar({{ $pedidoPA->id }})"
-                            class="inline-flex items-center px-2.5 py-1 bg-emerald-600 rounded text-xs font-semibold text-white hover:bg-emerald-700">
-                            {{ __('Aceptar') }}
-                        </button>
-                        <button type="button" wire:click="abrirRechazar({{ $pedidoPA->id }})"
-                            class="inline-flex items-center px-2.5 py-1 border border-red-300 dark:border-red-600 rounded text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30">
-                            {{ __('Rechazar') }}
-                        </button>
-                    </div>
-                </div>
-            @endforeach
+                @include('livewire.pedidos.partials.por-aceptar-lista')
             </div>
+        </div>
+
+        {{-- DESKTOP: burbuja flotante arrastrable (RF-01/02/03). Cerrada es una
+             píldora compacta con el contador; al clickearla la MISMA burbuja se
+             expande en una tarjeta flotante anclada al mismo punto (crece desde
+             ahí, no es una ventana de borde a borde). El anclaje respeta la
+             franja del navbar, así nunca queda debajo del menú. --}}
+        <div class="hidden sm:block"
+            x-data="burbujaPorAceptar({ clave: 'bcn-burbuja-pa-{{ session('comercio_activo_id') }}-{{ $this->sucursalActual() }}' })"
+            @pedido-por-aceptar.window="destello = true; setTimeout(() => destello = false, 4000)"
+            @keydown.escape.window="abierto = false">
+
+            {{-- Burbuja cerrada: contador + etiqueta. Arrastrable a cualquier borde. --}}
+            <button type="button" x-ref="burbuja" x-show="! abierto" x-cloak data-burbuja-por-aceptar
+                @pointerdown="empezarDrag($event)" @click.stop="clickBurbuja()"
+                :style="estiloBurbuja"
+                :class="[destello ? 'animate-pulse' : '', vibrando ? 'bcn-vibra' : '']"
+                title="{{ __('Pedidos por aceptar') }} · {{ __('Arrastrá para mover') }}"
+                aria-label="{{ __('Pedidos por aceptar') }}"
+                class="fixed z-50 inline-flex select-none touch-none items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3.5 text-white shadow-lg ring-1 ring-white/70 dark:ring-white/20 cursor-grab active:cursor-grabbing transition-colors hover:brightness-110 {{ $hayAceptacionDemorada ? 'bg-red-600' : 'bg-orange-500' }}">
+                <span class="bcn-late grid size-7 place-items-center rounded-full bg-white/25 text-sm font-bold leading-none">{{ $pedidosPorAceptar->count() }}</span>
+                <span class="text-[11px] font-semibold uppercase leading-none tracking-wide">{{ __('por aceptar') }}</span>
+            </button>
+
+            {{-- Tarjeta expandida: solo existe mientras está abierta (así al
+                 mover la burbuja de un borde a otro no cruza nada la pantalla)
+                 y crece desde el punto de anclaje. --}}
+            <section x-show="abierto" x-cloak data-panel-por-aceptar
+                @click.outside="abierto = false"
+                :style="estiloPanel"
+                x-transition:enter="transition ease-out duration-200"
+                x-transition:enter-start="opacity-0 scale-95"
+                x-transition:enter-end="opacity-100 scale-100"
+                x-transition:leave="transition ease-in duration-150"
+                x-transition:leave-start="opacity-100 scale-100"
+                x-transition:leave-end="opacity-0 scale-95"
+                class="fixed z-50 flex flex-col overflow-hidden rounded-2xl bg-white dark:bg-gray-800 shadow-2xl ring-1 {{ $hayAceptacionDemorada ? 'ring-red-300 dark:ring-red-700' : 'ring-orange-300 dark:ring-orange-700' }}">
+                <header class="flex items-center gap-2 border-b border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 px-3 py-2"
+                    title="{{ __('Pedidos de la tienda/API esperando confirmación') }}">
+                    <span class="grid size-6 shrink-0 place-items-center rounded-full text-[11px] font-bold text-white {{ $hayAceptacionDemorada ? 'bg-red-600' : 'bg-orange-500' }}">
+                        {{ $pedidosPorAceptar->count() }}
+                    </span>
+                    <span class="flex-1 min-w-0 truncate text-xs font-semibold text-orange-800 dark:text-orange-200">{{ __('Pedidos por aceptar') }}</span>
+                    @if($hayAceptacionDemorada)
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 animate-pulse">
+                            {{ __('Demorado') }}
+                        </span>
+                    @endif
+                    <button type="button" @click="abierto = false" aria-label="{{ __('Cerrar') }}"
+                        class="shrink-0 rounded-md p-1 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </header>
+                <div class="flex-1 overflow-y-auto p-2 space-y-1.5">
+                    @include('livewire.pedidos.partials.por-aceptar-lista')
+                </div>
+            </section>
         </div>
     @endif
 
@@ -1390,7 +1398,18 @@
                             @if($pedidoDetalle->tipo === 'delivery')
                                 <div class="col-span-2 sm:col-span-1">
                                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Dirección de entrega') }}</label>
-                                    <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ $pedidoDetalle->direccion_entrega ?? '—' }}</p>
+                                    <div class="mt-1 flex items-start gap-1.5">
+                                        <p class="text-sm font-medium text-gray-900 dark:text-white">{{ $pedidoDetalle->direccion_entrega ?? '—' }}</p>
+                                        {{-- Corregir dirección/ubicación (spec delivery-burbuja-y-mapa RF-05):
+                                             cierra este modal y abre el form de domicilio con el mapa. --}}
+                                        @if(! in_array($pedidoDetalle->estado_pedido, [\App\Models\PedidoDelivery::ESTADO_ENTREGADO, \App\Models\PedidoDelivery::ESTADO_FACTURADO, \App\Models\PedidoDelivery::ESTADO_CANCELADO], true))
+                                            <button type="button" wire:click="abrirEditarDireccion({{ $pedidoDetalle->id }})"
+                                                title="{{ __('Editar dirección de entrega') }}" aria-label="{{ __('Editar dirección de entrega') }}"
+                                                class="shrink-0 rounded-md p-1 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-900/40 transition">
+                                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"/></svg>
+                                            </button>
+                                        @endif
+                                    </div>
                                     @if($pedidoDetalle->direccion_referencia)
                                         <p class="text-xs text-gray-500 dark:text-gray-400">{{ $pedidoDetalle->direccion_referencia }}</p>
                                     @endif
@@ -2297,6 +2316,91 @@
                     class="px-4 py-2 bg-red-600 rounded-md text-sm font-semibold text-white hover:bg-red-700">
                     {{ __('Rechazar pedido') }}
                 </button>
+            </x-slot:footer>
+        </x-bcn-modal>
+    @endif
+
+    {{-- ==================== MODAL: EDITAR DIRECCIÓN (spec delivery-burbuja-y-mapa RF-05/06) ==================== --}}
+    {{-- Un modal a la vez: se abre desde el detalle (que se cierra) y al
+         guardar/cancelar el detalle se reabre solo. El mapa nace CERRADO. --}}
+    @if($showDireccionModal)
+        <x-bcn-modal :title="__('Editar dirección de entrega')" color="bg-cyan-600" maxWidth="2xl" onClose="cerrarEditarDireccion">
+            <x-slot:body>
+                <div class="space-y-3">
+                    @if($this->direccionGeorreferenciada)
+                        @include('livewire.partials.domicilio-form', [
+                            'conTipo' => false,
+                            'conReferencia' => true,
+                            'conGeo' => true,
+                            'conUbicacion' => false,
+                            'direccionAlFinal' => true,
+                            'autocompletarDireccion' => true,
+                            'conGeolocalizacion' => false,
+                            'mapaContexto' => $this->mapaContextoDireccion,
+                            'provinciaRequerida' => false,
+                            'idPrefix' => 'editdir',
+                            'direccionLabel' => __('Dirección de entrega'),
+                        ])
+                    @else
+                        {{-- Georreferenciado OFF: solo texto, se guarda sin recotizar --}}
+                        @include('livewire.partials.domicilio-form', [
+                            'conTipo' => false,
+                            'conReferencia' => true,
+                            'conGeo' => false,
+                            'conUbicacion' => false,
+                            'provinciaRequerida' => false,
+                            'idPrefix' => 'editdir',
+                            'direccionLabel' => __('Dirección de entrega'),
+                        ])
+                    @endif
+
+                    {{-- Delta de recotización pendiente de confirmar (RF-06):
+                         ningún cambio de plata en silencio. --}}
+                    @if($direccionPreview)
+                        @if($direccionPreview['alcance'] === 'fuera')
+                            <div data-preview-direccion class="rounded-md border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-800 dark:text-amber-300 space-y-1">
+                                <p class="font-semibold">⚠️ {{ __('La nueva ubicación queda fuera de la zona de reparto') }}</p>
+                                @if($direccionPreview['distancia_km'] !== null)
+                                    <p class="text-xs">{{ __('Distancia al local') }}: {{ number_format($direccionPreview['distancia_km'], 1, ',', '.') }} km</p>
+                                @endif
+                                <p class="text-xs">{{ __('Si guardás igual, el pedido queda sin zona y conserva el envío de :costo', ['costo' => '$'.number_format($direccionPreview['costo_antes'], 2, ',', '.')]) }}</p>
+                            </div>
+                        @else
+                            <div data-preview-direccion class="rounded-md border border-cyan-300 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-900/20 p-3 text-sm text-cyan-900 dark:text-cyan-200 space-y-1">
+                                <p class="font-semibold">{{ __('La nueva ubicación cambia el envío') }}</p>
+                                @if(($direccionPreview['zona_antes'] ?? null) !== ($direccionPreview['zona_despues'] ?? null))
+                                    <p class="text-xs">{{ __('Zona') }}: {{ $direccionPreview['zona_antes'] ?? '—' }} → <span class="font-semibold">{{ $direccionPreview['zona_despues'] ?? '—' }}</span></p>
+                                @endif
+                                @if(abs($direccionPreview['costo_despues'] - $direccionPreview['costo_antes']) >= 0.01)
+                                    <p class="text-xs">{{ __('Costo de envío') }}: ${{ number_format($direccionPreview['costo_antes'], 2, ',', '.') }} → <span class="font-semibold">${{ number_format($direccionPreview['costo_despues'], 2, ',', '.') }}</span></p>
+                                @endif
+                                @if($direccionPreview['distancia_km'] !== null)
+                                    <p class="text-xs">{{ __('Distancia') }}: {{ number_format($direccionPreview['distancia_km'], 1, ',', '.') }} km</p>
+                                @endif
+                                @if($direccionPreview['costo_manual'])
+                                    <p class="text-xs text-amber-700 dark:text-amber-400">{{ __('El costo fue fijado a mano: solo se actualizan zona y distancia') }}</p>
+                                @endif
+                            </div>
+                        @endif
+                    @endif
+                </div>
+            </x-slot:body>
+            <x-slot:footer>
+                <button type="button" wire:click="cerrarEditarDireccion"
+                    class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    {{ __('Cancelar') }}
+                </button>
+                @if($direccionPreview)
+                    <button type="button" wire:click="confirmarGuardarDireccion"
+                        class="px-4 py-2 rounded-md text-sm font-semibold text-white {{ $direccionPreview['alcance'] === 'fuera' ? 'bg-amber-600 hover:bg-amber-700' : 'bg-cyan-600 hover:bg-cyan-700' }}">
+                        {{ $direccionPreview['alcance'] === 'fuera' ? __('Guardar igual') : __('Confirmar cambio') }}
+                    </button>
+                @else
+                    <button type="button" wire:click="guardarDireccion"
+                        class="px-4 py-2 bg-cyan-600 rounded-md text-sm font-semibold text-white hover:bg-cyan-700">
+                        {{ __('Guardar') }}
+                    </button>
+                @endif
             </x-slot:footer>
         </x-bcn-modal>
     @endif

@@ -33,12 +33,11 @@
  *  - zonas-actualizadas {zonas, radioKm, centro} → redibuja overlays.
  */
 
-import { cargarGoogleMaps } from './domicilio-mapa.js';
+// Paleta y helpers compartidos con el picker de domicilio: una zona tiene el
+// MISMO color acá y en el mapa del alta de pedido.
+import { cargarGoogleMaps, centroide, COLORES_ZONAS as COLORES, crearPinLocal } from './domicilio-mapa.js';
 
 const CENTRO_AR = { lat: -38.4161, lng: -63.6167 };
-
-// Paleta de zonas (borde/relleno). Se cicla por índice.
-const COLORES = ['#0891b2', '#d97706', '#7c3aed', '#dc2626', '#059669', '#db2777', '#2563eb', '#65a30d'];
 
 // Objetos de Google Maps por componente, FUERA del Proxy de Alpine.
 const STORES = new WeakMap();
@@ -48,15 +47,6 @@ function aLatLng(pos) {
     const lng = typeof pos.lng === 'function' ? pos.lng() : pos.lng;
 
     return { lat: Number(lat), lng: Number(lng) };
-}
-
-function centroide(path) {
-    if (!path.length) {
-        return null;
-    }
-    const sum = path.reduce((a, p) => ({ lat: a.lat + p.lat, lng: a.lng + p.lng }), { lat: 0, lng: 0 });
-
-    return { lat: sum.lat / path.length, lng: sum.lng / path.length };
 }
 
 document.addEventListener('alpine:init', () => {
@@ -150,9 +140,9 @@ document.addEventListener('alpine:init', () => {
 
         /**
          * Pin del LOCAL de la sucursal, SIEMPRE visible (referencia para
-         * dibujar las zonas). Mismo estilo del pin del domicilio (gota
-         * naranja) con el ícono BCN adentro. No participa del redibujado de
-         * overlays: se crea una vez y solo se reposiciona si cambia el centro.
+         * dibujar las zonas). Gota naranja con el ícono BCN (crearPinLocal,
+         * compartido con el picker de domicilio). No participa del redibujado
+         * de overlays: se crea una vez y solo se reposiciona si cambia el centro.
          */
         marcarSucursal() {
             const s = this.st();
@@ -166,31 +156,10 @@ document.addEventListener('alpine:init', () => {
                 return;
             }
 
-            const wrap = document.createElement('div');
-            wrap.style.cssText =
-                'position:relative;width:40px;height:51px;' +
-                'filter:drop-shadow(0 2px 3px rgba(0,0,0,.4));';
-            wrap.innerHTML =
-                '<svg width="40" height="51" viewBox="0 0 40 51" xmlns="http://www.w3.org/2000/svg">' +
-                '<path d="M20 50 C14 38 4 27 4 17 A16 16 0 1 1 36 17 C36 27 26 38 20 50 Z" ' +
-                'fill="#FFAF22" stroke="#ffffff" stroke-width="2"/></svg>';
-            const disco = document.createElement('div');
-            disco.style.cssText =
-                'position:absolute;top:4px;left:7px;width:26px;height:26px;' +
-                'border-radius:50%;background:#ffffff;box-sizing:border-box;';
-            wrap.appendChild(disco);
-            const icon = document.createElement('img');
-            icon.src = '/pwa-icons/icon-192x192.png';
-            icon.alt = '';
-            icon.style.cssText =
-                'position:absolute;top:5px;left:8px;width:24px;height:24px;' +
-                'border-radius:50%;object-fit:cover;display:block;';
-            wrap.appendChild(icon);
-
             s.sucursalMarker = new google.maps.marker.AdvancedMarkerElement({
                 map: s.map,
                 position: this.centro,
-                content: wrap,
+                content: crearPinLocal(),
                 title: 'Sucursal',
                 zIndex: 1000,
             });

@@ -452,6 +452,107 @@ class PedidoDeliveryService
     }
 
     /**
+     * Corrige la dirección de un pedido YA CARGADO desde el modal de detalle
+     * (spec delivery-burbuja-y-mapa, RF-05/RF-06). A diferencia de
+     * establecerDireccion() (alta/edición completa), acá:
+     *  - los estados terminales no se tocan (la dirección ya es histórica),
+     *  - con cobros materializados el costo de envío NO se recalcula
+     *    (cambiaría el total de algo ya cobrado y descuadra la caja),
+     *  - NUNCA se pisa el domicilio guardado del cliente: es una corrección
+     *    puntual de ESTE pedido.
+     */
+    public function corregirDireccion(PedidoDelivery $pedido, array $direccion): PedidoDelivery
+    {
+        if ($pedido->tipo !== PedidoDelivery::TIPO_DELIVERY) {
+            throw new Exception('Solo los pedidos delivery llevan dirección de entrega');
+        }
+
+        if (in_array($pedido->estado_pedido, [
+            PedidoDelivery::ESTADO_ENTREGADO,
+            PedidoDelivery::ESTADO_FACTURADO,
+            PedidoDelivery::ESTADO_CANCELADO,
+        ], true)) {
+            throw new Exception("Con el pedido en '{$pedido->estado_pedido}' la dirección ya es histórica y no se corrige");
+        }
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($pedido, $direccion) {
+            $pedido->update([
+                'direccion_entrega' => $direccion['direccion'] ?? null,
+                'direccion_referencia' => $direccion['referencia'] ?? null,
+                'localidad_entrega_id' => $direccion['localidad_id'] ?? $pedido->localidad_entrega_id,
+                'latitud' => $direccion['latitud'] ?? null,
+                'longitud' => $direccion['longitud'] ?? null,
+            ]);
+
+            if ($pedido->estado_pago === PedidoDelivery::ESTADO_PAGO_PENDIENTE) {
+                $this->recotizarEnvio($pedido);
+            }
+
+            return $pedido->fresh(['detalles', 'zona']);
+        });
+    }
+
+    /**
+     * ¿Qué cambiaría corregir la dirección a estas coordenadas? Devuelve el
+     * delta que el operador debe confirmar (zona/costo distinto o punto fuera
+     * de alcance), o null si guardar no mueve plata: sin cobro pendiente el
+     * costo no se toca, sin georreferenciación no hay cotización, y con la
+     * misma zona y costo no hay nada que preguntar.
+     *
+     * @return array{alcance: string, zona_antes: ?string, zona_despues: ?string, costo_antes: float, costo_despues: float, distancia_km: ?float, costo_manual: bool}|null
+     */
+    public function previsualizarCorreccionDireccion(PedidoDelivery $pedido, ?float $lat, ?float $lng): ?array
+    {
+        if ($pedido->estado_pago !== PedidoDelivery::ESTADO_PAGO_PENDIENTE) {
+            return null;
+        }
+
+        $sucursal = Sucursal::findOrFail($pedido->sucursal_id);
+        $config = $this->envioService->configDelivery($sucursal);
+        if (! ($config['georreferenciar_pedidos'] ?? false)
+            || ! $sucursal->latitud || ! $sucursal->longitud
+            || $lat === null || $lng === null) {
+            return null;
+        }
+
+        $cotizacion = $this->envioService->cotizar($sucursal, $lat, $lng, cuando: $pedido->hora_pactada_at);
+
+        $zonaAntes = $pedido->zona?->nombre;
+        $costoAntes = (float) $pedido->costo_envio;
+        // Espejo exacto de recotizarEnvio(): el costo manual no se pisa.
+        $costoDespues = ! $pedido->costo_envio_manual && $cotizacion->esOk()
+            ? (float) $cotizacion->costo
+            : $costoAntes;
+
+        if ($cotizacion->alcance === CotizacionEnvio::ALCANCE_FUERA) {
+            return [
+                'alcance' => 'fuera',
+                'zona_antes' => $zonaAntes,
+                'zona_despues' => null,
+                'costo_antes' => $costoAntes,
+                'costo_despues' => $costoAntes,
+                'distancia_km' => $cotizacion->distanciaKm !== null ? round($cotizacion->distanciaKm, 2) : null,
+                'costo_manual' => (bool) $pedido->costo_envio_manual,
+            ];
+        }
+
+        $zonaDespues = $cotizacion->zona?->nombre;
+        if ($zonaDespues === $zonaAntes && abs($costoDespues - $costoAntes) < 0.01) {
+            return null;
+        }
+
+        return [
+            'alcance' => 'ok',
+            'zona_antes' => $zonaAntes,
+            'zona_despues' => $zonaDespues,
+            'costo_antes' => $costoAntes,
+            'costo_despues' => $costoDespues,
+            'distancia_km' => $cotizacion->distanciaKm !== null ? round($cotizacion->distanciaKm, 2) : null,
+            'costo_manual' => (bool) $pedido->costo_envio_manual,
+        ];
+    }
+
+    /**
      * Re-cotiza el envío del pedido con DeliveryEnvioService y actualiza el
      * encabezado logístico (distancia, zona) + el renglón-concepto. Si el
      * costo fue pisado a mano (D7), lo respeta y solo refresca distancia/zona.
