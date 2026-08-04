@@ -265,20 +265,21 @@
         </div>
     </div>
 
-    {{-- ==================== POR ACEPTAR (D14/RF-12/RF-T27) ==================== --}}
+    {{-- ==================== POR ACEPTAR (D14/RF-12/RF-T27 → burbuja flotante, spec delivery-burbuja-y-mapa) ==================== --}}
     @if($pedidosPorAceptar->isNotEmpty())
         @php
             // RF-T27: timeout vencido en ALGÚN pedido ⇒ indicador rojo visible
-            // aun con la banda plegada.
+            // aun con la burbuja cerrada.
             $hayAceptacionDemorada = $timeoutAceptacionMin > 0 && $pedidosPorAceptar->contains(
                 fn ($p) => $p->created_at->diffInMinutes(now()) >= $timeoutAceptacionMin
             );
         @endphp
+
+        {{-- MÓVIL: bloque plegable en el flujo (la burbuja arrastrable es de desktop) --}}
         <div x-data="{ abierto: false, destello: false }"
             @pedido-por-aceptar.window="destello = true; setTimeout(() => destello = false, 4000)"
             :class="destello ? 'ring-2 ring-orange-400 dark:ring-orange-500' : ''"
-            class="bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-md p-2.5 mb-2 flex-shrink-0 space-y-1.5 transition-shadow">
-            {{-- Cabecera compacta: plegada por defecto, click expande (RF-T27) --}}
+            class="sm:hidden bg-orange-50 dark:bg-orange-900/20 border border-orange-300 dark:border-orange-700 rounded-md p-2.5 mb-2 flex-shrink-0 space-y-1.5 transition-shadow">
             <button type="button" @click="abierto = !abierto" class="w-full flex items-center gap-2 text-left">
                 <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-600 text-white text-xs font-bold rounded-full animate-pulse">
                     {{ $pedidosPorAceptar->count() }} {{ __('por aceptar') }}
@@ -294,58 +295,59 @@
                 </svg>
             </button>
             <div x-show="abierto" x-cloak class="space-y-1.5">
-            @foreach($pedidosPorAceptar as $pedidoPA)
-                @php
-                    // D14: timeout de aceptación vencido ⇒ resaltar (no se cancela solo).
-                    $aceptacionDemorada = $timeoutAceptacionMin > 0
-                        && $pedidoPA->created_at->diffInMinutes(now()) >= $timeoutAceptacionMin;
-                @endphp
-                <div class="flex flex-wrap items-center justify-between gap-2 bg-white dark:bg-gray-800 rounded-md px-3 py-2 border {{ $aceptacionDemorada ? 'border-red-400 dark:border-red-600 ring-1 ring-red-300 dark:ring-red-700' : 'border-orange-200 dark:border-orange-800' }}">
-                    <div class="flex-1 min-w-0">
-                        <span class="text-sm font-semibold text-gray-900 dark:text-white">
-                            {{ $pedidoPA->nombre_cliente_final ?? __('Sin cliente') }}
-                        </span>
-                        @if($aceptacionDemorada)
-                            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 animate-pulse align-middle">
-                                {{ __('Demorado') }}
-                            </span>
-                        @endif
-                        <span class="text-xs text-gray-500 dark:text-gray-400">
-                            — {{ __(\App\Models\PedidoDelivery::TIPOS[$pedidoPA->tipo] ?? $pedidoPA->tipo) }}
-                            · {{ __(\App\Models\PedidoDelivery::ORIGENES[$pedidoPA->origen] ?? $pedidoPA->origen) }}
-                            · {{ $pedidoPA->created_at->diffForHumans(short: true) }}
-                        </span>
-                        {{-- RF-T26: promesa elegida por el cliente en la tienda --}}
-                        @if($promesaPA = $pedidoPA->promesaClienteInfo())
-                            <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold align-middle {{ $promesaPA['tipo'] === 'asap' ? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200' : 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200' }}">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                                </svg>
-                                {{ $promesaPA['label'] }}
-                            </span>
-                        @endif
-                        @if($pedidoPA->direccion_entrega)
-                            <span class="block text-xs text-gray-500 dark:text-gray-400 truncate">{{ $pedidoPA->direccion_entrega }}</span>
-                        @endif
-                    </div>
-                    <span class="text-sm font-bold text-bcn-primary whitespace-nowrap">${{ number_format($pedidoPA->total_final, 2, ',', '.') }}</span>
-                    <div class="flex gap-1.5">
-                        <button type="button" wire:click="verDetalle({{ $pedidoPA->id }})"
-                            class="inline-flex items-center px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            {{ __('Ver') }}
-                        </button>
-                        <button type="button" wire:click="abrirAceptar({{ $pedidoPA->id }})"
-                            class="inline-flex items-center px-2.5 py-1 bg-emerald-600 rounded text-xs font-semibold text-white hover:bg-emerald-700">
-                            {{ __('Aceptar') }}
-                        </button>
-                        <button type="button" wire:click="abrirRechazar({{ $pedidoPA->id }})"
-                            class="inline-flex items-center px-2.5 py-1 border border-red-300 dark:border-red-600 rounded text-xs text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/30">
-                            {{ __('Rechazar') }}
-                        </button>
-                    </div>
-                </div>
-            @endforeach
+                @include('livewire.pedidos.partials.por-aceptar-lista')
             </div>
+        </div>
+
+        {{-- DESKTOP: burbuja flotante arrastrable (RF-01/02/03). Cerrada, solo
+             la cantidad; click → panel de MEDIA pantalla desde el borde
+             anclado, superpuesto (el tablero de atrás no se mueve). --}}
+        <div class="hidden sm:block"
+            x-data="burbujaPorAceptar({ clave: 'bcn-burbuja-pa-{{ session('comercio_activo_id') }}-{{ $this->sucursalActual() }}' })"
+            @pedido-por-aceptar.window="destello = true; setTimeout(() => destello = false, 4000)"
+            @keydown.escape.window="abierto = false">
+
+            {{-- Backdrop: cerrar clickeando fuera --}}
+            <div x-show="abierto" x-cloak @click="abierto = false"
+                class="fixed inset-0 z-30 bg-black/20 dark:bg-black/40" aria-hidden="true"></div>
+
+            {{-- Burbuja cerrada: SOLO la cantidad. Arrastrable a cualquier borde. --}}
+            <button type="button" x-ref="burbuja" x-show="! abierto" data-burbuja-por-aceptar
+                @pointerdown="empezarDrag($event)" @click="clickBurbuja()"
+                :style="estiloBurbuja"
+                :class="destello ? 'animate-pulse' : ''"
+                title="{{ __('Pedidos por aceptar') }} · {{ __('Arrastrá para mover') }}"
+                aria-label="{{ __('Pedidos por aceptar') }}"
+                class="fixed z-40 flex size-16 select-none touch-none flex-col items-center justify-center rounded-full text-white shadow-xl ring-2 cursor-grab active:cursor-grabbing transition-colors {{ $hayAceptacionDemorada ? 'bg-red-600 ring-red-300 dark:ring-red-800' : 'bg-orange-500 ring-orange-300 dark:ring-orange-800' }}">
+                <span class="text-xl font-bold leading-none">{{ $pedidosPorAceptar->count() }}</span>
+                <span class="mt-0.5 text-[9px] font-semibold uppercase leading-none tracking-tight">{{ __('por aceptar') }}</span>
+            </button>
+
+            {{-- Panel expandido: siempre en el DOM, fuera de pantalla cuando
+                 está cerrado (así el slide anima en los dos sentidos). --}}
+            <section data-panel-por-aceptar
+                :class="[clasesPanel, abierto ? '' : clasePanelOculto]"
+                :aria-hidden="(! abierto).toString()"
+                class="fixed z-40 flex flex-col bg-white dark:bg-gray-800 border-orange-300 dark:border-orange-700 shadow-2xl transition-transform duration-300">
+                <header class="flex items-center gap-2 border-b border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 px-4 py-3">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-600 text-white text-xs font-bold rounded-full">
+                        {{ $pedidosPorAceptar->count() }} {{ __('por aceptar') }}
+                    </span>
+                    <span class="text-xs text-orange-700 dark:text-orange-300 flex-1 min-w-0 truncate">{{ __('Pedidos de la tienda/API esperando confirmación') }}</span>
+                    @if($hayAceptacionDemorada)
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200 animate-pulse">
+                            {{ __('Demorado') }}
+                        </span>
+                    @endif
+                    <button type="button" @click="abierto = false" aria-label="{{ __('Cerrar') }}"
+                        class="shrink-0 rounded-md p-1 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/40">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                    </button>
+                </header>
+                <div class="flex-1 overflow-y-auto p-3 space-y-1.5">
+                    @include('livewire.pedidos.partials.por-aceptar-lista')
+                </div>
+            </section>
         </div>
     @endif
 

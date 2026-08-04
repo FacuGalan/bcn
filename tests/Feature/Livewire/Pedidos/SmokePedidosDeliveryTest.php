@@ -234,6 +234,33 @@ class SmokePedidosDeliveryTest extends TestCase
         $this->assertNotNull($pedido->hora_pactada_at);
     }
 
+    public function test_por_aceptar_se_muestra_como_burbuja_flotante_y_bloque_movil(): void
+    {
+        // Spec delivery-burbuja-y-mapa RF-01/03/04: en desktop la banda fue
+        // reemplazada por la burbuja (solo cantidad) + panel de media pantalla;
+        // en móvil queda el bloque plegable en el flujo.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $this->service->crearPedido(
+            data: $this->datosBaseDelivery(total: 500, overrides: ['origen' => PedidoDelivery::ORIGEN_TIENDA]),
+            detalles: [$this->detalleDeliveryDe($articulo, 1, 500)],
+            esBorrador: true,
+        );
+
+        $html = Livewire::test(PedidosDelivery::class)->html();
+
+        $this->assertStringContainsString('data-burbuja-por-aceptar', $html);
+        $this->assertStringContainsString('data-panel-por-aceptar', $html);
+        $this->assertStringContainsString('burbujaPorAceptar(', $html, 'Componente Alpine del bundle');
+        $this->assertStringContainsString('sm:hidden', $html, 'Bloque móvil en el flujo');
+    }
+
+    public function test_sin_pedidos_por_aceptar_no_hay_burbuja(): void
+    {
+        $html = Livewire::test(PedidosDelivery::class)->html();
+
+        $this->assertStringNotContainsString('data-burbuja-por-aceptar', $html);
+    }
+
     public function test_modal_aceptar_precarga_la_promesa_y_acepta_como_pidio(): void
     {
         // RF-T26: el modal muestra "El cliente eligió: X" y el botón
