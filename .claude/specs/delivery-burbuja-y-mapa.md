@@ -62,12 +62,21 @@ Además, una dirección mal cargada hoy no se puede corregir desde el modal
 ### RF-01: Burbuja flotante de pedidos por aceptar
 - Reemplaza la banda naranja actual (`pedidos-delivery.blade.php:268-350`).
 - **Estado cerrado**: burbuja compacta con SOLO la cantidad de pedidos por
-  aceptar (el número grande + un rótulo corto). Sin datos de pedidos.
+  aceptar (píldora: contador en un disco + el rótulo "por aceptar"). Sin
+  datos de pedidos.
 - Si la cantidad es 0, la burbuja **no se muestra**.
 - Mantiene el destello actual ante `pedido-por-aceptar` (evento ya emitido
   por `onPedidoBroadcast`, `PedidosDelivery.php:494`) y suma el estado
   "demorado" (naranja → rojo) cuando algún pedido superó
   `timeout_aceptacion_min`.
+- **Aviso insistente mientras haya pedidos sin aceptar** (revisión
+  2026-08-04): cada 5 s suena un chime corto (WebAudio sintetizado, mismo
+  enfoque que `llamador.js` — sin archivos de audio) y la burbuja **vibra**
+  con cada aviso; el contador **late** de forma permanente. El aviso se
+  silencia con la pestaña en segundo plano (`document.hidden`) y el
+  `AudioContext` se desbloquea con el primer click/tecla de la página
+  (política de autoplay). No hace falta chequear si hay pedidos: el
+  componente solo existe cuando los hay.
 - Solo visible en desktop (`hidden sm:flex`). En móvil se mantiene un
   acceso en el flujo normal de la página (ver RF-04).
 
@@ -84,10 +93,32 @@ Además, una dirección mal cargada hoy no se puede corregir desde el modal
   reajusta al borde.
 
 ### RF-03: Panel expandido
-- Click en la burbuja cerrada → se expande a **la mitad de la pantalla**,
-  desplegándose **desde el borde donde está anclada**:
-  - Anclada izquierda/derecha → panel de ancho 50vw, alto completo.
-  - Anclada arriba/abajo → panel de alto 50vh, ancho completo.
+- Click en la burbuja cerrada → **la burbuja misma se expande** en una
+  tarjeta flotante anclada al mismo punto (revisión 2026-08-04, tras
+  validación en vivo): ancho fijo (~352 px, acotado a la ventana), alto
+  según contenido con tope de 66vh, esquinas redondeadas y sombra. **No**
+  es un panel de borde a borde ni una ventana modal: sigue leyéndose como
+  algo flotante.
+- La tarjeta crece desde el punto de anclaje (`transform-origin` en el
+  borde/esquina de la burbuja) y **solo existe en el DOM mientras está
+  abierta**: así, al mover la burbuja de un borde a otro, no se ve ninguna
+  ventana cruzando la pantalla.
+- **Sin franja segura**: la burbuja puede anclarse al margen superior real,
+  por encima del navbar (pedido del usuario tras ver el rediseño). Es
+  clickeable porque el widget va en `z-50` y el navbar en `z-40`; la franja
+  de 96 px que se probó primero ya no hace falta —el problema de la X
+  inalcanzable era del panel viejo de media pantalla, que empataba en `z-40`
+  con el menú.
+- La burbuja queda **pegada al borde** (4 px); la tarjeta expandida conserva
+  12 px de aire.
+- **La geometría se bindea como OBJETO, nunca como string** (causa raíz del
+  "al soltar el arrastre se abre sola y no se cierra con nada"): un `:style`
+  string reescribe el atributo entero y borra el `display:none` de `x-show`,
+  dejando la tarjeta visible con `abierto === false` — y como el estado ya
+  está en `false`, ni la X ni `Escape` ni el click afuera la cierran. Ver el
+  gotcha completo en `docs/ai-knowledge-base.md`.
+- Los botones de cada fila son los **mismos iconos que la columna ACCIONES
+  del listado**: ojo (ver), tilde (aceptar), cruz (rechazar).
 - Se superpone al contenido (`position: fixed`, z-index alto). **El tablero
   de atrás no se desplaza ni se re-renderiza.**
 - Dentro del panel, la lista de pedidos por aceptar con los mismos datos
@@ -96,8 +127,8 @@ Además, una dirección mal cargada hoy no se puede corregir desde el modal
   (`verDetalle`), **Aceptar** (`abrirAceptar`), **Rechazar**
   (`abrirRechazar`).
 - Se cierra con una X, con `Escape`, o clickeando fuera del panel.
-- Transición de entrada/salida coherente con el borde (slide desde ese
-  lado).
+- Transición de entrada/salida coherente con el borde (escala + opacidad
+  desde el punto de anclaje).
 
 ### RF-04: Retiro de la banda naranja
 - Se elimina el bloque `:268-350` de `pedidos-delivery.blade.php`.
@@ -168,6 +199,23 @@ Además, una dirección mal cargada hoy no se puede corregir desde el modal
   cerrado con el botón "Abrir mapa", igual que en el resto del sistema.
 - El nuevo modal de RF-05 nace con el mapa cerrado.
 - Sin tocar el botón, **no hay ninguna llamada a la API de Google**.
+
+### RF-12: Buscador de Google fuera del mapa (revisión 2026-08-04)
+- Detectado al validar en vivo: con el mapa cerrado, el
+  `PlaceAutocompleteElement` no existía (se creaba dentro de `construir()`),
+  así que en el modal de corrección **solo se podía corregir el texto** de
+  la dirección, nunca la ubicación geolocalizada, salvo abriendo el mapa.
+- Nueva prop `$conBuscador` en `domicilio-form` (default: el valor de
+  `$autocompletarDireccion`, o sea activa en los dos flujos de delivery —
+  alta de pedido y corrección — y neutra en clientes/sucursal/MP/CUIT).
+- Con la prop activa, el buscador vive **fuera** del bloque del mapa y se ve
+  siempre; el mapa sigue siendo opcional. La carga sigue siendo perezosa: se
+  muestra un campo señuelo y el SDK se pide recién al tocarlo
+  (`montarBuscador()`, idempotente y compartido con `construir()`).
+- Al elegir una dirección del buscador con el mapa cerrado, el mapa **se
+  abre solo** para confirmar dónde cayó el pin (y poder ajustarlo).
+- La restricción por localidad del buscador deja de depender del mapa; el
+  `$wire.$watch('domLocalidadCentro')` se mueve a `init()`.
 
 ### RF-08: Quitar "Usar mi ubicación actual" donde la dirección es ajena
 - Nueva prop `$conGeolocalizacion` (default `true`) en `domicilio-form`.
