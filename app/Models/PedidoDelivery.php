@@ -202,6 +202,7 @@ class PedidoDelivery extends Model
         'salida_id',
         'en_camino_at',
         'no_entregado_motivo',
+        'palabra_clave_entrega',
         'hora_pactada_at',
         'lo_antes_posible',
         'programado_para',

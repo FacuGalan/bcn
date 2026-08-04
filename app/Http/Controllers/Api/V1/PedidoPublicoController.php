@@ -112,7 +112,7 @@ class PedidoPublicoController extends Controller
      */
     public function show(Request $request, string $slug, string $token): JsonResponse
     {
-        $pedido = PedidoDelivery::with(['repartidor:id,nombre', 'detalles.opcionales', 'detalles.articulo:id,nombre'])
+        $pedido = PedidoDelivery::with(['repartidor:id,nombre,telefono', 'cliente:id,nombre,telefono', 'detalles.opcionales', 'detalles.articulo:id,nombre'])
             ->where('token_seguimiento', $token)
             ->first();
 
@@ -184,6 +184,39 @@ class PedidoPublicoController extends Controller
                 'repartidor_en_camino' => $pedido->tipo === PedidoDelivery::TIPO_DELIVERY
                     && $pedido->estado_pedido === PedidoDelivery::ESTADO_EN_CAMINO
                     ? $pedido->repartidor?->nombre
+                    : null,
+                // RF-T63 (aditivos): la pantalla de seguimiento se completa
+                // desde CUALQUIER dispositivo (el token es la credencial) —
+                // antes la dirección y los datos del cliente vivían solo en
+                // la sesión del navegador que hizo el pedido.
+                'direccion' => $pedido->tipo === PedidoDelivery::TIPO_DELIVERY && $pedido->direccion_entrega
+                    ? [
+                        'direccion' => $pedido->direccion_entrega,
+                        'referencia' => $pedido->direccion_referencia,
+                    ]
+                    : null,
+                'cliente' => ($pedido->nombre_cliente_temporal || $pedido->cliente)
+                    ? [
+                        'nombre' => $pedido->nombre_cliente_temporal ?: $pedido->cliente?->nombre,
+                        'telefono' => $pedido->telefono_cliente_temporal ?: $pedido->cliente?->telefono,
+                    ]
+                    : null,
+                // RF-T63: repartidor desde que está ASIGNADO (no solo en
+                // camino), con teléfono. `repartidor_en_camino` queda por
+                // compatibilidad (contrato: solo aditivos).
+                'repartidor' => $pedido->tipo === PedidoDelivery::TIPO_DELIVERY && $pedido->repartidor
+                    ? [
+                        'nombre' => $pedido->repartidor->nombre,
+                        'telefono' => $pedido->repartidor->telefono,
+                    ]
+                    : null,
+                // RF-T64: palabra clave de entrega — viaja junto con el
+                // repartidor asignado (antes no aporta y después de entregado
+                // ya no importa; se corta al cancelar).
+                'palabra_clave' => $pedido->tipo === PedidoDelivery::TIPO_DELIVERY
+                    && $pedido->repartidor_id
+                    && $pedido->estado_pedido !== PedidoDelivery::ESTADO_CANCELADO
+                    ? $pedido->palabra_clave_entrega
                     : null,
                 'total_final' => (float) $pedido->total_final,
                 'estado_pago' => $pedido->estado_pago,

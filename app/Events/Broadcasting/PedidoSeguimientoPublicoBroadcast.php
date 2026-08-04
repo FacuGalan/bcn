@@ -25,6 +25,10 @@ class PedidoSeguimientoPublicoBroadcast implements ShouldBroadcastNow
         public ?string $repartidor = null,
         public ?string $horaPactada = null,
         public bool $loAntesPosible = false,
+        /** RF-T63 (aditivo): {nombre, telefono} desde que hay repartidor asignado. */
+        public ?array $repartidorAsignado = null,
+        /** RF-T64 (aditivo): palabra clave de entrega, junto con el repartidor. */
+        public ?string $palabraClave = null,
     ) {}
 
     /**
@@ -51,6 +55,9 @@ class PedidoSeguimientoPublicoBroadcast implements ShouldBroadcastNow
             'repartidor' => $this->repartidor,
             'hora_pactada_at' => $this->horaPactada,
             'lo_antes_posible' => $this->loAntesPosible,
+            // RF-T63/T64 (aditivos): misma verdad que el GET de seguimiento.
+            'repartidor_asignado' => $this->repartidorAsignado,
+            'palabra_clave' => $this->palabraClave,
             'at' => now()->toIso8601String(),
         ];
     }

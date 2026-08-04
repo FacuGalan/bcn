@@ -656,6 +656,34 @@ pedido ya tiene una cuenta de consumidor atada. Con esto la tienda arma el
 CTA de invitados: "este pedido hubiese sumado N puntos — registrate y los
 sumás". `null` o clave ausente ⇒ no mostrar nada.
 
+**Aditivos 2026-08-03 (RF-T63/RF-T64)** — la pantalla de seguimiento se
+completa desde CUALQUIER dispositivo (el token es la credencial; antes la
+dirección y los datos del cliente vivían solo en la sesión del navegador que
+hizo el pedido):
+
+```json
+"direccion":  { "direccion": "Calle 117 n°547", "referencia": "Timbre B" },
+"cliente":    { "nombre": "Arian Garelli", "telefono": "+542324313167" },
+"repartidor": { "nombre": "Juan", "telefono": "+5492324000000" },
+"palabra_clave": "Tigre"
+```
+
+- `direccion`: solo delivery con dirección; `null` en take_away. `referencia`
+  puede ser `null`.
+- `cliente`: nombre/teléfono declarados en el checkout (o los del cliente
+  vinculado); `null` si el pedido no registró ninguno.
+- `repartidor`: desde que el comercio lo ASIGNA (no solo `en_camino`), con
+  teléfono para contactarlo. `repartidor_en_camino` (string) SIGUE viajando
+  igual que siempre por compatibilidad.
+- `palabra_clave` *(RF-T64)*: palabra generada al confirmar si la sucursal
+  activa "Palabra clave de entrega". Viaja solo con repartidor asignado y
+  pedido no cancelado — el consumidor la dice al recibir el pedido; el
+  repartidor la conoce por el panel. `null` ⇒ no mostrar nada.
+- El canal de tiempo real (`SeguimientoActualizado`) suma los espejos
+  `repartidor_asignado` (`{nombre, telefono} | null`) y `palabra_clave` con
+  las mismas reglas, y se emite TAMBIÉN al asignar repartidor (sin cambio de
+  estado).
+
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
 entre en preparación). Después, solo el comercio.

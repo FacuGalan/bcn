@@ -928,6 +928,104 @@ class ApiV1DeliveryTest extends TestCase
             ->assertJsonPath('data.items.0.opcionales.0.cantidad', 2);
     }
 
+    public function test_seguimiento_expone_direccion_cliente_y_repartidor_rf_t63(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $token = $respuesta->json('data.token_seguimiento');
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        // La dirección y el cliente viajan desde el día uno (la pantalla se
+        // completa desde cualquier dispositivo); repartidor aún no hay.
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.direccion.direccion', 'Av. Siempreviva 742')
+            ->assertJsonPath('data.direccion.referencia', '3B')
+            ->assertJsonPath('data.cliente.nombre', 'Cliente Tienda')
+            ->assertJsonPath('data.cliente.telefono', '1155550000')
+            ->assertJsonPath('data.repartidor', null)
+            ->assertJsonPath('data.repartidor_en_camino', null);
+
+        // Aceptado y con repartidor ASIGNADO (confirmado, antes de en_camino):
+        // el bloque nuevo viaja con teléfono; el campo legacy sigue null.
+        $service = app(\App\Services\Pedidos\PedidoDeliveryService::class);
+        $service->aceptarPedidoExterno($pedido->fresh(), demoraMin: 30);
+
+        $repartidor = \App\Models\Repartidor::create(['nombre' => 'Juan Moto', 'telefono' => '2324000000', 'tipo' => 'propio', 'activo' => true]);
+        $repartidor->sucursales()->attach($this->sucursalId);
+        $service->asignarRepartidor($pedido->fresh(), $repartidor->id);
+
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.estado', 'confirmado')
+            ->assertJsonPath('data.repartidor.nombre', 'Juan Moto')
+            ->assertJsonPath('data.repartidor.telefono', '2324000000')
+            // Compat: el campo viejo solo se llena en en_camino.
+            ->assertJsonPath('data.repartidor_en_camino', null);
+    }
+
+    public function test_seguimiento_take_away_sin_direccion_ni_repartidor_rf_t63(): void
+    {
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $payload = $this->payloadPedido($articulo->id);
+        $payload['tipo'] = 'take_away';
+        unset($payload['direccion']);
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $payload)->assertCreated();
+        $token = $respuesta->json('data.token_seguimiento');
+
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.direccion', null)
+            ->assertJsonPath('data.repartidor', null)
+            ->assertJsonPath('data.palabra_clave', null)
+            ->assertJsonPath('data.cliente.nombre', 'Cliente Tienda');
+    }
+
+    public function test_palabra_clave_se_genera_al_confirmar_y_viaja_con_repartidor_rf_t64(): void
+    {
+        Sucursal::where('id', $this->sucursalId)->update([
+            'config_delivery' => json_encode(['usar_palabra_clave' => true]),
+        ]);
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $token = $respuesta->json('data.token_seguimiento');
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+        $this->assertNull($pedido->palabra_clave_entrega, 'El borrador todavía no tiene palabra');
+
+        $service = app(\App\Services\Pedidos\PedidoDeliveryService::class);
+        $service->aceptarPedidoExterno($pedido->fresh(), demoraMin: 30);
+
+        $palabra = $pedido->fresh()->palabra_clave_entrega;
+        $this->assertContains($palabra, \App\Services\Pedidos\PedidoDeliveryService::PALABRAS_CLAVE_ENTREGA, 'Se genera al confirmar, de la lista fija');
+
+        // Sin repartidor asignado la palabra NO viaja al consumidor.
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.palabra_clave', null);
+
+        $repartidor = \App\Models\Repartidor::create(['nombre' => 'Juan Moto', 'tipo' => 'propio', 'activo' => true]);
+        $repartidor->sucursales()->attach($this->sucursalId);
+        $service->asignarRepartidor($pedido->fresh(), $repartidor->id);
+
+        $this->getJson("/api/v1/tiendas/tienda-test/pedidos/{$token}")
+            ->assertOk()
+            ->assertJsonPath('data.palabra_clave', $palabra);
+    }
+
+    public function test_sin_config_no_se_genera_palabra_clave_rf_t64(): void
+    {
+        // Default usar_palabra_clave = false: confirmar no genera nada.
+        $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);
+        $respuesta = $this->postJson('/api/v1/tiendas/tienda-test/pedidos', $this->payloadPedido($articulo->id))->assertCreated();
+        $pedido = PedidoDelivery::find($respuesta->json('data.id'));
+
+        app(\App\Services\Pedidos\PedidoDeliveryService::class)->aceptarPedidoExterno($pedido->fresh(), demoraMin: 30);
+
+        $this->assertNull($pedido->fresh()->palabra_clave_entrega);
+    }
+
     public function test_consumidor_puede_cancelar_hasta_confirmado(): void
     {
         $articulo = $this->crearArticuloConStock($this->sucursalId, cantidad: 10);

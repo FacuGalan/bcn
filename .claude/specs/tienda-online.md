@@ -998,6 +998,34 @@ chevron del acordeón a la derecha. Sin foto, el encabezado queda como hoy.
   cuando `imagen_url` viene, con `object-position` del focal; scrim por
   clase CSS propia (NO `data-tienda-portada-overlay`, test RF-T25).
 
+### RF-T63/RF-T64: Refactor estético del seguimiento + palabra clave de entrega — EN CURSO (2026-08-03, cross-repo: core feat/rf-t63-t64-seguimiento + tienda feat/rf-t63-seguimiento-estetica)
+
+Refactor de la pantalla de seguimiento según mockup `bcn-tienda/BCN 2026.jpeg`.
+
+**RF-T63 — aditivos del seguimiento** (`GET /pedidos/{token}` + canal WS):
+- `direccion {direccion, referencia}` y `cliente {nombre, telefono}`: la
+  pantalla se completa desde cualquier dispositivo (antes venían del
+  snapshot de sesión del navegador que pidió).
+- `repartidor {nombre, telefono}` desde la ASIGNACIÓN (no solo en_camino);
+  `repartidor_en_camino` se mantiene por compat. El WS suma
+  `repartidor_asignado` y se emite también al asignar (sin cambio de estado).
+- Tienda: header estilo hero (portada redondeada + logo + redes izquierda +
+  botón perfil derecha con POPUP auto 1 vez por pedido: registrate/verificá
+  con los puntos de `puntos.a_ganar`, o beneficios BCN sin programa), nombre
+  comercio + Pedido #N destacados, pill de horario desde confirmado, estado
+  actual minimalista full-width, pasos HORIZONTALES, card entrega/retiro
+  full-width con datos del core y fallback al snapshot local.
+
+**RF-T64 — palabra clave de entrega** (feature nuevo core):
+- Config por sucursal `usar_palabra_clave` (config_delivery, default false,
+  toggle en Configuración → Delivery).
+- `pedidos_delivery.palabra_clave_entrega` (migración 2026_08_03_174855):
+  generada al CONFIRMAR un delivery (crearPedido no-borrador y
+  confirmarBorrador, idempotente) de `PedidoDeliveryService::PALABRAS_CLAVE_ENTREGA`.
+- Panel: badge junto al repartidor en el detalle del pedido. Seguimiento:
+  viaja solo con repartidor asignado y no cancelado; el consumidor la dice
+  al recibir.
+
 ### RF-T8: Saldo de puntos del consumidor (Fase 3)
 
 `GET /v1/tiendas/{slug}/puntos` *(Bearer consumidor)* — el saldo y las reglas

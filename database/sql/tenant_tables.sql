@@ -2311,6 +2311,7 @@ CREATE TABLE `{{PREFIX}}pedidos_delivery` (
   `salida_id` bigint unsigned DEFAULT NULL COMMENT 'Salida ACTUAL, historial completo en delivery_salida_pedidos',
   `en_camino_at` timestamp NULL DEFAULT NULL,
   `no_entregado_motivo` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Ultima vuelta fallida (RF-08)',
+  `palabra_clave_entrega` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'Palabra clave que el consumidor dice al recibir (RF-T64). Generada al confirmar si la sucursal usa el feature',
   `hora_pactada_at` timestamp NULL DEFAULT NULL COMMENT 'Promesa de entrega/retiro (RF-15)',
   `lo_antes_posible` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Promesa ASAP del modo franjas (hora_pactada_at queda NULL)',
   `programado_para` timestamp NULL DEFAULT NULL COMMENT 'Pedido programado (RF-15, logica en Fase 8)',
