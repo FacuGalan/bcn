@@ -45,7 +45,11 @@ Route::post('/integraciones/mercadopago/webhook', [MercadoPagoWebhookController:
 Route::prefix('v1')->name('api.v1.')->group(function () {
 
     // ── Público por tienda (slug) ──
-    Route::middleware(['api.tenant', 'throttle:60,1'])
+    // Prefijos en TODOS los throttle (gotcha de abajo): sin ellos el contador
+    // del grupo y el de cada ruta son EL MISMO bucket por IP — cualquier
+    // navegación del catálogo/cotizador agotaba el límite del alta de pedido
+    // ("Too Many Attempts" al confirmar, bug 2026-08-05).
+    Route::middleware(['api.tenant', 'throttle:60,1,t-publico'])
         ->prefix('tiendas/{slug}')
         ->group(function () {
             Route::get('/', [\App\Http\Controllers\Api\V1\TiendaController::class, 'show'])->name('tienda.show');
@@ -58,14 +62,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::post('/envios/cotizar', [\App\Http\Controllers\Api\V1\CotizacionController::class, 'envio'])->name('tienda.envios.cotizar');
             Route::post('/carrito/cotizar', [\App\Http\Controllers\Api\V1\CotizacionController::class, 'carrito'])->name('tienda.carrito.cotizar');
             Route::post('/pedidos', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'store'])
-                ->middleware('throttle:15,1')->name('tienda.pedidos.store');
+                ->middleware('throttle:15,1,t-alta')->name('tienda.pedidos.store');
             Route::get('/pedidos/{token}', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'show'])->name('tienda.pedidos.seguimiento');
             Route::post('/pedidos/{token}/cancelar', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'cancelar'])
-                ->middleware('throttle:10,1')->name('tienda.pedidos.cancelar');
+                ->middleware('throttle:10,1,t-cancelar')->name('tienda.pedidos.cancelar');
             // RF-T56: vinculación retroactiva del pedido invitado a la
             // cuenta (Bearer consumidor + posesión del token = credencial).
             Route::post('/pedidos/{token}/vincular', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'vincular'])
-                ->middleware(['auth:sanctum', 'api.consumidor', 'throttle:10,1'])->name('tienda.pedidos.vincular');
+                ->middleware(['auth:sanctum', 'api.consumidor', 'throttle:10,1,t-vincular'])->name('tienda.pedidos.vincular');
         });
 
     // ── Consumidores (cuenta GLOBAL de la tienda online, RF-T1..T3) ──

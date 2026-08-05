@@ -42,6 +42,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'api/qz/sign',
         ]);
+
+        // La TIENDA llama a la API v1 server-side (mismo servidor u otro
+        // conocido): sin esto, el throttle por IP veía UNA sola IP para todos
+        // los consumidores ("Too Many Attempts" al confirmar, bug 2026-08-05).
+        // Se confía SOLO X-Forwarded-For (no proto/host) y SOLO desde los
+        // proxies listados (default: la propia máquina).
+        $middleware->trustProxies(
+            at: array_filter(array_map('trim', explode(',', (string) env('TRUSTED_PROXIES', '127.0.0.1,::1')))),
+            headers: \Illuminate\Http\Request::HEADER_X_FORWARDED_FOR,
+        );
     })
     ->withSchedule(function (\Illuminate\Console\Scheduling\Schedule $schedule): void {
         $schedule->command('precios:procesar-programados')->everyMinute();
