@@ -50,6 +50,8 @@ class IntegracionPago extends Model
 
     public const CODIGO_MERCADOPAGO_POINT = 'mercadopago_point';
 
+    public const CODIGO_MERCADOPAGO_CHECKOUT = 'mercadopago_checkout';
+
     // ==================== Relaciones ====================
 
     public function sucursales(): HasMany

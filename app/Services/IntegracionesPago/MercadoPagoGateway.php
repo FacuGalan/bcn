@@ -39,6 +39,8 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
 
     public const MODO_QR_LIBRE = 'qr_libre';
 
+    public const MODO_CHECKOUT_PRO = 'checkout_pro';
+
     public function modosSoportados(): array
     {
         return [
@@ -46,6 +48,7 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             self::MODO_QR_ESTATICO,
             self::MODO_POINT,
             self::MODO_QR_LIBRE,
+            self::MODO_CHECKOUT_PRO,
         ];
     }
 
