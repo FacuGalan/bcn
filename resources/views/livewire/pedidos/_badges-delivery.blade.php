@@ -54,6 +54,20 @@
             @endif
         @endunless
 
+        {{-- RF-T80: estado del pago ONLINE (checkout de la tienda). Naranja =
+             borrador esperando la acreditación (solo visible en el filtro de
+             borradores); rojo = pedido cancelado con cobro sin devolver. --}}
+        @if($pedido->estado_pedido === \App\Models\PedidoDelivery::ESTADO_BORRADOR && $pedido->esperandoPagoOnline())
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-200">
+                {{ __('Esperando pago online') }}
+            </span>
+        @elseif($pedido->estado_pedido === \App\Models\PedidoDelivery::ESTADO_CANCELADO && $pedido->transaccionCheckoutConfirmada())
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-200"
+                  title="{{ __('El pago online de este pedido cancelado todavía no se devolvió') }}">
+                {{ __('Pago a devolver') }}
+            </span>
+        @endif
+
         {{-- Zona: al lado del chip de tipo (dato de clasificación, no operativo) --}}
         @if($pedido->zona)
             <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-teal-100 text-teal-800 dark:bg-teal-900/50 dark:text-teal-200">

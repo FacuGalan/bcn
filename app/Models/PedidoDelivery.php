@@ -383,15 +383,55 @@ class PedidoDelivery extends Model
     }
 
     /**
+     * Transacciones de integración cuyo cobrable es ESTE pedido (checkout
+     * online de la tienda; los cobros QR del panel asocian el cobrable recién
+     * al confirmar). Habilita whereHas/whereDoesntHave en listados.
+     */
+    public function transaccionesIntegracion(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(IntegracionPagoTransaccion::class, 'cobrable');
+    }
+
+    /**
      * Ver PedidoMostrador::tieneIntegracionPagoConfirmada — mismo guard: un
      * pedido con pago de integración (QR MP) confirmado no puede cancelarse
-     * mientras no exista refund real.
+     * mientras no exista refund real. Excepción RF-T82: el checkout online SÍ
+     * tiene refund real — cancelarPedido lo devuelve en vez de bloquear.
      */
     public function tieneIntegracionPagoConfirmada(): bool
     {
         return IntegracionPagoTransaccion::porCobrable($this->getMorphClass(), $this->id)
             ->confirmadas()
             ->exists();
+    }
+
+    /**
+     * Transacción de checkout online CONFIRMADA del pedido (RF-T82): el cobro
+     * acreditado que una cancelación debe devolver.
+     */
+    public function transaccionCheckoutConfirmada(): ?IntegracionPagoTransaccion
+    {
+        return $this->transaccionesIntegracion()
+            ->confirmadas()
+            ->where('modo_usado', IntegracionPagoTransaccion::MODO_CHECKOUT_PRO)
+            ->latest('id')
+            ->first();
+    }
+
+    /**
+     * RF-T77: borrador de tienda que espera la acreditación del pago online
+     * (tx checkout pendiente). Invisible para el comercio: no entra a
+     * "por aceptar" ni suena la burbuja hasta que la plata esté.
+     * Sin columna extra: el estado se deriva del par borrador + tx pendiente.
+     */
+    public function esperandoPagoOnline(): bool
+    {
+        return $this->estado_pedido === self::ESTADO_BORRADOR
+            && $this->origen !== self::ORIGEN_PANEL
+            && $this->transaccionesIntegracion()
+                ->pendientes()
+                ->where('modo_usado', IntegracionPagoTransaccion::MODO_CHECKOUT_PRO)
+                ->exists();
     }
 
     // ==================== SCOPES ====================

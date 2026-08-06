@@ -76,6 +76,13 @@ class MercadoPagoWebhookService
         // sucursales del comercio enruta bien (el índice apunta a una cualquiera).
         app(TenantService::class)->usarComercioParaProceso($index->comercio_id);
 
+        // Checkout Pro (RF-T78): topic `payment` — el id es un PAGO, no una
+        // order; la transacción se resuelve re-consultando el pago (su
+        // external_reference). Rama propia con hook de pedidos de tienda.
+        if ($parsed['tipo'] === 'payment') {
+            return $this->procesarTopicPayment($gateway, $datos, $headers, $orderId, $userId, $index->comercio_id);
+        }
+
         $transaccion = IntegracionPagoTransaccion::where('external_id', $orderId)->first();
         if (! $transaccion) {
             Log::info('MP webhook: transacción no encontrada para la order', ['order_id' => $orderId]);
@@ -134,6 +141,114 @@ class MercadoPagoWebhookService
 
         // Aviso en tiempo real: el modal que espera re-consulta y actúa.
         IntegracionPagoActualizado::dispatch($index->comercio_id, $transaccion->id, $estado);
+
+        return [
+            'status' => 'ok',
+            'estado' => $estado,
+            'transaccion_id' => $transaccion->id,
+        ];
+    }
+
+    /**
+     * Topic `payment` (Checkout Pro, RF-T78). El payload solo trae el id del
+     * pago: se re-consulta AUTENTICADO a MP (eso ya es el re-chequeo — nunca
+     * se confía en el payload entrante), se resuelve la tx por su
+     * external_reference (BCN-TX-{id}) y, si está aprobado:
+     *  1. Se persiste el payment_id en la tx (sin él no hay refund RF-T82).
+     *  2. confirmarCobro (idempotente) — registra CuentaEmpresa (cobro +
+     *     propina discriminados).
+     *  3. Hook de tienda: PedidoPagoOnlineService::procesarAcreditacion —
+     *     materializa el pago del pedido y lo saca de "esperando pago".
+     *
+     * @param  array<string, mixed>  $datos
+     * @param  array<string, string>  $headers
+     * @return array{status: string, estado?: string, transaccion_id?: int, motivo?: string}
+     */
+    protected function procesarTopicPayment(
+        MercadoPagoGateway $gateway,
+        array $datos,
+        array $headers,
+        string $paymentId,
+        string $userId,
+        int $comercioId,
+    ): array {
+        // Credenciales para re-consultar el pago: cualquier config activa de la
+        // cuenta MP notificante sirve (mismo access_token de la cuenta).
+        $configConsulta = \App\Models\IntegracionPagoSucursal::activas()
+            ->where('user_id_externo', $userId)
+            ->get()
+            ->first(fn ($c) => $c->estaConfigurada());
+
+        if (! $configConsulta) {
+            return ['status' => 'sin_match', 'motivo' => 'sin config para consultar el pago'];
+        }
+
+        try {
+            $pago = $gateway->obtenerPago($configConsulta, $paymentId);
+        } catch (\Throwable $e) {
+            Log::warning('MP webhook payment: no se pudo consultar el pago', [
+                'payment_id' => $paymentId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return ['status' => 'error_consulta'];
+        }
+
+        $externalReference = (string) ($pago['external_reference'] ?? '');
+        if (! preg_match('/^BCN-TX-(\d+)$/', $externalReference, $m)) {
+            return ['status' => 'ignored', 'motivo' => 'pago sin external_reference BCN'];
+        }
+
+        $transaccion = IntegracionPagoTransaccion::find((int) $m[1]);
+        if (! $transaccion || ! $transaccion->esCheckoutOnline()) {
+            // Los pagos de orders QR/Point notifican por su propio topic.
+            return ['status' => 'ignored', 'motivo' => 'transacción no es de checkout'];
+        }
+
+        // Firma con el secret de la config REAL de la tx (misma regla que orders).
+        $config = $transaccion->integracionSucursal;
+        if ($config && ! empty($config->webhook_secret)
+            && ! $gateway->verificarFirma($config->webhook_secret, $headers, $paymentId)) {
+            Log::warning('MP webhook payment: firma inválida', ['payment_id' => $paymentId, 'comercio_id' => $comercioId]);
+
+            return ['status' => 'firma_invalida'];
+        }
+
+        $this->cobroService->registrarEventoWebhook($transaccion, $datos);
+
+        $estado = match ($pago['status'] ?? '') {
+            'approved' => 'aprobado',
+            'rejected' => 'fallido',
+            'cancelled' => 'cancelado',
+            'refunded', 'charged_back' => 'devuelto',
+            default => 'pendiente',
+        };
+
+        if ($estado === 'aprobado') {
+            // payment_id ANTES de confirmar: el refund (RF-T82) lo necesita y
+            // la confirmación dispara los movimientos de CuentaEmpresa.
+            $metadata = $transaccion->metadata ?? [];
+            $metadata['checkout'] = array_merge($metadata['checkout'] ?? [], ['payment_id' => (string) $paymentId]);
+            $transaccion->metadata = $metadata;
+            $transaccion->save();
+
+            $this->cobroService->confirmarCobro($transaccion, null, $pago);
+
+            // Hook de tienda: el cobrable YA existe (pedido borrador esperando
+            // pago) — materializar y transicionar. Best-effort: un fallo acá no
+            // pierde el cobro confirmado (queda para re-proceso/reconciliación).
+            try {
+                app(\App\Services\Pedidos\PedidoPagoOnlineService::class)
+                    ->procesarAcreditacion($transaccion->fresh());
+            } catch (\Throwable $e) {
+                Log::error('MP webhook payment: falló el hook de acreditación del pedido', [
+                    'transaccion_id' => $transaccion->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        IntegracionPagoActualizado::dispatch($comercioId, $transaccion->id, $estado);
 
         return [
             'status' => 'ok',

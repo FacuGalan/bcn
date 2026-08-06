@@ -161,6 +161,7 @@ class PedidoDeliveryService
                 'puntos_canjeados_articulos' => $data['puntos_canjeados_articulos'] ?? 0,
                 'puntos_usados_monto' => $data['puntos_usados_monto'] ?? 0,
                 'articulos_canjeados_monto' => $data['articulos_canjeados_monto'] ?? 0,
+                'propina_online' => $data['propina_online'] ?? 0,
                 'observaciones' => $data['observaciones'] ?? null,
                 'confirmado_at' => $esBorrador ? null : now(),
                 'es_invitacion_total' => (bool) ($data['es_invitacion_total'] ?? false),
@@ -236,10 +237,13 @@ class PedidoDeliveryService
                 $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_CREADO);
 
                 $this->maybeImprimirComandaAutomatica($pedido);
-            } elseif ($pedido->origen !== PedidoDelivery::ORIGEN_PANEL) {
+            } elseif ($pedido->origen !== PedidoDelivery::ORIGEN_PANEL && empty($data['_sin_aviso_por_aceptar'])) {
                 // RF-T27: el borrador externo (tienda/API por aceptar) también
                 // avisa en vivo — sin esto el panel no se entera hasta un F5,
                 // porque el broadcast vivía solo en la rama confirmada.
+                // RF-T77: un borrador "esperando pago online" NO avisa acá —
+                // el comercio se entera recién cuando la plata se acredita
+                // (_sin_aviso_por_aceptar lo setea el alta con FP online).
                 $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_POR_ACEPTAR);
             }
 
@@ -274,6 +278,14 @@ class PedidoDeliveryService
             && $pedido->estado_pago !== PedidoDelivery::ESTADO_PAGO_PENDIENTE
             && $pedido->pagos()->where('estado', PedidoDeliveryPago::ESTADO_ACTIVO)->exists()) {
             throw new Exception('No se puede editar un pedido con cobros registrados');
+        }
+
+        // RF-T82: un pedido con pago ONLINE acreditado no admite cambios de
+        // monto (ni siquiera en borrador "por aceptar"): la plata ya entró por
+        // ese total exacto. Las opciones son aceptarlo como está o rechazarlo
+        // (con devolución automática).
+        if ($pedido->transaccionCheckoutConfirmada()) {
+            throw new Exception(__('Este pedido ya fue pagado online: aceptalo como está o rechazalo (se devuelve el pago)'));
         }
 
         if (empty($detalles)) {
@@ -1023,20 +1035,20 @@ class PedidoDeliveryService
     {
         $this->guardEsPedidoPorAceptar($pedido);
 
-        $teniaPagoOnline = $pedido->pagos()
-            ->where('estado', PedidoDeliveryPago::ESTADO_ACTIVO)
-            ->where('monto_final', '>', 0)
-            ->exists();
-
         $this->cancelarPedido($pedido, __('Rechazado por el comercio').' — '.$motivo);
 
-        if ($teniaPagoOnline) {
-            Log::warning('Pedido externo rechazado CON pago online: queda a devolver (manual, v1)', [
+        // RF-T82: cancelarPedido ya intentó la devolución automática del pago
+        // online. Si la tx de checkout sigue confirmada, el refund falló: el
+        // cobro queda "a devolver" (badge + reintento manual).
+        $aDevolver = (bool) $pedido->transaccionCheckoutConfirmada();
+
+        if ($aDevolver) {
+            Log::warning('Pedido externo rechazado CON pago online sin devolver: queda a devolver (reintento manual)', [
                 'pedido_id' => $pedido->id,
             ]);
         }
 
-        return ['a_devolver' => $teniaPagoOnline];
+        return ['a_devolver' => $aDevolver];
     }
 
     protected function guardEsPedidoPorAceptar(PedidoDelivery $pedido): void
@@ -1216,6 +1228,52 @@ class PedidoDeliveryService
     }
 
     /**
+     * Materializa el pago planificado de un cobro ONLINE acreditado (RF-T78).
+     * A diferencia de confirmarPagoPlanificado: NO confirma el borrador (la
+     * transición la decide PedidoPagoOnlineService según la config D14), NO
+     * toca caja (la plata vive en la cuenta del proveedor: afecta_caja=0, el
+     * movimiento de CuentaEmpresa lo registró confirmarCobro) y NO tiene
+     * operador (creado_por_usuario_id NULL — el esquema lo previó).
+     * Idempotente: el pago ya activo con esta tx no se re-procesa.
+     */
+    public function materializarPagoOnline(PedidoDeliveryPago $pago, \App\Models\IntegracionPagoTransaccion $transaccion): PedidoDeliveryPago
+    {
+        if ($pago->estado === PedidoDeliveryPago::ESTADO_ACTIVO
+            && (int) $pago->integracion_pago_transaccion_id === (int) $transaccion->id) {
+            return $pago;
+        }
+
+        if (! $pago->esPlanificado()) {
+            throw new Exception("Solo se puede materializar un pago planificado (actual: '{$pago->estado}')");
+        }
+
+        return DB::connection('pymes_tenant')->transaction(function () use ($pago, $transaccion) {
+            $pago->update([
+                'estado' => PedidoDeliveryPago::ESTADO_ACTIVO,
+                'afecta_caja' => false,
+                'creado_por_usuario_id' => null,
+                'integracion_pago_transaccion_id' => $transaccion->id,
+            ]);
+
+            $pedido = $pago->pedido()->first();
+            $this->recalcularTotales($pedido);
+            $this->recalcularEstadoPago($pedido);
+
+            return $pago->fresh();
+        });
+    }
+
+    /**
+     * Aviso "por aceptar" al panel (burbuja/chime) para un borrador externo
+     * cuyo alta NO avisó en su momento (RF-T77: esperando pago online — el
+     * comercio se entera recién con la plata acreditada).
+     */
+    public function avisarPedidoPorAceptar(PedidoDelivery $pedido): void
+    {
+        $this->dispatchBroadcast($pedido, PedidoDeliveryBroadcast::TIPO_POR_ACEPTAR);
+    }
+
+    /**
      * Elimina un pago planificado (nunca afectó caja ni fondo): DELETE directo.
      */
     public function eliminarPagoPlanificado(PedidoDeliveryPago $pago): void
@@ -1241,7 +1299,7 @@ class PedidoDeliveryService
      * repartidor (destino_fondo), el contraasiento es un movimiento inverso
      * del fondo (D13) en lugar de MovimientoCaja.
      */
-    public function anularPago(PedidoDeliveryPago $pago, ?string $motivo = null): void
+    public function anularPago(PedidoDeliveryPago $pago, ?string $motivo = null, bool $viaCancelacionPedido = false): void
     {
         if ($pago->estado !== PedidoDeliveryPago::ESTADO_ACTIVO) {
             throw new Exception('El pago ya estaba anulado');
@@ -1250,7 +1308,12 @@ class PedidoDeliveryService
         $fpPago = $pago->formaPago()->first();
         if ($fpPago && $fpPago->tieneIntegracion()) {
             $pedidoDelPago = $pago->pedido()->first();
-            if ($pedidoDelPago && $pedidoDelPago->tieneIntegracionPagoConfirmada()) {
+            // RF-T82: la cancelación del pedido SÍ puede anular el pago online
+            // (el refund automático ya corrió — o quedó "a devolver"); fuera
+            // de ese circuito, un cobro por integración confirmado se sigue
+            // bloqueando igual que siempre.
+            if ($pedidoDelPago && $pedidoDelPago->tieneIntegracionPagoConfirmada()
+                && ! ($viaCancelacionPedido && $pedidoDelPago->transaccionCheckoutConfirmada())) {
                 throw new Exception(__('No se puede modificar: este pago se cobró por integración (QR) y ya fue confirmado. La devolución debe hacerse desde el proveedor de pago.'));
             }
         }
@@ -1318,8 +1381,24 @@ class PedidoDeliveryService
             throw new Exception("No se puede cancelar un pedido en estado '{$pedido->estado_pedido}'");
         }
 
-        if ($pedido->tieneIntegracionPagoConfirmada()) {
+        // RF-T82: el checkout ONLINE tiene refund real — al cancelar/rechazar
+        // se devuelve automáticamente (fuera de la transacción DB: es HTTP).
+        // El rechazo NUNCA se bloquea por un fallo del refund: si falla, el
+        // cobro queda "a devolver" (tx confirmada + pedido cancelado).
+        $txCheckout = $pedido->transaccionCheckoutConfirmada();
+
+        if ($pedido->tieneIntegracionPagoConfirmada() && ! $txCheckout) {
             throw new Exception(__('No se puede anular ni modificar: este pedido tiene un cobro por integración (QR) ya confirmado. La devolución debe hacerse desde el proveedor de pago.'));
+        }
+
+        if ($txCheckout) {
+            $devuelto = app(PedidoPagoOnlineService::class)->devolver($txCheckout);
+            if (! $devuelto) {
+                Log::warning('Cancelación de pedido pagado online: el refund falló, queda a devolver', [
+                    'pedido_id' => $pedido->id,
+                    'transaccion_id' => $txCheckout->id,
+                ]);
+            }
         }
 
         DB::connection('pymes_tenant')->transaction(function () use ($pedido, $motivo) {
@@ -1331,7 +1410,7 @@ class PedidoDeliveryService
             $this->desvincularDeSalida($pedido, 'Pedido cancelado: '.$motivo);
 
             foreach ($pedido->pagos()->where('estado', PedidoDeliveryPago::ESTADO_ACTIVO)->get() as $pago) {
-                $this->anularPago($pago, motivo: 'Cancelación del pedido');
+                $this->anularPago($pago, motivo: 'Cancelación del pedido', viaCancelacionPedido: true);
             }
 
             $pedido->pagos()
@@ -2693,7 +2772,11 @@ class PedidoDeliveryService
 
         foreach ($pagos as $pago) {
             $ventaPago = VentaPago::create([
-                'integracion_pago_transaccion_id' => $txsIntegracionPorFp->get($pago->forma_pago_id)?->id,
+                // El vínculo directo del pago (checkout online, RF-T77) manda;
+                // el matching por FP cubre los cobros QR del panel (que asocian
+                // el cobrable a nivel pedido, sin vínculo por pago).
+                'integracion_pago_transaccion_id' => $pago->integracion_pago_transaccion_id
+                    ?? $txsIntegracionPorFp->get($pago->forma_pago_id)?->id,
                 'venta_id' => $venta->id,
                 'forma_pago_id' => $pago->forma_pago_id,
                 'concepto_pago_id' => $pago->concepto_pago_id,

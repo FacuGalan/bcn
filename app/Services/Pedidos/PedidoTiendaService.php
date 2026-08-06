@@ -32,6 +32,12 @@ use Illuminate\Support\Facades\Log;
  */
 class PedidoTiendaService
 {
+    /**
+     * Tx de checkout creada por el ÚLTIMO alta con FP online (RF-T77): el
+     * controller arma el bloque `pago_online` de la respuesta desde acá.
+     */
+    public ?\App\Models\IntegracionPagoTransaccion $transaccionPagoOnline = null;
+
     public function __construct(
         protected PedidoDeliveryService $pedidoService,
         protected DeliveryEnvioService $envioService,
@@ -50,8 +56,32 @@ class PedidoTiendaService
         ?Tienda $tienda = null,
         ?Consumidor $consumidor = null,
     ): PedidoDelivery {
+        $this->transaccionPagoOnline = null;
+
         $config = $this->envioService->configDelivery($sucursal);
         $tipo = $payload['tipo'] ?? PedidoDelivery::TIPO_DELIVERY;
+
+        // Pago ONLINE (RF-T77): la FP declarada tiene checkout activo en la
+        // sucursal ⇒ el pedido nace BORRADOR "esperando pago" (aunque la
+        // aceptación sea automática) y el cobro va por Checkout Pro. Decisión
+        // 2026-08-06: FP con checkout es SOLO online en la tienda.
+        [$fpOnline, $configOnline] = $this->resolverFormaPagoOnline($sucursal, $payload);
+
+        // v1: el canje de puntos no se combina con pago online (el neto a
+        // cobrar podría quedar en cero y el checkout no admite monto 0).
+        if ($fpOnline && ! empty($payload['usar_puntos'])) {
+            throw new Exception(__('El canje de puntos no se puede combinar con el pago online'));
+        }
+
+        $propina = round((float) ($payload['propina'] ?? 0), 2);
+        if ($propina > 0) {
+            if (! $fpOnline) {
+                throw new Exception(__('La propina solo está disponible pagando online'));
+            }
+            if (empty($config['checkout']['propina_habilitada'])) {
+                throw new Exception(__('Esta tienda no acepta propinas online'));
+            }
+        }
 
         // Bloqueos de API pública (el panel advierte; acá se bloquea).
         // ENCARGO (RF-T16): valida contra SU calendario, no contra el de
@@ -191,6 +221,10 @@ class PedidoTiendaService
 
         $aceptacionManual = ($config['aceptacion_pedidos_externos'] ?? 'manual') !== 'automatica';
 
+        // RF-T77: con pago online el pedido SIEMPRE nace borrador (invisible
+        // hasta acreditar) y no avisa "por aceptar" — eso pasa con la plata.
+        $esBorrador = $aceptacionManual || $fpOnline !== null;
+
         // Promesa de entrega elegida por el CONSUMIDOR (RF-15/RF-T16):
         // encargo (día futuro), franja (modo franjas) o "lo antes posible".
         // Validada contra la config — la API pública no negocia.
@@ -256,12 +290,14 @@ class PedidoTiendaService
             'hora_pactada_at' => $horaPactada,
             'lo_antes_posible' => $loAntesPosible,
             'programado_para' => $programadoPara,
+            'propina_online' => $fpOnline ? $propina : 0,
             '_actualizar_direccion_cliente' => false, // el consumidor gestiona sus direcciones globales
+            '_sin_aviso_por_aceptar' => $fpOnline !== null,
         ];
 
         $detalles = $this->construirDetalles($resultado, array_values($payload['items']));
 
-        $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $aceptacionManual);
+        $pedido = $this->pedidoService->crearPedido($data, $detalles, esBorrador: $esBorrador);
 
         // Cumpleaños (RF-T19): se persiste en el cliente tenant y, si el
         // pedido es de consumidor logueado, también en su cuenta GLOBAL
@@ -292,10 +328,45 @@ class PedidoTiendaService
             );
         }
 
+        // Pago ONLINE (RF-T77): la tx de checkout nace con el pedido como
+        // cobrable — si el gateway falla, el borrador no puede quedar huérfano
+        // (jamás sería visible): se cancela y el alta falla con mensaje claro.
+        if ($fpOnline && $configOnline) {
+            $montoOnline = round((float) $pedido->fresh()->total_final - (float) ($canjePuntos['monto'] ?? 0), 2);
+
+            if ($montoOnline <= 0 && $propina <= 0) {
+                $this->pedidoService->cancelarPedido($pedido, __('Pago online no disponible'));
+
+                throw new Exception(__('No hay monto a pagar online para este pedido'));
+            }
+
+            try {
+                $this->transaccionPagoOnline = app(PedidoPagoOnlineService::class)->iniciarPago(
+                    $sucursal,
+                    $pedido,
+                    $fpOnline,
+                    $configOnline,
+                    $montoOnline,
+                    $propina,
+                    $payload['pago']['retorno_url'] ?? null,
+                    $tienda?->nombre,
+                );
+            } catch (\Throwable $e) {
+                try {
+                    $this->pedidoService->cancelarPedido($pedido, __('Pago online no disponible'));
+                } catch (\Throwable) {
+                    // best-effort: el alta ya está fallando con el error real
+                }
+
+                throw new Exception(__('No se pudo iniciar el pago online: ').$e->getMessage(), 0, $e);
+            }
+        }
+
         // Aceptación automática (D14): comandar solo (marca los renglones y
         // transiciona a en_preparacion; la impresión física sigue el circuito
-        // de comandas existente).
-        if (! $aceptacionManual && ! empty($config['imprimir_comanda_al_aceptar'])) {
+        // de comandas existente). Con pago online el pedido sigue borrador:
+        // la transición (y la comanda) llegan con la acreditación (RF-T78).
+        if (! $aceptacionManual && ! $fpOnline && ! empty($config['imprimir_comanda_al_aceptar'])) {
             try {
                 $this->pedidoService->comandarPedido($pedido->fresh(['detalles']));
             } catch (Exception $e) {
@@ -307,6 +378,34 @@ class PedidoTiendaService
         }
 
         return $pedido;
+    }
+
+    /**
+     * Detecta la FP online del payload (RF-T77): la FP declarada singular con
+     * integración de checkout activa+configurada en la sucursal. El multi-pago
+     * no combina con pago online (v1) — dos links/cobros parciales serían un
+     * circuito de conciliación aparte.
+     *
+     * @return array{0: ?\App\Models\FormaPago, 1: ?\App\Models\IntegracionPagoSucursal}
+     */
+    protected function resolverFormaPagoOnline(Sucursal $sucursal, array $payload): array
+    {
+        foreach (array_values($payload['pagos'] ?? []) as $pago) {
+            $fp = \App\Models\FormaPago::find((int) ($pago['forma_pago_id'] ?? 0));
+            if ($fp?->integracionCheckout((int) $sucursal->id)) {
+                throw new Exception(__('El pago online no se puede combinar con otra forma de pago'));
+            }
+        }
+
+        $formaPagoId = (int) ($payload['pago']['forma_pago_id'] ?? 0);
+        if (! $formaPagoId) {
+            return [null, null];
+        }
+
+        $fp = \App\Models\FormaPago::find($formaPagoId);
+        $config = $fp?->integracionCheckout((int) $sucursal->id);
+
+        return $config ? [$fp, $config] : [null, null];
     }
 
     /**

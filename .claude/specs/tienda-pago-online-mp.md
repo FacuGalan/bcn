@@ -1,6 +1,6 @@
 # Tienda — Pago Online con Mercado Pago (Checkout Pro) - Especificación
 
-## Estado: EN PROGRESO (Fase 1 completa)
+## Estado: EN PROGRESO (Fases 1 y 2 completas — core listo; falta tienda + validación en vivo)
 
 > Spec creado 2026-08-06. Exploración completa (framework integraciones + circuito pedidos tienda + API MP verificada).
 > Numeración RF-T continúa desde RF-T75 (T66..T74 = spec tienda-sesion-persistente).
@@ -184,8 +184,10 @@ es/en/pt (orden alfabético): "Mercado Pago - Checkout Online", "Esperando pago 
 Seed + 3 migraciones + guard del índice colector + constantes + config UI (textos) + tenant_tables.sql + tests de modelos/seed. Mergeable sola (nada consume checkout aún). **Sin conflicto con PR #198.**
 > Implementado 2026-08-06 en `feat/tienda-pago-online-mp`: 6 migraciones (las 5 del plan + seed concepto `propina_online` orden 19), guard del colector con `CODIGO_MERCADOPAGO_CHECKOUT`, `MODO_CHECKOUT_PRO` en gateway, pivote `config_checkout` en FormaPago::integraciones(), `propina_online` en PedidoDelivery, `integracionTransaccion()` en PedidoDeliveryPago, ayuda del modal de credenciales con rama "Pagos online"/"Checkout Pro" (+3 traducciones), tenant_tables.sql regenerado (splice quirúrgico de las 4 tablas), tests `MercadoPagoCheckoutFase1Test` (6 verdes).
 
-### Fase 2 — Core: gateway + circuito de pedido online [PENDIENTE]
+### Fase 2 — Core: gateway + circuito de pedido online [COMPLETO]
 `iniciarCobroCheckoutPro` + ramas consultar/webhook + `reembolsar()` + RF-T77/T78/T79/T80/T82 + contrato + tests (MP fakeado; molde `CobroQrFlujoFelizTest`/`MercadoPagoWebhookTest`). **Sin conflicto con #198** (roce trivial en routes/api.php y el .md del contrato, aditivo).
+> Implementado 2026-08-06 en `feat/tienda-pago-online-mp`. Piezas: rama checkout completa en `MercadoPagoGateway` (preferencias con 2 ítems propina, `payments/search`, topic `payment`, refund total, cancel local), service nuevo `PedidoPagoOnlineService` (iniciar/acreditar/expirar/re-pagar/devolver + contraasientos), rama online en `PedidoTiendaService` (borrador forzado + `_sin_aviso_por_aceptar` + guards puntos/multi-pago/propina + rollback si MP cae), `materializarPagoOnline` sin caja/operador, webhook topic payment con hook de acreditación (persiste `payment_id` en metadata), `cancelarPedido` con devolución automática (falla ⇒ "a devolver" + reintento en detalle del pedido), endpoints GET/POST `pedidos/{token}/pago`, `pago_online` en formasPagoPublicas + respuesta del alta + seguimiento (`esperando_pago`) + broadcast (`pago_online`), config propina en ConfiguracionDelivery, migración enum `devuelto`, contrato actualizado (aditivo), 31 traducciones, `MercadoPagoCheckoutFase2Test` 14/14 + regresión 177 tests verdes.
+> Decisión de implementación: "esperando pago" SIN columna extra (borrador + tx checkout pendiente, helper `esperandoPagoOnline()`); timeout de config ≤300s se eleva a 1800s (default presencial no aplica online); pago acreditado sobre pedido ya cancelado (webhook tardío) ⇒ devolución automática.
 
 ### Fase 3 — Tienda: checkout online [BLOQUEADA hasta merge de bcn-tienda #65]
 RF-T81 completo + contract tests con fixtures nuevos.

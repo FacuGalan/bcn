@@ -1607,7 +1607,7 @@ CREATE TABLE `{{PREFIX}}integraciones_pago_transacciones` (
   `external_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'payment_id del proveedor al confirmar',
   `qr_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Base64 PNG o string del QR',
   `link_pago` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL si modo link (futuro)',
-  `estado` enum('pendiente','confirmado','confirmado_manual','fallido','expirado','cancelado','sin_match') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
+  `estado` enum('pendiente','confirmado','confirmado_manual','fallido','expirado','cancelado','sin_match','devuelto') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
   `expira_en` timestamp NULL DEFAULT NULL COMMENT 'created_at + timeout_segundos. NULL para QR estático sin expiración estricta.',
   `confirmado_en` timestamp NULL DEFAULT NULL,
   `payload_respuesta` json DEFAULT NULL COMMENT 'Respuesta del gateway al iniciar el cobro',

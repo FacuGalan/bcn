@@ -1088,6 +1088,12 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
             return $this->iniciarCobroPoint($config, $transaccion);
         }
 
+        // Checkout Pro (RF-T76): pago online de la tienda — otra API
+        // (preferencias → init_point), sin POS ni caja.
+        if ($transaccion->modo_usado === self::MODO_CHECKOUT_PRO) {
+            return $this->iniciarCobroCheckoutPro($config, $transaccion);
+        }
+
         // QR monto-libre: el cliente ingresa el monto en su app, no se empuja
         // nada a MP. No hay order ni POS; solo se muestra la imagen del QR
         // "Cobrar" configurada en la FormaPago y el cajero confirma manualmente.
@@ -1350,6 +1356,217 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         ];
     }
 
+    // ==================== Checkout Pro (RF-T76, pago online de la tienda) ====================
+
+    /**
+     * Inicia un cobro online creando una preferencia de Checkout Pro
+     * (POST /checkout/preferences → init_point). El consumidor paga en la
+     * página segura de MP; la acreditación llega por webhook topic `payment`.
+     *
+     * Datos específicos en `metadata['checkout']` (los arma el alta del pedido):
+     *  - `titulo`: título visible del ítem ("Pedido {nº} - {tienda}").
+     *  - `propina`: monto de propina (RF-T83) — viaja como SEGUNDO ítem para
+     *    que el pagador la vea discriminada; el monto de la tx es la SUMA.
+     *  - `back_url`: URL de retorno de la TIENDA (con auto_return). Opcional.
+     *  - `statement`: nombre del comercio para el resumen de tarjeta.
+     *  - `cuotas_max`: tope de cuotas de la FP (config_checkout del pivote).
+     *
+     * `binary_mode`: sin estados intermedios `in_process` — aprueba o rechaza
+     * (boleto/efectivo MP quedan fuera; para entrega inmediata no sirven).
+     * `expiration_date_to`: la preferencia muere sola con el timeout de la tx
+     * (clave para cancelarCobro, que no tiene cancel remoto acá).
+     *
+     * @return array{qr_data: null, qr_image_url: null, link: string, external_reference: string, external_id: string, payload: array}
+     */
+    private function iniciarCobroCheckoutPro(
+        IntegracionPagoSucursal $config,
+        IntegracionPagoTransaccion $transaccion
+    ): array {
+        $checkout = $transaccion->metadata['checkout'] ?? [];
+        $externalReference = 'BCN-TX-'.$transaccion->id;
+
+        $propina = round((float) ($checkout['propina'] ?? 0), 2);
+        $totalPedido = round((float) $transaccion->monto - $propina, 2);
+
+        $items = [[
+            'id' => 'pedido',
+            'title' => (string) ($checkout['titulo'] ?? __('Pedido')),
+            'quantity' => 1,
+            'unit_price' => $totalPedido,
+        ]];
+
+        if ($propina > 0) {
+            $items[] = [
+                'id' => 'propina',
+                'title' => __('Propina'),
+                'quantity' => 1,
+                'unit_price' => $propina,
+            ];
+        }
+
+        $payload = [
+            'items' => $items,
+            'external_reference' => $externalReference,
+            'notification_url' => route('integraciones.mercadopago.webhook'),
+            'binary_mode' => true,
+            'expires' => true,
+            'expiration_date_from' => now()->toIso8601String(),
+            'expiration_date_to' => $transaccion->expira_en?->toIso8601String(),
+        ];
+
+        if (! empty($checkout['statement'])) {
+            // MP corta el statement_descriptor largo; se acota para no arriesgar un 400.
+            $payload['statement_descriptor'] = mb_substr((string) $checkout['statement'], 0, 22);
+        }
+
+        if (! empty($checkout['cuotas_max'])) {
+            $payload['payment_methods'] = ['installments' => (int) $checkout['cuotas_max']];
+        }
+
+        if (! empty($checkout['back_url'])) {
+            $backUrl = (string) $checkout['back_url'];
+            $payload['back_urls'] = [
+                'success' => $backUrl,
+                'pending' => $backUrl,
+                'failure' => $backUrl,
+            ];
+            $payload['auto_return'] = 'approved';
+        }
+
+        $response = $this->client($config)
+            ->withHeaders(['X-Idempotency-Key' => 'pref-'.$externalReference])
+            ->post(self::API_BASE.'/checkout/preferences', $payload);
+
+        $this->guardResponse($response, 'iniciarCobroCheckoutPro');
+
+        $data = $response->json();
+        $initPoint = $data['init_point'] ?? $data['sandbox_init_point'] ?? null;
+
+        if (empty($initPoint)) {
+            Log::warning('MercadoPagoGateway::iniciarCobroCheckoutPro - respuesta sin init_point', [
+                'transaccion_id' => $transaccion->id,
+                'preference_id' => $data['id'] ?? null,
+            ]);
+
+            throw new \RuntimeException(__('Mercado Pago no devolvió el link de pago'));
+        }
+
+        Log::info('MercadoPagoGateway::iniciarCobroCheckoutPro OK', [
+            'transaccion_id' => $transaccion->id,
+            'preference_id' => $data['id'] ?? null,
+            'propina' => $propina,
+        ]);
+
+        return [
+            'qr_data' => null,
+            'qr_image_url' => null,
+            'link' => (string) $initPoint,
+            'external_reference' => $externalReference,
+            'external_id' => (string) ($data['id'] ?? ''),
+            'payload' => $data,
+        ];
+    }
+
+    /**
+     * Estado real de un checkout: la preferencia NO es consultable como una
+     * order — se buscan los PAGOS por external_reference
+     * (GET /v1/payments/search). Con binary_mode los estados posibles son
+     * approved / rejected / cancelled; sin resultados el pago sigue pendiente.
+     *
+     * Cualquier pago `approved` gana (el consumidor pudo reintentar con otra
+     * tarjeta tras un rechazo: el rechazo viejo no importa).
+     *
+     * @return array{estado: string, payload: array}
+     */
+    private function consultarEstadoCheckout(
+        IntegracionPagoSucursal $config,
+        IntegracionPagoTransaccion $transaccion
+    ): array {
+        $response = $this->client($config)->get(self::API_BASE.'/v1/payments/search', [
+            'external_reference' => 'BCN-TX-'.$transaccion->id,
+            'sort' => 'date_created',
+            'criteria' => 'desc',
+        ]);
+
+        $this->guardResponse($response, 'consultarEstadoCheckout');
+
+        $pagos = $response->json('results') ?? [];
+
+        if (empty($pagos)) {
+            return ['estado' => 'pendiente', 'payload' => []];
+        }
+
+        $aprobado = collect($pagos)->first(fn ($p) => ($p['status'] ?? null) === 'approved');
+        if ($aprobado !== null) {
+            return ['estado' => 'aprobado', 'payload' => $aprobado];
+        }
+
+        $ultimo = $pagos[0];
+
+        return [
+            'estado' => match ($ultimo['status'] ?? '') {
+                'rejected' => 'fallido',
+                'cancelled' => 'cancelado',
+                'refunded', 'charged_back' => 'devuelto',
+                default => 'pendiente',
+            },
+            'payload' => $ultimo,
+        ];
+    }
+
+    /**
+     * GET /v1/payments/{id} — detalle de un pago puntual. Lo usa el webhook
+     * topic `payment` para resolver la transacción (el payload del webhook
+     * solo trae el id; el external_reference vive en el recurso).
+     */
+    public function obtenerPago(IntegracionPagoSucursal $config, string $paymentId): ?array
+    {
+        $response = $this->client($config)->get(self::API_BASE.'/v1/payments/'.$paymentId);
+
+        if ($response->status() === 404) {
+            return null;
+        }
+
+        $this->guardResponse($response, 'obtenerPago');
+
+        return $response->json();
+    }
+
+    /**
+     * Refund TOTAL de un pago de checkout (RF-T82): POST /v1/payments/{id}/refunds
+     * sin monto = devolución completa (incluye la propina — ambos ítems viven
+     * en el MISMO pago). Idempotente por header. El payment_id lo persistió el
+     * webhook al confirmar (metadata.checkout.payment_id).
+     *
+     * @return array respuesta de MP (incluye `id` del refund y `status`)
+     *
+     * @throws \RuntimeException si la tx no tiene payment_id o MP rechaza el refund
+     */
+    public function reembolsar(
+        IntegracionPagoSucursal $config,
+        IntegracionPagoTransaccion $transaccion
+    ): array {
+        $paymentId = $transaccion->paymentIdCheckout();
+
+        if (empty($paymentId)) {
+            throw new \RuntimeException(__('La transacción no tiene el identificador del pago de Mercado Pago (no se puede devolver)'));
+        }
+
+        $response = $this->client($config)
+            ->withHeaders(['X-Idempotency-Key' => 'refund-BCN-TX-'.$transaccion->id])
+            ->post(self::API_BASE.'/v1/payments/'.$paymentId.'/refunds');
+
+        $this->guardResponse($response, 'reembolsar');
+
+        Log::info('MercadoPagoGateway::reembolsar OK', [
+            'transaccion_id' => $transaccion->id,
+            'payment_id' => $paymentId,
+            'refund_id' => $response->json('id'),
+        ]);
+
+        return $response->json() ?? [];
+    }
+
     /**
      * Consulta el estado de la order en MP (GET /v1/orders/{id}).
      * Fallback de polling; la confirmación primaria llega por webhook.
@@ -1360,6 +1577,11 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         IntegracionPagoSucursal $config,
         IntegracionPagoTransaccion $transaccion
     ): array {
+        // Checkout Pro: el recurso consultable es el PAGO, no una order.
+        if ($transaccion->modo_usado === self::MODO_CHECKOUT_PRO) {
+            return $this->consultarEstadoCheckout($config, $transaccion);
+        }
+
         if (empty($transaccion->external_id)) {
             throw new \RuntimeException(__('La transacción no tiene un identificador de orden de Mercado Pago'));
         }
@@ -1385,6 +1607,17 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         IntegracionPagoSucursal $config,
         IntegracionPagoTransaccion $transaccion
     ): bool {
+        // Checkout Pro: no hay cancel remoto de una preferencia con pago en
+        // vuelo — la tx se cancela LOCAL y la preferencia muere sola por
+        // expiration_date_to (seteado al crearla). Documentado en RF-T76.
+        if ($transaccion->modo_usado === self::MODO_CHECKOUT_PRO) {
+            Log::info('MercadoPagoGateway::cancelarCobro - checkout: cancelación local (la preferencia expira por expiration_date_to)', [
+                'transaccion_id' => $transaccion->id,
+            ]);
+
+            return true;
+        }
+
         if (empty($transaccion->external_id)) {
             return false;
         }

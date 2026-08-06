@@ -67,6 +67,12 @@ class IntegracionPagoEvento extends Model
 
     public const EVENTO_ERROR = 'error';
 
+    /** RF-T82: refund total ejecutado OK en el proveedor. */
+    public const EVENTO_DEVUELTO = 'devuelto';
+
+    /** RF-T82: el refund falló — el cobro queda "a devolver" (reintento manual). */
+    public const EVENTO_DEVOLUCION_FALLIDA = 'devolucion_fallida';
+
     protected static function booted(): void
     {
         static::creating(function (self $evento): void {

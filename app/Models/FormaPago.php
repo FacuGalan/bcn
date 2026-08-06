@@ -145,6 +145,31 @@ class FormaPago extends Model
     }
 
     /**
+     * Config de checkout ONLINE de esta FP en la sucursal (RF-T77): la FP
+     * tiene asociada la integración de checkout Y la sucursal la tiene activa
+     * y con credenciales. El CANAL elige la integración: el panel usa la
+     * principal presencial; la tienda usa esta. NULL = la FP no cobra online.
+     */
+    public function integracionCheckout(int $sucursalId): ?IntegracionPagoSucursal
+    {
+        $integracion = $this->integraciones()
+            ->where('codigo', IntegracionPago::CODIGO_MERCADOPAGO_CHECKOUT)
+            ->where('integraciones_pago.activo', true)
+            ->first();
+
+        if (! $integracion) {
+            return null;
+        }
+
+        $config = IntegracionPagoSucursal::activas()
+            ->porIntegracion($integracion->id)
+            ->porSucursal($sucursalId)
+            ->first();
+
+        return $config?->estaConfigurada() ? $config : null;
+    }
+
+    /**
      * Sucursales donde esta forma de pago está habilitada
      */
     public function sucursales(): BelongsToMany

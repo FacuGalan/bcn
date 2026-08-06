@@ -1833,8 +1833,49 @@ class PedidosDelivery extends Component
             ->where('sucursal_id', $sucursalId)
             ->where('estado_pedido', PedidoDelivery::ESTADO_BORRADOR)
             ->where('origen', '!=', PedidoDelivery::ORIGEN_PANEL)
+            // RF-T77/T80: un borrador "esperando pago online" (tx de checkout
+            // pendiente) NO está por aceptar — entra recién al acreditarse.
+            ->whereDoesntHave('transaccionesIntegracion', fn ($q) => $q
+                ->pendientes()
+                ->where('modo_usado', \App\Models\IntegracionPagoTransaccion::MODO_CHECKOUT_PRO))
             ->orderBy('created_at')
             ->get();
+    }
+
+    /**
+     * RF-T82: reintento manual de la devolución de un pago online cuyo refund
+     * automático falló al rechazar/cancelar el pedido ("Pago a devolver").
+     */
+    public function reintentarDevolucionOnline(int $pedidoId): void
+    {
+        $pedido = PedidoDelivery::find($pedidoId);
+        if (! $pedido || ! $this->tieneAccesoASucursal($pedido->sucursal_id)) {
+            $this->dispatch('toast-error', message: __('Pedido no encontrado'));
+
+            return;
+        }
+
+        $tx = $pedido->transaccionCheckoutConfirmada();
+        if (! $tx) {
+            $this->dispatch('toast-error', message: __('El pedido no tiene un pago online a devolver'));
+
+            return;
+        }
+
+        try {
+            $ok = app(\App\Services\Pedidos\PedidoPagoOnlineService::class)
+                ->devolver($tx, (int) auth()->id());
+        } catch (\Exception $e) {
+            $this->dispatch('toast-error', message: $e->getMessage());
+
+            return;
+        }
+
+        if ($ok) {
+            $this->dispatch('toast-success', message: __('La devolución se realizó correctamente'));
+        } else {
+            $this->dispatch('toast-error', message: __('La devolución volvió a fallar: reintentá más tarde o gestionala desde el panel de Mercado Pago'));
+        }
     }
 
     public function abrirAceptar(int $pedidoId): void

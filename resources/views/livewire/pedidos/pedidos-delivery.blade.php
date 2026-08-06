@@ -1385,6 +1385,45 @@
                         </div>
                     </div>
 
+                    {{-- RF-T80/T82: pago ONLINE del pedido (checkout de la tienda) --}}
+                    @php($txOnlineDetalle = $pedidoDetalle->transaccionesIntegracion()->where('modo_usado', \App\Models\IntegracionPagoTransaccion::MODO_CHECKOUT_PRO)->latest('id')->first())
+                    @if($txOnlineDetalle)
+                        @php($aDevolver = $pedidoDetalle->estado_pedido === \App\Models\PedidoDelivery::ESTADO_CANCELADO && $txOnlineDetalle->estaConfirmada())
+                        <div class="rounded-lg p-3 border {{ $aDevolver ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' }}">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">{{ __('Pago online (Mercado Pago)') }}</label>
+                                    <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+                                        @formatoPrecio($txOnlineDetalle->monto)
+                                        —
+                                        @if($aDevolver)
+                                            <span class="text-red-700 dark:text-red-300 font-semibold">{{ __('Pago a devolver') }}</span>
+                                        @elseif($txOnlineDetalle->estaConfirmada())
+                                            <span class="text-green-700 dark:text-green-300 font-semibold">{{ __('Acreditado') }}</span>
+                                        @elseif($txOnlineDetalle->estado === \App\Models\IntegracionPagoTransaccion::ESTADO_DEVUELTO)
+                                            <span class="text-gray-600 dark:text-gray-300 font-semibold">{{ __('Devuelto al cliente') }}</span>
+                                        @elseif($txOnlineDetalle->estaPendiente())
+                                            <span class="text-orange-700 dark:text-orange-300 font-semibold">{{ __('Esperando pago online') }}</span>
+                                        @else
+                                            <span class="text-gray-600 dark:text-gray-300 font-semibold">{{ __('Pago online no completado') }}</span>
+                                        @endif
+                                    </p>
+                                    @if((float) $pedidoDetalle->propina_online > 0)
+                                        <p class="text-xs text-gray-600 dark:text-gray-400">{{ __('Propina para el repartidor') }}: @formatoPrecio($pedidoDetalle->propina_online)</p>
+                                    @endif
+                                </div>
+                                @if($aDevolver)
+                                    <button type="button" wire:click="reintentarDevolucionOnline({{ $pedidoDetalle->id }})"
+                                            wire:loading.attr="disabled"
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-red-600 hover:bg-red-700 text-white transition">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 15v-1a4 4 0 00-4-4H8m0 0l3 3m-3-3l3-3m9 14V5a2 2 0 00-2-2H6a2 2 0 00-2 2v16l4-2 4 2 4-2 4 2z"/></svg>
+                                        {{ __('Reintentar devolución') }}
+                                    </button>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+
                     {{-- Datos de entrega (RF-01/RF-04) --}}
                     <div class="bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded-lg p-3">
                         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">

@@ -93,6 +93,9 @@ class IntegracionPagoTransaccion extends Model
 
     public const ESTADO_SIN_MATCH = 'sin_match';
 
+    /** RF-T82: cobro confirmado que fue devuelto al pagador (refund total en el proveedor). */
+    public const ESTADO_DEVUELTO = 'devuelto';
+
     // Modos (espejo de modos_disponibles del catálogo).
     public const MODO_QR_DINAMICO = 'qr_dinamico';
 
@@ -101,6 +104,8 @@ class IntegracionPagoTransaccion extends Model
     public const MODO_POINT = 'point';
 
     public const MODO_QR_LIBRE = 'qr_libre';
+
+    public const MODO_CHECKOUT_PRO = 'checkout_pro';
 
     // ==================== Relaciones ====================
 
@@ -202,7 +207,25 @@ class IntegracionPagoTransaccion extends Model
             self::ESTADO_EXPIRADO,
             self::ESTADO_CANCELADO,
             self::ESTADO_SIN_MATCH,
+            self::ESTADO_DEVUELTO,
         ], true);
+    }
+
+    public function esCheckoutOnline(): bool
+    {
+        return $this->modo_usado === self::MODO_CHECKOUT_PRO;
+    }
+
+    /**
+     * payment_id de MP del pago acreditado (RF-T82): lo persiste el webhook al
+     * confirmar un checkout (el external_id de la tx es la PREFERENCIA, no el
+     * pago). Sin él no hay refund posible.
+     */
+    public function paymentIdCheckout(): ?string
+    {
+        $id = $this->metadata['checkout']['payment_id'] ?? null;
+
+        return $id !== null ? (string) $id : null;
     }
 
     public function estaVencida(): bool

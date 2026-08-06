@@ -60,6 +60,8 @@ class ConfiguracionDelivery extends Component
         'encargosFeriados', 'encargosAnticipacionHoras', 'encargosMaxDias',
         // RF-T19 — datos del cliente en el checkout de la tienda
         'checkoutPedirEmail', 'checkoutPedirCumpleanios', 'checkoutPedirEntreCalles',
+        // RF-T83 — propina en el pago online
+        'checkoutPropinaHabilitada', 'checkoutPropinaOpciones',
     ];
 
     // ==================== CONFIG SUCURSAL (RF-05) ====================
@@ -105,6 +107,12 @@ class ConfiguracionDelivery extends Component
 
     /** RF-T19: entre calles del delivery — no | opcional | obligatorio */
     public string $checkoutPedirEntreCalles = 'opcional';
+
+    /** RF-T83: propina en el pago online de la tienda */
+    public bool $checkoutPropinaHabilitada = false;
+
+    /** RF-T83: porcentajes sugeridos de propina (coma-separados en el form) */
+    public string $checkoutPropinaOpciones = '5, 10, 15';
 
     /** @var array<int, bool> día (1=lunes .. 7=domingo) => laboral */
     public array $diasLaborales = [];
@@ -354,6 +362,8 @@ class ConfiguracionDelivery extends Component
         $this->checkoutPedirEmail = (string) ($config['checkout']['pedir_email'] ?? 'opcional');
         $this->checkoutPedirCumpleanios = (bool) ($config['checkout']['pedir_cumpleanios'] ?? false);
         $this->checkoutPedirEntreCalles = (string) ($config['checkout']['pedir_entre_calles'] ?? 'opcional');
+        $this->checkoutPropinaHabilitada = (bool) ($config['checkout']['propina_habilitada'] ?? false);
+        $this->checkoutPropinaOpciones = implode(', ', array_map('intval', (array) ($config['checkout']['propina_opciones'] ?? [5, 10, 15])));
 
         $this->diasLaborales = [];
         foreach (range(1, 7) as $dia) {
@@ -488,6 +498,12 @@ class ConfiguracionDelivery extends Component
                 'pedir_entre_calles' => in_array($this->checkoutPedirEntreCalles, ['no', 'opcional', 'obligatorio'], true)
                     ? $this->checkoutPedirEntreCalles
                     : 'opcional',
+                // Propina online (RF-T83): % sugeridos entre 1 y 100.
+                'propina_habilitada' => $this->checkoutPropinaHabilitada,
+                'propina_opciones' => array_values(array_filter(
+                    array_map('intval', preg_split('/[,;\s]+/', $this->checkoutPropinaOpciones) ?: []),
+                    fn (int $p) => $p >= 1 && $p <= 100,
+                )) ?: [5, 10, 15],
             ],
         ]);
 

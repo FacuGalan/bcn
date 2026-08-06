@@ -93,12 +93,22 @@ La card del marketplace (`GET /v1/tiendas`) y `GET /delivery/config`
 (integraciones) suman el mismo campo. Campo ausente ⇒ asumir `true`
 (retrocompatibilidad).
 
-`formas_pago` son las declarables **contra entrega/retiro** (el pago online
-integrado es otro circuito, pendiente en el spec de integraciones);
-`permite_vuelto: true` habilita el campo `paga_con` del alta de pedido.
-`ajuste_porcentaje` es el descuento (negativo) o recargo (positivo) de esa FP
-— mostrarlo junto a la opción ("Efectivo −10%"); el monto exacto lo calcula
-`carrito/cotizar` con `forma_pago_id`.
+`formas_pago` son las declarables **contra entrega/retiro** más las de pago
+ONLINE (aditivo 2026-08-06, abajo); `permite_vuelto: true` habilita el campo
+`paga_con` del alta de pedido. `ajuste_porcentaje` es el descuento (negativo)
+o recargo (positivo) de esa FP — mostrarlo junto a la opción ("Efectivo
+−10%"); el monto exacto lo calcula `carrito/cotizar` con `forma_pago_id`.
+
+**Pago online** *(aditivo 2026-08-06, RF-T77)*: cada FP suma `pago_online`
+(bool) y `pago_online_modo` (`"checkout_pro" | null`). Con `pago_online:
+true` la FP se paga EN LÍNEA (Mercado Pago Checkout Pro): al confirmar el
+pedido la tienda recibe `pago_online.url_pago` y redirige ahí (badge sugerido:
+"Pagás online de forma segura"). Decisión 2026-08-06: una FP con checkout es
+**SOLO online** en la tienda (no se ofrece su variante declarable); cuando se
+quiera ofrecer "pagar ahora o al recibir" se sumará `pago_online_opcional`
+(aditivo). `checkout` suma además `propina: { activo: bool, opciones: [5,10,
+15] }` *(RF-T83)*: con `activo`, el checkout ofrece propina (chips de % +
+monto libre) SOLO al pagar online.
 
 *(Aditivo 2026-07-21, RF-T18)* la lista viene ordenada por el `orden` que el
 comercio definió en el panel (la tienda la muestra tal cual llega, sin
@@ -601,6 +611,35 @@ Reglas:
   comercio. El `carrito/cotizar` con ese mismo Bearer cotiza con su cliente
   (precios especiales) — checkout y pedido muestran el MISMO total.
 
+**Pago ONLINE** *(aditivo 2026-08-06, RF-T77/RF-T83)* — con una FP de
+`pago_online: true` en `pago.forma_pago_id`:
+
+- Payload: `pago.retorno_url` (string, opcional — URL de la página de retorno
+  de la tienda; admite el placeholder `{token}`, que el core reemplaza por el
+  `token_seguimiento` real) y `propina` (decimal ≥ 0, opcional — solo con
+  `checkout.propina.activo`; 422 si la tienda no la acepta).
+- El pedido nace **BORRADOR "esperando pago"** (incluso con aceptación
+  automática): invisible para el comercio, sin número y sin stock. La
+  respuesta 201 suma:
+
+```json
+"pago_online": { "transaccion_id": 8, "url_pago": "https://www.mercadopago.com.ar/checkout/...",
+                 "expira_en": "2026-08-06T19:30:00-03:00", "estado": "pendiente" }
+```
+
+- La tienda redirige a `url_pago` (misma pestaña). El pago vence a los 30 min
+  (configurable). La acreditación la decide el **webhook** del core — el
+  retorno del navegador SOLO consulta (`GET .../pago`), nunca acredita.
+- Acreditado el pago: el pedido entra al circuito normal (por aceptar o
+  confirmado según la config del comercio) con el pago YA registrado
+  (`estado_pago: "pagado"`).
+- La `propina` NO pasa por la cotización ni integra `total_final`: se suma al
+  monto del pago online y queda discriminada ("Propina para el repartidor").
+- Restricciones v1 (422): FP online no combina con `pagos` (multi-pago) ni
+  con `usar_puntos`.
+- Si la creación del pago en MP falla, el alta devuelve 422 y NO queda pedido
+  (la tienda conserva el carrito y puede reintentar).
+
 ### `GET /v1/tiendas/{slug}/pedidos/{token_seguimiento}`
 Seguimiento público (el token ULID es la credencial): estado + label, hora
 pactada / `lo_antes_posible`, `demorado` (por aceptar con el timeout del
@@ -684,9 +723,48 @@ hizo el pedido):
   las mismas reglas, y se emite TAMBIÉN al asignar repartidor (sin cambio de
   estado).
 
+**Esperando pago online** *(aditivo 2026-08-06, RF-T77)*: el GET suma
+`esperando_pago` (bool) — `true` mientras el pago online del pedido no
+acredite (en ese lapso `por_aceptar` es `false`: el comercio todavía no ve el
+pedido). El canal `SeguimientoActualizado` suma `pago_online`
+(`{ estado: "aprobado" | "devuelto" } | null`): se emite al acreditarse el
+pago y al devolverse (pedido rechazado con refund).
+
+### `GET /v1/tiendas/{slug}/pedidos/{token_seguimiento}/pago`
+*(aditivo 2026-08-06, RF-T79 — throttle 30/min)*
+
+Estado del pago online del pedido — lo consume la página de retorno del
+navegador (el `back_url` de MP **no es fuente de verdad**: esto consulta,
+nunca acredita):
+
+```json
+{ "data": { "estado": "pendiente|aprobado|fallido|devuelto|sin_pago",
+            "url_pago": "https://...|null", "expira_en": "ISO8601|null" } }
+```
+
+`pendiente` incluye `url_pago` para re-ofrecer el link vigente; `fallido`
+habilita el botón "Reintentar pago" (POST de abajo). Con la transacción
+pendiente el core re-consulta el estado VIVO a MP, así el retorno ve
+`aprobado` aunque el webhook venga en camino (la transición del pedido sigue
+siendo del webhook).
+
+### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/pago`
+*(aditivo 2026-08-06, RF-T79 — throttle 10/min)*
+
+Re-pago: si el pedido sigue "esperando pago" y la transacción anterior murió
+(expiró / falló), crea una transacción NUEVA sobre el MISMO pedido — un fallo
+de MP no le hace perder al consumidor el pedido armado. Body opcional:
+`retorno_url` (mismas reglas del alta). Respuesta: el mismo shape de
+`pago_online` del alta. 422 si el pedido ya no espera pago (cancelado,
+acreditado o aceptado).
+
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/cancelar`
 Cancelación por el consumidor: permitida hasta `confirmado` (antes de que
-entre en preparación). Después, solo el comercio.
+entre en preparación). Después, solo el comercio. *(Aditivo 2026-08-06,
+RF-T82)*: si el pedido tiene un pago online acreditado, la cancelación (del
+consumidor o del comercio) dispara la **devolución automática total** en MP
+— propina incluida; el seguimiento avisa por el canal con
+`pago_online: { estado: "devuelto" }`.
 
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/vincular`
 *(aditivo 2026-07-31, RF-T56 — requiere Bearer de consumidor)*
