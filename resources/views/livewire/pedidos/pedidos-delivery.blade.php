@@ -1385,10 +1385,20 @@
                         </div>
                     </div>
 
-                    {{-- RF-T80/T82: pago ONLINE del pedido (checkout de la tienda) --}}
-                    @php($txOnlineDetalle = $pedidoDetalle->transaccionesIntegracion()->where('modo_usado', \App\Models\IntegracionPagoTransaccion::MODO_CHECKOUT_PRO)->latest('id')->first())
+                    {{-- RF-T80/T82: pago ONLINE del pedido (checkout de la tienda).
+                         Bloque @php/@endphp (no @php(...) inline): la expresión
+                         compleja compila como bloque crudo y rompe la vista
+                         (gotcha conocido del proyecto). --}}
+                    @php
+                        $txOnlineDetalle = $pedidoDetalle->transaccionesIntegracion()
+                            ->where('modo_usado', \App\Models\IntegracionPagoTransaccion::MODO_CHECKOUT_PRO)
+                            ->latest('id')
+                            ->first();
+                        $aDevolver = $txOnlineDetalle
+                            && $pedidoDetalle->estado_pedido === \App\Models\PedidoDelivery::ESTADO_CANCELADO
+                            && $txOnlineDetalle->estaConfirmada();
+                    @endphp
                     @if($txOnlineDetalle)
-                        @php($aDevolver = $pedidoDetalle->estado_pedido === \App\Models\PedidoDelivery::ESTADO_CANCELADO && $txOnlineDetalle->estaConfirmada())
                         <div class="rounded-lg p-3 border {{ $aDevolver ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-sky-50 dark:bg-sky-900/20 border-sky-200 dark:border-sky-800' }}">
                             <div class="flex flex-wrap items-center justify-between gap-2">
                                 <div>

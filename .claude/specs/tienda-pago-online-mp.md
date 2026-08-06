@@ -192,8 +192,10 @@ Seed + 3 migraciones + guard del índice colector + constantes + config UI (text
 ### Fase 3 — Tienda: checkout online [BLOQUEADA hasta merge de bcn-tienda #65]
 RF-T81 completo + contract tests con fixtures nuevos.
 
-### Fase 4 — Validación en vivo + docs [PENDIENTE]
+### Fase 4 — Validación en vivo + docs [PARCIALMENTE COMPLETA]
 Sandbox MP con credenciales de prueba de Facu (app Checkout Pro nueva en el panel de MP), webhook vía server o ngrok, @docs-sync, /sdd-verify.
+> 2026-08-06 — **validación en vivo del CORE con credenciales de PRODUCCIÓN y plata real** (local, comercio demo): alta → borrador invisible esperando pago → preferencia real → pago real de $436,60 desde otra cuenta MP → webhook topic payment simulado a mano (re-consulta autenticada real) → tx confirmada + pago materializado sin caja + movimiento CuentaEmpresa → pedido a por-aceptar → rechazo desde el panel → **refund real total** (MP: status=refunded) + tx `devuelto` + contraasiento exacto. 3 fixes salieron de la validación: notification_url solo https (MP rechaza localhost), broadcast del webhook con try/catch (Reverb caído no debe tirar 500), bloque de detalle con @php/@endphp (gotcha Blade). @docs-sync corrido (manual + KB).
+> Falta de Fase 4: webhook REAL entregado por MP al server (hoy la app de MP no apunta a un endpoint público accesible — validar en el deploy), y el flujo completo desde la TIENDA (Fase 3).
 
 ---
 

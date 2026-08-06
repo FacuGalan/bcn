@@ -248,7 +248,17 @@ class MercadoPagoWebhookService
             }
         }
 
-        IntegracionPagoActualizado::dispatch($comercioId, $transaccion->id, $estado);
+        // El aviso en vivo nunca puede tirar el webhook: el cobro YA está
+        // registrado — un 500 acá solo provoca reintentos de MP (validado en
+        // vivo 2026-08-06 con Reverb caído en dev).
+        try {
+            IntegracionPagoActualizado::dispatch($comercioId, $transaccion->id, $estado);
+        } catch (\Throwable $e) {
+            Log::warning('MP webhook payment: no se pudo broadcastear la actualización', [
+                'transaccion_id' => $transaccion->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return [
             'status' => 'ok',

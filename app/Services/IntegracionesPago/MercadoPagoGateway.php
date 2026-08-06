@@ -1407,12 +1407,20 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         $payload = [
             'items' => $items,
             'external_reference' => $externalReference,
-            'notification_url' => route('integraciones.mercadopago.webhook'),
             'binary_mode' => true,
             'expires' => true,
             'expiration_date_from' => now()->toIso8601String(),
             'expiration_date_to' => $transaccion->expira_en?->toIso8601String(),
         ];
+
+        // MP exige una URL https PÚBLICA (400 invalid_notification_url con
+        // http://localhost, validado en vivo 2026-08-06). En dev se omite: la
+        // notificación cae en el webhook configurado en la app de MP y el
+        // circuito local se valida re-consultando/simulando el webhook.
+        $notificationUrl = route('integraciones.mercadopago.webhook');
+        if (str_starts_with($notificationUrl, 'https://')) {
+            $payload['notification_url'] = $notificationUrl;
+        }
 
         if (! empty($checkout['statement'])) {
             // MP corta el statement_descriptor largo; se acota para no arriesgar un 400.
