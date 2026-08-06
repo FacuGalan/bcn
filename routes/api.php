@@ -127,6 +127,9 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
                 ->middleware('throttle:20,1,c-puntos')->name('puntos.index');
 
             // RF-T66/T74: dispositivos recordados ("Mis dispositivos").
+            // El POST emite un par extra para el pairing webview↔navegador (RF-T68).
+            Route::post('/dispositivos', [\App\Http\Controllers\Api\V1\Consumidores\DispositivosController::class, 'store'])
+                ->middleware('throttle:10,1,c-disp-emitir')->name('dispositivos.store');
             Route::get('/dispositivos', [\App\Http\Controllers\Api\V1\Consumidores\DispositivosController::class, 'index'])->name('dispositivos.index');
             Route::delete('/dispositivos', [\App\Http\Controllers\Api\V1\Consumidores\DispositivosController::class, 'destroyAll'])->name('dispositivos.destroy-all');
             Route::delete('/dispositivos/{id}', [\App\Http\Controllers\Api\V1\Consumidores\DispositivosController::class, 'destroy'])->name('dispositivos.destroy');

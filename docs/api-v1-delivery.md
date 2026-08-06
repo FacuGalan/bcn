@@ -811,7 +811,7 @@ con el site key). Token faltante o rechazado → `422 turnstile_invalido`.
 Sin secret el feature queda APAGADO (nada cambia). Cloudflare inaccesible ⇒
 fail-open (un registro legítimo no depende de la disponibilidad de CF).
 
-### `GET /v1/consumidores/dispositivos` + `DELETE /v1/consumidores/dispositivos[/{id}]` *(Bearer, aditivo 2026-08-06, RF-T66/T74)*
+### `GET|POST /v1/consumidores/dispositivos` + `DELETE /v1/consumidores/dispositivos[/{id}]` *(Bearer, aditivo 2026-08-06, RF-T66/T68/T74)*
 
 "Mis dispositivos" de la cuenta. `GET` → `{data: [{id, nombre, ip_ultima,
 ultimo_uso_at, creado_el, actual}]}` (más usado primero). El selector NUNCA
@@ -820,6 +820,14 @@ el core marca `actual: true` en la fila que corresponda. `DELETE /{id}`
 revoca uno (`404 no_encontrado` si no es del consumidor); `DELETE` sin id =
 "cerrar sesión en los demás": revoca todos menos el del header
 `X-Dispositivo` (sin header revoca todos) → `{data: {ok, revocados}}`.
+
+`POST` (sin body) → `201` `{data: {dispositivo: {selector, validator}}}`:
+emite un par EXTRA para el consumidor autenticado — es la pieza del pairing
+webview↔navegador (RF-T68): tras loguear en el navegador real la tienda
+pide un segundo dispositivo y lo deja en su cache para que el webview lo
+canjee al volver. El `nombre` del dispositivo se refresca con el User-Agent
+de quien CANJEA (el par nace con el UA del navegador que lo pidió y se
+corrige al primer canje desde el webview). Throttle 10/min.
 
 Un Bearer de INTEGRACIÓN (comercio) sobre estos endpoints → `403 sin_permiso`.
 

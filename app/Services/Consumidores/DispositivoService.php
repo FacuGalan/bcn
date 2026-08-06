@@ -88,6 +88,10 @@ class DispositivoService
 
         $dispositivo->forceFill([
             'validator_hash' => hash('sha256', $nuevoValidator),
+            // El nombre se refresca con el UA de quien CANJEA: un dispositivo
+            // emitido para pairing (RF-T68) nace con el UA del navegador que
+            // lo pidió y se corrige al primer canje desde el webview.
+            'nombre' => $this->nombreDesdeUserAgent($userAgent) ?? $dispositivo->nombre,
             'ip_ultima' => $ip,
             'ultimo_uso_at' => now(),
             'expira_at' => now()->addDays(self::TTL_DIAS),

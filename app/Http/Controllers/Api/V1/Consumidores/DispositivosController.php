@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1\Consumidores;
 
 use App\Http\Controllers\Controller;
+use App\Services\Consumidores\DispositivoService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -14,6 +15,21 @@ use Illuminate\Http\Request;
  */
 class DispositivosController extends Controller
 {
+    public function __construct(protected DispositivoService $dispositivos) {}
+
+    /**
+     * POST /v1/consumidores/dispositivos — emite un par NUEVO para el
+     * consumidor autenticado. Es la pieza del pairing webview↔navegador
+     * (RF-T68): tras loguear en el navegador real, la tienda pide un
+     * segundo dispositivo y lo deja en cache para que el webview lo canjee.
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $par = $this->dispositivos->emitir($request->user(), $request->userAgent(), $request->ip());
+
+        return response()->json(['data' => ['dispositivo' => $par]], 201);
+    }
+
     /**
      * GET /v1/consumidores/dispositivos — lista para "Mis dispositivos".
      */

@@ -130,6 +130,32 @@ class ApiV1ConsumidorDispositivosTest extends TestCase
         $this->assertNull(ConsumidorDispositivo::where('selector', $primero['selector'])->first());
     }
 
+    public function test_store_emite_un_par_extra_para_pairing_y_el_canje_corrige_el_nombre(): void
+    {
+        $consumidor = $this->crearConsumidor();
+
+        // El navegador real (logueado) pide un segundo dispositivo (RF-T68).
+        $respuesta = $this->withHeaders([
+            'Authorization' => 'Bearer '.$consumidor->createToken('tienda')->plainTextToken,
+            'User-Agent' => 'Mozilla/5.0 (Linux; Android 14) Chrome/126',
+        ])->postJson('/api/v1/consumidores/dispositivos')
+            ->assertCreated();
+
+        $par = $respuesta->json('data.dispositivo');
+        $this->assertNotEmpty($par['selector']);
+        $this->assertNotEmpty($par['validator']);
+
+        // El webview lo canjea con SU user-agent: el nombre se corrige.
+        $this->withHeaders(['User-Agent' => 'Mozilla/5.0 (iPhone) Instagram 300.0'])
+            ->postJson('/api/v1/consumidores/auth/recordar', $par)
+            ->assertOk();
+
+        $this->assertSame(
+            'Instagram · iPhone',
+            ConsumidorDispositivo::where('selector', $par['selector'])->first()->nombre,
+        );
+    }
+
     // ==================== RF-T66: CANJE Y ROTACIÓN ====================
 
     public function test_recordar_canjea_rota_el_validator_e_invalida_el_viejo(): void
