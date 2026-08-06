@@ -7,12 +7,15 @@ use App\Mail\Consumidores\RecuperarPasswordConsumidor;
 use App\Mail\Consumidores\VerificarEmailConsumidor;
 use App\Models\Consumidor;
 use App\Services\Consumidores\ConsumidorTokenService;
+use App\Services\Consumidores\DispositivoService;
 use App\Services\Consumidores\GoogleIdTokenService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -25,9 +28,18 @@ use Illuminate\Validation\ValidationException;
  */
 class AuthController extends Controller
 {
+    /** RF-T73: intentos fallidos por EMAIL antes del lockout (además del throttle por IP). */
+    protected const MAX_INTENTOS_LOGIN = 5;
+
+    /** RF-T73: ventana base del lockout (15 min); se duplica por lockout consecutivo, máx 4 h. */
+    protected const LOCKOUT_BASE_SEGUNDOS = 900;
+
+    protected const LOCKOUT_MAX_SEGUNDOS = 14400;
+
     public function __construct(
         protected ConsumidorTokenService $tokens,
         protected GoogleIdTokenService $google,
+        protected DispositivoService $dispositivos,
     ) {}
 
     /**
@@ -41,6 +53,7 @@ class AuthController extends Controller
             'email' => 'required|email|max:150|unique:config.consumidores,email',
             'password' => 'required|string|min:8|max:100',
             'telefono' => 'nullable|string|max:30',
+            'recordarme' => 'sometimes|boolean',
         ]);
 
         $consumidor = Consumidor::create($datos);
@@ -51,6 +64,7 @@ class AuthController extends Controller
             'data' => [
                 'token' => $consumidor->createToken('tienda')->plainTextToken,
                 'consumidor' => $this->perfil($consumidor),
+                'dispositivo' => $this->emitirDispositivo($request, $consumidor),
             ],
         ], 201);
     }
@@ -63,22 +77,35 @@ class AuthController extends Controller
         $datos = $request->validate([
             'email' => 'required|email',
             'password' => 'required|string',
+            'recordarme' => 'sometimes|boolean',
         ]);
+
+        // RF-T73: lockout por EMAIL (el throttle de la ruta es por IP y no
+        // frena un ataque distribuido). Bloqueado ⇒ el MISMO error genérico:
+        // no confirma que el email exista ni que haya lockout.
+        $claveLockout = $this->claveLockout($datos['email']);
+
+        if (RateLimiter::tooManyAttempts($claveLockout, self::MAX_INTENTOS_LOGIN)) {
+            $this->fallarCredenciales();
+        }
 
         $consumidor = Consumidor::where('email', $datos['email'])->first();
 
         // Cuentas creadas via Google (RF-T49) no tienen password: mismo
         // error genérico (no revelar el método de acceso de una cuenta).
         if (! $consumidor || ! $consumidor->getAuthPassword() || ! Hash::check($datos['password'], $consumidor->getAuthPassword())) {
-            throw ValidationException::withMessages([
-                'email' => __('Email o password incorrectos'),
-            ]);
+            RateLimiter::hit($claveLockout, $this->ventanaLockout($claveLockout));
+            $this->fallarCredenciales();
         }
+
+        RateLimiter::clear($claveLockout);
+        Cache::forget($claveLockout.':nivel');
 
         return response()->json([
             'data' => [
                 'token' => $consumidor->createToken('tienda')->plainTextToken,
                 'consumidor' => $this->perfil($consumidor),
+                'dispositivo' => $this->emitirDispositivo($request, $consumidor),
             ],
         ]);
     }
@@ -95,7 +122,10 @@ class AuthController extends Controller
      */
     public function google(Request $request): JsonResponse
     {
-        $datos = $request->validate(['credential' => 'required|string|max:4096']);
+        $datos = $request->validate([
+            'credential' => 'required|string|max:4096',
+            'recordarme' => 'sometimes|boolean',
+        ]);
 
         if (! $this->google->configurado()) {
             return response()->json([
@@ -153,8 +183,45 @@ class AuthController extends Controller
                 'token' => $consumidor->createToken('tienda')->plainTextToken,
                 'consumidor' => $this->perfil($consumidor),
                 'creado' => $creado,
+                'dispositivo' => $this->emitirDispositivo($request, $consumidor),
             ],
         ], $creado ? 201 : 200);
+    }
+
+    /**
+     * POST /v1/consumidores/auth/recordar — canjea el par selector/validator
+     * de un dispositivo recordado (RF-T66) por un Bearer nuevo, ROTANDO el
+     * validator. Público: es el re-login silencioso de la tienda cuando la
+     * sesión murió pero la cookie de dispositivo sigue viva.
+     */
+    public function recordar(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'selector' => 'required|string|max:64',
+            'validator' => 'required|string|max:128',
+        ]);
+
+        $resultado = $this->dispositivos->canjear(
+            $datos['selector'],
+            $datos['validator'],
+            $request->userAgent(),
+            $request->ip(),
+        );
+
+        if ($resultado === null) {
+            return response()->json([
+                'message' => __('El dispositivo no es válido o venció'),
+                'codigo' => 'dispositivo_invalido',
+            ], 401);
+        }
+
+        return response()->json([
+            'data' => [
+                'token' => $resultado['consumidor']->createToken('tienda')->plainTextToken,
+                'consumidor' => $this->perfil($resultado['consumidor']),
+                'dispositivo' => $resultado['dispositivo'],
+            ],
+        ]);
     }
 
     /**
@@ -279,6 +346,10 @@ class AuthController extends Controller
 
         $consumidor->forceFill(['password' => $datos['password']])->save();
         $consumidor->tokens()->delete();
+        // RF-T66: el cambio de password también mata los dispositivos
+        // recordados (si cambió porque se la robaron, las cookies remember
+        // del atacante quedan muertas).
+        $this->dispositivos->revocarTodos($consumidor);
 
         Log::info('Consumidor restableció su password', ['consumidor_id' => $consumidor->id]);
 
@@ -318,6 +389,51 @@ class AuthController extends Controller
         }
 
         return mb_substr($nombre, 0, 150);
+    }
+
+    /**
+     * RF-T66: emite un dispositivo recordado si el request lo pidió
+     * (`recordarme: true`). Null si no — la clave viaja igual en la
+     * respuesta para que el shape sea estable.
+     */
+    protected function emitirDispositivo(Request $request, Consumidor $consumidor): ?array
+    {
+        if (! $request->boolean('recordarme')) {
+            return null;
+        }
+
+        return $this->dispositivos->emitir($consumidor, $request->userAgent(), $request->ip());
+    }
+
+    /** RF-T73: bucket de lockout por email (case-insensitive, sin persistir el email). */
+    protected function claveLockout(string $email): string
+    {
+        return 'login-email:'.hash('sha256', mb_strtolower(trim($email)));
+    }
+
+    /**
+     * RF-T73: ventana del bucket de intentos. Base 15 min; cada lockout
+     * consecutivo duplica la ventana del SIGUIENTE bucket (máx 4 h). El
+     * nivel vive en cache 24 h y se limpia con un login exitoso.
+     */
+    protected function ventanaLockout(string $clave): int
+    {
+        $nivel = (int) Cache::get($clave.':nivel', 0);
+
+        // Este hit completa el lockout ⇒ el próximo bucket dura el doble.
+        if (RateLimiter::attempts($clave) + 1 >= self::MAX_INTENTOS_LOGIN) {
+            Cache::put($clave.':nivel', min($nivel + 1, 5), now()->addDay());
+        }
+
+        return (int) min(self::LOCKOUT_BASE_SEGUNDOS * (2 ** $nivel), self::LOCKOUT_MAX_SEGUNDOS);
+    }
+
+    /** Error genérico de credenciales: idéntico exista o no la cuenta, haya o no lockout. */
+    protected function fallarCredenciales(): never
+    {
+        throw ValidationException::withMessages([
+            'email' => __('Email o password incorrectos'),
+        ]);
     }
 
     /**

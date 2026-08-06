@@ -757,7 +757,44 @@ login 10/min, emails 3/min).
 - `POST /recuperar` — `{email}` → siempre `200` (no revela existencia);
   si existe manda el link de reset (vence en 60 min, single-use).
 - `POST /restablecer` — `{token, password}` → cambia el password y **revoca
-  todos los tokens** (la tienda debe re-loguear).
+  todos los tokens Y los dispositivos recordados** (la tienda debe
+  re-loguear; las cookies remember quedan muertas).
+
+**Aditivo 2026-08-06 (RF-T66, dispositivos recordados)**: `registro`,
+`login` y `auth/google` aceptan `recordarme?: bool`. Con `true`, la
+respuesta suma `dispositivo: {selector, validator}` — un par estilo
+recaller que la tienda guarda en una cookie cifrada (el Bearer NUNCA viaja
+al navegador; el validator se persiste solo hasheado en el core). Sin
+`recordarme`, `dispositivo` viaja `null` (shape estable).
+
+**Aditivo 2026-08-06 (RF-T73, lockout por email)**: además del throttle por
+IP, `login` bloquea por EMAIL tras 5 intentos fallidos (15 min, se duplica
+por lockout consecutivo hasta 4 h). Durante el lockout responde el MISMO
+`422` genérico de credenciales (no revela cuenta ni lockout). El login
+exitoso limpia el contador. Depende de que la tienda siga reenviando la IP
+real (`X-Forwarded-For`).
+
+### `POST /v1/consumidores/auth/recordar` *(aditivo 2026-08-06, RF-T66)*
+
+Re-login silencioso: `{selector, validator}` → `200` `{data: {token,
+consumidor, dispositivo}}`. El canje **ROTA el validator** (el par devuelto
+en `dispositivo` reemplaza al de la cookie; el viejo queda inválido) y
+desliza el vencimiento (+365 días). Par inexistente, vencido o validator
+que no matchea → `401 dispositivo_invalido`. **Detección de robo**:
+selector válido + validator inválido = alguien usó una copia vieja de la
+cookie ⇒ se revocan TODOS los dispositivos del consumidor (la tienda verá
+el 401 y borra su cookie). Máx. 10 dispositivos por consumidor (emitir el
+11° poda el menos usado). Throttle 10/min.
+
+### `GET /v1/consumidores/dispositivos` + `DELETE /v1/consumidores/dispositivos[/{id}]` *(Bearer, aditivo 2026-08-06, RF-T66/T74)*
+
+"Mis dispositivos" de la cuenta. `GET` → `{data: [{id, nombre, ip_ultima,
+ultimo_uso_at, creado_el, actual}]}` (más usado primero). El selector NUNCA
+viaja en el listado: la tienda manda el suyo en el header `X-Dispositivo` y
+el core marca `actual: true` en la fila que corresponda. `DELETE /{id}`
+revoca uno (`404 no_encontrado` si no es del consumidor); `DELETE` sin id =
+"cerrar sesión en los demás": revoca todos menos el del header
+`X-Dispositivo` (sin header revoca todos) → `{data: {ok, revocados}}`.
 
 Un Bearer de INTEGRACIÓN (comercio) sobre estos endpoints → `403 sin_permiso`.
 
