@@ -32,17 +32,21 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans text-gray-900 antialiased">
-        <div class="min-h-screen flex flex-col bg-bcn-secondary">
-            {{-- Logo centrado en la parte superior --}}
-            <div class="flex-1 sm:flex-none flex items-center justify-center py-6 sm:pt-12 sm:pb-6">
+        {{-- RF-C1: en móvil el conjunto logo+form va centrado verticalmente
+             estilo app (antes el logo flotaba solo en un flex-1 gigante y el
+             form quedaba al fondo). Desktop (sm:+) conserva el layout previo:
+             logo arriba con pt-12, form centrado en el resto. --}}
+        <div class="min-h-screen flex flex-col justify-center sm:justify-start bg-bcn-secondary">
+            {{-- Logo compacto pegado a la tarjeta en móvil --}}
+            <div class="sm:flex-none flex items-center justify-center pb-5 sm:py-6 sm:pt-12 sm:pb-6">
                 <a href="/" wire:navigate>
-                    <x-application-logo class="h-24 sm:h-24 w-auto" />
+                    <x-application-logo class="h-16 sm:h-24 w-auto" />
                 </a>
             </div>
 
             {{-- Contenedor del formulario --}}
             <div class="sm:flex-1 flex flex-col sm:items-center sm:justify-center px-4 sm:px-0">
-                <div class="w-full sm:max-w-md px-6 py-6 sm:py-8 bg-white shadow-xl rounded-2xl mb-6 sm:mb-8">
+                <div class="w-full sm:max-w-md px-6 py-6 sm:py-8 bg-white shadow-xl rounded-2xl mb-0 sm:mb-8">
                     {{ $slot }}
                 </div>
             </div>

@@ -216,7 +216,7 @@ Migración + modelo + `DispositivoService` + `recordar` + emisión en logins + r
 ### Fase 4 — Tienda: magic link UI + checkout + One Tap + Turnstile + dispositivos [PENDIENTE]
 `/entrar/{token}` + CTA PWA + aviso en checkout + One Tap + widgets Turnstile + sección Mis dispositivos + traducciones tienda. Depende de Fases 2 y 3.
 
-### Fase 5 — Core: login mobile + traducciones auth (RF-C1) [PENDIENTE]
+### Fase 5 — Core: login mobile + traducciones auth (RF-C1) [COMPLETO]
 Independiente de las demás — puede adelantarse o hacerse en paralelo.
 
 ---
