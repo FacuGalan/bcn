@@ -786,6 +786,31 @@ cookie ⇒ se revocan TODOS los dispositivos del consumidor (la tienda verá
 el 401 y borra su cookie). Máx. 10 dispositivos por consumidor (emitir el
 11° poda el menos usado). Throttle 10/min.
 
+### `POST /v1/consumidores/auth/magic-link` + `POST /v1/consumidores/auth/magic-login` *(aditivo 2026-08-06, RF-T69/T70)*
+
+Login sin password por email. `magic-link` — `{email, volver?, pairing?}` →
+**siempre `200`** (no revela existencia, patrón `recuperar`); si la cuenta
+existe manda un mail con link a `{tienda}/entrar?token=...` (vence en
+**15 min**, single-use) arrastrando `volver`/`pairing` como query OPACOS
+(los valida la tienda al aterrizar; el core no los interpreta). Tope
+silencioso de **1 mail cada 10 min por casilla** (nadie puede usar el
+endpoint neutro para bombardear un email ajeno). Throttle 3/min. Este mismo
+endpoint es la "detección de cuenta en checkout" (RF-T70): la tienda lo
+llama con el email del invitado y `volver` al checkout — el aviso de la UI
+es idéntico exista o no la cuenta.
+
+`magic-login` — `{token, recordarme?}` → `{data: {token, consumidor,
+dispositivo}}`. Canjear **verifica el email** si faltaba (probó control de
+la casilla, mismo criterio que Google autoritativo). Token inválido,
+vencido o ya usado → `422 operacion_invalida`. Throttle 10/min.
+
+**Aditivo 2026-08-06 (RF-T72, Cloudflare Turnstile)**: con
+`TURNSTILE_SECRET_KEY` configurado en el core, `registro`, `recuperar` y
+`restablecer` exigen `turnstile_token` (el widget lo renderiza la tienda
+con el site key). Token faltante o rechazado → `422 turnstile_invalido`.
+Sin secret el feature queda APAGADO (nada cambia). Cloudflare inaccesible ⇒
+fail-open (un registro legítimo no depende de la disponibilidad de CF).
+
 ### `GET /v1/consumidores/dispositivos` + `DELETE /v1/consumidores/dispositivos[/{id}]` *(Bearer, aditivo 2026-08-06, RF-T66/T74)*
 
 "Mis dispositivos" de la cuenta. `GET` → `{data: [{id, nombre, ip_ultima,

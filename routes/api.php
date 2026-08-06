@@ -89,6 +89,11 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // RF-T66: canje del dispositivo recordado (re-login silencioso de la tienda).
         Route::post('/auth/recordar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'recordar'])
             ->middleware('throttle:10,1,c-recordar')->name('auth.recordar');
+        // RF-T69/T70: magic link (login sin password + detección de cuenta en checkout).
+        Route::post('/auth/magic-link', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'magicLink'])
+            ->middleware('throttle:3,1,c-magic')->name('auth.magic-link');
+        Route::post('/auth/magic-login', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'magicLogin'])
+            ->middleware('throttle:10,1,c-mglogin')->name('auth.magic-login');
         Route::post('/verificar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'verificar'])
             ->middleware('throttle:10,1,c-verificar')->name('verificar');
         Route::post('/recuperar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'recuperar'])

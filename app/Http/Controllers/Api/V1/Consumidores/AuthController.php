@@ -3,12 +3,14 @@
 namespace App\Http\Controllers\Api\V1\Consumidores;
 
 use App\Http\Controllers\Controller;
+use App\Mail\Consumidores\MagicLinkConsumidor;
 use App\Mail\Consumidores\RecuperarPasswordConsumidor;
 use App\Mail\Consumidores\VerificarEmailConsumidor;
 use App\Models\Consumidor;
 use App\Services\Consumidores\ConsumidorTokenService;
 use App\Services\Consumidores\DispositivoService;
 use App\Services\Consumidores\GoogleIdTokenService;
+use App\Services\Consumidores\TurnstileService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -40,6 +42,7 @@ class AuthController extends Controller
         protected ConsumidorTokenService $tokens,
         protected GoogleIdTokenService $google,
         protected DispositivoService $dispositivos,
+        protected TurnstileService $turnstile,
     ) {}
 
     /**
@@ -48,6 +51,12 @@ class AuthController extends Controller
      */
     public function registro(Request $request): JsonResponse
     {
+        // RF-T72: blanco de bots — con Turnstile configurado, sin token
+        // válido no hay registro.
+        if ($error = $this->validarTurnstile($request)) {
+            return $error;
+        }
+
         $datos = $request->validate([
             'nombre' => 'required|string|min:2|max:150',
             'email' => 'required|email|max:150|unique:config.consumidores,email',
@@ -225,6 +234,60 @@ class AuthController extends Controller
     }
 
     /**
+     * POST /v1/consumidores/auth/magic-link — {email, volver?, pairing?} →
+     * SIEMPRE 200 (no revela existencia, patrón `recuperar`). Si el email
+     * tiene cuenta manda el link de login (vence en 15 min, single-use).
+     * Es también la "detección de cuenta en checkout" (RF-T70): la tienda
+     * llama esto al blur del email del invitado con `volver` al checkout.
+     */
+    public function magicLink(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'email' => 'required|email',
+            'volver' => 'nullable|string|max:300',
+            'pairing' => 'nullable|string|max:100',
+        ]);
+
+        $this->enviarMagicLink($datos['email'], $datos['volver'] ?? null, $datos['pairing'] ?? null);
+
+        return response()->json(['data' => ['ok' => true]]);
+    }
+
+    /**
+     * POST /v1/consumidores/auth/magic-login — {token, recordarme?} →
+     * canjea el magic link (single-use) por un Bearer. Probar control de la
+     * casilla también VERIFICA el email (mismo criterio que Google
+     * autoritativo, RF-T40).
+     */
+    public function magicLogin(Request $request): JsonResponse
+    {
+        $datos = $request->validate([
+            'token' => 'required|string|max:500',
+            'recordarme' => 'sometimes|boolean',
+        ]);
+
+        $consumidor = $this->tokens->consumirTokenMagic($datos['token']);
+
+        if (! $consumidor) {
+            throw new \Exception(__('El enlace es inválido, venció o ya fue usado'));
+        }
+
+        if (! $consumidor->email_verified_at) {
+            $consumidor->forceFill(['email_verified_at' => now()])->save();
+        }
+
+        Log::info('Consumidor entró por magic link', ['consumidor_id' => $consumidor->id]);
+
+        return response()->json([
+            'data' => [
+                'token' => $consumidor->createToken('tienda')->plainTextToken,
+                'consumidor' => $this->perfil($consumidor),
+                'dispositivo' => $this->emitirDispositivo($request, $consumidor),
+            ],
+        ]);
+    }
+
+    /**
      * POST /v1/consumidores/logout — revoca el token actual.
      */
     public function logout(Request $request): JsonResponse
@@ -307,6 +370,11 @@ class AuthController extends Controller
      */
     public function recuperar(Request $request): JsonResponse
     {
+        // RF-T72: los formularios que mandan emails son blanco de bots.
+        if ($error = $this->validarTurnstile($request)) {
+            return $error;
+        }
+
         $datos = $request->validate(['email' => 'required|email']);
 
         $consumidor = Consumidor::where('email', $datos['email'])->first();
@@ -333,6 +401,10 @@ class AuthController extends Controller
      */
     public function restablecer(Request $request): JsonResponse
     {
+        if ($error = $this->validarTurnstile($request)) {
+            return $error;
+        }
+
         $datos = $request->validate([
             'token' => 'required|string|max:500',
             'password' => 'required|string|min:8|max:100',
@@ -434,6 +506,59 @@ class AuthController extends Controller
         throw ValidationException::withMessages([
             'email' => __('Email o password incorrectos'),
         ]);
+    }
+
+    /**
+     * RF-T72: null si el request puede seguir; la respuesta 422 si Turnstile
+     * está configurado y el token falta o no valida.
+     */
+    protected function validarTurnstile(Request $request): ?JsonResponse
+    {
+        if (! $this->turnstile->configurado()) {
+            return null;
+        }
+
+        if ($this->turnstile->verificar($request->input('turnstile_token'), $request->ip())) {
+            return null;
+        }
+
+        return response()->json([
+            'message' => __('No pudimos validar que seas una persona. Recargá la página y probá de nuevo.'),
+            'codigo' => 'turnstile_invalido',
+        ], 422);
+    }
+
+    /**
+     * RF-T69/T70: manda el magic link si la cuenta existe, en silencio y con
+     * tope de 1 email cada 10 min por casilla (anti-spam: el endpoint es
+     * neutro, nadie puede usarlo para bombardear una casilla ajena).
+     */
+    protected function enviarMagicLink(string $email, ?string $volver, ?string $pairing): void
+    {
+        $consumidor = Consumidor::where('email', $email)->first();
+
+        if (! $consumidor) {
+            return;
+        }
+
+        $clave = 'magic-email:'.hash('sha256', mb_strtolower(trim($email)));
+
+        if (RateLimiter::tooManyAttempts($clave, 1)) {
+            return;
+        }
+
+        RateLimiter::hit($clave, 600);
+
+        try {
+            Mail::to($consumidor->email)->send(
+                new MagicLinkConsumidor($consumidor, $this->tokens->generarTokenMagic($consumidor), $volver, $pairing)
+            );
+        } catch (\Throwable $e) {
+            Log::error('No se pudo enviar el magic link de consumidor', [
+                'consumidor_id' => $consumidor->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

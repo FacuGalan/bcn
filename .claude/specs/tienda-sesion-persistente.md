@@ -207,7 +207,7 @@ Core además: `lang/{es,pt}/auth.php`, `passwords.php`, `validation.php` complet
 ### Fase 1 — Core: dispositivos recordados [COMPLETO]
 Migración + modelo + `DispositivoService` + `recordar` + emisión en logins + revocación en `restablecer` + `DispositivosController` + lockout por email (RF-T73) + contrato + tests. **Mergeable sola** (la tienda aún no la consume).
 
-### Fase 2 — Core: magic link + sugerir-cuenta + Turnstile [PENDIENTE]
+### Fase 2 — Core: magic link + sugerir-cuenta + Turnstile [COMPLETO]
 `mgc` + jti + mailer + `magic-link`/`magic-login` + `sugerir-cuenta` + `TurnstileService` en registro/recuperar/restablecer + contrato + tests. Mergeable sola.
 
 ### Fase 3 — Tienda: persistencia + pairing [PENDIENTE]
@@ -229,4 +229,6 @@ Independiente de las demás — puede adelantarse o hacerse en paralelo.
 - 2026-08-06: **Pairing sin endpoint nuevo**: ambos contextos son sesiones del mismo backend tienda ⇒ cache tienda-side + `POST dispositivos` (auth) alcanza. Menos contrato, misma seguridad.
 - 2026-08-06: Magic link/pairing en **cache, no tabla**: TTLs cortos (15 min / 30 días single-use); si el cache se vacía, el usuario pide otro link (aceptable). Revisar si algún día el cache de la tienda deja de ser `file`.
 - 2026-08-06: Numeración desde **RF-T66**: RF-T65 ya usado por el header de seguimiento (bcn-tienda `ad035cc`), aunque el spec maestro llegaba a T64.
+- 2026-08-06 (Fase 2): **`sugerir-cuenta` NO es un endpoint propio** — la detección de cuenta en checkout (RF-T70) reutiliza `POST /auth/magic-link` (comportamiento idéntico: respuesta neutra + mail si existe). Menos contrato, misma seguridad. El endpoint acepta `volver`/`pairing` opacos que viajan en la URL del mail.
+- 2026-08-06 (Fase 2): Turnstile **fail-open** si Cloudflare está caído (con warning en logs): un registro legítimo no puede depender de la disponibilidad de CF.
 - Gotchas heredados a respetar: throttles inline SIEMPRE con 3er parámetro (prefijo de bucket); `@php ... @endphp` en blades de la tienda (nunca `@php($expr)`); clases Tailwind nuevas ⇒ `npm run build`.

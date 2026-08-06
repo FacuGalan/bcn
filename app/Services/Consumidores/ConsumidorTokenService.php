@@ -3,6 +3,8 @@
 namespace App\Services\Consumidores;
 
 use App\Models\Consumidor;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 /**
  * Tokens STATELESS (HMAC, sin tablas) para los flujos de email del
@@ -23,11 +25,16 @@ class ConsumidorTokenService
 
     private const TIPO_RESET = 'rst';
 
+    private const TIPO_MAGIC = 'mgc';
+
     /** Vigencia del token de verificación de email (horas). */
     public const TTL_VERIFICACION_HORAS = 48;
 
     /** Vigencia del token de reset de password (minutos). */
     public const TTL_RESET_MINUTOS = 60;
+
+    /** Vigencia del magic link de login (minutos). */
+    public const TTL_MAGIC_MINUTOS = 15;
 
     public function generarTokenVerificacion(Consumidor $consumidor): string
     {
@@ -59,6 +66,64 @@ class ConsumidorTokenService
     public function validarTokenReset(string $token): ?Consumidor
     {
         return $this->validar($token, self::TIPO_RESET, fn (Consumidor $c) => $this->salReset($c));
+    }
+
+    /**
+     * Magic link de login (RF-T69): payload de 4 partes con un `jti` random
+     * que habilita el single-use (el HMAC puro no puede ser single-use: no
+     * hay estado que cambie al canjearlo, a diferencia del reset).
+     * Sal = email (si el consumidor cambia el email, los links viejos mueren).
+     */
+    public function generarTokenMagic(Consumidor $consumidor): string
+    {
+        $expira = now()->addMinutes(self::TTL_MAGIC_MINUTOS)->getTimestamp();
+        $payload = self::TIPO_MAGIC."|{$consumidor->id}|{$expira}|".Str::random(16);
+
+        return $this->base64url($payload).'.'.$this->firmar($payload, $this->salVerificacion($consumidor));
+    }
+
+    /**
+     * Valida Y CONSUME el magic link (single-use: el jti se marca usado en
+     * cache hasta que el token venza solo). Null si es inválido, venció,
+     * ya fue usado o el email cambió.
+     */
+    public function consumirTokenMagic(string $token): ?Consumidor
+    {
+        $partes = explode('.', $token, 2);
+        if (count($partes) !== 2) {
+            return null;
+        }
+
+        $payload = base64_decode(strtr($partes[0], '-_', '+/'), true);
+        if ($payload === false) {
+            return null;
+        }
+
+        [$tipo, $id, $expira, $jti] = array_pad(explode('|', $payload, 4), 4, null);
+        if ($tipo !== self::TIPO_MAGIC || ! ctype_digit((string) $id) || ! ctype_digit((string) $expira) || ! is_string($jti) || $jti === '') {
+            return null;
+        }
+
+        if ((int) $expira < now()->getTimestamp()) {
+            return null;
+        }
+
+        $consumidor = Consumidor::find((int) $id);
+        if (! $consumidor) {
+            return null;
+        }
+
+        if (! hash_equals($this->firmar($payload, $this->salVerificacion($consumidor)), $partes[1])) {
+            return null;
+        }
+
+        // Single-use: add() es atómico — si el jti ya está, alguien lo usó.
+        $vence = \Illuminate\Support\Carbon::createFromTimestamp((int) $expira)->addMinute();
+        if (! Cache::add('consumidor-mgc:'.$jti, 1, $vence)) {
+            return null;
+        }
+
+        return $consumidor;
     }
 
     private function armar(string $tipo, int $consumidorId, int $expiraTs, string $sal): string
