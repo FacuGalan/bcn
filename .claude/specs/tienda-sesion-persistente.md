@@ -1,8 +1,11 @@
 # Tienda — Sesión Persistente del Consumidor y Login sin Fricción - Especificación
 
-## Estado: EN REVISIÓN
+## Estado: IMPLEMENTADO — EN PR
 
-> Spec creado 2026-08-06. Exploración completa (core + tienda). Esperando aprobación de Facu para iniciar Fase 1.
+> Spec creado y aprobado 2026-08-06. Las 5 fases COMPLETAS el mismo día:
+> core en PR FacuGalan/bcn#198 (Fases 1+2+5), tienda en PR bcn-tienda#65
+> (Fases 3+4, mergear DESPUÉS del core). Falta: validación en vivo de Facu,
+> keys de Turnstile (Cloudflare) en .env de prod, merge y deploy.
 > Continúa la numeración RF-T desde RF-T66 (RF-T65 lo usó el header de seguimiento, bcn-tienda commit ad035cc).
 
 ---
@@ -210,10 +213,11 @@ Migración + modelo + `DispositivoService` + `recordar` + emisión en logins + r
 ### Fase 2 — Core: magic link + sugerir-cuenta + Turnstile [COMPLETO]
 `mgc` + jti + mailer + `magic-link`/`magic-login` + `sugerir-cuenta` + `TurnstileService` en registro/recuperar/restablecer + contrato + tests. Mergeable sola.
 
-### Fase 3 — Tienda: persistencia + pairing [PENDIENTE]
+### Fase 3 — Tienda: persistencia + pairing [COMPLETO]
 `DispositivoCookie` + middleware `RecordarConsumidor` + integración `ConsumidorService`/`CoreApi` + `SESSION_LIFETIME=20160` + pairing en el escape (RF-T68) + fixtures/contract tests. Depende de Fase 1.
 
-### Fase 4 — Tienda: magic link UI + checkout + One Tap + Turnstile + dispositivos [PENDIENTE]
+### Fase 4 — Tienda: magic link UI + checkout + One Tap + Turnstile + dispositivos [COMPLETO]
+> Nota: la tienda es solo-español (sin lang/*.json) — el punto "traducciones tienda" no aplica; los textos nuevos son las claves mismas.
 `/entrar/{token}` + CTA PWA + aviso en checkout + One Tap + widgets Turnstile + sección Mis dispositivos + traducciones tienda. Depende de Fases 2 y 3.
 
 ### Fase 5 — Core: login mobile + traducciones auth (RF-C1) [COMPLETO]
