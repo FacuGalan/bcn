@@ -78,6 +78,7 @@ class PedidoDeliveryPago extends Model
         'tipo_cambio_tasa',
         'tipo_cambio_id',
         'venta_pago_id',
+        'integracion_pago_transaccion_id',
     ];
 
     protected $casts = [
@@ -115,6 +116,16 @@ class PedidoDeliveryPago extends Model
     public function conceptoPago(): BelongsTo
     {
         return $this->belongsTo(ConceptoPago::class, 'concepto_pago_id');
+    }
+
+    /**
+     * Transacción de integración que cobró ESTE pago puntual (checkout online).
+     * Espejo de VentaPago::integracionTransaccion(): habilita la trazabilidad,
+     * el bloqueo de modificaciones y la copia del vínculo al convertir a venta.
+     */
+    public function integracionTransaccion(): BelongsTo
+    {
+        return $this->belongsTo(IntegracionPagoTransaccion::class, 'integracion_pago_transaccion_id');
     }
 
     public function movimientoCaja(): BelongsTo

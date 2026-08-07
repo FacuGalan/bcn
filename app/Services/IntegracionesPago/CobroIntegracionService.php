@@ -59,7 +59,9 @@ class CobroIntegracionService
                 // ['point' => ['default_type' => ..., 'installments' => ...]]).
                 'metadata' => $datos['metadata'] ?? null,
                 'estado' => IntegracionPagoTransaccion::ESTADO_PENDIENTE,
-                'expira_en' => now()->addSeconds($config->timeout_segundos),
+                // El caller puede pedir un timeout propio (checkout online usa
+                // 30 min vs los 5 min presenciales de la config).
+                'expira_en' => now()->addSeconds((int) ($datos['timeout_segundos'] ?? $config->timeout_segundos)),
             ]);
             // Metadata inicial opcional (ej. qr_libre pasa la imagen del QR a
             // mostrar). El gateway la lee; luego se le hace merge con la respuesta.
@@ -252,17 +254,39 @@ class CobroIntegracionService
                 return;
             }
 
+            // Checkout de tienda: sin operador (usuario 0 = sistema) y con la
+            // propina DISCRIMINADA (RF-T83) — el cobro del pedido va con el
+            // concepto de siempre y la propina con concepto propio, para que
+            // nunca se mezcle con la venta y la rendición futura la filtre.
+            $usuario = (int) ($usuarioId ?? $transaccion->usuario_iniciador_id ?? 0);
+            $propina = round((float) ($transaccion->metadata['checkout']['propina'] ?? 0), 2);
+            $montoCobro = round((float) $transaccion->monto - $propina, 2);
+
             CuentaEmpresaService::registrarMovimientoAutomatico(
                 $cuenta,
                 'ingreso',
-                (float) $transaccion->monto,
+                $montoCobro,
                 'cobro_integracion',
                 'IntegracionPagoTransaccion',
                 $transaccion->id,
                 "Cobro por integración #{$transaccion->id} ({$transaccion->modo_usado})",
-                $usuarioId ?? $transaccion->usuario_iniciador_id,
+                $usuario,
                 $transaccion->sucursal_id,
             );
+
+            if ($propina > 0) {
+                CuentaEmpresaService::registrarMovimientoAutomatico(
+                    $cuenta,
+                    'ingreso',
+                    $propina,
+                    'propina_online',
+                    'IntegracionPagoTransaccion',
+                    $transaccion->id,
+                    "Propina online #{$transaccion->id}",
+                    $usuario,
+                    $transaccion->sucursal_id,
+                );
+            }
         } catch (\Throwable $e) {
             Log::warning('No se pudo registrar el movimiento de cuenta empresa del cobro por integración', [
                 'transaccion_id' => $transaccion->id,
@@ -299,9 +323,33 @@ class CobroIntegracionService
             if ($comercioId) {
                 IntegracionPagoActualizado::dispatch($comercioId, $transaccion->id, 'expirado');
             }
+
+            $this->notificarPagoOnlineNoCompletado($transaccion);
         }
 
         return $vencidas->count();
+    }
+
+    /**
+     * Hook RF-T79: una tx de checkout ONLINE expirada arrastra a su pedido
+     * "esperando pago" — el borrador se cancela solo (el consumidor nunca
+     * pagó; stock y caja jamás se tocaron). Best-effort: no rompe el barrido.
+     */
+    private function notificarPagoOnlineNoCompletado(IntegracionPagoTransaccion $transaccion): void
+    {
+        if (! $transaccion->esCheckoutOnline()) {
+            return;
+        }
+
+        try {
+            app(\App\Services\Pedidos\PedidoPagoOnlineService::class)
+                ->cancelarPorPagoNoCompletado($transaccion);
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo cancelar el pedido de una tx de checkout expirada', [
+                'transaccion_id' => $transaccion->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 
     /**

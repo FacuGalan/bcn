@@ -1043,12 +1043,13 @@ Movimientos en cuentas bancarias/billeteras. Patron append-only con contraasient
 - `ajuste` — ajuste manual
 - `transferencia_entrada` / `transferencia_salida` — transferencias entre cuentas
 - `deposito_bancario` — deposito bancario confirmado
-- `cobro_integracion` — ingreso por cobro confirmado a traves de una integracion de pago (QR, Point u otro proveedor). Registrado por `CobroIntegracionService` al confirmar la transaccion. Origen polimórfico: `IntegracionPagoTransaccion`. Permite filtrar los ingresos de integraciones para conciliacion.
+- `cobro_integracion` — ingreso por cobro confirmado a traves de una integracion de pago (QR, Point, Checkout Online u otro proveedor). Registrado por `CobroIntegracionService` al confirmar la transaccion. Origen polimórfico: `IntegracionPagoTransaccion`. Permite filtrar los ingresos de integraciones para conciliacion. En un cobro de checkout online con propina, este concepto registra SOLO el monto del pedido (la propina va aparte, ver `propina_online` mas abajo).
 - `comision_integracion` — egreso por comision cobrada por el proveedor sobre un cobro conciliado. Generado al aplicar una corrida de conciliacion (fila hija de tipo `comision`). Origen polimórfico: `ConciliacionFila`.
 - `retiro_integracion` — egreso por retiro a banco desde el proveedor. Generado al aplicar conciliacion. Origen polimórfico: `ConciliacionFila`.
-- `devolucion_integracion` — egreso por devolucion o contracargo registrado en el proveedor. Generado al aplicar conciliacion. Origen polimórfico: `ConciliacionFila`.
+- `devolucion_integracion` — egreso por devolucion o contracargo. Origen polimórfico `ConciliacionFila` cuando lo genera una corrida de conciliacion; origen polimórfico `IntegracionPagoTransaccion` cuando lo genera `PedidoPagoOnlineService::devolver()` (RF-T82, refund de un pedido de tienda pagado con Checkout Online) — dos egresos por transaccion si habia propina (uno por el cobro, otro por la propina).
 - `acreditacion_integracion` — ingreso por acreditacion o rendicion registrada en el proveedor (cobros externos, transferencias recibidas). Generado al aplicar conciliacion. Origen polimórfico: `ConciliacionFila`.
 - `ajuste_conciliacion` — ingreso o egreso de ajuste por diferencia de saldo inicial al conciliar por primera vez una cuenta. Generado al aplicar conciliacion cuando se informa el saldo real inicial (RF-07). Origen polimórfico: `ConciliacionFila`.
+- `propina_online` — ingreso por propina agregada al pagar online en la tienda (RF-T83, orden 19, `es_sistema=true`). Registrado por `CobroIntegracionService::registrarMovimientoCuentaEmpresa()` como movimiento SEPARADO del cobro del pedido (mismo origen polimórfico `IntegracionPagoTransaccion`, mismo `transaccion->id`) para que nunca se mezcle con ventas y un futuro modulo de rendicion al repartidor pueda filtrar por este concepto. Ver 3.14 "Pago online con Mercado Pago Checkout Pro".
 
 #### Tabla: `cuenta_empresa_sucursal`
 Pivot que vincula cuentas empresa con sucursales. Si no tiene sucursales asignadas, esta disponible en todas.
@@ -2666,11 +2667,11 @@ Registro append-only de transacciones de cobro. Una transaccion nace en estado `
 | `forma_pago_id` | bigint FK | Forma de pago usada |
 | `sucursal_id` | bigint FK | Sucursal donde se realizo el cobro |
 | `caja_id` | bigint FK nullable | Caja del cajero |
-| `usuario_iniciador_id` | bigint FK | Usuario que inicio el cobro |
-| `cobrable_type` | varchar(255) nullable | FQCN del cobrable (`App\Models\Venta`, `App\Models\PedidoMostrador`). NULL hasta que se asocia. |
+| `usuario_iniciador_id` | bigint FK nullable | Usuario que inicio el cobro. NULLABLE desde el pago online de tienda (migracion `make_usuario_iniciador_nullable_en_integraciones_pago_transacciones`): `NULL` = iniciado por el consumidor (checkout de la tienda, sin operador) |
+| `cobrable_type` | varchar(255) nullable | FQCN del cobrable (`App\Models\Venta`, `App\Models\PedidoMostrador`, `App\Models\PedidoDelivery`). NULL hasta que se asocia (excepto pago online de tienda, ver 3.14, donde el pedido YA existe al iniciar el cobro) |
 | `cobrable_id` | bigint unsigned nullable | ID del cobrable. NULL hasta que se asocia. |
-| `modo_usado` | varchar(50) | Modo de cobro (`qr_dinamico`, `qr_estatico`, `qr_libre`) |
-| `estado` | varchar(50) | Estado: `pendiente`, `confirmado`, `confirmado_manual`, `cancelado`, `fallido`, `expirado` |
+| `modo_usado` | varchar(50) | Modo de cobro (`qr_dinamico`, `qr_estatico`, `qr_libre`, `point`, `checkout_pro`) |
+| `estado` | varchar(50) | Estado: `pendiente`, `confirmado`, `confirmado_manual`, `cancelado`, `fallido`, `expirado`, `devuelto` (RF-T82: cobro confirmado que fue reembolsado total al pagador) |
 | `monto` | decimal(12,2) | Monto del cobro |
 | `moneda_id` | bigint FK nullable | Moneda del cobro |
 | `qr_data` | text nullable | Trama EMVCo del QR dinamico |
@@ -2686,9 +2687,11 @@ Registro append-only de transacciones de cobro. Una transaccion nace en estado `
 - `cobrable_type` y `cobrable_id` son nullable desde Fase 5 (migracion `make_cobrable_nullable_integraciones_pago_transacciones`).
 - Relacion `cobrable()` es `morphTo`: el cobrable puede ser `Venta` o `PedidoMostrador`.
 - Modelo "cobro primero, cobrable despues": la transaccion nace sin cobrable (`cobrable_type/id = null`). El cobrable se asocia recien cuando se materializa el comprobante (venta nueva, pedido cobrado, pago planificado confirmado). Aplica en todos los flujos: Nueva Venta, NuevoPedidoMostrador y confirmacion de pagos planificados desde PedidosMostrador.
-- `estaEnEstadoTerminal()`: devuelve true si `estado` es `confirmado`, `confirmado_manual`, `cancelado`, `fallido` o `expirado`.
+- `estaEnEstadoTerminal()`: devuelve true si `estado` es `confirmado`, `confirmado_manual`, `cancelado`, `fallido`, `expirado` o `devuelto`.
 - `estaConfirmada()`: devuelve true si `estado` es `confirmado` o `confirmado_manual`.
 - Scope `vencidas()`: filtra transacciones con `estado = 'pendiente'` y `expira_en <= now()`. Usado por el comando de expiracion automatica.
+- `esCheckoutOnline()`: devuelve true si `modo_usado === IntegracionPagoTransaccion::MODO_CHECKOUT_PRO`.
+- `paymentIdCheckout()`: lee `metadata['checkout']['payment_id']` (persistido por el webhook al confirmar, RF-T78) — sin el no hay refund posible (RF-T82).
 
 #### Tabla: `{PREFIX}integraciones_pago_eventos` (tenant)
 
@@ -2724,15 +2727,23 @@ Campo `rubro varchar(50) nullable` agregado a la tabla `comercios` de la conexio
 #### Services
 
 - **`CobroIntegracionService`** (Fase 5): Orquesta el ciclo de vida de un cobro por integracion. API unica consumida por todos los flujos de cobro via el concern `WithCobroIntegracion` (usado por `WithPagosDesglose` en `NuevaVenta`/`NuevoPedidoMostrador` y directamente por `PedidosMostrador` para pagos planificados). Metodos publicos:
-  - `iniciarCobro(IntegracionPagoSucursal $config, array $datos, ?Model $cobrable = null): IntegracionPagoTransaccion` — Crea la transaccion en `pendiente`, aplica la `metadata` inicial opcional (`$datos['metadata']`) si se provee, llama al gateway para obtener el QR/datos de cobro (FUERA de la transaccion DB para no mantener locks durante la latencia de red) y persiste `qr_data`, `external_id`, etc. La `metadata` la lee el gateway al iniciar: el modo `point` la usa para `['point' => ['default_type' => 'credit_card', 'installments' => 3]]`; el modo `qr_libre` para `qr_libre_imagen_url`.
+  - `iniciarCobro(IntegracionPagoSucursal $config, array $datos, ?Model $cobrable = null): IntegracionPagoTransaccion` — Crea la transaccion en `pendiente`, aplica la `metadata` inicial opcional (`$datos['metadata']`) si se provee, llama al gateway para obtener el QR/datos de cobro (FUERA de la transaccion DB para no mantener locks durante la latencia de red) y persiste `qr_data`, `external_id`, etc. La `metadata` la lee el gateway al iniciar: el modo `point` la usa para `['point' => ['default_type' => 'credit_card', 'installments' => 3]]`; el modo `qr_libre` para `qr_libre_imagen_url`; el modo `checkout_pro` para `['checkout' => ['titulo', 'total_pedido', 'propina', 'back_url', 'statement', 'cuotas_max', 'pedido_id']]` (RF-T77/T83). `expira_en` usa `$datos['timeout_segundos']` si viene (checkout online pide su propio timeout, tipicamente 1800s, en vez de `$config->timeout_segundos` de la config presencial).
   - `consultarEstado(IntegracionPagoTransaccion $transaccion): string` — Consulta el estado en el proveedor. Devuelve `'pendiente'|'aprobado'|'cancelado'|'expirado'` sin mutar la transaccion.
   - `confirmarCobro(IntegracionPagoTransaccion $transaccion, ?Model $cobrable = null, array $payload = []): void` — Marca como `confirmado`, registra `confirmado_en`, asocia el cobrable si se provee. Idempotente. Al confirmar exitosamente (primera vez), invoca `registrarMovimientoCuentaEmpresa()` fuera de la transaccion DB (el movimiento no rollbackea con ella).
   - `asociarCobrable(IntegracionPagoTransaccion $transaccion, Model $cobrable): void` — Asocia el cobrable a una transaccion ya confirmada. Necesario en el modelo "cobro primero, venta despues": el pago se confirma cuando el cliente escanea el QR, pero el comprobante se crea despues. Idempotente.
   - `cancelarCobro(IntegracionPagoTransaccion $transaccion): bool` — Avisa al proveedor y marca como `cancelado`. Si el gateway falla al cancelar, la transaccion se cancela localmente igual y se loguea el error. Idempotente.
   - `confirmarManual(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null, ?string $motivo = null): void` — (Fase 8, RF-12) Marca la transaccion con estado `confirmado_manual` (distinto de `confirmado` para diferenciarlo en reportes y conciliacion) y registra en `integraciones_pago_eventos` quien la confirmo (`usuario_id` en `metadata`). El cobrable se materializa igual que en el camino automatico (el concern llama `alConfirmarCobroIntegracion()`). Idempotente: si la transaccion ya esta en estado terminal, no hace nada. Es el unico camino de cierre para el modo `qr_libre`. Al confirmar exitosamente, invoca `registrarMovimientoCuentaEmpresa()` con el `$usuarioId` del confirmador.
-  - `expirarPendientesVencidas(): int` — (Fase 8, RF-16) Obtiene todas las transacciones en scope `vencidas()` del tenant activo, las marca como `expirado`, registra el evento `expirado` en el ledger y broadcastea `IntegracionPagoActualizado` con `estado = 'expirado'` por cada una para que el modal del cajero cierre solo. Bajo el modelo "cobro primero" no hay cobrable que anular. Retorna la cantidad de transacciones expiradas.
-  - `registrarMovimientoCuentaEmpresa(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null): void` — (privado, Paso 2) Registra el ingreso en la cuenta real del proveedor al confirmarse el cobro. Solo en produccion. Idempotente por origen polimórfico (`IntegracionPagoTransaccion`, `transaccion->id`): si ya existe un movimiento con ese origen no crea uno nuevo (webhook + polling + confirmacion manual convergen a 1 solo movimiento). Resolucion de cuenta: (1) `CuentaEmpresaService::findOrCreateParaIntegracion($config)` segun la config de la sucursal de la transaccion (D7); (2) fallback: `transaccion->formaPago->cuenta_empresa_id` si la identidad es null; (3) si tampoco existe, no registra nada. Concepto: `cobro_integracion`. Nunca rompe la confirmacion: cualquier excepcion queda en log warning.
-- **`MercadoPagoGateway`** (actualizado con soporte Point + qr_libre): Implementa `IntegracionPagoGatewayContract`. Metodos de sincronizacion (QR): `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de cobro: `iniciarCobro` (gateway public; delega a rama segun `transaccion->modo_usado`): si el modo es `point` llama al metodo privado `iniciarCobroPoint`; si es `qr_libre` llama al metodo privado `iniciarCobroQrLibre()` (no llama a la Orders API, retorna `qr_image_url` desde `metadata['qr_libre_imagen_url']` y `external_id = null`); de lo contrario usa la rama QR existente con `mapearModoOrdersApi()` (`dynamic`/`static`). Metodo privado `iniciarCobroPoint`: hace `POST /v1/orders` con `type:"point"`, `config.point.terminal_id = caja->mp_point_terminal_id`, `config.payment_method.default_type` (si la FP definio un medio; null = Abierto), `config.payment_method.default_installments` (solo credit_card), `expiration_time` ISO 8601 acotado a PT30S..PT3H. Devuelve `qr_data = null` (el QR no se renderiza en pantalla; el aparato lo muestra). `consultarEstado` — polling del order (no-op efectivo para `qr_libre` ya que `external_id = null`). `cancelarCobro`: para modo `point` agrega el header `x-allow-cancelable-status: at_terminal` para permitir cancelar la order mientras esta "en terminal" (estado que MP llama `at_terminal`). En modo `dynamic` MP devuelve `qr_data`; en `static` y `qr_libre` se usa `qr_image_url`. Metodos Point publicos: `listarTerminales(config)` — `GET /terminals/v1/list` (hasta 50 terminales); `activarModoPDV(config, terminalId)` — `PATCH /terminals/v1/setup` con `operating_mode: "PDV"` (requisito previo para poder empujar cobros al device). El webhook es identico para QR y Point (mismo topico "orders"; se distingue la transaccion por `external_id`). Constantes: `MODO_QR_DINAMICO`, `MODO_QR_ESTATICO`, `MODO_QR_LIBRE`, `MODO_POINT`.
+  - `expirarPendientesVencidas(): int` — (Fase 8, RF-16; RF-T79) Obtiene todas las transacciones en scope `vencidas()` del tenant activo, las marca como `expirado`, registra el evento `expirado` en el ledger y broadcastea `IntegracionPagoActualizado` con `estado = 'expirado'` por cada una para que el modal del cajero cierre solo. Bajo el modelo "cobro primero" no hay cobrable que anular para QR/Point. **Hook RF-T79**: por cada transaccion expirada, si `esCheckoutOnline()`, llama a `PedidoPagoOnlineService::cancelarPorPagoNoCompletado()` (best-effort, try/catch propio, no interrumpe el barrido) para cancelar el `PedidoDelivery` borrador que quedo esperando ese pago. Retorna la cantidad de transacciones expiradas.
+  - `registrarMovimientoCuentaEmpresa(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null): void` — (privado, Paso 2) Registra el ingreso en la cuenta real del proveedor al confirmarse el cobro. Solo en produccion. Idempotente por origen polimórfico (`IntegracionPagoTransaccion`, `transaccion->id`): si ya existe un movimiento con ese origen no crea uno nuevo (webhook + polling + confirmacion manual convergen a 1 solo movimiento). Resolucion de cuenta: (1) `CuentaEmpresaService::findOrCreateParaIntegracion($config)` segun la config de la sucursal de la transaccion (D7); (2) fallback: `transaccion->formaPago->cuenta_empresa_id` si la identidad es null; (3) si tampoco existe, no registra nada. Concepto: `cobro_integracion` por `monto - propina`. **RF-T83**: si `metadata.checkout.propina > 0`, registra un SEGUNDO movimiento de ingreso separado con concepto `propina_online` por ese monto (mismo origen polimórfico, mismo `usuarioId` resuelto — `0` = sistema cuando no hay operador, como en checkout online). Nunca rompe la confirmacion: cualquier excepcion queda en log warning.
+- **`MercadoPagoGateway`** (actualizado con soporte Point + qr_libre): Implementa `IntegracionPagoGatewayContract`. Metodos de sincronizacion (QR): `crearStore`, `actualizarStore`, `eliminarStore`, `crearPos`, `actualizarPos`, `eliminarPos`. Metodos de cobro: `iniciarCobro` (gateway public; delega a rama segun `transaccion->modo_usado`): si el modo es `point` llama al metodo privado `iniciarCobroPoint`; si es `qr_libre` llama al metodo privado `iniciarCobroQrLibre()` (no llama a la Orders API, retorna `qr_image_url` desde `metadata['qr_libre_imagen_url']` y `external_id = null`); de lo contrario usa la rama QR existente con `mapearModoOrdersApi()` (`dynamic`/`static`). Metodo privado `iniciarCobroPoint`: hace `POST /v1/orders` con `type:"point"`, `config.point.terminal_id = caja->mp_point_terminal_id`, `config.payment_method.default_type` (si la FP definio un medio; null = Abierto), `config.payment_method.default_installments` (solo credit_card), `expiration_time` ISO 8601 acotado a PT30S..PT3H. Devuelve `qr_data = null` (el QR no se renderiza en pantalla; el aparato lo muestra). `consultarEstado` — polling del order (no-op efectivo para `qr_libre` ya que `external_id = null`). `cancelarCobro`: para modo `point` agrega el header `x-allow-cancelable-status: at_terminal` para permitir cancelar la order mientras esta "en terminal" (estado que MP llama `at_terminal`). En modo `dynamic` MP devuelve `qr_data`; en `static` y `qr_libre` se usa `qr_image_url`. Metodos Point publicos: `listarTerminales(config)` — `GET /terminals/v1/list` (hasta 50 terminales); `activarModoPDV(config, terminalId)` — `PATCH /terminals/v1/setup` con `operating_mode: "PDV"` (requisito previo para poder empujar cobros al device). El webhook es identico para QR y Point (mismo topico "orders"; se distingue la transaccion por `external_id`). Constantes: `MODO_QR_DINAMICO`, `MODO_QR_ESTATICO`, `MODO_QR_LIBRE`, `MODO_POINT`, `MODO_CHECKOUT_PRO`.
+
+  **Checkout Pro (RF-T76..T82, 2026-08-06)** — rama nueva por `modo_usado = 'checkout_pro'` en los mismos metodos del contrato, sin tocar las ramas QR/Point:
+  - `iniciarCobro` → `iniciarCobroCheckoutPro()`: `POST /checkout/preferences` con `items` (un renglon "{titulo}" por `metadata.checkout.total_pedido` + un SEGUNDO renglon "Propina" si `metadata.checkout.propina > 0`, RF-T83 — el detalle de articulos vive en el pedido, no en la preferencia), `external_reference = 'BCN-TX-{id}'` (mismo patron que QR/Point), `notification_url` (el webhook global unico), `back_urls` + `auto_return = 'approved'` (URL de retorno de la tienda desde `metadata.checkout.back_url`, con placeholder `{token}`), `expires` + `expiration_date_to` (del `expira_en` de la tx), `binary_mode = true` (sin estados intermedios `in_process`: aprueba o rechaza, nunca "pendiente de acreditacion" — decision de diseno para comida con entrega inmediata), `statement_descriptor` con el nombre del comercio. Respuesta: `['link' => init_point]`, que `CobroIntegracionService` persiste en `link_pago` (columna cableada desde Fase 1 sin uso hasta este spec).
+  - `consultarEstado` → rama checkout: el recurso NO es una order — `GET /v1/payments/search?external_reference=BCN-TX-{id}`, normaliza `approved→aprobado`, `rejected/cancelled→fallido/cancelado`, sin resultados→`pendiente`.
+  - `obtenerPago(config, paymentId)`: `GET /v1/payments/{id}` autenticado — usado por el webhook (topic `payment`, ver 3.7) para re-consultar el pago real antes de confirmar (nunca confia en el payload entrante).
+  - `reembolsar(config, transaccion): array` (RF-T82, refund total): `POST /v1/payments/{payment_id}/refunds` con el `payment_id` de `transaccion->paymentIdCheckout()` — lanza excepcion si la tx no tiene `payment_id` (mensaje "La transaccion no tiene el identificador del pago de Mercado Pago (no se puede devolver)"). Es el "refund real" que el spec de integraciones (junio 2026) habia dejado diferido; se implementa SOLO para checkout online.
+  - `cancelarCobro` → rama checkout: no existe cancelacion de preferencia con pago en curso — se marca cancelada LOCAL nada mas; la preferencia muere sola al llegar a `expiration_date_to`.
+  - `verificarFirma()` (HMAC `x-signature`) es TRANSVERSAL a los tres topics/productos: la misma funcion valida QR, Point y Checkout, cada uno con el `webhook_secret` de su propia `IntegracionPagoSucursal`.
 - **`MercadoPagoWebhookService`**: Procesa notificaciones entrantes de MP. Contiene un guard explicito para el modo `qr_libre`: si la transaccion encontrada tiene `modo_usado = 'qr_libre'`, el webhook retorna inmediatamente con `status = 'ignored'` sin re-consultar ni confirmar. Razon: el QR "Cobrar" de MP es un QR estatico generico de la cuenta (no lleva el `external_id` de ninguna order nuestra), por lo que el pago real nunca puede matchear por `order_id`. La confirmacion es exclusivamente manual via `confirmarManual()`.
 - **`ImagenQrLibreService`**: Procesa el upload de la imagen del QR "Cobrar" de Mercado Pago para el modo `qr_libre`. Defensas de seguridad: validacion de tamano (max 4 MB), deteccion de MIME real por magic bytes via `finfo` (no por extension ni Content-Type), whitelist JPG/PNG/WebP (SVG prohibido), re-encoding completo a WebP con Intervention Image/GD (elimina EXIF y payloads embebidos), nombre por UUID (sin path traversal), path scopeado por `comercioId`. NO redimensiona agresivamente (el QR debe quedar nitido y escaneable): solo achica si supera 1000px, con calidad WebP 90. Metodo estatico `urlPublica(?string $path): ?string` — deriva la URL root-relativa `/storage/{path}` a partir del path del disco publico (no usa `APP_URL`, portable entre hosts). Almacenamiento: disk `public`, ruta `integraciones/qr_libre/{comercioId}/{uuid}.webp`.
 - **`SincronizacionMercadoPagoService`**: Orquesta crear-vs-actualizar para QR (Store/POS) y para Point (terminales/devices). Decide segun `mp_store_id` / `mp_pos_id`. Persiste IDs y URLs devueltos en una transaccion tenant. Metodos para Point: `listarTerminales(config)` — delega en el gateway; `vincularTerminalCaja(config, caja, terminalId)` — llama a `activarModoPDV` en el gateway y persiste `mp_point_terminal_id` en la caja en una transaccion tenant; `desvincularTerminalCaja(caja)` — limpia `mp_point_terminal_id` localmente (no toca el modo del device en MP).
@@ -2756,19 +2767,22 @@ Diferencias respecto al formulario de Sucursales:
 |---|---|---|---|
 | `mercadopago_qr` | Mercado Pago - QR | Cobro via QR dinamico, QR estatico o QR de monto libre. Renombrado desde `mercadopago` en Fase 4 para dar lugar a futuros productos MP como filas separadas del catalogo. Los modos disponibles (`modos_disponibles` en el catalogo): `qr_dinamico`, `qr_estatico`, `qr_libre` | 1 |
 | `mercadopago_point` | Mercado Pago - Point | Cobros con Mercado Pago Point: el monto se envia a la terminal fisica desde el sistema y el cliente paga con tarjeta o QR en el propio aparato. Producto MP separado del QR; usa su propia aplicacion MP con access_token propio. Reusa `MercadoPagoGateway` con rama por modo. | 2 |
+| `mercadopago_checkout` | Mercado Pago - Checkout Online | Pago ONLINE en la tienda (Checkout Pro, RF-T75..T83): el consumidor paga en la pagina segura de Mercado Pago y el pedido de tienda entra al circuito ya pagado. Producto MP separado (aplicacion y access_token propios). Un unico modo disponible: `checkout_pro`. Reusa `MercadoPagoGateway` con rama por modo. Ver 3.14 "Pago online con Mercado Pago Checkout Pro" para el circuito completo. | 3 |
 
 **Constantes PHP**:
 - `IntegracionPago::CODIGO_MERCADOPAGO_QR = 'mercadopago_qr'`
 - `IntegracionPago::CODIGO_MERCADOPAGO_POINT = 'mercadopago_point'`
+- `IntegracionPago::CODIGO_MERCADOPAGO_CHECKOUT = 'mercadopago_checkout'`
 
 **Constantes de modo en `IntegracionPagoTransaccion`**:
 - `MODO_QR_DINAMICO = 'qr_dinamico'`
 - `MODO_QR_ESTATICO = 'qr_estatico'`
 - `MODO_QR_LIBRE = 'qr_libre'`
 - `MODO_POINT = 'point'`
+- `MODO_CHECKOUT_PRO = 'checkout_pro'`
 
 **Constantes de modo en `MercadoPagoGateway`** (mismos valores):
-- `MODO_QR_DINAMICO`, `MODO_QR_ESTATICO`, `MODO_QR_LIBRE = 'qr_libre'`, `MODO_POINT = 'point'`
+- `MODO_QR_DINAMICO`, `MODO_QR_ESTATICO`, `MODO_QR_LIBRE = 'qr_libre'`, `MODO_POINT = 'point'`, `MODO_CHECKOUT_PRO = 'checkout_pro'`
 
 #### Reglas de negocio — asignacion de integraciones a formas de pago (Fase 4)
 
@@ -2780,13 +2794,15 @@ Diferencias respecto al formulario de Sucursales:
 
 4. **Principal para cobro sin pregunta**: Al cobrar, si la FP tiene una unica integracion se usa automaticamente. Si tiene varias, se usa la marcada `es_principal`. Si ninguna esta marcada, se toma la primera. El helper `integracionPrincipal()` implementa esta logica.
 
-5. **Modos de cobro**: Los modos (`qr_dinamico`, `qr_estatico`, `qr_libre`, `point`) son variantes de cobro, no integraciones separadas. Cada forma de pago usa **un unico modo**, configurado en el campo `modo_default` del pivote. El campo `modos_permitidos` (json array) se conserva por compatibilidad de esquema y se persiste siempre como `[modo_default]` (espejo de un solo elemento). No hay validacion de inclusion porque no existe seleccion multiple.
+5. **Modos de cobro**: Los modos (`qr_dinamico`, `qr_estatico`, `qr_libre`, `point`, `checkout_pro`) son variantes de cobro, no integraciones separadas. Cada forma de pago usa **un unico modo**, configurado en el campo `modo_default` del pivote. El campo `modos_permitidos` (json array) se conserva por compatibilidad de esquema y se persiste siempre como `[modo_default]` (espejo de un solo elemento). No hay validacion de inclusion porque no existe seleccion multiple.
 
-   Resolucion del modo al cobrar: `WithCobroIntegracion::iniciarCobroIntegracion` lee `$integracion->pivot->modo_default`; ese valor se pasa como `modo_usado` a la transaccion. Para `qr_dinamico` y `qr_estatico`, `MercadoPagoGateway::mapearModoOrdersApi()` lo convierte al valor esperado por la Orders API (`dynamic` / `static`). Para `point`, el concern valida que la caja tenga `mp_point_terminal_id`, construye `metadata['point']` con `default_type` (de `config_point` del pivote) e `installments` (de las cuotas del desglose, solo si `default_type = credit_card`), y pasa `metadata` a `CobroIntegracionService::iniciarCobro()`; el gateway detecta `modo_usado = 'point'` y delega en `iniciarCobroPoint()`. Para `qr_libre`, el gateway toma un camino alternativo (`iniciarCobroQrLibre`) que no llama a la Orders API.
+   Resolucion del modo al cobrar: `WithCobroIntegracion::iniciarCobroIntegracion` lee `$integracion->pivot->modo_default`; ese valor se pasa como `modo_usado` a la transaccion. Para `qr_dinamico` y `qr_estatico`, `MercadoPagoGateway::mapearModoOrdersApi()` lo convierte al valor esperado por la Orders API (`dynamic` / `static`). Para `point`, el concern valida que la caja tenga `mp_point_terminal_id`, construye `metadata['point']` con `default_type` (de `config_point` del pivote) e `installments` (de las cuotas del desglose, solo si `default_type = credit_card`), y pasa `metadata` a `CobroIntegracionService::iniciarCobro()`; el gateway detecta `modo_usado = 'point'` y delega en `iniciarCobroPoint()`. Para `qr_libre`, el gateway toma un camino alternativo (`iniciarCobroQrLibre`) que no llama a la Orders API. El modo `checkout_pro` NO se cobra desde el punto de venta presencial (el concern no lo resuelve): lo consume exclusivamente el circuito de pago online de la tienda (`PedidoPagoOnlineService`, ver 3.14).
 
    El modo `qr_libre` tiene requerimientos distintos al cobrar: NO exige `access_token` ni que la caja este sincronizada en MP (no hay credenciales de API involucradas). Solo requiere que la integracion exista y este activa en la sucursal, y que `config_qr_libre.imagen_path` no sea nulo en el pivote. La URL de la imagen se deriva root-relativamente via `ImagenQrLibreService::urlPublica($path)` y se pasa al gateway a traves de `metadata['qr_libre_imagen_url']`.
 
-6. **Sincronizacion via sync()**: Al guardar, el componente llama a `$formaPago->integraciones()->sync($syncIntegraciones)` con el mapa `[integracion_pago_id => [modo_default, modos_permitidos, es_principal, config_point, config_qr_libre]]`, donde `modos_permitidos` es siempre `json_encode([$modo_default])`, `config_point` es `json_encode(['default_type' => ...])` o null (Abierto), y `config_qr_libre` es null para los modos que no lo usan. Si la FP no admite integraciones se llama a `detach()` para limpiar registros huerfanos.
+6. **Sincronizacion via sync()**: Al guardar, el componente llama a `$formaPago->integraciones()->sync($syncIntegraciones)` con el mapa `[integracion_pago_id => [modo_default, modos_permitidos, es_principal, config_point, config_qr_libre]]`, donde `modos_permitidos` es siempre `json_encode([$modo_default])`, `config_point` es `json_encode(['default_type' => ...])` o null (Abierto), y `config_qr_libre` es null para los modos que no lo usan. Si la FP no admite integraciones se llama a `detach()` para limpiar registros huerfanos. `config_checkout` (columna aditiva del pivote, ver 3.14) todavia NO tiene UI de edicion en `GestionarFormasPago` (queda `NULL` = sin tope de cuotas por defecto de MP); es JSON `{"cuotas_max": n}` pensado para extenderse ahi mismo cuando se agregue el campo.
+
+7. **`FormaPago::integracionCheckout(int $sucursalId): ?IntegracionPagoSucursal`** (helper nuevo, RF-T77): resuelve la config de checkout online de la FP en una sucursal — la FP tiene la integracion `mercadopago_checkout` activa Y la sucursal tiene esa integracion activa y `estaConfigurada()` (con credenciales). Devuelve `null` si la FP no cobra online en esa sucursal. Es el metodo que decide, por canal: el panel usa `integracionPrincipal()` (presencial); la tienda usa `integracionCheckout()` (online). Ver "Pago online con Mercado Pago Checkout Pro" en 3.14.
 
 #### Reglas de negocio — confirmacion manual segun modo
 
@@ -2829,7 +2845,7 @@ El metodo `pollearCobroIntegracion()` del concern tiene un short-circuit explici
 
 4. **Cuenta resuelta por identidad de la config de la sucursal** (D7): `registrarMovimientoCuentaEmpresa()` resuelve la cuenta via `identidadCuentaEmpresa()` de la config de la transaccion (`transaccion->integracionSucursal`), no via `formaPago->cuenta_empresa_id`. Asi, dos sucursales con cuentas MP distintas impactan cada una la suya. Fallback: `formaPago->cuenta_empresa_id` si la identidad es null.
 
-5. **Anulacion no revierte el movimiento** (D8): como `venta_pagos.movimiento_cuenta_empresa_id` queda NULL en pagos por integracion, los flujos de anulacion y cambio de forma de pago (que contraasientan por ese link) no encuentran nada que revertir. El dinero sigue en el proveedor salvo refund manual externo. Una futura funcionalidad de refund agregaria el egreso como contraasiento; hasta entonces el saldo queda acumulado.
+5. **Anulacion no revierte el movimiento** (D8): como `venta_pagos.movimiento_cuenta_empresa_id` queda NULL en pagos por integracion, los flujos de anulacion y cambio de forma de pago (que contraasientan por ese link) no encuentran nada que revertir. El dinero sigue en el proveedor salvo refund manual externo. Aplica a `Venta`/QR/Point. **Realizado para checkout online de tienda (RF-T82, 2026-08-06)**: `PedidoPagoOnlineService::devolver()` SI agrega el egreso como contraasiento (concepto `devolucion_integracion`) al rechazar/cancelar un `PedidoDelivery` pagado — ver 3.14. QR/Point presenciales siguen sin refund automatico.
 
 6. **Idempotencia por origen polimórfico**: antes de registrar el movimiento se verifica que no exista ya un `MovimientoCuentaEmpresa` con `origen_tipo='IntegracionPagoTransaccion'` y el mismo `origen_id`. Webhook, polling y confirmacion manual pueden converger; solo el primero que llegue registra el movimiento.
 
@@ -3342,6 +3358,7 @@ Tiene TODAS las columnas de `pedidos_mostrador` (ver 2.12: numero, numero_displa
 | `origen_referencia` | varchar(100) nullable | Id externo del integrador |
 | `consumidor_id` | bigint nullable | FK logico a `config.consumidores` |
 | `token_seguimiento` | char(26) UNIQUE nullable | ULID, generado en el hook `creating` de TODO pedido; credencial del seguimiento publico |
+| `propina_online` | decimal(12,2) default 0 | RF-T83: propina agregada por el consumidor al pagar online (Checkout Pro). Nunca integra `total`/`total_final` ni lo facturable de la conversion a venta -- se cobra y se registra aparte (ver "Pago online con Mercado Pago Checkout Pro" en 3.14) |
 
 **Indices propios**: `tipo`, `(repartidor_id, estado_pedido)`, `salida_id`, `origen`, `consumidor_id`, `token_seguimiento` (unique) — ademas del espejo de indices de mostrador.
 
@@ -3354,6 +3371,7 @@ Tiene TODAS las columnas de `pedidos_mostrador` (ver 2.12: numero, numero_displa
 - `pedidos_delivery_detalle.observaciones` (varchar(255) nullable, migracion aditiva `add_observaciones_to_pedidos_delivery_detalle`, 2026-07-22): aclaracion del cliente para ESE item puntual (ej. "sin pepino", "bien cocida"), cargada en la tienda online al detalle del articulo. Solo existe en delivery (mostrador no tiene este campo). Ver seccion 3.14 "Aclaracion del cliente por item" para el flujo completo.
 - `pedidos_delivery_pagos.destino_fondo` (boolean, default 0) + `repartidor_fondo_id` (FK nullable a `repartidor_fondos`): el cobro contra entrega en efectivo entra al FONDO del repartidor en vez de generar `MovimientoCaja` (D13, ver 3.14).
 - `pedidos_delivery.usuario_id` y `pedidos_delivery_pagos.creado_por_usuario_id` son NULLABLE (a diferencia de mostrador): pedidos de tienda/API y pagos online acreditados por webhook no tienen operador humano.
+- `pedidos_delivery_pagos.integracion_pago_transaccion_id` (bigint unsigned nullable, FK → `integraciones_pago_transacciones`, ON DELETE SET NULL, migracion `add_integracion_pago_transaccion_id_to_pedidos_delivery_pagos`): espejo de `venta_pagos.integracion_pago_transaccion_id` (Fase 9 de integraciones de pago) para pagos ONLINE de la tienda (Checkout Pro, RF-T77). Vincula el pago puntual del pedido con la transaccion que lo cobro: habilita no doble-registrar en la conversion pedido→venta (`migrarPagosAVenta` copia el vinculo si existe, con fallback al matching por FP que usan los cobros QR del panel) y el bloqueo de modificaciones de un pedido ya pagado online (ver 3.14).
 
 #### Tabla: `repartidores`
 | Columna | Tipo | Descripcion |
@@ -4516,7 +4534,7 @@ Arquitectura client-side para mostrar el QR al cliente en un segundo monitor, si
 
 **Endpoint**: `POST /api/integraciones/mercadopago/webhook`
 - Ruta publica (sin autenticacion Sanctum ni CSRF).
-- MP la llama cuando confirma un pago QR o cuando cambia el estado de una order Point (el topic "orders" es el mismo para ambos productos; la distincion es por `external_id` de la transaccion).
+- MP la llama cuando confirma un pago QR o cuando cambia el estado de una order Point (el topic "orders" es el mismo para ambos productos; la distincion es por `external_id` de la transaccion) o cuando cambia el estado de un pago de Checkout Pro (topic **"payment"**, ver rama propia mas abajo).
 
 **Flujo del webhook**:
 
@@ -4528,9 +4546,11 @@ Arquitectura client-side para mostrar el QR al cliente en un segundo monitor, si
 6. Broadcastea el evento `IntegracionPagoActualizado` (ver abajo).
 7. Retorna HTTP 200. El cobrable **no se materializa** en el webhook (no tiene el carrito ni el contexto de la sesion del cajero); solo confirma la transaccion server-side.
 
-**Resolucion multi-tenant**: el webhook es un endpoint global unico para todos los comercios. La tabla `mercadopago_collector_index` (conexion `config`, sin prefijo) actua como indice de routing: mapea `user_id_externo` (ID de cuenta MP) al `comercio_id` y `sucursal_id` tenant. Este indice se sincroniza automaticamente al guardar o actualizar una `IntegracionPagoSucursal`. El metodo `IntegracionPagoSucursal::sincronizarIndiceColector()` registra tanto las integraciones `mercadopago_qr` como `mercadopago_point`, ya que comparten el topic "orders" y el endpoint de webhook. QR y Point de la misma cuenta MP no colisionan porque el `external_id` de la transaccion (formato `BCN-TX-{id}`) es unico y unambiguo.
+**Resolucion multi-tenant**: el webhook es un endpoint global unico para todos los comercios. La tabla `mercadopago_collector_index` (conexion `config`, sin prefijo) actua como indice de routing: mapea `user_id_externo` (ID de cuenta MP) al `comercio_id` y `sucursal_id` tenant. Este indice se sincroniza automaticamente al guardar o actualizar una `IntegracionPagoSucursal`. El metodo `IntegracionPagoSucursal::sincronizarIndiceColector()` registra las integraciones `mercadopago_qr`, `mercadopago_point` **y `mercadopago_checkout`** (guard con `in_array` sobre las tres, RF-T75) porque las tres comparten el mismo colector de webhook (topics distintos, "orders" vs "payment", pero el mismo `user_id`/comercio). QR, Point y Checkout de la misma cuenta MP no colisionan porque el `external_id`/`external_reference` de la transaccion (formato `BCN-TX-{id}`) es unico y unambiguo.
 
-**Robustez**: si el cajero cierra el navegador despues de iniciar el cobro y antes de que el cliente pague, el pago queda confirmado server-side igualmente cuando MP llama al webhook. La transaccion queda en estado `confirmado` sin cobrable asociado, disponible para reconciliacion futura. Aplica tanto para QR como para Point.
+**Robustez**: si el cajero cierra el navegador despues de iniciar el cobro y antes de que el cliente pague, el pago queda confirmado server-side igualmente cuando MP llama al webhook. La transaccion queda en estado `confirmado` sin cobrable asociado, disponible para reconciliacion futura. Aplica a QR y Point (modelo "cobro primero, cobrable despues"). Para Checkout Online el cobrable YA existe al iniciar el cobro (modelo "pedido primero, cobro despues", ver 3.14): el webhook confirma la tx Y dispara el hook de acreditacion del pedido en el mismo request.
+
+**Topic `payment` (Checkout Pro, RF-T78)** — rama propia en `MercadoPagoWebhookService::procesarTopicPayment()`: el payload solo trae el `id` del PAGO (no de una order), asi que la transaccion se resuelve re-consultando el pago AUTENTICADO a MP (`GET /v1/payments/{id}`, ese re-chequeo es la defensa: nunca se confia en el payload entrante) y matcheando su `external_reference` (formato `BCN-TX-{id}`, mismo patron). Si el pago viene `approved`: persiste el `payment_id` en `metadata.checkout.payment_id` (lo necesita el refund de RF-T82) ANTES de confirmar, llama a `confirmarCobro()` (idempotente, registra CuentaEmpresa) y despues invoca `PedidoPagoOnlineService::procesarAcreditacion()` (best-effort: un fallo ahi no pierde el cobro ya confirmado, queda para re-proceso). Mapeo de estados MP → normalizado: `approved→aprobado`, `rejected→fallido`, `cancelled→cancelado`, `refunded|charged_back→devuelto`, resto→`pendiente`. Transacciones que no son `esCheckoutOnline()` se ignoran en esta rama (los pagos de orders QR/Point notifican por su propio topic).
 
 #### Evento broadcast `IntegracionPagoActualizado`
 
@@ -4584,7 +4604,7 @@ La columna `venta_pagos.integracion_pago_transaccion_id` (FK nullable a `{PREFIX
 
 #### Bloqueo de anulacion y modificacion por cobro QR confirmado (Fase 9)
 
-Una venta o pago con cobro de integracion QR ya confirmado no puede anularse ni modificarse porque el dinero ya fue acreditado en la cuenta del proveedor (MercadoPago) y no existe mecanismo de refund automatico implementado todavia.
+Una venta o pago con cobro de integracion QR ya confirmado no puede anularse ni modificarse porque el dinero ya fue acreditado en la cuenta del proveedor (MercadoPago) y no existe mecanismo de refund automatico implementado todavia. **Excepcion, RF-T82**: el checkout ONLINE de la tienda (`PedidoDelivery`) SI tiene refund real por API — ver "Pago online con Mercado Pago Checkout Pro" en 3.14. El bloqueo de esta seccion sigue vigente sin excepcion para `Venta`/QR/Point presenciales.
 
 **Metodo protegido `VentaService::protegerContraIntegracionConfirmada(Venta $venta): void`**: lanza `Exception` con el mensaje traducible `'No se puede anular ni modificar: esta venta tiene un cobro por integracion (QR) ya confirmado. La devolucion debe hacerse desde el proveedor de pago.'` si `$venta->tieneIntegracionPagoConfirmada()` devuelve true.
 
@@ -4990,10 +5010,68 @@ El consumidor puede dejar una nota puntual por cada renglon del carrito (ej. "si
 #### Pedidos externos y aceptacion (D14)
 
 `config_delivery.aceptacion_pedidos_externos`:
-- **`manual`** (default): todo pedido de `origen IN ('tienda','api')` entra en `borrador` ("por aceptar", con badge/sonido en tiempo real). **Aceptar** (`aceptarPedidoExterno`) lo confirma y, si `modo_promesa=manual`, abre el modal de demora. **Rechazar** (`rechazarPedidoExterno`) lo cancela; si tenia pago online acreditado queda marcado **"a devolver"** (devolucion manual v1) y se avisa al consumidor por su canal de seguimiento.
+- **`manual`** (default): todo pedido de `origen IN ('tienda','api')` entra en `borrador` ("por aceptar", con badge/sonido en tiempo real) — EXCEPTO un pedido con pago online (Checkout Pro) sin acreditar todavia: ese nace borrador pero NO entra a "por aceptar" hasta que la plata se confirme (ver "Pago online con Mercado Pago Checkout Pro" mas abajo). **Aceptar** (`aceptarPedidoExterno`) lo confirma y, si `modo_promesa=manual`, abre el modal de demora. **Rechazar** (`rechazarPedidoExterno`) lo cancela; si tenia pago online (Checkout Pro) acreditado, `cancelarPedido` dispara la **devolucion automatica** en Mercado Pago (RF-T82, ver mas abajo) — si el refund falla, el pago queda marcado **"a devolver"** (reintento manual) y se avisa al consumidor por su canal de seguimiento en ambos casos.
 - **`automatica`**: el pedido entra `confirmado` directo; si `imprimir_comanda_al_aceptar`, la comanda sale sola por la comandera.
 - El pedido por aceptar **no descuenta stock** (patron borrador); al aceptar se valida stock y se respetan los precios/promos ya COTIZADOS al crearlo (snapshot en los renglones).
 - Pago online acreditado: `afecta_caja=0` (se concilia por el circuito de integraciones de pago existente); una caja solo interviene si un operador cobra desde el panel.
+
+#### Pago online con Mercado Pago Checkout Pro (RF-T75..T83, 2026-08-06)
+
+Spec `.claude/specs/tienda-pago-online-mp.md`. Permite que el consumidor pague el pedido de tienda ANTES de que llegue al comercio, en la pagina segura de Mercado Pago (Checkout Pro). Modelo **"pedido primero, cobro despues"** (Opcion B de la exploracion): el `PedidoDelivery` se crea como cobrable ANTES de redirigir a MP — el webhook (que por diseno "no materializa, solo confirma") no necesita conocer el carrito, porque el pedido ya existe.
+
+**Deteccion de FP online (`PedidoTiendaService::resolverFormaPagoOnline()`)**: la FP declarada en `pago.forma_pago_id` tiene checkout activo en la sucursal si `FormaPago::integracionCheckout($sucursalId)` no es null (ver 2.13, regla 7). Con eso detectado:
+- **Guards v1 (excepciones 422 si se violan)**: el pago online NO combina con multi-pago (`pagos[]`, cualquier FP ahi con checkout tira excepcion "El pago online no se puede combinar con otra forma de pago") ni con canje de puntos (el neto podria quedar en 0 y Checkout Pro no admite monto 0). La propina (`payload.propina`, decimal ≥ 0) solo es valida si hay FP online Y `config_delivery.checkout.propina_habilitada` esta activa; si no, `Exception`.
+- **El pedido SIEMPRE nace borrador** con FP online (`esBorrador = $aceptacionManual || $fpOnline !== null`, aunque la config sea de aceptacion automatica) y con el flag interno `_sin_aviso_por_aceptar = true`: `PedidoDeliveryService::crearPedido()` respeta ese flag y NO dispara el broadcast `TIPO_POR_ACEPTAR` al crearlo (a diferencia de cualquier otro borrador externo, que si avisa al instante por RF-T27) — el comercio no se entera hasta que la plata este.
+- **`propina_online`** se persiste solo si `$fpOnline` (si no hay FP online, la propina del payload se ignora — validada arriba de todos modos).
+- **Iniciar el cobro**: `monto` = `pedido->total_final` neto de canje de puntos (que en la practica siempre es 0 con FP online por el guard de arriba); `propina` aparte. Llama a `PedidoPagoOnlineService::iniciarPago()` con `retorno_url` (aditivo, `pago.retorno_url`, admite placeholder `{token}`) y el nombre de la tienda. **Si el gateway falla** (excepcion de red/API MP), el pedido borrador NO puede quedar huerfano (jamas seria visible para nadie): se cancela con motivo "Pago online no disponible" (best-effort, no vuelve a fallar la respuesta) y el alta entera falla con 422 "No se pudo iniciar el pago online: {mensaje}".
+- **Aceptacion automatica con FP online**: el pedido queda igual en borrador (nunca se comanda ni se imprime al crear) — la comanda/transicion llega recien con la acreditacion (RF-T78).
+
+**`PedidoDelivery::esperandoPagoOnline(): bool`** — deriva el estado SIN columna extra (decision de Fase 2, preferida sobre agregar un flag): `estado_pedido = borrador` AND `origen != panel` AND existe una `transaccionesIntegracion()` (relacion `morphMany` nueva, `cobrable_type/id` apuntando a ESTE pedido) `pendientes()` con `modo_usado = checkout_pro`. Se usa en: `PedidoPublicoController::show()` (clave `esperando_pago` del seguimiento, y excluye a `por_aceptar`), `PedidosDelivery::pedidosPorAceptar()` (`whereDoesntHave` con el mismo filtro — el listado de "por aceptar" del panel excluye estos pedidos), badge naranja "Esperando pago online" en `_badges-delivery.blade.php`.
+
+**`PedidoPagoOnlineService`** (`app/Services/Pedidos/PedidoPagoOnlineService.php`) — orquesta todo el ciclo del pago online:
+- `iniciarPago(sucursal, pedido, formaPago, config, monto, propina, retornoUrl, nombreTienda): IntegracionPagoTransaccion` — timeout: usa `config->timeout_segundos` si es > 300s, si no eleva a **1800s (30 min)** por defecto (`TIMEOUT_DEFAULT_ONLINE`) — el default presencial (pensado para minutos frente al mostrador) no alcanza para que el consumidor navegue la pagina de MP. Llama a `CobroIntegracionService::iniciarCobro()` con `usuario_iniciador_id = null` (iniciado por el consumidor) y `cobrable = $pedido` (el pedido YA existe, a diferencia de QR/Point donde el cobrable se asocia despues).
+- `procesarAcreditacion(IntegracionPagoTransaccion $transaccion): void` — la llama el webhook DESPUES de confirmar la tx (idempotente):
+  1. Si el pedido YA esta `cancelado` (webhook tardio tras una expiracion): la plata no corresponde → llama a `devolver()` directo, sin tocar nada mas.
+  2. Busca el `PedidoDeliveryPago` planificado con la MISMA `forma_pago_id` y llama `PedidoDeliveryService::materializarPagoOnline($pago, $transaccion)`.
+  3. Si el pedido sigue `borrador`: segun `config_delivery.aceptacion_pedidos_externos`, `automatica` → `aceptarPedidoExterno()`; `manual` → `avisarPedidoPorAceptar()` (dispara RECIEN AHORA el broadcast `TIPO_POR_ACEPTAR` que el alta omitio — burbuja/chime suenan por primera vez en este momento).
+  4. Broadcast por el canal PUBLICO de seguimiento (`PedidoSeguimientoPublicoBroadcast`) con `pagoOnline: {estado: 'aprobado'}` (aditivo, ver 3.15).
+- `cancelarPorPagoNoCompletado(IntegracionPagoTransaccion $transaccion): void` (RF-T79) — la llama `CobroIntegracionService::expirarPendientesVencidas()` cuando una tx `checkout_pro` vence. Si el pedido sigue `borrador` de origen no-panel Y no hay OTRA tx (`pendiente`/`confirmado`/`confirmado_manual`) mas nueva del mismo pedido (protege el re-pago en vuelo), cancela el pedido con motivo `'Pago online no completado'`. Stock y caja nunca se tocaron (era borrador).
+- `reiniciarPago(sucursal, pedido, retornoUrl, nombreTienda): IntegracionPagoTransaccion` (RF-T79, re-pago) — exige `estado_pedido = borrador` y ninguna tx `confirmadas()` (si ya se pago, `Exception` "El pago ya se acredito"). Cancela toda tx `pendiente` de modo `checkout_pro` previa (dos links de pago vivos del mismo pedido serian un doble cobro esperando pasar) y crea una tx NUEVA con `iniciarPago()`.
+- `estadoPago(PedidoDelivery $pedido): array{estado, url_pago, expira_en}` — consume la ULTIMA tx `checkout_pro` del pedido (`latest('id')`). Estados: `sin_pago` (no hay tx), `aprobado` (confirmada), `devuelto`, `fallido` (terminal no-confirmada o vencida), o si esta pendiente-vigente **re-consulta el estado VIVO a MP** (`consultarEstado()`, con try/catch — un fallo de red no rompe la respuesta) para no mostrarle "pendiente" al retorno del navegador si el pago ya esta aprobado y el webhook todavia no llego. NUNCA acredita nada — solo lee.
+- `devolver(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null): bool` (RF-T82) — idempotente (tx ya `devuelto` → `true` sin tocar nada). Exige `estaConfirmada()` Y `esCheckoutOnline()` (si no, `Exception`). Llama `$gateway->reembolsar()`; si **falla**, registra evento `EVENTO_DEVOLUCION_FALLIDA` y retorna `false` (el cobro queda "a devolver", ver mas abajo) — NUNCA relanza la excepcion hacia el caller de cancelacion. Si **tiene exito**: transaccion → `devuelto` + evento `EVENTO_DEVUELTO` (en una `DB::transaction` propia), `registrarContraasientos()` (egresos en la CuentaEmpresa, ver abajo), broadcast `pagoOnline: {estado: 'devuelto'}` al seguimiento publico.
+- `registrarContraasientos()` (privado) — SOLO produccion (`config->esProduccion()`), idempotente (evita duplicar si ya existe un `MovimientoCuentaEmpresa` egreso con `origen_tipo=IntegracionPagoTransaccion, origen_id=tx->id`). Resuelve la cuenta igual que el cobro original (`CuentaEmpresaService::findOrCreateParaIntegracion`, fallback `formaPago->cuenta_empresa_id`). Genera **UN egreso `devolucion_integracion` por `monto - propina`** y, si habia propina, **UN SEGUNDO egreso `devolucion_integracion` por la propina** — nunca edita el ingreso original (patron ledger append-only). Best-effort: cualquier excepcion queda en log warning, nunca rompe la devolucion ya confirmada en MP.
+
+**`PedidoDeliveryService::materializarPagoOnline(PedidoDeliveryPago $pago, IntegracionPagoTransaccion $transaccion): PedidoDeliveryPago`** — paridad con `confirmarPagoPlanificado()` pero SIN caja ni operador: `estado = activo`, `afecta_caja = false`, `creado_por_usuario_id = null`, `integracion_pago_transaccion_id = $transaccion->id`. Idempotente (si el pago ya esta `activo` con esa MISMA tx, no reprocesa). NO confirma el pedido (esa decision la toma `PedidoPagoOnlineService::procesarAcreditacion()` segun D14) ni toca el ledger de CuentaEmpresa (eso ya lo hizo `CobroIntegracionService::confirmarCobro()` al confirmar la tx, ANTES de llamar a este metodo).
+
+**Bloqueo de modificaciones (RF-T82)** — `PedidoDeliveryService::actualizarPedido()` rechaza (`Exception` 422) editar un pedido con `transaccionCheckoutConfirmada()` no-nulo: "Este pedido ya fue pagado online: aceptalo como esta o rechazalo (se devuelve el pago)". Un pedido pagado online NO admite cambios de monto (items, direccion con delta de envio) — las unicas acciones son aceptarlo tal cual o rechazarlo con devolucion. `PedidoDelivery::transaccionCheckoutConfirmada(): ?IntegracionPagoTransaccion` = ultima tx `confirmadas()` de modo `checkout_pro` del pedido.
+
+**Cancelacion/rechazo con refund (RF-T82)** — `PedidoDeliveryService::cancelarPedido()`: si `transaccionCheckoutConfirmada()` existe, llama a `PedidoPagoOnlineService::devolver()` ANTES de la transaccion DB de cancelacion (es una llamada HTTP, nunca dentro de un `DB::transaction`). El rechazo/cancelacion **NUNCA se bloquea por un fallo del refund** — si `devolver()` retorna `false`, se loguea warning pero la cancelacion sigue su curso igual; la tx queda `confirmado` (no `devuelto`) = **"a devolver"**, distinguible en el panel por el badge rojo y el boton "Reintentar devolucion" (`PedidosDelivery::reintentarDevolucionOnline()`, llama a `devolver()` de nuevo con el usuario logueado). `rechazarPedidoExterno()` devuelve `['a_devolver' => bool]` derivado de si `transaccionCheckoutConfirmada()` SIGUE existiendo despues de `cancelarPedido()` (si el refund funciono, la tx ya paso a `devuelto` y deja de matchear `confirmadas()`).
+`PedidoDeliveryService::anularPago()` gana un tercer parametro `$viaCancelacionPedido = false`: el guard que bloquea anular un pago con integracion confirmada (`tieneIntegracionPagoConfirmada()`) se LEVANTA solo cuando `$viaCancelacionPedido && $pedido->transaccionCheckoutConfirmada()` — o sea, exclusivamente cuando `cancelarPedido()` ya corrio (o intento) el refund automatico; fuera de ese circuito (por ejemplo, anular un pago suelto desde el detalle) el bloqueo de siempre sigue vigente.
+
+**Conversion pedido→venta**: `migrarPagosAVenta()` copia `integracion_pago_transaccion_id` DIRECTO del `pedidos_delivery_pagos` (si existe) en vez de re-matchear por FP (que sigue de fallback para los cobros QR del panel, que no tienen vinculo por pago) — evita doble registro y preserva la trazabilidad del pago online en la venta resultante.
+
+**Webhook** — ver 3.12 "Webhook de Mercado Pago y confirmacion en tiempo real", rama topic `payment` (`MercadoPagoWebhookService::procesarTopicPayment()`).
+
+**API v1** (ver 3.15 y `docs/api-v1-delivery.md`, contrato aditivo, RF-T77/T79):
+- `POST /v1/tiendas/{slug}/pedidos` — con FP online: `pago.retorno_url` (nullable, admite `{token}`) y `propina` (nullable, top-level del payload) en la validacion. Respuesta 201 suma `pago_online: {transaccion_id, url_pago, expira_en, estado: 'pendiente'}` (aditivo) leyendo `$tiendaService->transaccionPagoOnline` (propiedad publica que el service setea en el ultimo alta, para que el controller arme la respuesta sin re-consultar).
+- `GET /v1/tiendas/{slug}/pedidos/{token}/pago` — `pagoEstado()`, throttle `30,1`, delega en `PedidoPagoOnlineService::estadoPago()`. NUNCA acredita, solo refleja.
+- `POST /v1/tiendas/{slug}/pedidos/{token}/pago` — `pagoReintentar()`, throttle `10,1`, delega en `reiniciarPago()`. El token de seguimiento es la credencial (mismo criterio 404-generico que `show`/`cancelar`, sin enumeracion).
+- `GET /v1/tiendas/{slug}/pedidos/{token}` (seguimiento) — suma `esperando_pago: bool` (= `esperandoPagoOnline()`) y excluye estos pedidos de `por_aceptar` (aditivo).
+- `GET /v1/tiendas/{slug}` (config publica) — bloque `checkout.propina: {activo, opciones}` (RF-T83, `opciones` = porcentajes sugeridos enteros, `[5,10,15]` default).
+- `formasPagoPublicas()`: cada FP suma `pago_online: bool` + `pago_online_modo: 'checkout_pro'|null`. **Decision de producto (Facu, 2026-08-06)**: con checkout activo, la FP es SOLO online en la tienda (no conviven la variante "pagar ahora" y "pagar al recibir" de la MISMA FP todavia) — evolucion aditiva prevista: `pago_online_opcional: true` cuando se quiera ofrecer ambas.
+- Broadcast `PedidoSeguimientoPublicoBroadcast` suma el parametro `pagoOnline: ?array` (aditivo, `{estado: 'aprobado'|'devuelto'}`) al bloque ya existente del seguimiento en tiempo real.
+
+**Config nueva en `config_delivery.checkout`** (mismo patron aditivo que RF-T19, defaults en `Sucursal::CONFIG_DELIVERY_DEFAULTS`): `propina_habilitada` (bool, default false) y `propina_opciones` (array de int, default `[5, 10, 15]`, saneado a 1..100 al persistir). UI: `ConfiguracionDelivery` (`checkoutPropinaHabilitada`, `checkoutPropinaOpciones` string coma-separado → array al guardar), auto-guardado (whitelist RF-T15).
+
+**Modelo de datos nuevo (Fase 1, tenant, regenerado `tenant_tables.sql`)**:
+- `integraciones_pago_transacciones.usuario_iniciador_id` → NULLABLE (ver 2.13).
+- `pedidos_delivery_pagos.integracion_pago_transaccion_id` → nueva (ver 2.16).
+- `forma_pago_integraciones.config_checkout` → nueva (ver 2.13, regla 6/7).
+- `pedidos_delivery.propina_online` → nueva (ver 2.16).
+- `integraciones_pago_transacciones.estado` enum suma `devuelto` (ver 2.13).
+- Concepto `propina_online` (ver 2.8, tabla de conceptos de movimiento) + catalogo `mercadopago_checkout` (ver 2.13) — ambos sembrados por migracion idempotente para comercios existentes y por `ProvisionComercioCommand::seedConceptosMovimientoCuenta()`/`seedIntegracionesPago()` para comercios nuevos.
+
+**Convergencia de CuentaEmpresa por identidad de credenciales (D7, preservada)**: QR presencial, Point y Checkout Online configurados con el MISMO `user_id_externo` convergen a UNA sola `CuentaEmpresa` (mismo mecanismo de `identidadCuentaEmpresa()` que ya usaban QR+Point) — los reportes por forma de pago se unifican solos (misma FP multicanal, ver 2.13 regla 2 "N integraciones por FP"); el desglose por canal sale de `integraciones_pago_transacciones.modo_usado` por transaccion.
 
 #### Promesa del cliente al aceptar pedidos externos (RF-T26 F2)
 
@@ -5505,6 +5583,56 @@ WHERE cuenta_empresa_id = ?
   AND estado IN ('generando', 'pendiente_revision')
 ORDER BY created_at DESC
 LIMIT 1;
+```
+
+#### Pedidos de tienda "esperando pago online" (RF-T77, sin columna propia)
+
+```sql
+-- Equivalente SQL de PedidoDelivery::esperandoPagoOnline(): borrador + tx
+-- checkout_pro pendiente con este pedido como cobrable
+SELECT pd.id, pd.numero, pd.token_seguimiento, pd.created_at
+FROM {PREFIX}pedidos_delivery pd
+JOIN {PREFIX}integraciones_pago_transacciones t
+  ON t.cobrable_type = 'App\\Models\\PedidoDelivery'
+  AND t.cobrable_id = pd.id
+  AND t.modo_usado = 'checkout_pro'
+  AND t.estado = 'pendiente'
+WHERE pd.sucursal_id = ?
+  AND pd.estado_pedido = 'borrador'
+  AND pd.origen <> 'panel'
+ORDER BY pd.created_at ASC;
+```
+
+#### Pedidos de tienda pagados online con la devolucion pendiente ("a devolver", RF-T82)
+
+```sql
+-- Pedido cancelado con una tx de checkout CONFIRMADA (el refund fallo o no corrio)
+SELECT pd.id, pd.numero, pd.motivo_cancelacion, t.id AS transaccion_id, t.monto
+FROM {PREFIX}pedidos_delivery pd
+JOIN {PREFIX}integraciones_pago_transacciones t
+  ON t.cobrable_type = 'App\\Models\\PedidoDelivery'
+  AND t.cobrable_id = pd.id
+  AND t.modo_usado = 'checkout_pro'
+  AND t.estado IN ('confirmado', 'confirmado_manual')
+WHERE pd.sucursal_id = ?
+  AND pd.estado_pedido = 'cancelado'
+ORDER BY pd.updated_at DESC;
+```
+
+#### Propina online cobrada en un periodo (RF-T83, discriminada del cobro del pedido)
+
+```sql
+SELECT mce.created_at, mce.monto, mce.origen_id AS transaccion_id, mce.sucursal_id
+FROM {PREFIX}movimientos_cuenta_empresa mce
+WHERE mce.origen_tipo = 'IntegracionPagoTransaccion'
+  AND mce.concepto_movimiento_cuenta_id = (
+    SELECT id FROM {PREFIX}conceptos_movimiento_cuenta WHERE codigo = 'propina_online'
+  )
+  AND mce.tipo = 'ingreso'
+  AND mce.estado = 'activo'
+  AND mce.created_at >= ?
+  AND mce.created_at <= ?
+ORDER BY mce.created_at DESC;
 ```
 
 ```sql

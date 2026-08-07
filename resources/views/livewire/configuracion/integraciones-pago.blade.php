@@ -431,7 +431,9 @@
 
                     {{-- Tutorial colapsable --}}
                     @php
-                        $esPointAyuda = $integraciones->firstWhere('id', $integracionPagoId)?->codigo === 'mercadopago_point';
+                        $codigoAyuda = $integraciones->firstWhere('id', $integracionPagoId)?->codigo;
+                        $esPointAyuda = $codigoAyuda === 'mercadopago_point';
+                        $esCheckoutAyuda = $codigoAyuda === 'mercadopago_checkout';
                     @endphp
                     <div x-show="mostrarAyuda" x-collapse x-cloak
                          class="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-4">
@@ -442,7 +444,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <p class="text-xs text-blue-800 dark:text-blue-200">
-                                    {{ __('Las credenciales de Mercado Pago se generan por aplicación (producto). QR y Point usan aplicaciones separadas, cada una con sus propias credenciales y su propio webhook, aunque pertenezcan a la misma cuenta de Mercado Pago.') }}
+                                    {{ __('Las credenciales de Mercado Pago se generan por aplicación (producto). QR, Point y Checkout Online usan aplicaciones separadas, cada una con sus propias credenciales y su propio webhook, aunque pertenezcan a la misma cuenta de Mercado Pago.') }}
                                 </p>
                             </div>
 
@@ -455,10 +457,16 @@
                                 <ol class="list-decimal list-inside space-y-1 text-blue-800 dark:text-blue-200 ml-8">
                                     <li>{{ __('Ingrese a') }} <a href="https://www.mercadopago.com.ar/developers/panel" target="_blank" rel="noopener" class="underline font-medium">www.mercadopago.com.ar/developers/panel</a> {{ __('con la cuenta de Mercado Pago de la sucursal') }}</li>
                                     <li>{{ __('Vaya a "Tus integraciones" y haga clic en "Crear aplicación"') }}</li>
-                                    <li>{!! __('Tipo de integración: seleccione <strong>"Pagos presenciales"</strong>') !!}</li>
+                                    @if ($esCheckoutAyuda)
+                                        <li>{!! __('Tipo de integración: seleccione <strong>"Pagos online"</strong>') !!}</li>
+                                    @else
+                                        <li>{!! __('Tipo de integración: seleccione <strong>"Pagos presenciales"</strong>') !!}</li>
+                                    @endif
                                     <li>{!! __('Modelo de integración: <strong>"Plataforma"</strong> (si está usando BCN Pymes como plataforma de cobro). Solo elija "Desarrollo propio" si es desarrollador de Mercado Pago.') !!}</li>
                                     @if ($esPointAyuda)
                                         <li>{!! __('Producto a integrar: seleccione <strong>"Point"</strong>') !!}</li>
+                                    @elseif ($esCheckoutAyuda)
+                                        <li>{!! __('Producto a integrar: seleccione <strong>"Checkout Pro"</strong>') !!}</li>
                                     @else
                                         <li>{!! __('Producto a integrar: seleccione <strong>"QR"</strong>') !!}</li>
                                     @endif

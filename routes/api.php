@@ -66,6 +66,12 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             Route::get('/pedidos/{token}', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'show'])->name('tienda.pedidos.seguimiento');
             Route::post('/pedidos/{token}/cancelar', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'cancelar'])
                 ->middleware('throttle:10,1,t-cancelar')->name('tienda.pedidos.cancelar');
+            // Pago online (RF-T79): estado (retorno del navegador, nunca
+            // acredita) + re-pago (tx nueva sobre el mismo pedido).
+            Route::get('/pedidos/{token}/pago', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'pagoEstado'])
+                ->middleware('throttle:30,1,t-pago-estado')->name('tienda.pedidos.pago.estado');
+            Route::post('/pedidos/{token}/pago', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'pagoReintentar'])
+                ->middleware('throttle:10,1,t-pago-reintento')->name('tienda.pedidos.pago.reintentar');
             // RF-T56: vinculación retroactiva del pedido invitado a la
             // cuenta (Bearer consumidor + posesión del token = credencial).
             Route::post('/pedidos/{token}/vincular', [\App\Http\Controllers\Api\V1\PedidoPublicoController::class, 'vincular'])

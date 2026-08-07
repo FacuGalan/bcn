@@ -29,6 +29,8 @@ class PedidoSeguimientoPublicoBroadcast implements ShouldBroadcastNow
         public ?array $repartidorAsignado = null,
         /** RF-T64 (aditivo): palabra clave de entrega, junto con el repartidor. */
         public ?string $palabraClave = null,
+        /** RF-T78/T82 (aditivo): estado del pago online — {estado: aprobado|devuelto}. */
+        public ?array $pagoOnline = null,
     ) {}
 
     /**
@@ -58,6 +60,8 @@ class PedidoSeguimientoPublicoBroadcast implements ShouldBroadcastNow
             // RF-T63/T64 (aditivos): misma verdad que el GET de seguimiento.
             'repartidor_asignado' => $this->repartidorAsignado,
             'palabra_clave' => $this->palabraClave,
+            // RF-T78/T82 (aditivo): null salvo en avisos de pago online.
+            'pago_online' => $this->pagoOnline,
             'at' => now()->toIso8601String(),
         ];
     }

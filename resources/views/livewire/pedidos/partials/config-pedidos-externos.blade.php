@@ -50,5 +50,21 @@
                 <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Pedir fecha de cumpleaños (siempre opcional, con leyenda de promociones)') }}</span>
             </label>
         </div>
+
+        {{-- RF-T83: propina en el pago online --}}
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
+            <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" wire:model.live="checkoutPropinaHabilitada" class="rounded border-gray-300 dark:border-gray-600 text-bcn-primary focus:ring-bcn-primary" />
+                <span class="text-sm text-gray-700 dark:text-gray-300">{{ __('Ofrecer propina al pagar online (para el repartidor)') }}</span>
+            </label>
+            @if ($checkoutPropinaHabilitada)
+                <div>
+                    <label for="cd-propina-opciones" class="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">{{ __('Porcentajes sugeridos de propina') }}</label>
+                    <input id="cd-propina-opciones" type="text" wire:model.live="checkoutPropinaOpciones" placeholder="5, 10, 15"
+                        class="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm text-sm" />
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ __('El consumidor también puede ingresar un monto libre') }}</p>
+                </div>
+            @endif
+        </div>
     </div>
 </div>

@@ -200,12 +200,14 @@ class IntegracionPagoSucursal extends Model
         }
 
         $integracion = $this->integracion()->first();
-        // QR y Point comparten el resolver del webhook (mismo topic `orders`): ambos
-        // deben registrar el índice colector. La resolución por external_id distingue
-        // la transacción aunque compartan cuenta MP (mismo user_id_externo).
+        // QR, Point y Checkout comparten el resolver del webhook (topics `orders` y
+        // `payment` del mismo colector): todos deben registrar el índice. La resolución
+        // por external_id/external_reference distingue la transacción aunque compartan
+        // cuenta MP (mismo user_id_externo).
         if (! $integracion || ! in_array($integracion->codigo, [
             IntegracionPago::CODIGO_MERCADOPAGO_QR,
             IntegracionPago::CODIGO_MERCADOPAGO_POINT,
+            IntegracionPago::CODIGO_MERCADOPAGO_CHECKOUT,
         ], true)) {
             return;
         }

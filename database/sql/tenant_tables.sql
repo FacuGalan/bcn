@@ -1286,6 +1286,7 @@ CREATE TABLE `{{PREFIX}}forma_pago_integraciones` (
   `config_point` json DEFAULT NULL COMMENT 'Config del modo Point por FP: {"default_type":"credit_card|debit_card|qr"} (null = Abierto)',
   `es_principal` tinyint(1) NOT NULL DEFAULT '0' COMMENT 'Integración preseleccionada si la FP tiene varias',
   `config_qr_libre` json DEFAULT NULL COMMENT 'Config del modo qr_libre por FormaPago (ej: imagen del QR Cobrar subida)',
+  `config_checkout` json DEFAULT NULL COMMENT 'Config del checkout online por FP: {"cuotas_max": n} (null = defaults)',
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -1598,7 +1599,7 @@ CREATE TABLE `{{PREFIX}}integraciones_pago_transacciones` (
   `forma_pago_id` bigint unsigned NOT NULL,
   `sucursal_id` bigint unsigned NOT NULL COMMENT 'Denormalizado: facilita queries de matching QR estático',
   `caja_id` bigint unsigned DEFAULT NULL COMMENT 'Denormalizado para reportes',
-  `usuario_iniciador_id` bigint unsigned NOT NULL COMMENT 'FK lógico cross-DB a config.users.id',
+  `usuario_iniciador_id` bigint unsigned DEFAULT NULL COMMENT 'FK lógico cross-DB a config.users.id (NULL = iniciada por el consumidor en la tienda)',
   `modo_usado` varchar(50) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL COMMENT 'qr_dinamico, qr_estatico, link, point, ...',
   `monto` decimal(15,2) NOT NULL,
   `moneda_id` bigint unsigned DEFAULT NULL,
@@ -1606,7 +1607,7 @@ CREATE TABLE `{{PREFIX}}integraciones_pago_transacciones` (
   `external_id` varchar(100) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'payment_id del proveedor al confirmar',
   `qr_data` text CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci COMMENT 'Base64 PNG o string del QR',
   `link_pago` varchar(500) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL COMMENT 'URL si modo link (futuro)',
-  `estado` enum('pendiente','confirmado','confirmado_manual','fallido','expirado','cancelado','sin_match') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
+  `estado` enum('pendiente','confirmado','confirmado_manual','fallido','expirado','cancelado','sin_match','devuelto') CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pendiente',
   `expira_en` timestamp NULL DEFAULT NULL COMMENT 'created_at + timeout_segundos. NULL para QR estático sin expiración estricta.',
   `confirmado_en` timestamp NULL DEFAULT NULL,
   `payload_respuesta` json DEFAULT NULL COMMENT 'Respuesta del gateway al iniciar el cobro',
@@ -2275,6 +2276,7 @@ CREATE TABLE `{{PREFIX}}pedidos_delivery` (
   `total` decimal(12,2) NOT NULL DEFAULT '0.00',
   `ajuste_forma_pago` decimal(12,2) NOT NULL DEFAULT '0.00',
   `total_final` decimal(12,2) NOT NULL DEFAULT '0.00',
+  `propina_online` decimal(12,2) NOT NULL DEFAULT '0.00' COMMENT 'Propina agregada por el consumidor al pagar online (RF-T83). Fuera del total del pedido y del total facturable.',
   `es_invitacion_total` tinyint(1) NOT NULL DEFAULT '0',
   `invitacion_motivo` varchar(500) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `invitado_por_usuario_id` bigint unsigned DEFAULT NULL,
@@ -2357,7 +2359,7 @@ CREATE TABLE `{{PREFIX}}pedidos_delivery` (
   CONSTRAINT `{{PREFIX}}fk_pd_sucursal` FOREIGN KEY (`sucursal_id`) REFERENCES `{{PREFIX}}sucursales` (`id`),
   CONSTRAINT `{{PREFIX}}fk_pd_venta` FOREIGN KEY (`venta_id`) REFERENCES `{{PREFIX}}ventas` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}fk_pd_zona` FOREIGN KEY (`zona_id`) REFERENCES `{{PREFIX}}delivery_zonas` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}pedidos_delivery_detalle`;
 CREATE TABLE `{{PREFIX}}pedidos_delivery_detalle` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -2452,6 +2454,7 @@ CREATE TABLE `{{PREFIX}}pedidos_delivery_pagos` (
   `tipo_cambio_tasa` decimal(14,6) DEFAULT NULL,
   `tipo_cambio_id` bigint unsigned DEFAULT NULL COMMENT 'FK logico a tipos_cambio.id',
   `venta_pago_id` bigint unsigned DEFAULT NULL COMMENT 'FK a venta_pagos al convertir',
+  `integracion_pago_transaccion_id` bigint unsigned DEFAULT NULL,
   `created_at` timestamp NULL DEFAULT NULL,
   `updated_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
@@ -2464,13 +2467,15 @@ CREATE TABLE `{{PREFIX}}pedidos_delivery_pagos` (
   KEY `idx_pdpago_tipo_cambio` (`tipo_cambio_id`),
   KEY `idx_pdpago_venta_pago` (`venta_pago_id`),
   KEY `idx_pdpago_fondo` (`repartidor_fondo_id`),
+  KEY `{{PREFIX}}fk_pdp_integracion_tx` (`integracion_pago_transaccion_id`),
+  CONSTRAINT `{{PREFIX}}fk_pdp_integracion_tx` FOREIGN KEY (`integracion_pago_transaccion_id`) REFERENCES `{{PREFIX}}integraciones_pago_transacciones` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}fk_pdpago_concepto` FOREIGN KEY (`concepto_pago_id`) REFERENCES `{{PREFIX}}conceptos_pago` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}fk_pdpago_fondo` FOREIGN KEY (`repartidor_fondo_id`) REFERENCES `{{PREFIX}}repartidor_fondos` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}fk_pdpago_forma_pago` FOREIGN KEY (`forma_pago_id`) REFERENCES `{{PREFIX}}formas_pago` (`id`),
   CONSTRAINT `{{PREFIX}}fk_pdpago_mov_caja` FOREIGN KEY (`movimiento_caja_id`) REFERENCES `{{PREFIX}}movimientos_caja` (`id`) ON DELETE SET NULL,
   CONSTRAINT `{{PREFIX}}fk_pdpago_pedido` FOREIGN KEY (`pedido_delivery_id`) REFERENCES `{{PREFIX}}pedidos_delivery` (`id`) ON DELETE CASCADE,
   CONSTRAINT `{{PREFIX}}fk_pdpago_venta_pago` FOREIGN KEY (`venta_pago_id`) REFERENCES `{{PREFIX}}venta_pagos` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=34 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=58 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 DROP TABLE IF EXISTS `{{PREFIX}}pedidos_mostrador`;
 CREATE TABLE `{{PREFIX}}pedidos_mostrador` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,

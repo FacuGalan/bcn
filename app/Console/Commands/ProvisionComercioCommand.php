@@ -808,6 +808,7 @@ class ProvisionComercioCommand extends Command
             ['codigo' => 'acreditacion_integracion', 'nombre' => 'Acreditación en el proveedor de pago', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 16],
             ['codigo' => 'ajuste_conciliacion', 'nombre' => 'Ajuste por conciliación', 'tipo' => 'ambos', 'es_sistema' => true, 'orden' => 17],
             ['codigo' => 'impuesto_integracion', 'nombre' => 'Impuestos y retenciones del proveedor de pago', 'tipo' => 'egreso', 'es_sistema' => true, 'orden' => 18],
+            ['codigo' => 'propina_online', 'nombre' => 'Propina online', 'tipo' => 'ingreso', 'es_sistema' => true, 'orden' => 19],
         ];
 
         foreach ($conceptos as $concepto) {
@@ -897,6 +898,15 @@ class ProvisionComercioCommand extends Command
                 'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
                 'activo' => true,
                 'orden' => 2,
+            ],
+            [
+                'codigo' => 'mercadopago_checkout',
+                'nombre' => 'Mercado Pago - Checkout Online',
+                'descripcion' => 'Pago online en la tienda con Mercado Pago (Checkout Pro): el consumidor paga en la página segura de Mercado Pago y el pedido entra al circuito ya pagado.',
+                'modos_disponibles' => json_encode(['checkout_pro']),
+                'gateway_class' => \App\Services\IntegracionesPago\MercadoPagoGateway::class,
+                'activo' => true,
+                'orden' => 3,
             ],
         ];
 

@@ -81,6 +81,13 @@ class PedidoPublicoController extends Controller
             // GET /tiendas/{slug} y, para efectivo, "¿con cuánto pagás?".
             'pago.forma_pago_id' => 'nullable|integer',
             'pago.paga_con' => 'nullable|numeric|min:0',
+            // Pago ONLINE (RF-T77): URL de retorno de la tienda para el
+            // back_url de MP (admite el placeholder {token}: la tienda no
+            // conoce el token de seguimiento antes del alta).
+            'pago.retorno_url' => 'nullable|string|max:500',
+            // Propina online (RF-T83): solo con FP online y propina habilitada
+            // en la config del checkout (el service valida ambas).
+            'propina' => 'nullable|numeric|min:0|max:9999999',
             // Multi-pago (RF-T18): hasta 2 FP con el monto (sin ajuste) que
             // cubre cada una. Si viaja, `pago` singular se ignora.
             'pagos' => 'nullable|array|min:1|max:2',
@@ -99,9 +106,77 @@ class PedidoPublicoController extends Controller
 
         $pedido = $tiendaService->crearPedidoExterno($sucursal, $datos, $tienda, $consumidor);
 
-        return response()->json([
+        $respuesta = [
             'data' => new PedidoDeliveryResource($pedido->fresh(['detalles.opcionales', 'zona', 'repartidor'])),
-        ], 201);
+        ];
+
+        // Pago ONLINE (RF-T77, aditivo): la tienda redirige a url_pago (el
+        // init_point de MP). El pedido quedó BORRADOR "esperando pago".
+        if ($tx = $tiendaService->transaccionPagoOnline) {
+            $respuesta['pago_online'] = [
+                'transaccion_id' => $tx->id,
+                'url_pago' => $tx->link_pago,
+                'expira_en' => $tx->expira_en?->toIso8601String(),
+                'estado' => 'pendiente',
+            ];
+        }
+
+        return response()->json($respuesta, 201);
+    }
+
+    /**
+     * GET /v1/tiendas/{slug}/pedidos/{token}/pago — estado del pago online
+     * (RF-T79). Lo consume la página de retorno del navegador: NUNCA acredita
+     * (la acreditación la decide el webhook), solo refleja el estado real.
+     */
+    public function pagoEstado(Request $request, string $slug, string $token, \App\Services\Pedidos\PedidoPagoOnlineService $pagoOnline): JsonResponse
+    {
+        $pedido = $this->pedidoPorToken($request, $token);
+
+        return response()->json(['data' => $pagoOnline->estadoPago($pedido)]);
+    }
+
+    /**
+     * POST /v1/tiendas/{slug}/pedidos/{token}/pago — re-pago (RF-T79): si el
+     * pedido sigue "esperando pago" y la tx anterior murió, crea una tx NUEVA
+     * sobre el mismo pedido. El token es la credencial (throttled).
+     */
+    public function pagoReintentar(Request $request, string $slug, string $token, \App\Services\Pedidos\PedidoPagoOnlineService $pagoOnline): JsonResponse
+    {
+        $datos = $request->validate([
+            'retorno_url' => 'nullable|string|max:500',
+        ]);
+
+        $pedido = $this->pedidoPorToken($request, $token);
+        $sucursal = $request->attributes->get('api_sucursal');
+        $tienda = $request->attributes->get('api_tienda');
+
+        $tx = $pagoOnline->reiniciarPago($sucursal, $pedido, $datos['retorno_url'] ?? null, $tienda?->nombre);
+
+        return response()->json([
+            'data' => [
+                'transaccion_id' => $tx->id,
+                'url_pago' => $tx->link_pago,
+                'expira_en' => $tx->expira_en?->toIso8601String(),
+                'estado' => 'pendiente',
+            ],
+        ]);
+    }
+
+    /**
+     * Pedido por token de seguimiento acotado a la sucursal del slug (la
+     * misma regla de show/cancelar: 404 genérico, sin enumeración).
+     */
+    protected function pedidoPorToken(Request $request, string $token): PedidoDelivery
+    {
+        $pedido = PedidoDelivery::where('token_seguimiento', $token)->first();
+        $sucursal = $request->attributes->get('api_sucursal');
+
+        if (! $pedido || (int) $pedido->sucursal_id !== (int) $sucursal->id) {
+            abort(404);
+        }
+
+        return $pedido;
     }
 
     /**
@@ -128,8 +203,13 @@ class PedidoPublicoController extends Controller
         $esFacturado = $pedido->estado_pedido === PedidoDelivery::ESTADO_FACTURADO;
         $estadoPublico = $esFacturado ? PedidoDelivery::ESTADO_ENTREGADO : $pedido->estado_pedido;
 
+        // RF-T77: un borrador "esperando pago online" NO está por aceptar (el
+        // comercio ni lo ve). La tienda muestra el estado del pago (aditivo).
+        $esperandoPago = $pedido->esperandoPagoOnline();
+
         $porAceptar = $pedido->estado_pedido === PedidoDelivery::ESTADO_BORRADOR
-            && $pedido->origen !== PedidoDelivery::ORIGEN_PANEL;
+            && $pedido->origen !== PedidoDelivery::ORIGEN_PANEL
+            && ! $esperandoPago;
 
         // RF-T56 (aditivo): puntos que este pedido suma (o hubiese sumado,
         // si es de invitado) — la tienda arma el CTA "registrate y sumalos"
@@ -175,6 +255,8 @@ class PedidoPublicoController extends Controller
                 'estado' => $estadoPublico,
                 'estado_label' => $esFacturado ? __('Entregado') : $pedido->estado_label,
                 'por_aceptar' => $porAceptar,
+                // RF-T77 (aditivo): true mientras el pago online no acredite.
+                'esperando_pago' => $esperandoPago,
                 'demorado' => $demorado,
                 'cancelado_motivo' => $pedido->estado_pedido === PedidoDelivery::ESTADO_CANCELADO
                     ? $pedido->motivo_cancelacion

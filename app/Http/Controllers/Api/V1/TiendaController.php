@@ -100,6 +100,12 @@ class TiendaController extends Controller
                     'pedir_email' => (string) ($config['checkout']['pedir_email'] ?? 'opcional'),
                     'pedir_cumpleanios' => (bool) ($config['checkout']['pedir_cumpleanios'] ?? false),
                     'pedir_entre_calles' => (string) ($config['checkout']['pedir_entre_calles'] ?? 'opcional'),
+                    // RF-T83 (aditivo): propina en el pago online. `opciones`
+                    // son porcentajes sugeridos; la tienda suma monto libre.
+                    'propina' => [
+                        'activo' => (bool) ($config['checkout']['propina_habilitada'] ?? false),
+                        'opciones' => array_values(array_map('intval', (array) ($config['checkout']['propina_opciones'] ?? [5, 10, 15]))),
+                    ],
                 ],
             ],
         ]);
@@ -284,12 +290,20 @@ class TiendaController extends Controller
                     ->where('sucursal_id', $sucursal->id)
                     ->value('ajuste_porcentaje');
 
+                // RF-T77 (aditivo): FP con checkout activo en la sucursal ⇒ el
+                // consumidor paga ONLINE (Checkout Pro). Decisión 2026-08-06:
+                // con checkout, la FP es SOLO online en la tienda (la variante
+                // declarable se sumará como `pago_online_opcional`, aditivo).
+                $pagoOnline = $fp->integracionCheckout((int) $sucursal->id) !== null;
+
                 return [
                     'id' => $fp->id,
                     'nombre' => $fp->nombre,
                     'codigo' => $fp->codigo,
                     'permite_vuelto' => (bool) ($fp->conceptoPago?->permite_vuelto ?? false),
                     'ajuste_porcentaje' => (float) ($ajusteSucursal ?? $fp->ajuste_porcentaje ?? 0),
+                    'pago_online' => $pagoOnline,
+                    'pago_online_modo' => $pagoOnline ? 'checkout_pro' : null,
                 ];
             })
             ->values()

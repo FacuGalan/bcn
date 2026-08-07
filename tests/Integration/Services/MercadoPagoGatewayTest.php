@@ -73,7 +73,7 @@ class MercadoPagoGatewayTest extends TestCase
 
     // ==================== modosSoportados ====================
 
-    public function test_modos_soportados_devuelve_qr_dinamico_estatico_libre_y_point(): void
+    public function test_modos_soportados_devuelve_qr_dinamico_estatico_libre_point_y_checkout_pro(): void
     {
         $modos = $this->gateway->modosSoportados();
 
@@ -81,7 +81,8 @@ class MercadoPagoGatewayTest extends TestCase
         $this->assertContains('qr_estatico', $modos);
         $this->assertContains('point', $modos);
         $this->assertContains('qr_libre', $modos);
-        $this->assertCount(4, $modos);
+        $this->assertContains('checkout_pro', $modos);
+        $this->assertCount(5, $modos);
     }
 
     // ==================== identidadCuentaEmpresa ====================
