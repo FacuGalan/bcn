@@ -1,6 +1,6 @@
 # Tienda — Pago Online con Mercado Pago (Checkout Pro) - Especificación
 
-## Estado: EN PROGRESO (Fases 1 y 2 completas — core listo; falta tienda + validación en vivo)
+## Estado: EN PROGRESO (Fases 1-3 completas — core mergeado #199, tienda en PR #66; falta validación en vivo del flujo tienda + webhook real en deploy)
 
 > Spec creado 2026-08-06. Exploración completa (framework integraciones + circuito pedidos tienda + API MP verificada).
 > Numeración RF-T continúa desde RF-T75 (T66..T74 = spec tienda-sesion-persistente).
@@ -189,8 +189,10 @@ Seed + 3 migraciones + guard del índice colector + constantes + config UI (text
 > Implementado 2026-08-06 en `feat/tienda-pago-online-mp`. Piezas: rama checkout completa en `MercadoPagoGateway` (preferencias con 2 ítems propina, `payments/search`, topic `payment`, refund total, cancel local), service nuevo `PedidoPagoOnlineService` (iniciar/acreditar/expirar/re-pagar/devolver + contraasientos), rama online en `PedidoTiendaService` (borrador forzado + `_sin_aviso_por_aceptar` + guards puntos/multi-pago/propina + rollback si MP cae), `materializarPagoOnline` sin caja/operador, webhook topic payment con hook de acreditación (persiste `payment_id` en metadata), `cancelarPedido` con devolución automática (falla ⇒ "a devolver" + reintento en detalle del pedido), endpoints GET/POST `pedidos/{token}/pago`, `pago_online` en formasPagoPublicas + respuesta del alta + seguimiento (`esperando_pago`) + broadcast (`pago_online`), config propina en ConfiguracionDelivery, migración enum `devuelto`, contrato actualizado (aditivo), 31 traducciones, `MercadoPagoCheckoutFase2Test` 14/14 + regresión 177 tests verdes.
 > Decisión de implementación: "esperando pago" SIN columna extra (borrador + tx checkout pendiente, helper `esperandoPagoOnline()`); timeout de config ≤300s se eleva a 1800s (default presencial no aplica online); pago acreditado sobre pedido ya cancelado (webhook tardío) ⇒ devolución automática.
 
-### Fase 3 — Tienda: checkout online [BLOQUEADA hasta merge de bcn-tienda #65]
+### Fase 3 — Tienda: checkout online [COMPLETO]
 RF-T81 completo + contract tests con fixtures nuevos.
+> Desbloqueada 2026-08-07 (#65, #198 y #199 mergeados) e implementada el mismo día en **bcn-tienda PR #66** (rama `feat/pago-online-checkout`): badge/chip de FP online + guards del carrito (2FP y canje-pago se desarman solos), checkout con propina (chips % + monto libre, solo delivery) y `retorno_url` con placeholder `{token}`, redirect misma pestaña al init_point SIN vaciar el carrito (se vacía al acreditar, `purchase` también), página de retorno `tienda.pago` (poll 4s en pendiente, re-ofrece link, reintento POST en fallido, aviso en devuelto), seguimiento con banner "Esperando tu pago" + estado del pago en la card Pago + propina discriminada. `CoreApi::pagoDelPedido()/reintentarPago()`. 19 tests nuevos (4 contract), suite tienda 330 verde.
+> Decisión: propina solo DELIVERY (la rendición futura filtra por repartidor del pedido); retorno por polling (Reverb en tienda sigue pendiente).
 
 ### Fase 4 — Validación en vivo + docs [PARCIALMENTE COMPLETA]
 Sandbox MP con credenciales de prueba de Facu (app Checkout Pro nueva en el panel de MP), webhook vía server o ngrok, @docs-sync, /sdd-verify.
