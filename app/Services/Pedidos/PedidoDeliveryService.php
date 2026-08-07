@@ -1060,6 +1060,14 @@ class PedidoDeliveryService
         if ($pedido->estado_pedido !== PedidoDelivery::ESTADO_BORRADOR) {
             throw new Exception("El pedido ya no está por aceptar (estado '{$pedido->estado_pedido}')");
         }
+
+        // Revisión 2026-08-07: un borrador con pago online SIN acreditar no
+        // se puede aceptar (el listado ya lo excluye; esto es el cinturón —
+        // aceptar un pedido impago lo sacaba del circuito de expiración y
+        // terminaba preparado y entregado sin plata).
+        if ($pedido->esperandoPagoOnline()) {
+            throw new Exception(__('El pedido está esperando el pago online: se acepta solo cuando el pago se acredite'));
+        }
     }
 
     // ==================== PAGOS ====================

@@ -224,6 +224,30 @@ class MercadoPagoWebhookService
             default => 'pendiente',
         };
 
+        // Revisión 2026-08-07: pago aprobado sobre una tx TERMINAL no
+        // confirmada (pagó sobre el borde de la expiración, o el link VIEJO
+        // tras un re-pago). La plata no corresponde a ningún cobro vivo:
+        // refund inmediato, jamás transicionar el pedido. Si el refund falla,
+        // el 500 del controller hace que MP reintente la notificación.
+        if ($estado === 'aprobado' && $transaccion->estaEnEstadoTerminal() && ! $transaccion->estaConfirmada()) {
+            $devuelto = app(\App\Services\Pedidos\PedidoPagoOnlineService::class)
+                ->devolverPagoHuerfano($transaccion, $pago);
+
+            return [
+                'status' => $devuelto ? 'ok' : 'refund_fallido',
+                'estado' => 'devuelto',
+                'transaccion_id' => $transaccion->id,
+            ];
+        }
+
+        // Revisión 2026-08-07: refund hecho desde el panel de MP o
+        // contracargo sobre una tx confirmada — antes se ignoraba y el ledger
+        // quedaba desfasado de la plata real hasta la conciliación.
+        if ($estado === 'devuelto') {
+            app(\App\Services\Pedidos\PedidoPagoOnlineService::class)
+                ->registrarDevolucionExterna($transaccion, $pago);
+        }
+
         if ($estado === 'aprobado') {
             // payment_id ANTES de confirmar: el refund (RF-T82) lo necesita y
             // la confirmación dispara los movimientos de CuentaEmpresa.

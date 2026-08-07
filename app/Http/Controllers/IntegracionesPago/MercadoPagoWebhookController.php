@@ -36,6 +36,12 @@ class MercadoPagoWebhookController extends Controller
             return response()->json(['status' => 'invalid_signature'], 401);
         }
 
+        // Refund de un pago huérfano fallido (revisión 2026-08-07): 500 a
+        // propósito — MP reintenta la notificación y con ella el refund.
+        if (($resultado['status'] ?? null) === 'refund_fallido') {
+            return response()->json(['status' => 'refund_failed'], 500);
+        }
+
         // 200 para todo lo demás (ok, sin_match, ignored, error_consulta): MP
         // considera entregada la notificación y no reintenta innecesariamente.
         return response()->json(['status' => $resultado['status'] ?? 'ok']);

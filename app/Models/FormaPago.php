@@ -334,7 +334,22 @@ class FormaPago extends Model
             && ! $this->solo_sistema
             && ! $this->es_mixta
             && ! in_array($conceptoCodigo, ['CTA_CTE', 'CUENTA_CORRIENTE', 'PUNTOS'], true)
-            && $this->estaDisponibleEnTiendaEnSucursal($sucursalId);
+            && ($this->estaDisponibleEnTiendaEnSucursal($sucursalId)
+                // RF-T77 (cerrado en la revisión 2026-08-07): asociarle la
+                // integración de checkout ES la intención de ofrecerla online
+                // — la FP viaja a la tienda aunque el tilde "disponible en
+                // tienda" no esté marcado (requiere igual la FP habilitada
+                // en la sucursal).
+                || ($this->habilitadaEnSucursal($sucursalId) && $this->integracionCheckout($sucursalId) !== null));
+    }
+
+    /** FP habilitada en la sucursal (pivote activo), sin mirar el tilde de tienda. */
+    public function habilitadaEnSucursal(int $sucursalId): bool
+    {
+        return $this->sucursales()
+            ->where('sucursal_id', $sucursalId)
+            ->wherePivot('activo', true)
+            ->exists();
     }
 
     /**

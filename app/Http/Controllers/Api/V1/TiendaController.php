@@ -274,10 +274,12 @@ class TiendaController extends Controller
             ->simples()
             ->where('solo_sistema', false)
             ->with('conceptoPago:id,codigo,nombre,permite_vuelto')
+            // Habilitada en la sucursal; el tilde "disponible en tienda" se
+            // resuelve abajo — una FP con checkout viaja aunque no lo tenga
+            // (RF-T77, cerrado en la revisión 2026-08-07).
             ->whereHas('sucursales', fn ($q) => $q
                 ->where('sucursal_id', $sucursal->id)
-                ->where('formas_pago_sucursales.activo', true)
-                ->where('formas_pago_sucursales.disponible_en_tienda', true))
+                ->where('formas_pago_sucursales.activo', true))
             ->orderBy('orden')
             ->orderBy('nombre')
             ->get()
@@ -286,9 +288,9 @@ class TiendaController extends Controller
                 // Ajuste efectivo (override de sucursal > general): la tienda
                 // lo muestra junto a la FP ("Efectivo -10%") y la cotización
                 // con forma_pago_id lo aplica con el mismo cálculo del panel.
-                $ajusteSucursal = \App\Models\FormaPagoSucursal::where('forma_pago_id', $fp->id)
+                $pivote = \App\Models\FormaPagoSucursal::where('forma_pago_id', $fp->id)
                     ->where('sucursal_id', $sucursal->id)
-                    ->value('ajuste_porcentaje');
+                    ->first();
 
                 // RF-T77 (aditivo): FP con checkout activo en la sucursal ⇒ el
                 // consumidor paga ONLINE (Checkout Pro). Decisión 2026-08-06:
@@ -296,16 +298,23 @@ class TiendaController extends Controller
                 // declarable se sumará como `pago_online_opcional`, aditivo).
                 $pagoOnline = $fp->integracionCheckout((int) $sucursal->id) !== null;
 
+                // Sin el tilde de tienda y sin checkout: no viaja (misma
+                // regla única que esDeclarableEnTienda).
+                if (! ($pivote?->disponible_en_tienda ?? false) && ! $pagoOnline) {
+                    return null;
+                }
+
                 return [
                     'id' => $fp->id,
                     'nombre' => $fp->nombre,
                     'codigo' => $fp->codigo,
                     'permite_vuelto' => (bool) ($fp->conceptoPago?->permite_vuelto ?? false),
-                    'ajuste_porcentaje' => (float) ($ajusteSucursal ?? $fp->ajuste_porcentaje ?? 0),
+                    'ajuste_porcentaje' => (float) ($pivote?->ajuste_porcentaje ?? $fp->ajuste_porcentaje ?? 0),
                     'pago_online' => $pagoOnline,
                     'pago_online_modo' => $pagoOnline ? 'checkout_pro' : null,
                 ];
             })
+            ->filter()
             ->values()
             ->all();
     }

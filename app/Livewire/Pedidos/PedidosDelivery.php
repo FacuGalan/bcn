@@ -1833,11 +1833,17 @@ class PedidosDelivery extends Component
             ->where('sucursal_id', $sucursalId)
             ->where('estado_pedido', PedidoDelivery::ESTADO_BORRADOR)
             ->where('origen', '!=', PedidoDelivery::ORIGEN_PANEL)
-            // RF-T77/T80: un borrador "esperando pago online" (tx de checkout
-            // pendiente) NO está por aceptar — entra recién al acreditarse.
-            ->whereDoesntHave('transaccionesIntegracion', fn ($q) => $q
-                ->pendientes()
-                ->where('modo_usado', \App\Models\IntegracionPagoTransaccion::MODO_CHECKOUT_PRO))
+            // RF-T77/T80 (endurecido en la revisión 2026-08-07): un borrador
+            // con pago online entra a "por aceptar" SOLO con el pago
+            // acreditado. Antes se excluía solo con tx PENDIENTE: en la
+            // ventana tx-expirada→cancelación (o con un re-pago fallido) el
+            // pedido IMPAGO aparecía y se podía aceptar/preparar sin plata.
+            ->where(fn ($q) => $q
+                ->whereDoesntHave('transaccionesIntegracion', fn ($sub) => $sub
+                    ->where('modo_usado', \App\Models\IntegracionPagoTransaccion::MODO_CHECKOUT_PRO))
+                ->orWhereHas('transaccionesIntegracion', fn ($sub) => $sub
+                    ->confirmadas()
+                    ->where('modo_usado', \App\Models\IntegracionPagoTransaccion::MODO_CHECKOUT_PRO)))
             ->orderBy('created_at')
             ->get();
     }
