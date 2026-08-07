@@ -92,6 +92,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
         // RF-T49: Sign in with Google (credential de GIS verificado en el core).
         Route::post('/auth/google', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'google'])
             ->middleware('throttle:10,1,c-google')->name('auth.google');
+        // RF-T66: canje del dispositivo recordado (re-login silencioso de la tienda).
+        Route::post('/auth/recordar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'recordar'])
+            ->middleware('throttle:10,1,c-recordar')->name('auth.recordar');
+        // RF-T69/T70: magic link (login sin password + detección de cuenta en checkout).
+        Route::post('/auth/magic-link', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'magicLink'])
+            ->middleware('throttle:3,1,c-magic')->name('auth.magic-link');
+        Route::post('/auth/magic-login', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'magicLogin'])
+            ->middleware('throttle:10,1,c-mglogin')->name('auth.magic-login');
         Route::post('/verificar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'verificar'])
             ->middleware('throttle:10,1,c-verificar')->name('verificar');
         Route::post('/recuperar', [\App\Http\Controllers\Api\V1\Consumidores\AuthController::class, 'recuperar'])
@@ -123,6 +131,14 @@ Route::prefix('v1')->name('api.v1.')->group(function () {
             // RF-T42: saldos de puntos cross-comercio (para /mi-cuenta).
             Route::get('/puntos', [\App\Http\Controllers\Api\V1\Consumidores\PuntosController::class, 'index'])
                 ->middleware('throttle:20,1,c-puntos')->name('puntos.index');
+
+            // RF-T66/T74: dispositivos recordados ("Mis dispositivos").
+            // El POST emite un par extra para el pairing webview↔navegador (RF-T68).
+            Route::post('/dispositivos', [\App\Http\Controllers\Api\V1\Consumidores\DispositivosController::class, 'store'])
+                ->middleware('throttle:10,1,c-disp-emitir')->name('dispositivos.store');
+            Route::get('/dispositivos', [\App\Http\Controllers\Api\V1\Consumidores\DispositivosController::class, 'index'])->name('dispositivos.index');
+            Route::delete('/dispositivos', [\App\Http\Controllers\Api\V1\Consumidores\DispositivosController::class, 'destroyAll'])->name('dispositivos.destroy-all');
+            Route::delete('/dispositivos/{id}', [\App\Http\Controllers\Api\V1\Consumidores\DispositivosController::class, 'destroy'])->name('dispositivos.destroy');
         });
     });
 
