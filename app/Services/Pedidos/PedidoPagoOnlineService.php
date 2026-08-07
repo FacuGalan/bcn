@@ -87,6 +87,10 @@ class PedidoPagoOnlineService
             'metadata' => [
                 'checkout' => array_filter([
                     'titulo' => $this->tituloCheckout($pedido, $nombreTienda),
+                    // Mejora 2026-08-07: renglones reales del pedido — el
+                    // pagador ve QUÉ paga en la pantalla de MP. null ⇒ el
+                    // gateway usa el ítem único consolidado de siempre.
+                    'items' => $this->itemsCheckout($pedido, round($monto, 2)),
                     'total_pedido' => round($monto, 2),
                     'propina' => $propina > 0 ? round($propina, 2) : null,
                     'back_url' => $this->resolverBackUrl($retornoUrl, $pedido),
@@ -635,6 +639,57 @@ class PedidoPagoOnlineService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Renglones del pedido para la preferencia de MP (mejora 2026-08-07):
+     * cada línea viaja con su total FINAL (los descuentos de renglón ya
+     * vienen aplicados; cantidad legible en el título — "2 x Hamburguesa").
+     * El envío es un renglón-concepto y viaja igual. Un recargo de cabecera
+     * (ajuste FP positivo) suma un ítem propio; los descuentos de cabecera
+     * (cupón/puntos/general no distribuidos) no se pueden representar — MP
+     * no acepta ítems negativos — ⇒ null y el gateway usa el ítem único.
+     * La suma SIEMPRE debe cerrar exacta contra el monto de la tx.
+     *
+     * @return list<array{titulo: string, precio: float}>|null
+     */
+    protected function itemsCheckout(PedidoDelivery $pedido, float $monto): ?array
+    {
+        $detalles = $pedido->detalles()->with('articulo:id,nombre')->get();
+        if ($detalles->isEmpty()) {
+            return null;
+        }
+
+        $items = $detalles->map(function ($d) {
+            $cantidad = (float) $d->cantidad;
+            $nombre = $d->es_concepto
+                ? (string) ($d->concepto_descripcion ?: __('Concepto'))
+                : (string) ($d->articulo->nombre ?? __('Artículo'));
+
+            return [
+                'titulo' => ($cantidad !== 1.0 ? $this->cantidadLegible($cantidad).' x ' : '').$nombre,
+                'precio' => round((float) $d->total, 2),
+            ];
+        })->filter(fn ($i) => $i['precio'] > 0)->values();
+
+        if ($items->isEmpty()) {
+            return null;
+        }
+
+        $diferencia = round($monto - round($items->sum('precio'), 2), 2);
+
+        if ($diferencia > 0.005) {
+            $items->push(['titulo' => __('Recargos del pedido'), 'precio' => $diferencia]);
+            $diferencia = 0.0;
+        }
+
+        return abs($diferencia) <= 0.01 ? $items->all() : null;
+    }
+
+    /** 2.00 → "2", 0.50 → "0.5" (para el título del ítem). */
+    private function cantidadLegible(float $cantidad): string
+    {
+        return rtrim(rtrim(number_format($cantidad, 2, '.', ''), '0'), '.');
     }
 
     protected function tituloCheckout(PedidoDelivery $pedido, ?string $nombreTienda): string

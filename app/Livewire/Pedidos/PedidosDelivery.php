@@ -2928,7 +2928,13 @@ class PedidosDelivery extends Component
         }
 
         try {
-            $venta = $this->service->convertirEnVenta($pedido);
+            // Pedido sin caja (pagado ONLINE desde la tienda: nunca pasó por
+            // un cobro del panel que se la asigne — bug validación en vivo
+            // 2026-08-07): se convierte contra la caja activa del operador.
+            $venta = $this->service->convertirEnVenta(
+                $pedido,
+                cajaId: $pedido->caja_id ? null : $this->cajaActual(),
+            );
             $this->dispatch('toast-success', message: __('Pedido convertido en venta #:id', ['id' => $venta->id]));
             $this->showConvertirModal = false;
             $this->resetConvertirState();
@@ -2937,6 +2943,20 @@ class PedidosDelivery extends Component
                 'pedido_id' => $this->pedidoConvertirId,
                 'error' => $e->getMessage(),
             ]);
+
+            // Si el motivo real es plata sin cubrir (el estado cambió con el
+            // modal abierto), en vez del error se abre el COBRO y al
+            // completarse se retoma la conversión sola (mismo circuito que
+            // gatearPorCobro al abrir).
+            $fresco = $pedido->fresh();
+            if ($fresco && ! $this->pedidoEstaCobrado($fresco)) {
+                $this->showConvertirModal = false;
+                $this->resetConvertirState();
+                $this->gatearPorCobro($fresco, 'convertir');
+
+                return;
+            }
+
             $this->dispatch('toast-error', message: $e->getMessage());
         }
     }

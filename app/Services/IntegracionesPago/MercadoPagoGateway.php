@@ -1388,12 +1388,29 @@ class MercadoPagoGateway implements IntegracionPagoGatewayContract
         $propina = round((float) ($checkout['propina'] ?? 0), 2);
         $totalPedido = round((float) $transaccion->monto - $propina, 2);
 
-        $items = [[
-            'id' => 'pedido',
-            'title' => (string) ($checkout['titulo'] ?? __('Pedido')),
-            'quantity' => 1,
-            'unit_price' => $totalPedido,
-        ]];
+        // Detalle real del pedido (mejora 2026-08-07): los renglones viajan
+        // como ítems de la preferencia y el pagador ve QUÉ está pagando.
+        // Solo si la suma cierra EXACTA contra el monto — si no (descuentos
+        // de cabecera irrepresentables), ítem único consolidado de siempre.
+        $itemsDetalle = collect($checkout['items'] ?? [])
+            ->map(fn ($i, $idx) => [
+                'id' => 'linea-'.($idx + 1),
+                'title' => mb_substr(trim((string) ($i['titulo'] ?? '')), 0, 250),
+                'quantity' => 1,
+                'unit_price' => round((float) ($i['precio'] ?? 0), 2),
+            ])
+            ->filter(fn ($i) => $i['title'] !== '' && $i['unit_price'] > 0)
+            ->values();
+
+        $items = $itemsDetalle->isNotEmpty()
+            && abs(round($itemsDetalle->sum('unit_price'), 2) - $totalPedido) <= 0.01
+            ? $itemsDetalle->all()
+            : [[
+                'id' => 'pedido',
+                'title' => (string) ($checkout['titulo'] ?? __('Pedido')),
+                'quantity' => 1,
+                'unit_price' => $totalPedido,
+            ]];
 
         if ($propina > 0) {
             $items[] = [
