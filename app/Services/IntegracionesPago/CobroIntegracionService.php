@@ -262,31 +262,36 @@ class CobroIntegracionService
             $propina = round((float) ($transaccion->metadata['checkout']['propina'] ?? 0), 2);
             $montoCobro = round((float) $transaccion->monto - $propina, 2);
 
-            CuentaEmpresaService::registrarMovimientoAutomatico(
-                $cuenta,
-                'ingreso',
-                $montoCobro,
-                'cobro_integracion',
-                'IntegracionPagoTransaccion',
-                $transaccion->id,
-                "Cobro por integración #{$transaccion->id} ({$transaccion->modo_usado})",
-                $usuario,
-                $transaccion->sucursal_id,
-            );
-
-            if ($propina > 0) {
+            // Atómico (revisión 2026-08-07): si el par cobro+propina quedara
+            // a medias, la idempotencia por origen (exists() de arriba)
+            // dejaría a la propina sin registrar para siempre.
+            DB::connection('pymes_tenant')->transaction(function () use ($cuenta, $montoCobro, $propina, $usuario, $transaccion) {
                 CuentaEmpresaService::registrarMovimientoAutomatico(
                     $cuenta,
                     'ingreso',
-                    $propina,
-                    'propina_online',
+                    $montoCobro,
+                    'cobro_integracion',
                     'IntegracionPagoTransaccion',
                     $transaccion->id,
-                    "Propina online #{$transaccion->id}",
+                    "Cobro por integración #{$transaccion->id} ({$transaccion->modo_usado})",
                     $usuario,
                     $transaccion->sucursal_id,
                 );
-            }
+
+                if ($propina > 0) {
+                    CuentaEmpresaService::registrarMovimientoAutomatico(
+                        $cuenta,
+                        'ingreso',
+                        $propina,
+                        'propina_online',
+                        'IntegracionPagoTransaccion',
+                        $transaccion->id,
+                        "Propina online #{$transaccion->id}",
+                        $usuario,
+                        $transaccion->sucursal_id,
+                    );
+                }
+            });
         } catch (\Throwable $e) {
             Log::warning('No se pudo registrar el movimiento de cuenta empresa del cobro por integración', [
                 'transaccion_id' => $transaccion->id,
@@ -311,14 +316,42 @@ class CobroIntegracionService
     {
         $comercioId = app(TenantService::class)->getComercioId();
         $vencidas = IntegracionPagoTransaccion::vencidas()->get();
+        $expiradas = 0;
 
         foreach ($vencidas as $transaccion) {
-            DB::connection('pymes_tenant')->transaction(function () use ($transaccion) {
-                $transaccion->estado = IntegracionPagoTransaccion::ESTADO_EXPIRADO;
-                $transaccion->save();
+            // Checkout online (revisión 2026-08-07): antes de expirar, mirar
+            // el estado VIVO en MP — si el consumidor pagó y el webhook nunca
+            // llegó, expirar acá terminaba cancelando un pedido PAGADO. Sin
+            // certeza (MP caído) se posterga al próximo barrido.
+            if ($transaccion->esCheckoutOnline()
+                && app(\App\Services\Pedidos\PedidoPagoOnlineService::class)->resolverAntesDeExpirar($transaccion)) {
+                continue;
+            }
 
-                $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_EXPIRADO);
+            $expiro = DB::connection('pymes_tenant')->transaction(function () use ($transaccion) {
+                // Re-leer bajo lock (revisión 2026-08-07): el webhook puede
+                // estar confirmando ESTA tx ahora mismo — sin el re-chequeo,
+                // el save() pisaba el `confirmado` y el hook de abajo
+                // cancelaba un pedido pagado (sin refund posible).
+                $bloqueada = $this->bloquearTransaccion($transaccion);
+                if (! $bloqueada || ! $bloqueada->estaPendiente()) {
+                    return false;
+                }
+
+                $bloqueada->estado = IntegracionPagoTransaccion::ESTADO_EXPIRADO;
+                $bloqueada->save();
+
+                $this->registrarEvento($bloqueada, IntegracionPagoEvento::EVENTO_EXPIRADO);
+                $this->sincronizarModelo($transaccion, $bloqueada);
+
+                return true;
             });
+
+            if (! $expiro) {
+                continue;
+            }
+
+            $expiradas++;
 
             if ($comercioId) {
                 IntegracionPagoActualizado::dispatch($comercioId, $transaccion->id, 'expirado');
@@ -327,7 +360,7 @@ class CobroIntegracionService
             $this->notificarPagoOnlineNoCompletado($transaccion);
         }
 
-        return $vencidas->count();
+        return $expiradas;
     }
 
     /**

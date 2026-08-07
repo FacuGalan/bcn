@@ -58,6 +58,10 @@ class MercadoPagoCheckoutFase2Test extends TestCase
             ['slug' => 'tienda-mp', 'habilitada' => true],
         );
 
+        // El retorno_url solo se acepta del dominio de la tienda (revisión
+        // 2026-08-07): los fixtures usan tienda.test.
+        config(['tienda.url' => 'https://tienda.test']);
+
         MercadoPagoCollectorIndex::where('user_id_externo', self::USER_ID)->delete();
 
         $integracion = IntegracionPago::firstOrCreate(
@@ -305,6 +309,12 @@ class MercadoPagoCheckoutFase2Test extends TestCase
         $tx = $this->txDelPedido($pedido->id);
 
         $tx->update(['expira_en' => now()->subMinute()]);
+
+        // Revisión 2026-08-07: el barrido re-consulta el estado vivo antes de
+        // expirar una tx de checkout — sin pagos en MP, expira normalmente.
+        Http::fake([
+            'api.mercadopago.com/v1/payments/search*' => Http::response(['results' => []]),
+        ]);
 
         app(\App\Services\IntegracionesPago\CobroIntegracionService::class)->expirarPendientesVencidas();
 

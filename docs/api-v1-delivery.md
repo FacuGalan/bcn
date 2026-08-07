@@ -616,8 +616,11 @@ Reglas:
 
 - Payload: `pago.retorno_url` (string, opcional — URL de la página de retorno
   de la tienda; admite el placeholder `{token}`, que el core reemplaza por el
-  `token_seguimiento` real) y `propina` (decimal ≥ 0, opcional — solo con
-  `checkout.propina.activo`; 422 si la tienda no la acepta).
+  `token_seguimiento` real. *Endurecido 2026-08-07*: solo se acepta el dominio
+  configurado de la tienda — `TIENDA_URL` — o localhost; un host ajeno se
+  ignora y la preferencia sale sin back_url) y `propina` (decimal ≥ 0,
+  opcional — solo con `checkout.propina.activo`; 422 si la tienda no la
+  acepta).
 - El pedido nace **BORRADOR "esperando pago"** (incluso con aceptación
   automática): invisible para el comercio, sin número y sin stock. La
   respuesta 201 suma:
@@ -744,9 +747,12 @@ nunca acredita):
 
 `pendiente` incluye `url_pago` para re-ofrecer el link vigente; `fallido`
 habilita el botón "Reintentar pago" (POST de abajo). Con la transacción
-pendiente el core re-consulta el estado VIVO a MP, así el retorno ve
-`aprobado` aunque el webhook venga en camino (la transición del pedido sigue
-siendo del webhook).
+pendiente el core re-consulta el estado VIVO a MP (cacheado unos segundos).
+*Endurecido 2026-08-07*: si esa re-consulta AUTENTICADA da aprobado, el core
+acredita server-side ahí mismo (mismo circuito que el webhook — cubre
+webhooks perdidos o demorados); lo que nunca acredita es el back_url del
+navegador por sí solo. El barrido de expiración también re-consulta antes de
+expirar una transacción de checkout: un pago hecho jamás muere cancelado.
 
 ### `POST /v1/tiendas/{slug}/pedidos/{token_seguimiento}/pago`
 *(aditivo 2026-08-06, RF-T79 — throttle 10/min)*

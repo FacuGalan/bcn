@@ -426,12 +426,20 @@ class PedidoDelivery extends Model
      */
     public function esperandoPagoOnline(): bool
     {
-        return $this->estado_pedido === self::ESTADO_BORRADOR
-            && $this->origen !== self::ORIGEN_PANEL
-            && $this->transaccionesIntegracion()
-                ->pendientes()
-                ->where('modo_usado', IntegracionPagoTransaccion::MODO_CHECKOUT_PRO)
-                ->exists();
+        // Revisión 2026-08-07: "esperando" = tiene ALGUNA tx de checkout y
+        // NINGUNA confirmada (no solo tx pendiente): cubre la ventana entre
+        // la expiración y la cancelación automática, y el re-pago fallido —
+        // en esos huecos el borrador seguía IMPAGO pero dejaba de contar
+        // como esperando y aparecía en "por aceptar".
+        if ($this->estado_pedido !== self::ESTADO_BORRADOR
+            || $this->origen === self::ORIGEN_PANEL) {
+            return false;
+        }
+
+        return $this->transaccionesIntegracion()
+            ->where('modo_usado', IntegracionPagoTransaccion::MODO_CHECKOUT_PRO)
+            ->exists()
+            && ! $this->transaccionesIntegracion()->confirmadas()->exists();
     }
 
     // ==================== SCOPES ====================

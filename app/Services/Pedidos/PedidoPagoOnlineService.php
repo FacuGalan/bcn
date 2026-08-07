@@ -14,6 +14,8 @@ use App\Models\PedidoDeliveryPago;
 use App\Models\Sucursal;
 use App\Services\CuentaEmpresaService;
 use App\Services\IntegracionesPago\CobroIntegracionService;
+use App\Services\TenantService;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -115,6 +117,14 @@ class PedidoPagoOnlineService
     {
         $pedido = $transaccion->cobrable;
         if (! $pedido instanceof PedidoDelivery) {
+            return;
+        }
+
+        // Revisión 2026-08-07: solo una tx CONFIRMADA acredita. Un pago
+        // aprobado sobre una tx terminal (expirada/cancelada — pagó sobre el
+        // borde o el link viejo de un re-pago) NO transiciona el pedido: ese
+        // camino es devolverPagoHuerfano() y lo enruta el webhook.
+        if (! $transaccion->estaConfirmada()) {
             return;
         }
 
@@ -264,19 +274,44 @@ class PedidoPagoOnlineService
             return ['estado' => 'fallido', 'url_pago' => null, 'expira_en' => null];
         }
 
-        // Pendiente vigente: estado VIVO de MP (el webhook puede venir en camino).
+        // Pendiente vigente: estado VIVO de MP (el webhook puede venir en
+        // camino). Cacheado unos segundos por tx (revisión 2026-08-07): el
+        // polling del retorno no debe convertir cada espectador en un hit a
+        // la API de MP.
+        $config = $tx->integracionSucursal;
         $estadoVivo = 'pendiente';
-        try {
-            $estadoVivo = $this->cobroService->consultarEstado($tx);
-        } catch (\Throwable $e) {
-            Log::warning('No se pudo consultar el estado vivo del checkout', [
-                'transaccion_id' => $tx->id,
-                'error' => $e->getMessage(),
-            ]);
+        $payloadVivo = [];
+
+        if ($config) {
+            try {
+                $comercioId = (int) app(TenantService::class)->getComercioId();
+                $resultado = Cache::remember(
+                    "checkout-vivo:{$comercioId}:{$tx->id}",
+                    8,
+                    fn () => $config->integracion->getGatewayInstance()->consultarEstado($config, $tx),
+                );
+                $estadoVivo = $resultado['estado'] ?? 'pendiente';
+                $payloadVivo = $resultado['payload'] ?? [];
+            } catch (\Throwable $e) {
+                Log::warning('No se pudo consultar el estado vivo del checkout', [
+                    'transaccion_id' => $tx->id,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Revisión 2026-08-07: si MP dice aprobado y el webhook todavía no
+        // llegó (o no llega nunca — su entrega no está garantizada), se
+        // acredita ACÁ MISMO: la re-consulta es autenticada, la misma verdad
+        // que usa el webhook. Sin esto, el retorno mostraba "aprobado" pero
+        // la tx seguía pendiente y el barrido expiraba un pedido PAGADO.
+        if ($estadoVivo === 'aprobado') {
+            $this->acreditarDesdeConsultaViva($tx, $payloadVivo);
         }
 
         return match ($estadoVivo) {
             'aprobado' => ['estado' => 'aprobado', 'url_pago' => null, 'expira_en' => null],
+            'devuelto' => ['estado' => 'devuelto', 'url_pago' => null, 'expira_en' => null],
             'fallido', 'cancelado' => [
                 'estado' => 'fallido',
                 'url_pago' => $tx->link_pago,
@@ -288,6 +323,71 @@ class PedidoPagoOnlineService
                 'expira_en' => $tx->expira_en?->toIso8601String(),
             ],
         };
+    }
+
+    /**
+     * Acreditación desde una re-consulta AUTENTICADA a MP (webhook perdido o
+     * demorado — revisión 2026-08-07): mismo circuito que el webhook —
+     * payment_id + confirmarCobro + procesarAcreditacion. Nunca lanza: la
+     * consulta del retorno no puede caerse por esto.
+     */
+    public function acreditarDesdeConsultaViva(IntegracionPagoTransaccion $transaccion, array $pago = []): void
+    {
+        try {
+            if (! $transaccion->estaPendiente()) {
+                return;
+            }
+
+            // payment_id ANTES de confirmar: el refund (RF-T82) lo necesita.
+            if (! empty($pago['id'])) {
+                $metadata = $transaccion->metadata ?? [];
+                $metadata['checkout'] = array_merge($metadata['checkout'] ?? [], ['payment_id' => (string) $pago['id']]);
+                $transaccion->metadata = $metadata;
+                $transaccion->save();
+            }
+
+            $this->cobroService->confirmarCobro($transaccion, null, $pago);
+            $this->procesarAcreditacion($transaccion->fresh());
+        } catch (\Throwable $e) {
+            Log::error('No se pudo acreditar el pago online desde la consulta viva', [
+                'transaccion_id' => $transaccion->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Gate del barrido de expiración para tx de checkout (revisión
+     * 2026-08-07): antes de expirar, mirar el estado VIVO — si el consumidor
+     * pagó y el webhook nunca llegó, expirar cancelaría un pedido PAGADO.
+     * true = NO expirar (quedó acreditada, o sin certeza se posterga al
+     * próximo barrido).
+     */
+    public function resolverAntesDeExpirar(IntegracionPagoTransaccion $transaccion): bool
+    {
+        $config = $transaccion->integracionSucursal;
+        if (! $config) {
+            return false;
+        }
+
+        try {
+            $resultado = $config->integracion->getGatewayInstance()->consultarEstado($config, $transaccion);
+        } catch (\Throwable $e) {
+            Log::warning('Checkout por expirar: sin estado vivo de MP — se posterga al próximo barrido', [
+                'transaccion_id' => $transaccion->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return true; // sin certeza no se expira: un pago hecho moriría cancelado
+        }
+
+        if (($resultado['estado'] ?? null) !== 'aprobado') {
+            return false;
+        }
+
+        $this->acreditarDesdeConsultaViva($transaccion, $resultado['payload'] ?? []);
+
+        return true;
     }
 
     /**
@@ -303,6 +403,10 @@ class PedidoPagoOnlineService
     public function devolver(IntegracionPagoTransaccion $transaccion, ?int $usuarioId = null): bool
     {
         if ($transaccion->estado === IntegracionPagoTransaccion::ESTADO_DEVUELTO) {
+            // Revisión 2026-08-07: si los contraasientos fallaron tras el
+            // refund, este reintento los completa (idempotentes por origen).
+            $this->registrarContraasientos($transaccion, $usuarioId);
+
             return true;
         }
 
@@ -345,6 +449,98 @@ class PedidoPagoOnlineService
         }
 
         return true;
+    }
+
+    /**
+     * Pago aprobado que llegó sobre una tx TERMINAL no confirmada (revisión
+     * 2026-08-07): el consumidor pagó sobre el borde de la expiración, o el
+     * link VIEJO tras un re-pago. La plata no corresponde a ningún cobro
+     * vivo — refund inmediato. Sin contraasientos: el ingreso nunca se
+     * registró (confirmarCobro no corrió para esta tx).
+     */
+    public function devolverPagoHuerfano(IntegracionPagoTransaccion $transaccion, array $pago = []): bool
+    {
+        if ($transaccion->estado === IntegracionPagoTransaccion::ESTADO_DEVUELTO) {
+            return true;
+        }
+
+        // payment_id del pago real: reembolsar() lo necesita.
+        if (! empty($pago['id'])) {
+            $metadata = $transaccion->metadata ?? [];
+            $metadata['checkout'] = array_merge($metadata['checkout'] ?? [], ['payment_id' => (string) $pago['id']]);
+            $transaccion->metadata = $metadata;
+            $transaccion->save();
+        }
+
+        $config = $transaccion->integracionSucursal;
+
+        try {
+            $refund = $config->integracion->getGatewayInstance()->reembolsar($config, $transaccion);
+        } catch (\Throwable $e) {
+            $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_DEVOLUCION_FALLIDA, null, [
+                'motivo' => $e->getMessage(),
+                'huerfano' => true,
+            ]);
+
+            Log::error('Refund de un pago huérfano FALLÓ: plata cobrada sin cobro vivo — revisar en el panel de MP', [
+                'transaccion_id' => $transaccion->id,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false; // el webhook responde 500 y MP reintenta la notificación
+        }
+
+        DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $refund) {
+            $transaccion->estado = IntegracionPagoTransaccion::ESTADO_DEVUELTO;
+            $transaccion->save();
+
+            $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_DEVUELTO, $refund, ['huerfano' => true]);
+        });
+
+        $pedido = $transaccion->cobrable;
+        if ($pedido instanceof PedidoDelivery) {
+            $this->broadcastSeguimientoPago($pedido, 'devuelto');
+        }
+
+        return true;
+    }
+
+    /**
+     * Refund hecho FUERA del sistema (panel de MP) o contracargo del
+     * consumidor, notificado por webhook sobre una tx CONFIRMADA (revisión
+     * 2026-08-07): antes se ignoraba y el ledger quedaba desfasado de la
+     * plata real hasta la conciliación. Marca la tx devuelta + contraasientos
+     * + aviso; el pedido queda como esté (decisión operativa del comercio).
+     */
+    public function registrarDevolucionExterna(IntegracionPagoTransaccion $transaccion, array $pago = []): void
+    {
+        if ($transaccion->estado === IntegracionPagoTransaccion::ESTADO_DEVUELTO) {
+            $this->registrarContraasientos($transaccion, null);
+
+            return;
+        }
+
+        if (! $transaccion->estaConfirmada()) {
+            return;
+        }
+
+        DB::connection('pymes_tenant')->transaction(function () use ($transaccion, $pago) {
+            $transaccion->estado = IntegracionPagoTransaccion::ESTADO_DEVUELTO;
+            $transaccion->save();
+
+            $this->registrarEvento($transaccion, IntegracionPagoEvento::EVENTO_DEVUELTO, $pago ?: null, ['origen' => 'externo']);
+        });
+
+        $this->registrarContraasientos($transaccion, null);
+
+        Log::warning('Devolución externa/contracargo de un cobro online: revisar el pedido asociado', [
+            'transaccion_id' => $transaccion->id,
+        ]);
+
+        $pedido = $transaccion->cobrable;
+        if ($pedido instanceof PedidoDelivery) {
+            $this->broadcastSeguimientoPago($pedido, 'devuelto');
+        }
     }
 
     // ==================== Helpers internos ====================
@@ -403,31 +599,36 @@ class PedidoPagoOnlineService
             $montoCobro = round((float) $transaccion->monto - $propina, 2);
             $usuario = (int) ($usuarioId ?? 0);
 
-            CuentaEmpresaService::registrarMovimientoAutomatico(
-                $cuenta,
-                'egreso',
-                $montoCobro,
-                'devolucion_integracion',
-                'IntegracionPagoTransaccion',
-                $transaccion->id,
-                "Devolución cobro online #{$transaccion->id} (pedido rechazado/cancelado)",
-                $usuario,
-                $transaccion->sucursal_id,
-            );
-
-            if ($propina > 0) {
+            // Atómico (revisión 2026-08-07): si el par cobro+propina se
+            // registrara a medias, la idempotencia por origen dejaría a la
+            // propina afuera para siempre.
+            DB::connection('pymes_tenant')->transaction(function () use ($cuenta, $montoCobro, $propina, $usuario, $transaccion) {
                 CuentaEmpresaService::registrarMovimientoAutomatico(
                     $cuenta,
                     'egreso',
-                    $propina,
+                    $montoCobro,
                     'devolucion_integracion',
                     'IntegracionPagoTransaccion',
                     $transaccion->id,
-                    "Devolución propina online #{$transaccion->id}",
+                    "Devolución cobro online #{$transaccion->id} (pedido rechazado/cancelado)",
                     $usuario,
                     $transaccion->sucursal_id,
                 );
-            }
+
+                if ($propina > 0) {
+                    CuentaEmpresaService::registrarMovimientoAutomatico(
+                        $cuenta,
+                        'egreso',
+                        $propina,
+                        'devolucion_integracion',
+                        'IntegracionPagoTransaccion',
+                        $transaccion->id,
+                        "Devolución propina online #{$transaccion->id}",
+                        $usuario,
+                        $transaccion->sucursal_id,
+                    );
+                }
+            });
         } catch (\Throwable $e) {
             Log::warning('No se pudieron registrar los contraasientos del refund', [
                 'transaccion_id' => $transaccion->id,
@@ -452,6 +653,28 @@ class PedidoPagoOnlineService
     protected function resolverBackUrl(?string $retornoUrl, PedidoDelivery $pedido): ?string
     {
         if (empty($retornoUrl)) {
+            return null;
+        }
+
+        // La API es pública (revisión 2026-08-07): un retorno_url arbitrario
+        // convertiría la preferencia REAL del comercio en un open redirect de
+        // phishing post-pago. Solo se acepta el dominio configurado de la
+        // tienda (y localhost en dev); lo demás se ignora — el pago funciona
+        // igual, sin back_url.
+        $host = parse_url($retornoUrl, PHP_URL_HOST);
+        $scheme = parse_url($retornoUrl, PHP_URL_SCHEME);
+        $permitidos = array_filter([
+            parse_url((string) config('tienda.url'), PHP_URL_HOST),
+            'localhost',
+            '127.0.0.1',
+        ]);
+
+        if (! in_array($scheme, ['http', 'https'], true) || ! in_array($host, $permitidos, true)) {
+            Log::warning('retorno_url del pago online ignorada: host fuera del dominio de la tienda', [
+                'pedido_id' => $pedido->id,
+                'host' => (string) $host,
+            ]);
+
             return null;
         }
 
