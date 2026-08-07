@@ -56,6 +56,17 @@ return [
      * del ID token). Sin esta env el endpoint responde 503 y la tienda no
      * muestra el botón.
      */
+    /*
+     * Cloudflare Turnstile (RF-T72, tienda online): anti-bot en
+     * registro/recuperar/restablecer de consumidores. El SITE KEY va en el
+     * .env de la TIENDA (renderiza el widget); acá va el SECRET (valida el
+     * token server-side). Sin secret el feature queda APAGADO (los
+     * endpoints no exigen el campo).
+     */
+    'turnstile' => [
+        'secret' => env('TURNSTILE_SECRET_KEY'),
+    ],
+
     'google' => [
         'client_id' => env('GOOGLE_CLIENT_ID'),
     ],

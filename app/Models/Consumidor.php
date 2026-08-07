@@ -60,6 +60,12 @@ class Consumidor extends Authenticatable
         return $this->hasMany(ConsumidorComercio::class, 'consumidor_id');
     }
 
+    /** RF-T66: dispositivos recordados (remember-token rotativo). */
+    public function dispositivos(): HasMany
+    {
+        return $this->hasMany(ConsumidorDispositivo::class, 'consumidor_id');
+    }
+
     /**
      * Cliente tenant mapeado para un comercio (null si el comercio todavía
      * no lo materializó, D11).
